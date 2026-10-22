@@ -91,7 +91,7 @@ export default function RichTextEditor(props: RichTextEditorProps) {
         compositionend() { referencesRef.current.composition(false); composing.current = false; current.current.onCompositionChange?.(false); queueMicrotask(() => { if (alive.current && instance.current) updateMention(instance.current); }); return false; },
       },
       handleKeyDown(view, event) {
-        if (event.isComposing || view.composing) return false;
+        if (event.isComposing || event.keyCode === 229 || view.composing || event.altKey || event.getModifierState('AltGraph')) return false;
         if (referencesRef.current.keyDown(event)) return true;
         if (mentionKeys.current(event)) return true;
         if (slashRef.current !== null) {
@@ -102,7 +102,7 @@ export default function RichTextEditor(props: RichTextEditorProps) {
         }
         if (event.key === '/' && !event.ctrlKey && !event.metaKey && view.state.selection.empty && view.state.selection.$from.parent.type.name === 'paragraph' && view.state.selection.$from.parent.content.size === 0) { setSlash(0); return true; }
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); event.stopPropagation(); openLink(); return true; }
-        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && current.current.onSave) { event.preventDefault(); event.stopPropagation(); current.current.onSave(); return true; }
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !event.repeat && current.current.onSave) { event.preventDefault(); event.stopPropagation(); current.current.onSave(); return true; }
         return false;
       },
     },
