@@ -4,6 +4,9 @@ set -Eeuo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+python3 scripts/test-workspace-boundaries.py
+python3 scripts/check-workspace-boundaries.py
+
 declare -A test_overrides
 for name in OPENTRACK_TEST_DATABASE_URL OPENTRACK_TEST_MIGRATION_DATABASE_URL OPENTRACK_TEST_OPERATOR_DATABASE_URL OPENTRACK_TEST_WORKER_DATABASE_URL; do
   if [[ -v "$name" ]]; then test_overrides["$name"]="${!name}"; fi
