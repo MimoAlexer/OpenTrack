@@ -433,7 +433,7 @@ impl App {
     ) -> Result<CycleSnapshot> {
         let mut tx = self.scoped(a, w, false).await?;
         let c = cycle(&mut tx, a, w, t, id).await?;
-        let mut s = current_scope(&mut tx, &c, "daily").await?;
+        let mut s = current_scope(&mut tx, &c, "current").await?;
         redact_snapshot(&mut tx, a, w, &mut s).await?;
         tx.commit().await.map_err(db_error)?;
         Ok(s)

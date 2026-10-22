@@ -66,6 +66,15 @@ describe('cycle planning screens', () => {
   it('shows real empty scope without a percentage and access-filtering context', async () => {
     await render(<ScopeSummary scope={{ ...snapshot, redacted: true }}/>); expect(container.textContent).toContain('No eligible issue scope'); expect(container.textContent).toContain('Hidden issue facts and counts are omitted'); expect(container.querySelector('progress')).toBeNull();
   });
+  it('distinguishes live scope, saved snapshots and an unsaved closure preview', async () => {
+    await render(<ScopeSummary scope={{ ...snapshot, kind: 'current' }}/>);
+    expect(container.textContent).toContain('Live scope calculated'); expect(container.textContent).not.toContain('Snapshot captured');
+    await render(<ScopeSummary scope={{ ...snapshot, kind: 'daily' }}/>);
+    expect(container.textContent).toContain('Snapshot captured'); expect(container.textContent).not.toContain('Live scope calculated');
+    await render(<ScopeSummary scope={{ ...snapshot, kind: 'closed' }} preview/>);
+    expect(container.textContent).toContain('Preview calculated'); expect(container.textContent).not.toContain('Snapshot captured');
+    expect(container.querySelector('time')?.dateTime).toBe(snapshot.captured_at);
+  });
   it('provides exact chart values in a real table with sparse snapshot dates', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(json(page([{ ...snapshot, id: 'one', unfinished_count: 3 }, { ...snapshot, id: 'two', local_date: '2026-03-30', captured_at: '2026-03-30T12:00:00Z', unfinished_count: 1 }])))));
     await render(<CycleHistory path="/cycles/cycle" refresh={0}/>); expect(container.querySelector('svg')).not.toBeNull(); expect(container.querySelectorAll('tbody tr')).toHaveLength(2); expect(container.querySelector('caption')?.textContent).toContain('exact chart values'); expect(container.textContent).toContain('2026-03-30'); expect(container.textContent).not.toContain('2026-03-29'); expect(container.textContent).toContain('Gaps are not interpolated');

@@ -1,0 +1,118 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "milestones persist outcomes, keyboard order and scoped assignment, then safely detach on deletion",
+      "status": "passed",
+      "duration_ms": 5059
+    },
+    {
+      "browser": "chromium",
+      "check": "milestone conflicts retain the typed draft and require a review of the saved version",
+      "status": "passed",
+      "duration_ms": 930
+    },
+    {
+      "browser": "chromium",
+      "check": "milestone loading and connection failure remain recoverable without fake empty counts",
+      "status": "passed",
+      "duration_ms": 532
+    },
+    {
+      "browser": "chromium",
+      "check": "cycle creation keeps DST calendar boundaries, rejects overlap and preserves a conflicting draft",
+      "status": "passed",
+      "duration_ms": 919
+    },
+    {
+      "browser": "chromium",
+      "check": "live cycle scope follows completed work while daily snapshots remain immutable across recapture and reload",
+      "status": "passed",
+      "duration_ms": 1200
+    },
+    {
+      "browser": "chromium",
+      "check": "cycle closure preserves issue state, accessible history and explicit conflict-aware carry-forward",
+      "status": "passed",
+      "duration_ms": 5606
+    },
+    {
+      "browser": "firefox",
+      "check": "milestones persist outcomes, keyboard order and scoped assignment, then safely detach on deletion",
+      "status": "passed",
+      "duration_ms": 3021
+    },
+    {
+      "browser": "firefox",
+      "check": "milestone conflicts retain the typed draft and require a review of the saved version",
+      "status": "passed",
+      "duration_ms": 1033
+    },
+    {
+      "browser": "firefox",
+      "check": "milestone loading and connection failure remain recoverable without fake empty counts",
+      "status": "passed",
+      "duration_ms": 621
+    },
+    {
+      "browser": "firefox",
+      "check": "cycle creation keeps DST calendar boundaries, rejects overlap and preserves a conflicting draft",
+      "status": "passed",
+      "duration_ms": 1339
+    },
+    {
+      "browser": "firefox",
+      "check": "live cycle scope follows completed work while daily snapshots remain immutable across recapture and reload",
+      "status": "passed",
+      "duration_ms": 1572
+    },
+    {
+      "browser": "firefox",
+      "check": "cycle closure preserves issue state, accessible history and explicit conflict-aware carry-forward",
+      "status": "passed",
+      "duration_ms": 8387
+    },
+    {
+      "browser": "webkit",
+      "check": "milestones persist outcomes, keyboard order and scoped assignment, then safely detach on deletion",
+      "status": "passed",
+      "duration_ms": 2697
+    },
+    {
+      "browser": "webkit",
+      "check": "milestone conflicts retain the typed draft and require a review of the saved version",
+      "status": "passed",
+      "duration_ms": 1250
+    },
+    {
+      "browser": "webkit",
+      "check": "milestone loading and connection failure remain recoverable without fake empty counts",
+      "status": "passed",
+      "duration_ms": 775
+    },
+    {
+      "browser": "webkit",
+      "check": "cycle creation keeps DST calendar boundaries, rejects overlap and preserves a conflicting draft",
+      "status": "passed",
+      "duration_ms": 1537
+    },
+    {
+      "browser": "webkit",
+      "check": "live cycle scope follows completed work while daily snapshots remain immutable across recapture and reload",
+      "status": "passed",
+      "duration_ms": 1469
+    },
+    {
+      "browser": "webkit",
+      "check": "cycle closure preserves issue state, accessible history and explicit conflict-aware carry-forward",
+      "status": "passed",
+      "duration_ms": 8228
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}
