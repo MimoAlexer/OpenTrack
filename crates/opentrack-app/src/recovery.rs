@@ -90,13 +90,40 @@ impl Operator {
     pub async fn consumer_status(&self, workspace: Uuid) -> Result<serde_json::Value> {
         let mut tx = store::begin(&self.pool).await.map_err(db_error)?;
         consumer_bounds(&mut tx).await?;
-        let status = sqlx::query_scalar("SELECT operator_consumer_status($1)")
+        let status = sqlx::query_scalar("SELECT operator_consumer_status($1) || jsonb_build_object('event_admission',operator_event_admission_status($1))")
             .bind(workspace)
             .fetch_one(&mut *tx)
             .await
             .map_err(operator_error)?;
         tx.commit().await.map_err(db_error)?;
         Ok(status)
+    }
+
+    pub async fn set_event_admission_limits(
+        &self,
+        workspace: Uuid,
+        max_pending_events: i64,
+        max_event_bytes: i64,
+        reason: &str,
+    ) -> Result<Uuid> {
+        if max_pending_events <= 0 || max_event_bytes <= 0 {
+            return Err(Error::Invalid(
+                "Event limits must be positive integers".into(),
+            ));
+        }
+        let reason = operator_reason(reason)?;
+        let mut tx = store::begin(&self.pool).await.map_err(db_error)?;
+        consumer_bounds(&mut tx).await?;
+        let correlation = sqlx::query_scalar("SELECT operator_event_admission_limits($1,$2,$3,$4)")
+            .bind(workspace)
+            .bind(max_pending_events)
+            .bind(max_event_bytes)
+            .bind(reason)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(operator_error)?;
+        tx.commit().await.map_err(db_error)?;
+        Ok(correlation)
     }
 
     pub async fn consumer_disposition(

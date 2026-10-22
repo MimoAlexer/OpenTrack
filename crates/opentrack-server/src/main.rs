@@ -83,7 +83,10 @@ async fn run() -> Result<(), String> {
         .fetch_one(&app.pool)
         .await
         .map_err(|_| "Cannot check schema")?;
-    if missing {
+    let admission_ready = opentrack_store::event_admission_ready(&app.pool)
+        .await
+        .map_err(|_| "Cannot check event admission schema")?;
+    if missing || !admission_ready {
         app.pool.close().await;
         return Err("Apply the current migrations before starting this server version".into());
     }

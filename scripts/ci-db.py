@@ -55,6 +55,8 @@ statements += [
     f"REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM {operator};",
     f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {runtime};",
     f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {runtime};",
+    f"SELECT 'REVOKE INSERT,UPDATE,DELETE ON public.workspace_stream_heads FROM {runtime}' WHERE EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('public.workspace_stream_heads') AND attname='retained_event_bytes' AND NOT attisdropped)\\gexec",
+    f"SELECT 'GRANT INSERT(workspace_id),UPDATE(last_seq) ON public.workspace_stream_heads TO {runtime}' WHERE EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('public.workspace_stream_heads') AND attname='retained_event_bytes' AND NOT attisdropped)\\gexec",
     f"SELECT 'REVOKE UPDATE, DELETE, TRUNCATE ON public.audit_entries FROM {runtime}' WHERE to_regclass('public.audit_entries') IS NOT NULL\\gexec",
     f"SELECT 'REVOKE UPDATE, DELETE, TRUNCATE ON public.account_security_events FROM {runtime}' WHERE to_regclass('public.account_security_events') IS NOT NULL\\gexec",
     f"ALTER DEFAULT PRIVILEGES FOR ROLE {migrator} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {runtime};",

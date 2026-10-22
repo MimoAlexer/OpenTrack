@@ -14,6 +14,7 @@ pub enum Action {
     OperatorConsumerDisposition,
     OperatorConsumerEnable,
     OperatorConsumerDisable,
+    OperatorEventLimits,
     OperatorCleanupResume,
     CheckConfig,
     PrintConfig,
@@ -29,6 +30,7 @@ impl Action {
                 | Self::OperatorConsumerDisposition
                 | Self::OperatorConsumerEnable
                 | Self::OperatorConsumerDisable
+                | Self::OperatorEventLimits
                 | Self::OperatorCleanupResume
         )
     }
@@ -55,6 +57,8 @@ pub struct Cli {
     pub operator_dead_letter: Option<uuid::Uuid>,
     pub operator_job: Option<uuid::Uuid>,
     pub operator_disposition: Option<String>,
+    pub max_pending_events: Option<i64>,
+    pub max_event_bytes: Option<i64>,
     pub output_file: Option<PathBuf>,
     pub once: bool,
 }
@@ -72,6 +76,8 @@ impl Default for Cli {
             operator_dead_letter: None,
             operator_job: None,
             operator_disposition: None,
+            max_pending_events: None,
+            max_event_bytes: None,
             output_file: None,
             once: false,
         }
@@ -104,6 +110,7 @@ impl Cli {
                     "operator-consumer-disposition" => Action::OperatorConsumerDisposition,
                     "operator-consumer-enable" => Action::OperatorConsumerEnable,
                     "operator-consumer-disable" => Action::OperatorConsumerDisable,
+                    "operator-event-limits" => Action::OperatorEventLimits,
                     "operator-cleanup-resume" => Action::OperatorCleanupResume,
                     "check-config" => Action::CheckConfig,
                     "print-config" => Action::PrintConfig,
@@ -137,6 +144,8 @@ impl Cli {
                     | "--dead-letter"
                     | "--job"
                     | "--disposition"
+                    | "--max-pending-events"
+                    | "--max-event-bytes"
             ) && !OVERRIDES.iter().any(|(name, _)| *name == flag)
             {
                 return Err(format!(
@@ -184,6 +193,19 @@ impl Cli {
                     }
                     cli.operator_disposition = Some(value);
                 }
+                "--max-pending-events" | "--max-event-bytes" => {
+                    let limit: i64 = value
+                        .parse()
+                        .map_err(|_| "Event limits require a positive integer")?;
+                    if limit <= 0 {
+                        return Err("Event limits require a positive integer".into());
+                    }
+                    if flag == "--max-pending-events" {
+                        cli.max_pending_events = Some(limit);
+                    } else {
+                        cli.max_event_bytes = Some(limit);
+                    }
+                }
                 "--reason" => {
                     let reason = value.trim();
                     if reason.is_empty()
@@ -224,6 +246,16 @@ impl Cli {
         }
         if seen.contains("--for") && cli.action != Action::CheckConfig {
             return Err("--for is supported only by check-config".into());
+        }
+        if cli.action == Action::OperatorEventLimits {
+            if cli.max_pending_events.is_none() || cli.max_event_bytes.is_none() {
+                return Err(
+                    "operator-event-limits requires --max-pending-events and --max-event-bytes"
+                        .into(),
+                );
+            }
+        } else if cli.max_pending_events.is_some() || cli.max_event_bytes.is_some() {
+            return Err("Event limits apply only to operator-event-limits".into());
         }
         if cli.action.is_consumer_operator() {
             if cli.operator_workspace.is_none() {
@@ -313,6 +345,8 @@ impl Cli {
                           Re-enable the registered consumer
   operator-cleanup-resume --workspace UUID --job UUID --reason TEXT
                           Resume a failed assignment cleanup with a new retry budget
+  operator-event-limits --workspace UUID --max-pending-events INTEGER --max-event-bytes INTEGER --reason TEXT
+                          Set durable event admission limits with an audited reason
   check-config            Validate settings and secrets for serving, without connecting
   check-config --for migrate  Validate settings and migration secret without connecting
   check-config --for operator Validate settings and operator secret without connecting

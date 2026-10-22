@@ -693,6 +693,7 @@ fn operator_configuration_needs_only_its_own_secret_and_bounds_lifetime() {
         Action::OperatorConsumerEnable,
         Action::OperatorConsumerDisable,
         Action::OperatorCleanupResume,
+        Action::OperatorEventLimits,
     ] {
         settings.validate_secrets(action).unwrap();
     }
@@ -930,6 +931,63 @@ fn consumer_operator_commands_require_scoped_exact_arguments() {
             Ok(_) => panic!("invalid consumer operator command was accepted"),
             Err(message) => assert!(!message.contains("SECRET_CANARY")),
         }
+    }
+}
+
+#[test]
+fn event_admission_limits_require_both_positive_values_and_a_reason() {
+    let base = [
+        "operator-event-limits",
+        "--workspace",
+        "00000000-0000-4000-8000-000000000001",
+        "--reason",
+        "Capacity reviewed",
+    ];
+    let mut args = base.to_vec();
+    args.extend([
+        "--max-pending-events",
+        "100000",
+        "--max-event-bytes",
+        "268435456",
+    ]);
+    let parsed = cli(&args);
+    assert_eq!(parsed.action, Action::OperatorEventLimits);
+    assert_eq!(parsed.max_pending_events, Some(100000));
+    assert_eq!(parsed.max_event_bytes, Some(268435456));
+    for value in ["0", "-1", "9223372036854775808", "SECRET_CANARY"] {
+        let mut invalid = base.to_vec();
+        invalid.extend([
+            "--max-pending-events",
+            value,
+            "--max-event-bytes",
+            "268435456",
+        ]);
+        let error = Cli::parse(invalid.into_iter().map(str::to_owned))
+            .err()
+            .unwrap();
+        assert!(!error.contains("SECRET_CANARY"));
+    }
+    for invalid in [
+        base.to_vec(),
+        vec![
+            "operator-event-limits",
+            "--workspace",
+            base[2],
+            "--max-pending-events",
+            "1",
+            "--max-event-bytes",
+            "1",
+        ],
+        vec![
+            "operator-consumer-status",
+            "--workspace",
+            base[2],
+            "--max-pending-events",
+            "1",
+        ],
+        vec!["serve", "--max-event-bytes", "1"],
+    ] {
+        assert!(Cli::parse(invalid.into_iter().map(str::to_owned)).is_err());
     }
 }
 
