@@ -28,3 +28,22 @@ it.each([false, true])('restores stacked-dialog focus when the trigger is remove
     expect(container.querySelectorAll('dialog[open]')).toHaveLength(1);
   } finally { await act(async () => root.unmount()); container.remove(); }
 });
+
+it('restores the invoking button after a pointer click that did not focus it', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
+  function Example() {
+    const [open, setOpen] = useState(false);
+    return <><button onClick={() => setOpen(true)}>Open form</button>{open && <Modal title="Edit example" close={() => setOpen(false)}><input data-autofocus aria-label="Example title" /></Modal>}</>;
+  }
+  const container = document.createElement('div'); document.body.append(container); const root = createRoot(container);
+  try {
+    await act(async () => root.render(<Example />));
+    const trigger = container.querySelector('button')!;
+    await act(async () => { trigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })); trigger.click(); });
+    expect(document.activeElement).toBe(container.querySelector('input'));
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Close dialog"]')!.click());
+    expect(document.activeElement).toBe(trigger);
+  } finally { await act(async () => root.unmount()); container.remove(); }
+});
