@@ -9,16 +9,231 @@ import argparse
 import hashlib
 import http.cookiejar
 from html.parser import HTMLParser
+import inspect
 import json
 import os
 from pathlib import Path
 import re
 import secrets
 import subprocess
+import tarfile
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+
+
+RECOVERY_VOLUMES = ("database", "blobs", "database_secrets", "api_secrets",
+                    "migration_secrets", "worker_secrets", "operator_secrets")
+RECOVERY_LABEL = "org.opentrack.qualification.recovery"
+RELAY_COMMAND = ["reverse-proxy", "--from", "http://:8080", "--to", "http://app:8080"]
+RELAY_TMPFS = ["/data:uid=10001,gid=10001,mode=0700,size=4m",
+               "/config:uid=10001,gid=10001,mode=0700,size=4m"]
+DATABASE_FINGERPRINT = """
+SELECT jsonb_build_object(
+ 'tables',(SELECT jsonb_agg(jsonb_build_array(c.relname,pg_get_userbyid(c.relowner),
+   c.relacl,c.relrowsecurity,c.relforcerowsecurity,
+   query_to_xml(format('SELECT md5(coalesce(string_agg(to_jsonb(t)::text,chr(10) ORDER BY to_jsonb(t)::text),'''')) AS digest FROM public.%I t',c.relname),false,true,'')::text)
+   ORDER BY c.relname) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+   WHERE n.nspname='public' AND c.relkind='r'),
+ 'sequences',(SELECT jsonb_agg(to_jsonb(s) ORDER BY sequencename) FROM pg_sequences s WHERE schemaname='public'),
+ 'functions',(SELECT jsonb_agg(jsonb_build_array(p.oid::regprocedure::text,
+   pg_get_userbyid(p.proowner),p.proacl,p.proconfig,pg_get_functiondef(p.oid)) ORDER BY p.oid::regprocedure::text)
+   FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('public','opentrack_extensions') AND p.prokind='f'),
+ 'policies',(SELECT jsonb_agg(to_jsonb(p) ORDER BY tablename,policyname) FROM pg_policies p WHERE schemaname='public'),
+ 'schemas',(SELECT jsonb_agg(jsonb_build_array(nspname,pg_get_userbyid(nspowner),nspacl) ORDER BY nspname)
+   FROM pg_namespace WHERE nspname IN ('public','opentrack_extensions')),
+ 'database',(SELECT jsonb_build_array(pg_get_userbyid(datdba),datacl) FROM pg_database WHERE datname=current_database()),
+ 'roles',(SELECT jsonb_agg(jsonb_build_array(rolname,rolsuper,rolcreatedb,rolcreaterole,rolinherit,
+   rolcanlogin,rolreplication,rolbypassrls,rolconfig) ORDER BY rolname) FROM pg_roles
+   WHERE rolname IN ('opentrack','opentrack_migrator','opentrack_worker','opentrack_operator'))
+)::text
+"""
+
+
+def validate_project(project):
+    require(isinstance(project, str) and re.fullmatch(r"opentrack-smoke-[a-z0-9-]+", project),
+            "Use an explicitly disposable opentrack-smoke-* project")
+    return project
+
+
+def validate_compose(config, project, port):
+    require(config.get("name") == validate_project(project), "Compose resolved a different project")
+    volumes = config.get("volumes", {})
+    require(set(RECOVERY_VOLUMES) <= set(volumes) <= set(RECOVERY_VOLUMES) | {"operator_output"},
+            "Recovery requires exactly the normal installation volume inventory")
+    for name, volume in volumes.items():
+        require(not volume.get("external") and not volume.get("driver_opts")
+                and volume.get("driver") in (None, "local") and volume.get("name") == f"{project}_{name}",
+                "Recovery refuses external or renamed installation volumes")
+    networks = config.get("networks", {})
+    require(set(networks) == {"database", "web", "offline_ingress"}
+            and all(bool(network.get("internal")) == (name != "offline_ingress") and not network.get("external")
+                             and network.get("name") == f"{project}_{name}"
+                             for name, network in networks.items()),
+            "Offline qualification requires internal application networks and one owned relay network")
+    require("offline-relay" in config.get("services", {}), "Offline qualification requires its fixed HTTP relay")
+    for name, service in config.get("services", {}).items():
+        require(not service.get("privileged") and not service.get("volumes_from")
+                and service.get("network_mode") in (None, "none"),
+                "Recovery refuses privileged services or shared network/volume namespaces")
+        require(set(service.get("networks", {})) <= set(networks), "Service references an unknown network")
+        require(all(mount.get("type") == "volume" and mount.get("source") in volumes
+                    for mount in service.get("volumes", [])), "Recovery refuses host-bound volumes")
+        ports = service.get("ports", [])
+        if name == "offline-relay":
+            require(service.get("image") == "opentrack-proxy:local"
+                    and service.get("entrypoint") == ["caddy"]
+                    and service.get("command") == RELAY_COMMAND
+                    and set(service.get("networks", {})) == {"web", "offline_ingress"}
+                    and not service.get("volumes") and set(service.get("tmpfs", [])) == set(RELAY_TMPFS)
+                    and service.get("user") == "10001:10001" and service.get("read_only")
+                    and service.get("cap_drop") == ["ALL"] and not service.get("cap_add")
+                    and service.get("security_opt") == ["no-new-privileges:true"],
+                    "Offline relay must be the fixed nonroot proxy without persistent or secret mounts")
+            require(len(ports) == 1 and ports[0].get("host_ip") == "127.0.0.1"
+                    and str(ports[0].get("published")) == str(port)
+                    and ports[0].get("target") == 8080, "Recovery requires the owned loopback relay port")
+        else:
+            require("offline_ingress" not in service.get("networks", {}),
+                    "Application services cannot use the relay's outward network")
+            require(not ports, "Recovery refuses additional published ports")
+
+
+def safe_members(archive):
+    members = archive.getmembers()
+    names = {}
+    for member in members:
+        path = Path(member.name)
+        # Check POSIX names explicitly even when boundary tests run on Windows.
+        parts = member.name.split("/")
+        normalized = "/".join(part for part in parts if part and part != ".")
+        require(not path.is_absolute() and not member.name.startswith("/")
+                and ".." not in parts and "\\" not in member.name and ":" not in member.name
+                and normalized not in names and (member.isdir() or member.isfile())
+                and not (member.mode & 0o7000) and member.uid in (0, 999, 10001)
+                and member.gid in (0, 999, 10001), "Unsafe recovery archive entry")
+        require(normalized or member.isdir(), "Recovery archive root must be a directory")
+        names[normalized] = member.isdir()
+    require("" in names and members, "Recovery archive has no volume root")
+    for name in set(names) - {""}:
+        parent = name.rpartition("/")[0]
+        require(names.get(parent), "Recovery archive omits a parent directory")
+    return members
+
+
+def checked_archive(path, checksum):
+    require(path.is_file() and not path.is_symlink() and checksum.is_file()
+            and not checksum.is_symlink(), "Recovery archive or checksum is missing")
+    expected = checksum.read_text(encoding="ascii").strip()
+    require(re.fullmatch(r"[0-9a-f]{64}", expected), "Recovery archive checksum is malformed")
+    with path.open("rb") as source:
+        actual = hashlib.file_digest(source, "sha256").hexdigest()
+    require(actual == expected, "Recovery archive checksum differs")
+    archive = tarfile.open(path, "r:")
+    try:
+        safe_members(archive)
+    except BaseException:
+        archive.close()
+        raise
+    return archive
+
+
+def volume_operation(action, volume, storage_key=None):
+    """Run only inside the isolated bootstrap helper with two named mounts."""
+    require(volume in RECOVERY_VOLUMES, "Unknown recovery volume")
+    root, backup = Path("/volume"), Path("/backup")
+    archive_path, checksum = backup / f"{volume}.tar", backup / f"{volume}.sha256"
+    if action == "snapshot":
+        os.chmod(backup, 0o700)
+        with archive_path.open("xb") as output:
+            os.chmod(archive_path, 0o600)
+            with tarfile.open(fileobj=output, mode="w") as archive:
+                archive.add(root, arcname=".", recursive=True)
+            output.flush()
+            os.fsync(output.fileno())
+        with archive_path.open("rb") as source:
+            digest = hashlib.file_digest(source, "sha256").hexdigest()
+        with checksum.open("x", encoding="ascii") as output:
+            os.chmod(checksum, 0o600)
+            output.write(digest + "\n")
+            output.flush()
+            os.fsync(output.fileno())
+        with checked_archive(archive_path, checksum):
+            pass
+        return
+    if action in ("reject-missing", "reject-corrupt"):
+        require(not any(root.iterdir()), "Failure fixture target is not empty")
+        damaged = backup / f"{volume}.failure.tar"
+        require(not damaged.exists(), "Failure fixture already exists")
+        try:
+            if action == "reject-corrupt":
+                with archive_path.open("rb") as source, damaged.open("xb") as target:
+                    os.chmod(damaged, 0o600)
+                    target.write(bytes([source.read(1)[0] ^ 1]))
+                    while chunk := source.read(1024 * 1024):
+                        target.write(chunk)
+            try:
+                with checked_archive(damaged, checksum):
+                    pass
+            except (RuntimeError, OSError, tarfile.TarError):
+                require(not any(root.iterdir()), "Rejected archive changed the target")
+                return
+            raise RuntimeError("Damaged recovery archive was accepted")
+        finally:
+            if damaged.exists():
+                damaged.unlink()
+    with checked_archive(archive_path, checksum) as archive:
+        members = safe_members(archive)
+        if action == "restore":
+            require(not any(root.iterdir()), "Recovery refuses a nonempty target volume")
+            options = {"numeric_owner": True}
+            if hasattr(tarfile, "fully_trusted_filter"):
+                options["filter"] = "fully_trusted"
+            archive.extractall(root, members=members, **options)
+        elif action in ("missing-blob", "corrupt-blob", "repair-blob"):
+            require(volume == "blobs" and re.fullmatch(r"[0-9a-f-]{36}", storage_key or ""),
+                    "Blob fault must address the owned attachment fixture")
+            name = f"blobs/objects/{storage_key}"
+            member = next((item for item in members if item.name.removeprefix("./") == name), None)
+            require(member is not None and member.isfile(), "Attachment fixture is absent from the backup")
+            target = root / name
+            require(not target.is_symlink(), "Blob fault refuses a linked object")
+            if action == "missing-blob":
+                target.unlink()
+            else:
+                with archive.extractfile(member) as source:
+                    content = source.read()
+                if action == "corrupt-blob":
+                    require(content, "Corruption fixture must contain bytes")
+                    content = bytes([content[0] ^ 1]) + content[1:]
+                if target.exists():
+                    os.chmod(target, 0o600)
+                with target.open("wb") as output:
+                    output.write(content)
+                    output.flush()
+                    os.fsync(output.fileno())
+                os.chown(target, member.uid, member.gid)
+                os.chmod(target, member.mode)
+            return
+        else:
+            require(action == "verify", "Unknown recovery operation")
+        expected = {item.name.removeprefix("./").rstrip("/") for item in members}
+        expected.discard(".")
+        require({path.relative_to(root).as_posix() for path in root.rglob("*")} == expected,
+                "Restored volume inventory differs from its snapshot")
+        for member in members:
+            target = root / member.name
+            require(not target.is_symlink(), "Restored entry is linked")
+            info = target.stat()
+            require(info.st_uid == member.uid and info.st_gid == member.gid
+                    and info.st_mode & 0o7777 == member.mode
+                    and target.is_dir() == member.isdir(), "Restored ownership, permissions or type differ")
+            if member.isfile():
+                with target.open("rb") as current, archive.extractfile(member) as original:
+                    require(hashlib.file_digest(current, "sha256").digest()
+                            == hashlib.file_digest(original, "sha256").digest(),
+                            "Restored volume bytes differ from their snapshot")
 
 
 def require(condition, message):
@@ -41,8 +256,7 @@ class FrontendAssets(HTMLParser):
 
 class Qualification:
     def __init__(self, args):
-        require(re.fullmatch(r"opentrack-smoke-[a-z0-9-]+", args.project),
-                "Use an explicitly disposable opentrack-smoke-* project")
+        validate_project(args.project)
         origin = urllib.parse.urlsplit(args.url)
         require(origin.scheme == "http" and origin.hostname in ("localhost", "127.0.0.1")
                 and not origin.username and not origin.password
@@ -52,6 +266,10 @@ class Qualification:
         self.project = args.project
         self.port = origin.port or 80
         self.compose = ["docker", "compose", "--project-name", args.project, "--file", "compose.yaml"]
+        self.compose_files = getattr(args, "compose_file", [])
+        for file in self.compose_files:
+            self.compose.extend(["--file", file])
+        self.environment = {**os.environ, "OPENTRACK_HTTP_PORT": str(self.port)}
         self.cookies = http.cookiejar.CookieJar()
         self.http = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookies))
         self.csrf = None
@@ -60,13 +278,21 @@ class Qualification:
         self.expected_architecture = args.expected_architecture
 
     def command(self, arguments, *, timeout=90, allowed=(0,)):
-        result = subprocess.run(arguments, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(arguments, env=self.environment, capture_output=True, text=True, timeout=timeout)
         require(result.returncode in allowed,
                 f"Container command failed ({result.returncode}); inspect the project logs")
         return result
 
     def dc(self, *arguments, **kwargs):
-        return self.command(self.compose + list(arguments), **kwargs)
+        operation = arguments[0] if arguments else "unknown"
+        if arguments and arguments[0] in ("up", "run"):
+            arguments = (arguments[0], "--pull", "never", *arguments[1:])
+        if arguments and arguments[0] == "up" and "--no-build" not in arguments:
+            arguments = (arguments[0], "--no-build", *arguments[1:])
+        try:
+            return self.command(self.compose + list(arguments), **kwargs)
+        except RuntimeError as error:
+            raise RuntimeError(f"Compose {operation} failed; inspect the owned project logs") from error
 
     def record(self, message):
         self.checks.append(message)
@@ -91,7 +317,8 @@ class Qualification:
             status, received = reply.status, reply.read()
             response_headers = reply.headers
         require(status in expected, f"Unexpected HTTP {status} for {method} {path}")
-        if "application/json" in response_headers.get("Content-Type", ""):
+        media_type = response_headers.get("Content-Type", "").partition(";")[0].strip().lower()
+        if media_type in ("application/json", "application/problem+json"):
             return json.loads(received), response_headers
         return received, response_headers
 
@@ -122,14 +349,280 @@ class Qualification:
         require(identifier and "\n" not in identifier, f"Expected one {service} container")
         return json.loads(self.command(["docker", "inspect", identifier]).stdout)[0]
 
+    def volume_info(self, name, *, missing=False, optional=False):
+        result = self.command(["docker", "volume", "inspect", name], allowed=(0, 1))
+        if result.returncode:
+            require(missing or optional, "Owned installation volume is missing")
+            return None
+        require(not missing, "Recovery refuses a preexisting destination volume")
+        information = json.loads(result.stdout)
+        require(len(information) == 1 and information[0].get("Name") == name,
+                "Docker resolved an unexpected volume")
+        return information[0]
+
+    def cleanup_recovery(self, *, remove_backup=False):
+        target = self.project + "-restore"
+        restored = Qualification(argparse.Namespace(project=target, url=self.url,
+                                 output=str(self.output), expected_architecture=self.expected_architecture,
+                                 compose_file=self.compose_files))
+        config = json.loads(restored.dc("config", "--format", "json").stdout)
+        validate_compose(config, target, self.port)
+        backup = self.project + "_recovery_backup"
+        information = self.volume_info(backup, optional=True)
+        if information:
+            require((information.get("Labels") or {}).get(RECOVERY_LABEL) == self.project,
+                    "Cleanup refuses a backup without its ownership label")
+        volumes = self.command(["docker", "volume", "ls", "--quiet", "--filter",
+                                f"label=com.docker.compose.project={target}"]).stdout.split()
+        require(set(volumes) <= {f"{target}_{name}" for name in config["volumes"]},
+                "Cleanup found volumes outside the exact restore inventory")
+        for volume in volumes:
+            labels = self.volume_info(volume).get("Labels") or {}
+            require(labels.get(RECOVERY_LABEL) == self.project
+                    and labels.get("com.docker.compose.project") == target
+                    and labels.get("com.docker.compose.volume") == volume.removeprefix(target + "_"),
+                    "Cleanup refuses a restore volume without its ownership labels")
+        containers = self.command(["docker", "ps", "--all", "--quiet", "--filter",
+                                   f"label=com.docker.compose.project={target}"]).stdout.split()
+        if containers:
+            require(information, "Cleanup refuses containers without the original recovery backup")
+            for container in json.loads(self.command(["docker", "inspect", *containers]).stdout):
+                labels = container["Config"].get("Labels") or {}
+                require(labels.get("com.docker.compose.project") == target
+                        and labels.get("com.docker.compose.service") in config["services"]
+                        and all(mount["Type"] == "tmpfs" or (mount["Type"] == "volume"
+                                and mount.get("Name") in volumes) for mount in container["Mounts"]),
+                        "Cleanup refuses an unrelated container or mounted volume")
+        networks = self.command(["docker", "network", "ls", "--quiet", "--filter",
+                                 f"label=com.docker.compose.project={target}"]).stdout.split()
+        if networks:
+            require(information, "Cleanup refuses networks without the original recovery backup")
+            for network in json.loads(self.command(["docker", "network", "inspect", *networks]).stdout):
+                require(network.get("Name") in {f"{target}_{name}" for name in config["networks"]}
+                        and (network.get("Labels") or {}).get("com.docker.compose.project") == target,
+                        "Cleanup refuses an unrelated network")
+        helper = self.command(["docker", "container", "inspect", self.project + "-recovery-helper"], allowed=(0, 1))
+        if not helper.returncode:
+            helper_info = json.loads(helper.stdout)[0]
+            allowed = set(volumes) | {f"{self.project}_{name}" for name in RECOVERY_VOLUMES} | {backup}
+            require((helper_info["Config"].get("Labels") or {}).get(RECOVERY_LABEL) == self.project
+                    and helper_info["HostConfig"].get("NetworkMode") == "none"
+                    and all(mount["Type"] == "volume" and mount.get("Name") in allowed for mount in helper_info["Mounts"]),
+                    "Cleanup refuses an unrelated recovery helper")
+            self.command(["docker", "container", "rm", "--force", self.project + "-recovery-helper"])
+        if containers or networks:
+            restored.dc("down", "--timeout", "35", timeout=90)
+        for volume in volumes:
+            self.command(["docker", "volume", "rm", volume])
+        if remove_backup and information:
+            self.command(["docker", "volume", "rm", backup])
+
+    def volume_task(self, action, project, volume, backup, image, storage_key=None):
+        require(project in (self.project, self.project + "-restore") and volume in RECOVERY_VOLUMES,
+                "Recovery refuses a volume outside its exact source/target inventory")
+        require(backup == self.project + "_recovery_backup", "Recovery backup is outside its owned inventory")
+        information = self.volume_info(f"{project}_{volume}")
+        labels = information.get("Labels") or {}
+        require(labels.get("com.docker.compose.project") == project
+                and labels.get("com.docker.compose.volume") == volume,
+                "Recovery volume has unexpected ownership labels")
+        backup_info = self.volume_info(backup)
+        require((backup_info.get("Labels") or {}).get(RECOVERY_LABEL) == self.project,
+                "Recovery backup has unexpected ownership labels")
+        require(project != self.project or action == "snapshot", "Recovery refuses to change a source volume")
+        helper = "import hashlib, os, re, signal, sys, tarfile\nfrom pathlib import Path\nsignal.alarm(150)\n"
+        helper += "RECOVERY_VOLUMES = " + repr(RECOVERY_VOLUMES) + "\n"
+        helper += "\n\n".join(inspect.getsource(function)
+                                 for function in (require, safe_members, checked_archive, volume_operation))
+        helper += "\ntry:\n    volume_operation(*sys.argv[1:])\nexcept RuntimeError as error:\n    raise SystemExit('Recovery validation rejected: ' + str(error))\nexcept OSError as error:\n    raise SystemExit('Recovery filesystem failure: errno=' + str(error.errno))\nexcept (ValueError, tarfile.TarError):\n    raise SystemExit('Recovery archive failure: invalid format')\n"
+        readonly = action in ("snapshot", "verify", "reject-missing", "reject-corrupt")
+        mount = f"type=volume,src={project}_{volume},dst=/volume" + (",readonly" if readonly else "")
+        result = self.command(["docker", "run", "--rm", "--pull", "never", "--network", "none",
+                             "--name", self.project + "-recovery-helper", "--label", f"{RECOVERY_LABEL}={self.project}",
+                             "--read-only", "--user", "0:0", "--cap-drop", "ALL",
+                             "--cap-add", "DAC_OVERRIDE", "--cap-add", "CHOWN", "--cap-add", "FOWNER",
+                             "--security-opt", "no-new-privileges:true", "--mount", mount,
+                             "--mount", f"type=volume,src={backup},dst=/backup",
+                             "--entrypoint", "python3", image, "-c", helper, action, volume,
+                             *([storage_key] if storage_key else [])], timeout=180,
+                            allowed=(0, 1))
+        if result.returncode and action != "verify":
+            reason = next((line for line in result.stderr.splitlines()
+                           if line.startswith(("Recovery validation rejected:", "Recovery filesystem failure:",
+                                               "Recovery archive failure:"))), "helper command failed")
+            raise RuntimeError(f"Recovery {action} for {volume} rejected: {reason}")
+        return result
+
+    def database_fingerprint(self):
+        return hashlib.sha256(self.sql(DATABASE_FINGERPRINT).encode()).digest()
+
+    def verify_offline_runtime(self, config):
+        containers = self.command(["docker", "ps", "--quiet", "--filter",
+                                   f"label=com.docker.compose.project={self.project}"]).stdout.split()
+        require(containers, "Offline qualification requires running project containers")
+        for container in json.loads(self.command(["docker", "inspect", *containers]).stdout):
+            labels = container["Config"].get("Labels") or {}
+            service = labels.get("com.docker.compose.service")
+            require(labels.get("com.docker.compose.project") == self.project and service in config["services"]
+                    and container["HostConfig"].get("NetworkMode") not in ("host", "default", "bridge")
+                    and not container["HostConfig"].get("NetworkMode", "").startswith("container:"),
+                    "Offline qualification refuses a shared or foreign runtime network namespace")
+            attached = container["NetworkSettings"].get("Networks") or {}
+            expected = {config["networks"][name]["name"] for name in config["services"][service].get("networks", {})}
+            require(set(attached) == expected, "Offline runtime has an unexpected network attachment")
+            if service == "offline-relay":
+                require(container["Config"].get("Image") == "opentrack-proxy:local"
+                        and container["Config"].get("Entrypoint") == ["caddy"]
+                        and container["Config"].get("Cmd") == RELAY_COMMAND
+                        and container["Config"].get("User") == "10001:10001"
+                        and container["HostConfig"].get("ReadonlyRootfs")
+                        and container["HostConfig"].get("CapDrop") == ["ALL"]
+                        and not container["HostConfig"].get("CapAdd")
+                        and all(mount["Type"] == "tmpfs" for mount in container["Mounts"]),
+                        "Running relay must be the fixed nonroot proxy without secret or persistent mounts")
+            else:
+                require(not any((container["HostConfig"].get("PortBindings") or {}).values()),
+                        "Application services cannot publish ports in the offline fixture")
+            for name, attachment in attached.items():
+                network = json.loads(self.command(["docker", "network", "inspect", attachment["NetworkID"]]).stdout)[0]
+                outward = service == "offline-relay" and name == f"{self.project}_offline_ingress"
+                require(network.get("Name") == name and bool(network.get("Internal")) == (not outward)
+                        and (network.get("Labels") or {}).get("com.docker.compose.project") == self.project,
+                        "Offline runtime network is external or belongs to another project")
+
+    def cold_recovery(self, account, password, issue_path, attachment, body, digest):
+        config = json.loads(self.dc("config", "--format", "json").stdout)
+        validate_compose(config, self.project, self.port)
+        restored = Qualification(argparse.Namespace(project=self.project + "-restore", url=self.url,
+                                 output=str(self.output), expected_architecture=self.expected_architecture,
+                                 compose_file=self.compose_files))
+        validate_compose(json.loads(restored.dc("config", "--format", "json").stdout), restored.project, self.port)
+        for kind in ("container", "volume", "network"):
+            arguments = ["docker", "ps", "--all", "--quiet"] if kind == "container" else ["docker", kind, "ls", "--quiet"]
+            require(not self.command(arguments + ["--filter", f"label=com.docker.compose.project={restored.project}"]).stdout.strip(),
+                    "Recovery requires a new disposable target project")
+        for name in config["volumes"]:
+            self.volume_info(f"{restored.project}_{name}", missing=True)
+        backup = self.project + "_recovery_backup"
+        self.volume_info(backup, missing=True)
+        bootstrap_image = self.container("initialize")["Image"]
+        source_image = self.container("app")["Image"]
+        relay_image = self.container("offline-relay")["Image"]
+        database_image = self.container("database")["Image"]
+        self.command(["docker", "volume", "create", "--label", f"{RECOVERY_LABEL}={self.project}", backup])
+        source_stopped = False
+        try:
+            source_stopped = True
+            self.dc("stop", "--timeout", "35", "app", "worker", timeout=70)
+            fingerprint = self.database_fingerprint()
+            token_hash = hashlib.sha256(self.setup_token().encode()).digest()
+            attachment_id = attachment.rsplit("/", 1)[1]
+            require(re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", attachment_id),
+                    "Recovery attachment must have a canonical fixture ID")
+            storage_key = self.sql("SELECT storage_key::text FROM attachments WHERE id='" + attachment_id + "'::uuid")
+            require(re.fullmatch(r"[0-9a-f-]{36}", storage_key), "Recovery attachment fixture has no storage key")
+            self.dc("stop", "--timeout", "35", timeout=90)
+            containers = self.dc("ps", "--all", "--quiet").stdout.split()
+            require(containers, "Recovery source has no containers")
+            states = json.loads(self.command(["docker", "inspect", *containers]).stdout)
+            require(all(not item["State"]["Running"] and not item["State"].get("Restarting")
+                        and item["State"]["ExitCode"] == 0 for item in states),
+                    "A coherent cold snapshot requires every source service stopped cleanly")
+            for name in RECOVERY_VOLUMES:
+                self.volume_task("snapshot", self.project, name, backup, bootstrap_image)
+            for name in config["volumes"]:
+                volume = f"{restored.project}_{name}"
+                self.command(["docker", "volume", "create", "--label", f"{RECOVERY_LABEL}={self.project}",
+                              "--label", f"com.docker.compose.project={restored.project}",
+                              "--label", f"com.docker.compose.volume={name}", volume])
+            self.record("fully stopped database, blobs and five matching secret volumes archived privately")
+            for action in ("reject-missing", "reject-corrupt"):
+                self.volume_task(action, restored.project, "blobs", backup, bootstrap_image)
+            self.record("missing and corrupt recovery archives rejected before target writes")
+            for name in RECOVERY_VOLUMES:
+                self.volume_task("restore", restored.project, name, backup, bootstrap_image)
+            self.record("all seven restored volume inventories, bytes, UID/GID and modes match their cold snapshots")
+            restored.dc("up", "--detach", "--wait", "--wait-timeout", "180", "database", timeout=240)
+            require(restored.container("database")["Image"] == database_image,
+                    "Recovery used a different database image")
+            require(restored.database_fingerprint() == fingerprint,
+                    "Recovered database data, sequences, migrations or authority differ")
+            role_check = """
+for pair in runtime-password:opentrack migration-password:opentrack_migrator worker-password:opentrack_worker operator-password:opentrack_operator; do
+    PGPASSWORD=$(cat "/run/secrets/${pair%:*}")
+    export PGPASSWORD
+    psql -X -q -w -v ON_ERROR_STOP=1 -h 127.0.0.1 -U "${pair#*:}" -d opentrack -tAc 'SELECT NOT rolsuper AND NOT rolbypassrls AND NOT rolcreatedb AND NOT rolcreaterole FROM pg_roles WHERE rolname=current_user' | grep -qx t
+done
+"""
+            restored.dc("exec", "-T", "database", "/bin/sh", "-eu", "-c", role_check)
+            require(hashlib.sha256(restored.setup_token().encode()).digest() == token_hash,
+                    "Recovered setup credential differs")
+            self.record("restored data/sequence/migration and owner/ACL/RLS/function fingerprints match; four restricted roles authenticate")
+            restored.cookies, restored.http, restored.csrf = self.cookies, self.http, self.csrf
+            restored.dc("up", "--detach", "--wait", "--wait-timeout", "180", "offline-relay", timeout=240)
+            restored.ready()
+            restored.verify_offline_runtime(json.loads(restored.dc("config", "--format", "json").stdout))
+            require(restored.container("app")["Image"] == source_image, "Recovery used a different application image")
+            require(restored.container("offline-relay")["Image"] == relay_image, "Recovery used a different relay image")
+            preserved, _ = restored.request(issue_path)
+            require(preserved["title"] == "Docker updated persistence acceptance" and preserved["priority"] == 2,
+                    "Restored session or issue state differs")
+            session, _ = restored.request("/api/v1/auth/login", "POST", {"email": account, "password": password})
+            restored.csrf = session["csrf_token"]
+            document, _ = restored.request(issue_path + "/document")
+            content, _ = restored.request(attachment + "/content")
+            require(document["body"] == body and hashlib.sha256(content).hexdigest() == digest,
+                    "Restored document or attachment checksum differs")
+            restored.request(attachment + "/content", authenticated=False, expected=(401,))
+            self.record("isolated offline restore preserves setup token, session, login, issue, document and populated attachment")
+            for action in ("missing-blob", "corrupt-blob"):
+                restored.dc("stop", "--timeout", "35", "app", timeout=55)
+                self.volume_task(action, restored.project, "blobs", backup, bootstrap_image, storage_key)
+                rejected = self.volume_task("verify", restored.project, "blobs", backup, bootstrap_image)
+                require(rejected.returncode == 1, "Recovery preflight accepted a missing or corrupt blob")
+                restored.dc("up", "--detach", "--wait", "--wait-timeout", "180", "--no-deps", "app", timeout=240)
+                restored.ready()
+                failure, headers = restored.request(attachment + "/content", expected=(503,))
+                require(isinstance(failure, dict) and failure.get("status") == 503
+                        and failure.get("code") == "dependency_unavailable"
+                        and headers.get("Cache-Control") == "no-store"
+                        and not headers.get("Content-Disposition"),
+                        "Unavailable attachment must return a non-download dependency problem")
+                restored.dc("stop", "--timeout", "35", "app", timeout=55)
+                self.volume_task("repair-blob", restored.project, "blobs", backup, bootstrap_image, storage_key)
+                require(self.volume_task("verify", restored.project, "blobs", backup, bootstrap_image).returncode == 0,
+                        "Original backup did not repair the faulted restore fixture")
+            self.record("missing/corrupt restored blobs fail preflight and authorized downloads without exposing bytes; original backup repairs both")
+        finally:
+            try:
+                self.cleanup_recovery()
+            finally:
+                if source_stopped:
+                    self.dc("up", "--detach", "--wait", "--wait-timeout", "180", timeout=240)
+                    self.ready()
+        self.record("only the owned restore project removed; source installation and private recovery backup retained")
+        return {"volumes": list(RECOVERY_VOLUMES), "backup_volume": backup,
+                "external_dispatch": "restored worker never started; application networks internal; fixed HTTP relay only",
+                "limitations": ["cold same-host/same-architecture snapshot, not an encrypted scheduled backup profile",
+                                "operator_output and optional HTTPS volumes are outside the normal runtime fixture",
+                                "provider encryption keys and future module data are not implemented fixture coverage",
+                                "private-team membership denial after restore requires a separate fixture",
+                                "not a prior-release migration failure or different-host restore rehearsal"]}
+
     def run(self):
+        config = json.loads(self.dc("config", "--format", "json").stdout)
+        validate_compose(config, self.project, self.port)
+        images = sorted({service["image"] for service in config["services"].values()})
+        self.command(["docker", "image", "inspect", *images])
+        self.verify_offline_runtime(config)
+        self.record("fresh runtime uses cached images, internal application networks and a fixed loopback HTTP relay")
         version = json.loads(self.command(["docker", "version", "--format", "{{json .Server}}"]).stdout)
         engine_version = re.match(r"^(\d+)\.", version.get("Version", ""))
         require(engine_version and int(engine_version.group(1)) >= 28,
                 "The loopback-only Docker path requires Engine server version 28 or newer")
         require(version.get("Os") == "linux" and version.get("Arch") == self.expected_architecture,
                 "Docker engine OS/architecture does not match the requested native Linux qualification")
-        published = self.dc("port", "app", "8080").stdout.strip()
+        published = self.dc("port", "offline-relay", "8080").stdout.strip()
         require(published == f"127.0.0.1:{self.port}", "Smoke URL must match the project's loopback port")
         self.ready()
         html, headers = self.request("/", headers={"Accept": "text/html"})
@@ -297,13 +790,16 @@ class Qualification:
         require(hashlib.sha256(final_file).hexdigest() == digest, "Data changed during credential failure recovery")
         self.record("missing secret fails closed; restoring the original file recovers the same data")
 
+        recovery = self.cold_recovery(account, password, issue_path, attachment, body, digest)
+
         receipt = {"project": self.project, "docker": version.get("Version"),
                    "compose": self.command(["docker", "compose", "version", "--short"]).stdout.strip(),
                    "architecture": version.get("Arch"), "expected_architecture": self.expected_architecture,
                    "runtime_images": runtime_images, "checks": self.checks,
+                   "recovery": recovery,
                    "attachment_bytes": len(content), "shutdown_seconds": round(elapsed, 2),
                    "limitations": ["not a native Docker Desktop host certification",
-                                   "not a full backup/restore or production TLS qualification"]}
+                                   "not whole-product recovery, provider-key recovery or production TLS qualification"]}
         self.output.parent.mkdir(parents=True, exist_ok=True)
         self.output.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
         print(f"Recorded {len(self.checks)} Docker runtime checks in {self.output}", flush=True)
@@ -315,9 +811,21 @@ def main():
     parser.add_argument("--url", default="http://localhost:18080")
     parser.add_argument("--expected-architecture", required=True, choices=("amd64", "arm64"))
     parser.add_argument("--output", default="work/docker-smoke/receipt.json")
+    parser.add_argument("--compose-file", action="append", default=[],
+                        help="Additional Compose override, applied after compose.yaml")
+    parser.add_argument("--cleanup-recovery", action="store_true",
+                        help="Remove only this smoke project's labelled restore fixture")
+    parser.add_argument("--cleanup-backup", action="store_true",
+                        help="With --cleanup-recovery, also remove its labelled synthetic backup")
     args = parser.parse_args()
     try:
-        Qualification(args).run()
+        require(not args.cleanup_backup or args.cleanup_recovery, "Backup cleanup requires explicit recovery cleanup")
+        qualification = Qualification(args)
+        if args.cleanup_recovery:
+            qualification.cleanup_recovery(remove_backup=args.cleanup_backup)
+            print("Only the exact owned recovery fixture was cleaned", flush=True)
+        else:
+            qualification.run()
     except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired) as error:
         raise SystemExit(f"Docker qualification failed: {error}") from None
 
