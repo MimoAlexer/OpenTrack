@@ -701,3 +701,123 @@ async fn slow_capture_has_a_real_statement_deadline_and_durable_retry() {
         std::panic::resume_unwind(error.into_panic());
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn selectors_isolate_poisoned_workspaces_and_reclaim_exact_bytes() {
+    async fn assert_bytes(h: &Harness, workspace: Uuid, expected: i64) {
+        let mut tx = fixture(h, workspace).await;
+        let (charged, total, exact): (i64, i64, bool) = sqlx::query_as(
+            "SELECT h.retained_event_bytes,coalesce(sum(e.storage_bytes),0)::bigint,coalesce(bool_and(e.storage_bytes=192+octet_length(e.event_type)::bigint+octet_length(e.actor_kind)::bigint),true) FROM workspace_stream_heads h LEFT JOIN workspace_events e USING(workspace_id) WHERE h.workspace_id=$1 GROUP BY h.retained_event_bytes",
+        )
+        .bind(workspace)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!((charged, total, exact), (expected, expected, true));
+        tx.commit().await.unwrap();
+    }
+
+    let h = Harness::with_connections(6).await;
+    let runner = h.clone();
+    let result = tokio::spawn(async move {
+        let h = &runner;
+        let (actor, initial) = setup(h).await;
+        let organization = h.app.organizations(&actor).await.unwrap()[0].id;
+        let second = h.app.create_workspace(&actor, "selector-second-workspace", req(json!({
+            "organization_id":organization,"name":"Selector second","team_name":"Operations","team_key":"OPS"
+        }))).await.unwrap();
+        let mut workspaces = [initial, second.id];
+        workspaces.sort();
+        let [poisoned, healthy] = workspaces;
+        let worker = worker(h).await;
+        for workspace in workspaces {
+            assert!(worker.capture(workspace).await.unwrap().backfilled);
+            drain(&worker, workspace).await;
+            age_events(h, workspace).await;
+            worker.retain(workspace, 1000).await.unwrap();
+            assert!(snapshot(h, workspace).await["events"].as_array().unwrap().is_empty());
+            assert_bytes(h, workspace, 0).await;
+        }
+
+        let (_, poison_seq) = event(h, &actor, poisoned, "access.changed", 2, true).await;
+        let first = event(h, &actor, healthy, "issue.updated", 1, true).await;
+        let second = event(h, &actor, healthy, "issue.updated", 1, true).await;
+        let poison_bytes = 192 + "access.changed".len() as i64 + "account".len() as i64;
+        let event_bytes = 192 + "issue.updated".len() as i64 + "account".len() as i64;
+        assert_bytes(h, poisoned, poison_bytes).await;
+        assert_bytes(h, healthy, 2 * event_bytes).await;
+        for _ in 0..4 {
+            due(h, poisoned).await;
+            assert!(!worker.capture(poisoned).await.unwrap().dead_lettered);
+        }
+        due(h, poisoned).await;
+        let poisoned_before = snapshot(h, poisoned).await;
+        let healthy_before = snapshot(h, healthy).await;
+        let mut capture_cursor = None;
+        let (workspace, outcome) = worker.capture_next(&mut capture_cursor).await.unwrap().unwrap();
+        assert_eq!((workspace, outcome.processed, outcome.captured, outcome.backfilled, outcome.dead_lettered),
+                   (poisoned, 0, 0, false, true));
+        assert_eq!(capture_cursor, Some(poisoned));
+        let failure = letter(h, poisoned, poison_seq).await;
+        assert_eq!(failure["attempts"], 5);
+        assert_eq!(failure["state"], "blocked");
+        assert_eq!(snapshot(h, poisoned).await, poisoned_before);
+
+        let (workspace, outcome) = worker.capture_next(&mut capture_cursor).await.unwrap().unwrap();
+        assert_eq!((workspace, outcome.processed, outcome.captured, outcome.backfilled, outcome.dead_lettered),
+                   (healthy, 2, 0, false, false));
+        assert_eq!(capture_cursor, Some(healthy));
+        let healthy_captured = snapshot(h, healthy).await;
+        assert_eq!(healthy_captured["checkpoint"]["last_seq"], second.1);
+        for field in ["events", "jobs", "progress", "head", "floor", "registration"] {
+            assert_eq!(healthy_captured[field], healthy_before[field]);
+        }
+        let receipts = healthy_captured["receipts"].as_array().unwrap();
+        assert_eq!(receipts.len(), 2);
+        for (receipt, (id, seq)) in receipts.iter().zip([first, second]) {
+            assert_eq!(receipt["event_id"], id.to_string());
+            assert_eq!(receipt["seq"], seq);
+            assert_eq!(receipt["state"], "ignored");
+            assert!(receipt["job_id"].is_null());
+        }
+        assert!(worker.capture_next(&mut capture_cursor).await.unwrap().is_none());
+        assert_eq!(capture_cursor, None);
+        for expected in workspaces {
+            let (workspace, outcome) = worker.capture_next(&mut capture_cursor).await.unwrap().unwrap();
+            assert_eq!((workspace, outcome.processed, outcome.captured, outcome.backfilled, outcome.dead_lettered),
+                       (expected, 0, 0, false, false));
+        }
+        assert!(worker.capture_next(&mut capture_cursor).await.unwrap().is_none());
+        assert_eq!(capture_cursor, None);
+        assert_eq!(snapshot(h, poisoned).await, poisoned_before);
+        assert_eq!(snapshot(h, healthy).await, healthy_captured);
+        assert_eq!(letter(h, poisoned, poison_seq).await, failure);
+
+        let mut retention_cursor = None;
+        for (through, remaining) in [(first.1, 1), (second.1, 0)] {
+            let (workspace, outcome) = worker.retain_next(&mut retention_cursor, 1).await.unwrap().unwrap();
+            assert_eq!((workspace, outcome.deleted, outcome.purged_through_seq), (poisoned, 0, poison_seq - 1));
+            assert_eq!(retention_cursor, Some(poisoned));
+            let (workspace, outcome) = worker.retain_next(&mut retention_cursor, 1).await.unwrap().unwrap();
+            assert_eq!((workspace, outcome.deleted, outcome.purged_through_seq), (healthy, 1, through));
+            assert_eq!(retention_cursor, Some(healthy));
+            let retained = snapshot(h, healthy).await;
+            assert_eq!(retained["events"].as_array().unwrap().len(), remaining as usize);
+            assert_eq!(retained["floor"], through);
+            for field in ["checkpoint", "jobs", "progress", "receipts", "head", "registration"] {
+                assert_eq!(retained[field], healthy_captured[field]);
+            }
+            assert_eq!(snapshot(h, poisoned).await, poisoned_before);
+            assert_eq!(letter(h, poisoned, poison_seq).await, failure);
+            assert_bytes(h, poisoned, poison_bytes).await;
+            assert_bytes(h, healthy, remaining * event_bytes).await;
+            assert!(worker.retain_next(&mut retention_cursor, 1).await.unwrap().is_none());
+            assert_eq!(retention_cursor, None);
+        }
+        worker.pool.close().await;
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
