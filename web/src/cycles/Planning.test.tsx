@@ -6,7 +6,7 @@ import { EMPTY_BODY } from '../documents/model';
 import { Milestones, type Milestone, type MilestoneOverview } from '../projects/Milestones';
 import { ProjectIssues } from '../projects/ProjectIssues';
 import type { Project } from '../projects/types';
-import { parseRoute } from '../router';
+import { hasUnsavedChanges, navigate, parseRoute } from '../router';
 import type { Bootstrap, Session, Team } from '../types';
 import { CarryForward, CloseCycle } from './CycleActions';
 import { CycleEditor } from './CycleEditor';
@@ -106,6 +106,32 @@ describe('cycle planning screens', () => {
     await render(<CarryForward cycle={report.cycle} report={report} session={session} close={() => {}} changed={() => {}} denied={() => {}}/>); await input('select', 'destination'); await act(async () => container.querySelector<HTMLInputElement>('tbody input')!.click()); await click('Move 1 selected issues'); await click('Review unresolved issues');
     expect(container.textContent).toContain('Reviewed latest issue'); expect(button('Retry selected unresolved issues').disabled).toBe(true); await act(async () => container.querySelector<HTMLInputElement>('section[aria-label="Review carry-forward retry"] input')!.click()); await click('Retry selected unresolved issues');
     const resume = fetch.mock.calls.find(([url]) => url.endsWith('/resume'))![1]; expect(new Headers(resume.headers).get('If-Match')).toBe(operation.etag); expect(JSON.parse(resume.body as string)).toEqual({ destination_etag: target.etag, items: [{ issue_id: 'unfinished', issue_version: '8' }] }); expect(container.textContent).toContain('Carry-forward complete');
+  });
+  it('guards navigation before an initial carry response and releases its own guard for the receipt URL', async () => {
+    let finish!: (value: Response) => void;
+    const target = { ...cycle, id: 'destination', name: 'Next interval', start_date: '2026-04-01', state: 'planned' };
+    const operation = { id: 'operation', state: 'needs_review', redacted: false, results: [{ issue_id: 'unfinished', outcome: 'version_conflict' }] };
+    const fetch = vi.fn((url: string, options: RequestInit) => options.method === 'POST' ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(json(url.includes('/issues/') ? { id: 'unfinished', key: 'EXA-1', title: 'Example issue' } : page([target])))); vi.stubGlobal('fetch', fetch);
+    const saved = vi.fn(() => navigate('/w/workspace/cycles/cycle?team_id=team&carry=operation', true));
+    await render(<CarryForward cycle={report.cycle} report={report} session={session} close={() => {}} changed={() => {}} denied={() => {}} operationSaved={saved}/>); await input('select', 'destination'); await act(async () => container.querySelector<HTMLInputElement>('tbody input')!.click()); await click('Move 1 selected issues');
+    expect(hasUnsavedChanges()).toBe(true); vi.mocked(window.confirm).mockReturnValue(false); expect(navigate('/w/workspace/issues/unfinished')).toBe(false); expect(hasUnsavedChanges()).toBe(true);
+    await act(async () => finish(json(operation))); expect(saved).toHaveBeenCalledTimes(1); expect(window.confirm).toHaveBeenCalledTimes(1); expect(hasUnsavedChanges()).toBe(false);
+  });
+  it.each([409, 412])('refreshes and reselects after a confirmed resume %s conflict', async status => {
+    let reads = 0; let resumes = 0;
+    const target = { ...cycle, id: 'destination', name: 'Next interval', start_date: '2026-04-01', state: 'planned' };
+    const operation = { id: 'operation', etag: '"operation:1"', destination_cycle_id: target.id, state: 'needs_review', redacted: false, results: [{ issue_id: 'unfinished', outcome: 'version_conflict' }] };
+    const fetch = vi.fn((url: string, _options: RequestInit) => Promise.resolve(url.endsWith('/resume') ? ++resumes === 1 ? json({ code: 'version_conflict', detail: 'Destination or operation changed' }, status) : json({ ...operation, state: 'complete', results: [{ issue_id: 'unfinished', outcome: 'moved' }] }) : json(url.endsWith('/carry-forward/operation') ? { ...operation, etag: `"operation:${++reads}"` } : url.includes('/carry-forward') ? operation : url.endsWith('/destination') ? { ...target, etag: `"destination:${reads + 1}"` } : url.includes('/issues/') ? { id: 'unfinished', key: 'EXA-1', title: 'Reviewed latest issue', team_id: 'team', version: String(reads + 7), archived_at: null } : page([target])))); vi.stubGlobal('fetch', fetch);
+    await render(<CarryForward cycle={report.cycle} report={report} session={session} close={() => {}} changed={() => {}} denied={() => {}}/>); await input('select', 'destination'); await act(async () => container.querySelector<HTMLInputElement>('tbody input')!.click()); await click('Move 1 selected issues'); await click('Review unresolved issues'); await act(async () => container.querySelector<HTMLInputElement>('section[aria-label="Review carry-forward retry"] input')!.click()); await click('Retry selected unresolved issues');
+    expect(container.querySelector('section[aria-label="Review carry-forward retry"]')).toBeNull(); await click('Review unresolved issues'); expect(button('Retry selected unresolved issues').disabled).toBe(true); await act(async () => container.querySelector<HTMLInputElement>('section[aria-label="Review carry-forward retry"] input')!.click()); await click('Retry selected unresolved issues');
+    const writes = fetch.mock.calls.filter(([url]) => url.endsWith('/resume')); expect(writes).toHaveLength(2); expect(new Headers(writes[1][1].headers).get('If-Match')).toBe('"operation:2"'); expect(JSON.parse(writes[1][1].body as string)).toEqual({ destination_etag: '"destination:3"', items: [{ issue_id: 'unfinished', issue_version: '9' }] }); expect(container.textContent).toContain('Carry-forward complete');
+  });
+  it.each([true, false])('restores a carry permalink as a read-only receipt without writes (workspace read-only %s)', async readOnly => {
+    const closed = { ...report.cycle, can_manage: false, can_plan: false };
+    const operation = { id: 'operation', report_id: report.id, destination_cycle_id: 'destination', state: 'needs_review', redacted: false, results: [{ issue_id: 'unfinished', outcome: 'version_conflict' }] };
+    const fetch = vi.fn((url: string, _options: RequestInit) => Promise.resolve(json(url.includes('/carry-forward/') ? operation : url.includes('/reports/') ? report : url.endsWith('/scope') ? report.scope : url.includes('/snapshots') || url.includes('/issues?') || url.includes('/cycles?') ? page([]) : url.includes('/issues/') ? { id: 'unfinished', key: 'EXA-1', title: 'Read-only issue' } : closed))); vi.stubGlobal('fetch', fetch);
+    await render(<Cycles workspaceId="workspace" session={session} data={data} cycleId="cycle" params={new URLSearchParams({ team_id: 'team', carry: 'operation' })} refresh={0} readOnly={readOnly}/>);
+    expect(container.textContent).toContain('Read-only receipt'); expect(container.textContent).toContain('version conflict'); expect(container.querySelector('input[type="checkbox"]')).toBeNull(); expect([...container.querySelectorAll('button')].some(item => /Review unresolved|Retry selected|Move .*selected/.test(item.textContent ?? ''))).toBe(false); expect(fetch.mock.calls.some(([, options]) => options.method === 'POST')).toBe(false);
   });
   it('creates a cycle with literal local dates across DST', async () => {
     const fetch = vi.fn(() => Promise.resolve(json(cycle))); vi.stubGlobal('fetch', fetch); const saved = vi.fn(); await render(<CycleEditor workspace="workspace" team="team" session={session} close={() => {}} saved={saved} denied={() => {}}/>);
