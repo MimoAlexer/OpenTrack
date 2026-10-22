@@ -4,6 +4,12 @@ Status: target API contract for authorized implementation; executable coverage i
 
 The implemented endpoint contract is generated from Rust handlers and DTOs into `docs/api/openapi.json`, served at `/api/v1/openapi.json`, and consumed by generated TypeScript types. `scripts/generate-contracts.sh --check` rejects drift. This target catalog remains broader than the current application; generated routes do not imply the unimplemented resource families below exist.
 
+## Foundation delivery boundary
+
+`GET /health/live` reports process liveness; `GET /health/ready` checks the runtime database and returns 503 with `status: "unavailable"` when that dependency cannot be reached. Both responses use `Cache-Control: no-store`. Anonymous `GET /api/v1/capabilities` reports the running API/package version, implemented feature flags and configured attachment limits without configuration secrets or storage paths. Disabled attachment transport reports zero upload/quota limits. Capabilities and OpenAPI responses are also `no-store`.
+
+Only GET/HEAD navigation explicitly accepting `text/html` can select the React shell. A zero, malformed or duplicate quality parameter does not opt into HTML; wildcards alone do not opt in. Missing API, health and asset resources retain 404 responses, including extensionless asset paths. The shell revalidates with `no-cache` and `Vary: Accept`; HEAD preserves GET's representation headers without a body. A missing build returns an uncached 503. Emitted assets are served beneath `/assets` with immutable caching; the unhashed `/theme.js` separately revalidates. The [contract-slice evidence](evidence/2026-10-22-contract-slice.md) records real HTTP coverage of production build files.
+
 ## Shared wire rules
 
 HTTPS, UTF-8 JSON, /api/v1, opaque UUID identifiers. Dates use YYYY-MM-DD; timestamps use RFC 3339 UTC. JSON integer counters that could exceed JavaScript safe integer range, including event sequence and entity version, are decimal strings. An unknown field in a command is rejected; readers tolerate additive fields in a response. Null explicitly clears a nullable field; omitted fields remain unchanged. Empty strings are not a second null representation.

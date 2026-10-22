@@ -46,4 +46,5 @@ scripts/generate-contracts.sh --check
 npm --prefix web ci --no-audit --no-fund
 npm --prefix web test
 npm --prefix web run build
-printf '%s\n' 'Formatting, lint, real PostgreSQL Rust contracts, frontend tests, and production frontend build passed.'
+cargo test --locked -p opentrack-api --test built_router_contract -- --ignored
+printf '%s\n' 'Formatting, lint, real PostgreSQL Rust contracts, frontend tests, production frontend build, and built-asset HTTP delivery passed.'

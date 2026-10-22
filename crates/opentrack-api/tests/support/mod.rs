@@ -22,6 +22,22 @@ pub struct Harness {
 }
 
 impl Harness {
+    #[allow(dead_code)]
+    pub fn serving_static(&self, directory: PathBuf) -> axum::Router {
+        router(ApiState {
+            app: self.app.clone(),
+            attachments: None,
+            origins: Arc::new(vec![ORIGIN.into()]),
+            secure_cookie: true,
+            static_dir: Arc::new(directory),
+        })
+    }
+
+    #[allow(dead_code)]
+    pub async fn close_runtime(&self) {
+        self.app.pool.close().await;
+    }
+
     #[allow(dead_code)] // Used by the real HTTP static-delivery contract only.
     pub async fn install_frontend_entrypoint(&self) {
         tokio::fs::write(
