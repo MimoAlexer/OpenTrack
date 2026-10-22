@@ -3,7 +3,7 @@ import { test, expect, type SavedWorkspace } from './fixtures';
 import type { Bootstrap, Issue, Team } from '../src/types';
 import type { Milestone, MilestoneOverview } from '../src/projects/Milestones';
 import type { Project } from '../src/projects/types';
-import type { CarryOperation, CloseReport, Cycle, Snapshot } from '../src/cycles/types';
+import type { CarryOperation, CloseReport, Cycle, Snapshot, SnapshotPoint } from '../src/cycles/types';
 
 const projectPath = (saved: SavedWorkspace, project?: string) => `/teams/${saved.team.id}/projects${project ? `/${project}` : ''}`;
 const projectUrl = (saved: SavedWorkspace, project: string) => `/w/${saved.workspace}/projects/${project}?team_id=${saved.team.id}`;
@@ -104,6 +104,39 @@ test('cycle creation keeps DST calendar boundaries, rejects overlap and preserve
   await dialog.getByRole('textbox', { name: 'Cycle name', exact: true }).fill('Overlapping interval'); await dialog.getByLabel('Start date', { exact: true }).fill('2026-03-29'); await dialog.getByLabel('End date (exclusive)', { exact: true }).fill('2026-04-02'); await dialog.getByRole('button', { name: 'Create cycle', exact: true }).click(); await expect(dialog).toContainText('overlap'); await expect(dialog.getByRole('textbox', { name: 'Cycle name', exact: true })).toHaveValue('Overlapping interval');
 });
 
+test('live cycle scope follows completed work while daily snapshots remain immutable across recapture and reload', async ({ page, saved }) => {
+  const team = await planningTeam(saved); let current = await cycle(saved, team.id, 'Live reporting cycle', '2026-03-28', '2026-03-31'); const path = cyclesPath(team.id, current.id);
+  const work = await issue(saved, team.id, 'Work completed after daily capture');
+  current = await saved.request<Cycle>(`${path}/issues/${work.id}`, 'PUT', { included: true, issue_etag: work.etag }, { 'If-Match': current.etag });
+  current = await saved.request<Cycle>(`${path}/open`, 'POST', undefined, { 'If-Match': current.etag });
+  const bootstrap = await saved.request<Bootstrap>('/bootstrap'); const done = bootstrap.statuses.find(status => status.team_id === team.id && status.category === 'completed')!;
+  await page.goto(cycleUrl(saved, team.id, current.id));
+  const scope = page.getByRole('region', { name: 'Cycle scope', exact: true }); const progress = scope.getByRole('progressbar', { name: 'Cycle issue completion', exact: true });
+  await expect(scope).toContainText('Live scope calculated'); await expect(scope).not.toContainText('Snapshot captured'); await expect(progress).toHaveAttribute('value', '0'); await expect(progress).toHaveAttribute('max', '1');
+  const initialHistory = await saved.request<{ data: SnapshotPoint[] }>(`${path}/snapshots`);
+  expect(await saved.request<Snapshot>(`${path}/scope`)).toMatchObject({ kind: 'current', completed_count: 0, unfinished_count: 1 });
+  expect(await saved.request<{ data: SnapshotPoint[] }>(`${path}/snapshots`)).toEqual(initialHistory);
+  const capture = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(`${path}/snapshots`));
+  await scope.getByRole('button', { name: 'Capture snapshot', exact: true }).click(); const daily = await (await capture).json() as Snapshot;
+  expect(daily).toMatchObject({ kind: 'daily', completed_count: 0, unfinished_count: 1 });
+  const history = page.getByRole('region', { name: 'Cycle history', exact: true });
+  const dailyRow = history.getByRole('table', { name: 'Scope history table — exact chart values', exact: true }).getByRole('row').filter({ has: page.getByRole('cell', { name: 'daily', exact: true }) });
+  await expect(dailyRow).toHaveCount(1); await expect(dailyRow.getByRole('rowheader', { name: daily.local_date, exact: true })).toBeVisible(); await expect(dailyRow.getByRole('cell').nth(2)).toHaveText('0'); await expect(dailyRow.getByRole('cell').nth(3)).toHaveText('1');
+  const recordedHistory = await saved.request<{ data: SnapshotPoint[] }>(`${path}/snapshots`);
+  await saved.patch(await saved.issue(work.id), { status_id: done.id });
+  await page.reload();
+  await expect(scope).toContainText('Live scope calculated'); await expect(scope).toContainText('100% complete'); await expect(progress).toHaveAttribute('value', '1');
+  await expect(dailyRow.getByRole('cell').nth(2)).toHaveText('0'); await expect(dailyRow.getByRole('cell').nth(3)).toHaveText('1');
+  expect(await saved.request<Snapshot>(`${path}/scope`)).toMatchObject({ kind: 'current', completed_count: 1, unfinished_count: 0 });
+  expect(await saved.request<{ data: SnapshotPoint[] }>(`${path}/snapshots`)).toEqual(recordedHistory);
+  const recapture = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(`${path}/snapshots`));
+  await scope.getByRole('button', { name: 'Capture snapshot', exact: true }).click(); expect(await (await recapture).json()).toEqual(daily);
+  await expect(progress).toHaveAttribute('value', '1'); await expect(scope).toContainText('Live scope calculated'); await expect(scope).not.toContainText('Snapshot captured');
+  await page.reload();
+  await expect(scope).toContainText('100% complete'); await expect(scope).toContainText('Live scope calculated'); await expect(progress).toHaveAttribute('value', '1'); await expect(dailyRow).toHaveCount(1); await expect(dailyRow.getByRole('cell').nth(2)).toHaveText('0'); await expect(dailyRow.getByRole('cell').nth(3)).toHaveText('1');
+  expect(await saved.request<{ data: SnapshotPoint[] }>(`${path}/snapshots`)).toEqual(recordedHistory);
+});
+
 test('cycle closure preserves issue state, accessible history and explicit conflict-aware carry-forward', async ({ page, saved, playwright }) => {
   const team = await planningTeam(saved); let current = await cycle(saved, team.id, 'Reviewed source cycle', '2026-03-28', '2026-03-31'); const destination = await cycle(saved, team.id, 'Reviewed destination cycle', '2026-03-31', '2026-04-07'); const path = cyclesPath(team.id, current.id);
   const [unfinished, completed] = await Promise.all([issue(saved, team.id, 'Unfinished accepted work'), issue(saved, team.id, 'Completed accepted work')]);
@@ -122,7 +155,7 @@ test('cycle closure preserves issue state, accessible history and explicit confl
   const history = page.getByRole('region', { name: 'Cycle history', exact: true }); await expect(history.getByRole('table')).toBeVisible(); await expect(history.getByRole('img')).toBeVisible(); expect((await history.getByRole('img').boundingBox())!.height).toBeGreaterThan(100); await expect(history).toContainText('Gaps are not interpolated');
   await page.setViewportSize({ width: 390, height: 844 }); const scrollArea = history.getByRole('region', { name: 'Scrollable scope history table', exact: true }); await scrollArea.focus(); await scrollArea.press('ArrowRight'); await expect.poll(async () => scrollArea.evaluate(element => element.scrollLeft)).toBeGreaterThan(0); expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1); await page.setViewportSize({ width: 1440, height: 900 });
   const before = await Promise.all([unfinished, completed].map(item => saved.issue(item.id)));
-  await page.getByRole('button', { name: 'Review closure', exact: true }).click(); const review = page.getByRole('dialog', { name: 'Review cycle closure', exact: true }); await expect(review.getByRole('button', { name: 'Close cycle', exact: true })).toBeDisabled(); await review.getByRole('checkbox').check(); await review.getByRole('button', { name: 'Close cycle', exact: true }).click(); await expect(review).toHaveCount(0);
+  await page.getByRole('button', { name: 'Review closure', exact: true }).click(); const review = page.getByRole('dialog', { name: 'Review cycle closure', exact: true }); await expect(review).toContainText('Preview calculated'); await expect(review.getByRole('button', { name: 'Close cycle', exact: true })).toBeDisabled(); await review.getByRole('checkbox').check(); await review.getByRole('button', { name: 'Close cycle', exact: true }).click(); await expect(review).toHaveCount(0);
   expect(await Promise.all([unfinished, completed].map(item => saved.issue(item.id)))).toEqual(before);
   current = await saved.request<Cycle>(path); expect(current.state).toBe('closed'); const original = await saved.request<CloseReport>(`${path}/reports/${current.latest_report_id}`); expect(original.scope).toMatchObject({ completed_count: 1, unfinished_count: 1 });
   await saved.patch(await saved.issue(unfinished.id), { title: 'Reviewed newer unfinished work' });
@@ -146,6 +179,6 @@ test('cycle closure preserves issue state, accessible history and explicit confl
   const [sourceScope, targetScope] = await Promise.all([saved.request<Snapshot>(`${path}/scope`), saved.request<Snapshot>(`${cyclesPath(team.id, destination.id)}/scope`)]);
   expect(sourceScope.items.map(item => item.issue_id)).toEqual([completed.id]); expect(targetScope.items.map(item => item.issue_id)).toEqual([unfinished.id]); expect((await saved.issue(unfinished.id)).status_id).toBe(before[0].status_id); expect((await saved.request<CloseReport>(`${path}/reports/${current.latest_report_id}`)).scope).toEqual(original.scope);
   await page.reload(); await expect(page.getByRole('region', { name: 'Cycle history', exact: true }).getByRole('table')).toBeVisible();
-  await page.getByRole('button', { name: 'View closure report', exact: true }).click(); const originalReport = page.getByRole('dialog', { name: 'Cycle closure report', exact: true }); await expect(originalReport).toContainText('1 / 2 eligible issues'); await originalReport.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.getByRole('button', { name: 'View closure report', exact: true }).click(); const originalReport = page.getByRole('dialog', { name: 'Cycle closure report', exact: true }); await expect(originalReport).toContainText('Snapshot captured'); await expect(originalReport).toContainText('1 / 2 eligible issues'); await originalReport.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByRole('button', { name: 'Reopen cycle', exact: true }).click(); const reopen = page.getByRole('dialog', { name: 'Reopen cycle', exact: true }); await expect(reopen.getByRole('button', { name: 'Reopen cycle', exact: true })).toBeDisabled(); await reopen.getByRole('textbox', { name: 'Reason', exact: true }).fill('Review a corrected scope after explicit carry-forward'); await reopen.getByRole('button', { name: 'Reopen cycle', exact: true }).click(); await expect(reopen).toHaveCount(0); expect((await saved.request<Cycle>(path)).state).toBe('active'); expect((await saved.request<CloseReport>(`${path}/reports/${current.latest_report_id}`)).scope).toEqual(original.scope);
 });

@@ -187,6 +187,266 @@ async fn attach(h: &Harness, c: &Client, url: &str, p: &Reply, i: &Reply) -> Rep
     r.expect(StatusCode::OK);
     r
 }
+async fn current_planning_counts(
+    h: &Harness,
+    c: &Client,
+    project: &str,
+    milestone: &str,
+    cycle: &str,
+    counts: [i64; 3],
+) -> Reply {
+    let [completed, canceled, unfinished] = counts;
+    let total = completed + canceled + unfinished;
+    for url in [project, milestone] {
+        let progress = get(h, c, &format!("{url}/progress")).await;
+        for (key, expected) in [
+            ("total", total),
+            ("eligible", total - canceled),
+            ("completed", completed),
+            ("canceled", canceled),
+            ("open", unfinished),
+        ] {
+            assert_eq!(progress.body[key], expected, "{url}: {key}");
+        }
+        assert_eq!(progress.body["unscoped"], total == canceled);
+        assert!(progress.body.get("percentage").is_none());
+    }
+    let scope = get(h, c, &format!("{cycle}/scope")).await;
+    assert_eq!(scope.body["kind"], "current");
+    assert_eq!(scope.body["scope_count"], total);
+    assert_eq!(scope.body["completed_count"], completed);
+    assert_eq!(scope.body["canceled_count"], canceled);
+    assert_eq!(scope.body["unfinished_count"], unfinished);
+    scope
+}
+
+#[tokio::test]
+async fn current_scope_matches_project_and_milestone_without_rewriting_daily_snapshot() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let run = tokio::spawn(async move { reporting_parity(&copy).await }).await;
+    h.cleanup().await;
+    if let Err(e) = run {
+        std::panic::resume_unwind(e.into_panic());
+    }
+}
+async fn reporting_parity(h: &Harness) {
+    let (c, base, t, boot) = setup(h).await;
+    let mut project = request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &format!("{base}/teams/{t}/projects"),
+        Some(json!({"name":"Reporting parity"})),
+        &[("idempotency-key", "parity-project")],
+    )
+    .await;
+    project.expect(StatusCode::CREATED);
+    let project_url = project.headers["location"].to_str().unwrap().to_owned();
+    let milestone = request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &format!("{project_url}/milestones"),
+        Some(json!({"title":"Shared reporting scope"})),
+        &[
+            ("idempotency-key", "parity-milestone"),
+            ("if-match", project.etag()),
+        ],
+    )
+    .await;
+    milestone.expect(StatusCode::CREATED);
+    let milestone_url = milestone.headers["location"].to_str().unwrap();
+    project = get(h, &c, &project_url).await;
+    let mut cycle = create_cycle(
+        h,
+        &c,
+        &format!("{base}/teams/{t}/cycles"),
+        "2026-06-01",
+        "2026-06-08",
+        "parity-cycle",
+    )
+    .await;
+    let cycle_url = cycle.headers["location"].to_str().unwrap().to_owned();
+    current_planning_counts(h, &c, &project_url, milestone_url, &cycle_url, [0, 0, 0]).await;
+    assert!(
+        get(h, &c, &format!("{cycle_url}/snapshots")).await.body["data"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    let statuses = boot["statuses"].as_array().unwrap();
+    let status = |category: &str| {
+        statuses
+            .iter()
+            .find(|v| v["team_id"] == t && v["category"] == category)
+            .unwrap()["id"]
+            .as_str()
+            .unwrap()
+    };
+    let open = issue(h, &c, &base, &t, status("unstarted"), "Parity open").await;
+    let done = issue(h, &c, &base, &t, status("completed"), "Parity done").await;
+    let canceled = issue(h, &c, &base, &t, status("canceled"), "Parity canceled").await;
+    let archived = issue(h, &c, &base, &t, status("unstarted"), "Parity archived").await;
+    let deleted = issue(h, &c, &base, &t, status("unstarted"), "Parity deleted").await;
+    for task in [&open, &done, &canceled, &archived, &deleted] {
+        let membership = format!("{project_url}/issues/{}", task.body["id"].as_str().unwrap());
+        project = request(
+            &h.router,
+            Some(&c),
+            "PUT",
+            &membership,
+            Some(json!({"included":true})),
+            &[("if-match", project.etag())],
+        )
+        .await;
+        project.expect(StatusCode::OK);
+        project = request(
+            &h.router,
+            Some(&c),
+            "PUT",
+            &format!("{membership}/milestone"),
+            Some(json!({"milestone_id":milestone.body["id"]})),
+            &[("if-match", project.etag())],
+        )
+        .await;
+        project.expect(StatusCode::OK);
+        let current = get(
+            h,
+            &c,
+            &format!("{base}/issues/{}", task.body["id"].as_str().unwrap()),
+        )
+        .await;
+        cycle = attach(h, &c, &cycle_url, &cycle, &current).await;
+    }
+    current_planning_counts(h, &c, &project_url, milestone_url, &cycle_url, [1, 1, 3]).await;
+    assert!(
+        get(h, &c, &format!("{cycle_url}/snapshots")).await.body["data"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    cycle = action(h, &c, &cycle_url, &cycle, "open", None).await;
+    let daily = action(h, &c, &cycle_url, &cycle, "snapshots", None).await;
+    assert_eq!(daily.body["kind"], "daily");
+    assert_eq!(daily.body["scope_count"], 5);
+    assert_eq!(daily.body["completed_count"], 1);
+    let w = base.rsplit('/').next().unwrap().parse().unwrap();
+    let actor = boot["members"][0]["id"].as_str().unwrap().parse().unwrap();
+    let team = t.parse().unwrap();
+    let snapshot_id = daily.body["id"]
+        .as_str()
+        .unwrap()
+        .parse::<uuid::Uuid>()
+        .unwrap();
+    let mut tx = h.lock_team(w, team, actor).await;
+    let saved: Value = sqlx::query_scalar(
+        "SELECT to_jsonb(s) FROM cycle_snapshots s WHERE workspace_id=$1 AND id=$2",
+    )
+    .bind(w)
+    .bind(snapshot_id)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.rollback().await.unwrap();
+    for (task, change, counts, excluded) in [
+        (
+            &open,
+            json!({"status_id":status("completed")}),
+            [2, 1, 2],
+            0,
+        ),
+        (&archived, json!({"archived":true}), [2, 1, 1], 1),
+    ] {
+        let issue_url = format!("{base}/issues/{}", task.body["id"].as_str().unwrap());
+        let current = get(h, &c, &issue_url).await;
+        request(
+            &h.router,
+            Some(&c),
+            "PATCH",
+            &issue_url,
+            Some(change),
+            &[("if-match", current.etag())],
+        )
+        .await
+        .expect(StatusCode::OK);
+        let scope =
+            current_planning_counts(h, &c, &project_url, milestone_url, &cycle_url, counts).await;
+        assert_eq!(scope.body["excluded_count"], excluded);
+    }
+    let repeated = request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &format!("{cycle_url}/snapshots"),
+        None,
+        &[
+            ("if-match", cycle.etag()),
+            ("idempotency-key", "parity-repeat-daily"),
+        ],
+    )
+    .await;
+    repeated.expect(StatusCode::OK);
+    assert_eq!(repeated.body, daily.body);
+    let issue_url = format!("{base}/issues/{}", deleted.body["id"].as_str().unwrap());
+    let current = get(h, &c, &issue_url).await;
+    request(
+        &h.router,
+        Some(&c),
+        "DELETE",
+        &issue_url,
+        None,
+        &[("if-match", current.etag())],
+    )
+    .await
+    .expect(StatusCode::NO_CONTENT);
+    let scope =
+        current_planning_counts(h, &c, &project_url, milestone_url, &cycle_url, [2, 1, 0]).await;
+    assert_eq!(scope.body["excluded_count"], 1);
+    assert_eq!(scope.body["redacted"], true);
+    assert!(
+        scope.body["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["issue_id"] != deleted.body["id"])
+    );
+    for (task, counts) in [
+        (&open, [1, 1, 0]),
+        (&done, [0, 1, 0]),
+        (&canceled, [0, 0, 0]),
+    ] {
+        let issue_url = format!("{base}/issues/{}", task.body["id"].as_str().unwrap());
+        let current = get(h, &c, &issue_url).await;
+        request(
+            &h.router,
+            Some(&c),
+            "PATCH",
+            &issue_url,
+            Some(json!({"archived":true})),
+            &[("if-match", current.etag())],
+        )
+        .await
+        .expect(StatusCode::OK);
+        current_planning_counts(h, &c, &project_url, milestone_url, &cycle_url, counts).await;
+    }
+    let history = get(h, &c, &format!("{cycle_url}/snapshots")).await;
+    let points = history.body["data"].as_array().unwrap();
+    assert_eq!(points.len(), 2);
+    assert!(points.iter().all(|point| point["kind"] != "current"));
+    let mut tx = h.lock_team(w, team, actor).await;
+    let preserved: Value = sqlx::query_scalar(
+        "SELECT to_jsonb(s) FROM cycle_snapshots s WHERE workspace_id=$1 AND id=$2",
+    )
+    .bind(w)
+    .bind(snapshot_id)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    assert_eq!(preserved, saved);
+    tx.rollback().await.unwrap();
+}
+
 #[tokio::test]
 async fn cycle_lifecycle_dst_close_and_reviewed_resumable_carry() {
     let h = Harness::new().await;
@@ -589,6 +849,9 @@ async fn permissions(h: &Harness) {
     let planned = attach(h, &member, url, &seen, &task).await;
     assert_eq!(planned.body["can_plan"], true);
     assert_eq!(planned.body["can_manage"], false);
+    let member_scope = get(h, &member, &format!("{url}/scope")).await;
+    assert_eq!(member_scope.body["kind"], "current");
+    assert_eq!(member_scope.body["scope_count"], 1);
     request(
         &h.router,
         Some(&member),
@@ -635,6 +898,9 @@ async fn permissions(h: &Harness) {
     )
     .await;
     let private_url = private_cycle.headers["location"].to_str().unwrap();
+    let private_scope = get(h, &owner, &format!("{private_url}/scope")).await;
+    assert_eq!(private_scope.body["kind"], "current");
+    assert_eq!(private_scope.body["scope_count"], 0);
     for endpoint in [
         &private_dir,
         private_url,
