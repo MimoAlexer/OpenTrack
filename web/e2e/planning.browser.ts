@@ -109,10 +109,15 @@ test('cycle closure preserves issue state, accessible history and explicit confl
   const [unfinished, completed] = await Promise.all([issue(saved, team.id, 'Unfinished accepted work'), issue(saved, team.id, 'Completed accepted work')]);
   const bootstrap = await saved.request<Bootstrap>('/bootstrap'); const done = bootstrap.statuses.find(status => status.team_id === team.id && status.category === 'completed')!;
   await saved.patch(completed, { status_id: done.id });
-  for (const item of [unfinished, await saved.issue(completed.id)]) current = await saved.request<Cycle>(`${path}/issues/${item.id}`, 'PUT', { included: true, issue_etag: item.etag }, { 'If-Match': current.etag });
+  for (const item of [await saved.issue(completed.id)]) current = await saved.request<Cycle>(`${path}/issues/${item.id}`, 'PUT', { included: true, issue_etag: item.etag }, { 'If-Match': current.etag });
   current = await saved.request<Cycle>(`${path}/open`, 'POST', undefined, { 'If-Match': current.etag });
   await page.goto(cycleUrl(saved, team.id, current.id));
-  await expect(page.getByText('50% complete', { exact: true })).toBeVisible(); await expect(page.getByRole('table').filter({ has: page.locator('caption', { hasText: 'Current accessible issue scope' }) }).getByRole('link').filter({ hasText: unfinished.title })).toBeVisible();
+  await expect(page.getByText('100% complete', { exact: true })).toBeVisible();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.getByRole('button', { name: 'Add issues', exact: true }).click(); const add = page.getByRole('dialog', { name: 'Add an issue to this cycle', exact: true }); await add.getByRole('textbox', { name: 'Find an issue', exact: true }).fill(unfinished.title); await add.getByRole('button').filter({ hasText: unfinished.title }).click(); await expect(add).toHaveCount(0);
+    await expect(page.getByText('50% complete', { exact: true })).toBeVisible(); const row = page.getByRole('region', { name: 'Cycle scope', exact: true }).getByRole('row').filter({ hasText: unfinished.title }); await expect(row).toBeVisible();
+    if (!attempt) { await row.getByRole('button', { name: 'Remove from cycle', exact: true }).click(); await expect(page.getByText('100% complete', { exact: true })).toBeVisible(); await expect(row).toHaveCount(0); expect((await saved.issue(unfinished.id)).status_id).toBe(unfinished.status_id); }
+  }
   await page.getByRole('button', { name: 'Capture snapshot', exact: true }).focus(); await page.keyboard.press('Enter');
   const history = page.getByRole('region', { name: 'Cycle history', exact: true }); await expect(history.getByRole('table')).toBeVisible(); await expect(history.getByRole('img')).toBeVisible(); await expect(history).toContainText('Gaps are not interpolated');
   await page.setViewportSize({ width: 390, height: 844 }); const scrollArea = history.getByRole('region', { name: 'Scrollable scope history table', exact: true }); await scrollArea.focus(); await scrollArea.press('ArrowRight'); await expect.poll(async () => scrollArea.evaluate(element => element.scrollLeft)).toBeGreaterThan(0); expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1); await page.setViewportSize({ width: 1440, height: 900 });

@@ -47,7 +47,7 @@ function CycleDetail({ workspaceId, session, team, cycleId, refresh, readOnly, p
   }
   async function remove(issue: CycleIssue) {
     if (!cycle || busy) return; setBusy(true); setError(null);
-    try { if (!window.confirm(`Remove ${issue.key} from this cycle? Its status is unchanged.`)) return; changed(await request<Cycle>(`${path}/issues/${issue.id}`, { method: 'PUT', csrf: session.csrf_token, headers: { 'If-Match': cycle.etag }, body: { included: false, issue_etag: issue.etag } })); }
+    try { changed(await request<Cycle>(`${path}/issues/${issue.id}`, { method: 'PUT', csrf: session.csrf_token, headers: { 'If-Match': cycle.etag }, body: { included: false, issue_etag: issue.etag } })); }
     catch (error) { setError(error); if (isAccessError(error)) setDenied(error); }
     finally { setBusy(false); }
   }
