@@ -331,6 +331,165 @@ async fn retention(h: &Harness) {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn multiple_consumer_watermarks_preserve_required_work_and_storage_accounting() {
+    let h = Harness::with_connections(5).await;
+    let copy = h.clone();
+    let run = tokio::spawn(async move { multiple_consumers(&copy).await }).await;
+    h.cleanup().await;
+    if let Err(error) = run {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+async fn multiple_consumers(h: &Harness) {
+    let (actor, w, team) = setup(h).await;
+    let operator = Operator::connect(&h.operator_url().await).await.unwrap();
+    let worker = worker(h).await;
+    drain(&worker, w).await;
+    age(h, &actor, w).await;
+    let bytes = accounting(h, &actor, w).await;
+    assert!(bytes > 0);
+    let mut tx = h.context(actor.user.id, w).await;
+    let (captured_seq, backfill): (i64, Uuid) = sqlx::query_as("SELECT last_seq,backfill_job_id FROM consumer_checkpoints WHERE workspace_id=$1 AND consumer_name='assignment_cleanup' AND consumer_version=1")
+        .bind(w).fetch_one(&mut *tx).await.unwrap();
+    assert_eq!(captured_seq, 1);
+    sqlx::query("INSERT INTO consumer_registrations(workspace_id,consumer_name,consumer_version,required) VALUES($1,'fixture_required',1,true),($1,'fixture_optional',1,false)")
+        .bind(w).execute(&mut *tx).await.unwrap();
+    // Synthetic registration/checkpoint metadata exercises the shared watermark only.
+    // This job reference satisfies its FK; no second production consumer ran.
+    sqlx::query("INSERT INTO consumer_checkpoints(workspace_id,consumer_name,consumer_version,last_seq,backfill_job_id) VALUES($1,'fixture_required',1,0,$2)")
+        .bind(w).bind(backfill).execute(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    operator
+        .set_event_admission_limits(w, 1, MAX_BYTES, "Exercise the slowest required watermark")
+        .await
+        .unwrap();
+
+    for enabled in [true, false] {
+        let mut tx = h.context(actor.user.id, w).await;
+        sqlx::query("UPDATE consumer_registrations SET enabled=$2 WHERE workspace_id=$1 AND consumer_name='fixture_required' AND consumer_version=1")
+            .bind(w).bind(enabled).execute(&mut *tx).await.unwrap();
+        tx.commit().await.unwrap();
+        let status = operator.consumer_status(w).await.unwrap();
+        assert_eq!(status["head_seq"], captured_seq.to_string());
+        assert_eq!(status["event_admission"]["pending_events"], "1");
+        assert_eq!(
+            status["event_admission"]["admission_reason"],
+            "pending_event_limit"
+        );
+        let before = state(h, &actor, w).await;
+        assert!(matches!(
+            h.app
+                .create_issue(
+                    &actor,
+                    w,
+                    "multiple-consumer-retry",
+                    req(json!({"team_id":team,"title":"Wait for every required consumer"}))
+                )
+                .await,
+            Err(Error::Unavailable)
+        ));
+        assert_eq!(worker.retain(w, 1000).await.unwrap().deleted, 0);
+        assert_eq!(state(h, &actor, w).await, before);
+        assert_eq!(accounting(h, &actor, w).await, bytes);
+    }
+
+    let mut tx = h.context(actor.user.id, w).await;
+    sqlx::query("DELETE FROM consumer_checkpoints WHERE workspace_id=$1 AND consumer_name='fixture_required' AND consumer_version=1")
+        .bind(w).execute(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(
+        operator.consumer_status(w).await.unwrap()["event_admission"]["admission_reason"],
+        "required_consumer_unavailable"
+    );
+    let before = state(h, &actor, w).await;
+    assert!(matches!(
+        h.app
+            .create_issue(
+                &actor,
+                w,
+                "multiple-consumer-retry",
+                req(json!({"team_id":team,"title":"Wait for every required consumer"}))
+            )
+            .await,
+        Err(Error::Unavailable)
+    ));
+    assert_eq!(worker.retain(w, 1000).await.unwrap().deleted, 0);
+    assert_eq!(state(h, &actor, w).await, before);
+    assert_eq!(accounting(h, &actor, w).await, bytes);
+
+    let mut tx = h.context(actor.user.id, w).await;
+    sqlx::query("INSERT INTO consumer_checkpoints(workspace_id,consumer_name,consumer_version,last_seq) VALUES($1,'fixture_required',1,$2)")
+        .bind(w).bind(captured_seq).execute(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    let status = operator.consumer_status(w).await.unwrap();
+    assert_eq!(status["event_admission"]["pending_events"], "0");
+    assert_eq!(status["event_admission"]["admission_blocked"], false);
+    assert_eq!(
+        worker.retain(w, 1000).await.unwrap().deleted,
+        0,
+        "A required checkpoint without snapshot intent must still pin retention"
+    );
+    assert_eq!(accounting(h, &actor, w).await, bytes);
+
+    let mut tx = h.context(actor.user.id, w).await;
+    sqlx::query("UPDATE consumer_checkpoints SET backfill_job_id=$2 WHERE workspace_id=$1 AND consumer_name='fixture_required' AND consumer_version=1")
+        .bind(w).bind(backfill).execute(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(
+        operator.consumer_status(w).await.unwrap()["event_admission"]["pending_events"],
+        "0",
+        "An optional missing checkpoint must not contribute to required admission"
+    );
+    let retained = worker.retain(w, 1).await.unwrap();
+    assert_eq!(retained.deleted, 1);
+    assert_eq!(retained.purged_through_seq, captured_seq);
+    assert_eq!(accounting(h, &actor, w).await, 0);
+    h.app
+        .create_issue(
+            &actor,
+            w,
+            "multiple-consumer-retry",
+            req(json!({"team_id":team,"title":"Wait for every required consumer"})),
+        )
+        .await
+        .unwrap();
+    let mut tx = h.context(actor.user.id, w).await;
+    sqlx::query("INSERT INTO consumer_checkpoints(workspace_id,consumer_name,consumer_version,last_seq) VALUES($1,'fixture_optional',1,0)")
+        .bind(w).execute(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(accounting(h, &actor, w).await, bytes);
+    assert_eq!(worker.capture(w).await.unwrap().processed, 1);
+    assert_eq!(
+        accounting(h, &actor, w).await,
+        bytes,
+        "Real assignment capture cannot release replay storage"
+    );
+    age(h, &actor, w).await;
+    assert_eq!(worker.retain(w, 1000).await.unwrap().deleted, 0);
+    assert_eq!(
+        operator.consumer_status(w).await.unwrap()["event_admission"]["pending_events"],
+        "1",
+        "Real assignment capture cannot advance the synthetic required checkpoint"
+    );
+
+    let mut tx = h.context(actor.user.id, w).await;
+    sqlx::query("UPDATE consumer_checkpoints SET last_seq=$2 WHERE workspace_id=$1 AND consumer_name='fixture_required' AND consumer_version=1")
+        .bind(w).bind(captured_seq + 1).execute(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(
+        operator.consumer_status(w).await.unwrap()["event_admission"]["pending_events"],
+        "0"
+    );
+    assert_eq!(accounting(h, &actor, w).await, bytes);
+    let retained = worker.retain(w, 1).await.unwrap();
+    assert_eq!(retained.deleted, 1);
+    assert_eq!(retained.purged_through_seq, captured_seq + 1);
+    assert_eq!(accounting(h, &actor, w).await, 0);
+    worker.pool.close().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn missing_required_registration_or_checkpoint_fails_closed() {
     let h = Harness::with_connections(5).await;
     let copy = h.clone();
