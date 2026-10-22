@@ -32,9 +32,9 @@
     --selected: light-dark(#ebecf1, #2a2a32);
     --text: light-dark(#242426, #e9e9ec);
     --secondary: light-dark(#606067, #aaaab2);
-    --muted: light-dark(#737379, #9797a1);
+    --muted: light-dark(#66666e, #9797a1);
     --line: light-dark(#e2e2df, #333337);
-    --control: light-dark(#9c9ca4, #73737c);
+    --control: light-dark(#73737c, #73737c);
     --accent: light-dark(#4d5bb7, #a5adf0);
     --accent-bg: light-dark(#edf0fa, #2c3042);
     --green: light-dark(#416f50, #95b6a0);
@@ -61,7 +61,7 @@
   .skip-link:focus { transform: translateY(0); }
   .brand { display: inline-flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 600; letter-spacing: -.4px; white-space: nowrap; }
   .brand svg { width: 20px; height: 20px; }
-  .button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 7px 12px; border: 1px solid var(--control); background: var(--panel); font-size: 12px; line-height: 1.4; font-weight: 500; border-radius: 5px; white-space: nowrap; }
+  .button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; max-width: 100%; padding: 7px 12px; border: 1px solid var(--control); background: var(--panel); font-size: 12px; line-height: 1.4; font-weight: 500; border-radius: 5px; overflow-wrap: anywhere; }
   .button:hover:not(:disabled) { background: var(--hover); }
   .button.primary { background: var(--solid); color: var(--solid-text); border-color: var(--solid); }
   .button.primary:hover:not(:disabled) { opacity: .87; }
@@ -281,14 +281,15 @@
   .modal { width: min(660px, calc(100vw - 32px)); max-height: calc(100svh - 48px); padding: 0; background: var(--bg); color: var(--text); border: 1px solid var(--control); border-radius: 9px; box-shadow: var(--shadow); overflow-y: auto; }
   .modal::backdrop { background: #0007; }
   .modal-header { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 15px 22px; border-bottom: 1px solid var(--line); }
-  .modal-header h2 { font-size: 14px; font-weight: 500; }
+  .modal-header h2 { min-width: 0; overflow-wrap: anywhere; font-size: 14px; font-weight: 500; }
+  .modal-header .icon-button { flex-shrink: 0; }
   .create-form { padding: 22px; }
   .create-form .error-banner { margin: 0 0 18px; }
   .team-field { max-width: 250px; }
   .create-form > fieldset > .issue-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; padding-top: 7px; }
   .create-form .issue-fields .field { font-size: 11px; }
   .create-form .issue-fields select, .create-form .issue-fields input { font-size: 12px; padding: 8px; }
-  .modal-footer { border-top: 1px solid var(--line); padding-top: 18px; margin-top: 10px; display: flex; align-items: center; gap: 8px; }
+  .modal-footer { border-top: 1px solid var(--line); padding-top: 18px; margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .keyboard-hint { margin-right: auto; color: var(--muted); font-size: 10px; }
   .shortcuts-panel { position: fixed; bottom: 45px; left: 225px; z-index: 30; width: 330px; padding: 18px; background: var(--panel); border: 1px solid var(--control); border-radius: 7px; box-shadow: var(--shadow); }
   .shortcuts-panel header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }

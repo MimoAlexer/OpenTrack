@@ -28,8 +28,8 @@ export class SavedWorkspace {
   }
   async open(page: Page, issue?: Issue) {
     const response = await page.goto(`/w/${this.workspace}/issues${issue ? `/${issue.id}` : ''}`);
-    expect(response?.ok(), 'Built frontend is served by the real Docker app').toBe(true);
-    await expect(page.getByRole('button', { name: 'Search commands', exact: true })).toBeEnabled();
+    expect(response?.ok(), 'Built frontend is served by the real application').toBe(true);
+    await expect(page.getByRole('button', { name: /^New issue/ })).toBeEnabled();
     if (issue) await expect(page.getByRole('textbox', { name: 'Description', exact: true })).toBeVisible();
     return response!;
   }
@@ -38,11 +38,13 @@ export class SavedWorkspace {
 type WorkerFixtures = { saved: SavedWorkspace };
 export const test = base.extend<Record<never, never>, WorkerFixtures>({
   saved: [async ({ playwright }, use) => {
-    if (process.env.GITHUB_ACTIONS !== 'true' || process.env.RUNNER_OS !== 'Linux'
-        || !process.env.OPENTRACK_BROWSER_SETUP_TOKEN || !process.env.OPENTRACK_BROWSER_PASSWORD) {
-      throw new Error('Saved browser workflows run only through the guarded GitHub Docker acceptance runner.');
+    const ci = process.env.GITHUB_ACTIONS === 'true' && process.env.RUNNER_OS === 'Linux';
+    const local = !process.env.GITHUB_ACTIONS && process.env.OPENTRACK_BROWSER_LOCAL === 'disposable';
+    if ((!ci && !local) || !process.env.OPENTRACK_BROWSER_SETUP_TOKEN || !process.env.OPENTRACK_BROWSER_PASSWORD) {
+      throw new Error('Saved browser workflows require the guarded CI runner or explicit disposable local acceptance runtime.');
     }
-    const origin = process.env.OPENTRACK_BROWSER_URL!;
+    const origin = process.env.OPENTRACK_BROWSER_URL ?? 'http://localhost:18081';
+    if (!/^http:\/\/(localhost|127\.0\.0\.1):18081\/?$/.test(origin)) throw new Error('Browser workflows require the dedicated HTTP loopback port.');
     const http = await playwright.request.newContext({ baseURL: origin, extraHTTPHeaders: { Origin: origin } });
     try {
       const status = await http.get('/api/v1/setup/status');
@@ -55,6 +57,8 @@ export const test = base.extend<Record<never, never>, WorkerFixtures>({
         : login });
       if (!response.ok()) throw new Error(`Synthetic owner authentication failed: HTTP ${response.status()}`);
       const session = await response.json() as Session;
+      if (session.user.email !== 'owner@example.test' || session.user.display_name !== 'Example Owner'
+          || session.workspaces[0]?.name !== 'Browser acceptance') throw new Error('Only the synthetic acceptance workspace is eligible.');
       const bootstrap = await http.get(`/api/v1/workspaces/${session.workspaces[0].id}/bootstrap`);
       if (!bootstrap.ok()) throw new Error('Synthetic workspace bootstrap failed.');
       await use(new SavedWorkspace(http, session, await bootstrap.json() as Bootstrap, origin));

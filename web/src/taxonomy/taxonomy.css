@@ -1,21 +1,22 @@
 @layer components {
 .reference-picker { position:relative; min-width:0; display:flex; flex-direction:column; gap:7px; }
 .field-label { font-size:12px; font-weight:550; color:var(--secondary); }
-.reference-trigger { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; min-height:35px; padding:7px 9px; border:1px solid var(--line); border-radius:5px; background:var(--panel); color:var(--text); text-align:left; }
+.reference-trigger { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; min-height:35px; padding:7px 9px; border:1px solid var(--control); border-radius:5px; background:var(--panel); color:var(--text); text-align:left; }
 .reference-trigger>span { display:flex; align-items:center; gap:7px; min-width:0; overflow-wrap:anywhere; }
 .reference-trigger svg { width:14px; height:14px; flex:none; color:var(--secondary); }
-.reference-popover { position:absolute; z-index:15; top:65px; left:0; width:min(330px,calc(100vw - 48px)); min-width:100%; max-height:390px; overflow:auto; padding:7px; border:1px solid var(--line); border-radius:7px; background:var(--panel); box-shadow:0 8px 30px #0002; }
-.reference-search { display:flex; align-items:center; gap:7px; padding:3px 5px 8px; }
+.reference-popover { position:absolute; z-index:30; display:flex; flex-direction:column; top:65px; left:0; width:min(330px,calc(100vw - 48px)); min-width:100%; max-height:390px; overflow:auto; padding:7px; border:1px solid var(--control); border-radius:7px; background:var(--panel); box-shadow:var(--shadow); }
+.reference-search { display:flex; flex-shrink:0; align-items:center; gap:7px; padding:3px 5px 8px; }
 .reference-search>svg { width:14px; color:var(--secondary); }
-.reference-search>input { width:100%; min-width:0; }
-.reference-options { display:flex; flex-direction:column; gap:2px; max-height:230px; overflow:auto; }
+.reference-search>input { width:100%; min-width:0; min-height:32px; padding:5px 7px; border:1px solid var(--control); background:var(--panel); }
+.reference-options { display:flex; flex-direction:column; gap:2px; min-height:0; max-height:230px; overflow:auto; }
 .reference-option { display:flex; align-items:center; gap:8px; min-height:36px; padding:7px 8px; border-radius:4px; cursor:pointer; font-size:12px; }
 .reference-option>span:nth-last-child(2) { flex:1; min-width:0; overflow-wrap:anywhere; }
 .reference-option small { display:block; color:var(--secondary); margin-top:2px; font-size:10px; }
 .reference-option.active,.reference-option:hover { background:var(--hover); }
+.reference-option.active { outline:2px solid var(--accent); outline-offset:-2px; }
 .reference-option[aria-selected=true] { background:var(--selected); }
 .reference-option[aria-disabled=true] { opacity:.55; cursor:default; }
-.picker-footer { display:flex; justify-content:flex-end; gap:10px; border-top:1px solid var(--line); padding:7px 3px 1px; }
+.picker-footer { display:flex; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; gap:10px; border-top:1px solid var(--line); padding:7px 3px 1px; }
 .picker-message,.reference-note { font-size:11px; color:var(--secondary); overflow-wrap:anywhere; }
 .picker-message { margin:9px 5px; }
 .label-dot { width:7px; height:7px; border-radius:50%; background:currentColor; display:inline-block; flex:none; }
@@ -23,7 +24,7 @@
 .label-chip { display:inline-flex; align-items:center; gap:6px; max-width:100%; padding:4px 6px; border:1px solid var(--line); border-radius:4px; font-size:11px; }
 .label-chip>span { min-width:0; overflow-wrap:anywhere; }
 .label-chip small { display:block; font-size:9px; color:var(--secondary); margin-top:2px; }
-.label-chip button { padding:2px; border:0; background:none; color:var(--secondary); display:flex; align-items:center; }
+.label-chip button { min-width:24px; min-height:24px; padding:2px; border:0; background:none; color:var(--secondary); display:flex; align-items:center; justify-content:center; }
 .label-chip button svg { width:12px; height:12px; }
 .row-labels { display:flex; gap:4px; align-items:center; min-width:0; max-width:210px; overflow:hidden; }
 .row-label { display:inline-flex; align-items:center; gap:4px; max-width:100px; padding:2px 5px; border:1px solid var(--line); border-radius:4px; font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
