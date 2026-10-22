@@ -31,17 +31,13 @@ async fn upgrade(h: &Harness) {
         .await
         .unwrap();
     tx.commit().await.unwrap();
-    let project = h
-        .app
-        .create_project(
-            &actor,
-            w,
-            team,
-            "upgrade-project",
-            req(json!({"name":"Existing project"})),
-        )
-        .await
-        .unwrap();
+    // Seed the historical schema directly; the current project API requires its document owner.
+    let project_id = uuid::Uuid::new_v4();
+    let mut tx = h.context(actor.user.id, w).await;
+    sqlx::query("INSERT INTO projects(id,workspace_id,team_id,name,narrative_schema_version,narrative_body,narrative_plain_text) VALUES($1,$2,$3,'Existing project',1,$4,'')")
+        .bind(project_id).bind(w).bind(team).bind(json!({"type":"doc","content":[{"type":"paragraph"}]}))
+        .execute(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
     let issue = h
         .app
         .create_issue(
@@ -52,20 +48,30 @@ async fn upgrade(h: &Harness) {
         )
         .await
         .unwrap();
-    let project = h
-        .app
-        .set_project_issue(
-            &actor,
-            w,
-            team,
-            project.id,
-            issue.id,
-            &project.etag,
-            ProjectMembership { included: true },
-        )
+    let mut tx = h.context(actor.user.id, w).await;
+    sqlx::query(
+        "INSERT INTO project_issues(workspace_id,team_id,project_id,issue_id) VALUES($1,$2,$3,$4)",
+    )
+    .bind(w)
+    .bind(team)
+    .bind(project_id)
+    .bind(issue.id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query("UPDATE projects SET version=version+1 WHERE workspace_id=$1 AND id=$2")
+        .bind(w)
+        .bind(project_id)
+        .execute(&mut *tx)
         .await
         .unwrap();
+    tx.commit().await.unwrap();
     store::MIGRATOR.run(&h.owner).await.unwrap();
+    let project = h
+        .app
+        .get_project(&actor, w, team, project_id)
+        .await
+        .unwrap();
     let rights:bool=sqlx::query_scalar("SELECT bool_and(has_table_privilege(current_user,format('%I.milestones',current_schema()),p)) FROM unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE']) p").fetch_one(&h.app.pool).await.unwrap();
     assert!(rights);
     let page = h

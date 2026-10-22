@@ -53,6 +53,9 @@ pub struct Project {
     pub name: String,
     pub summary: String,
     pub narrative: TemplateDocument,
+    #[serde(default)]
+    #[schema(required = true, read_only = true)]
+    pub narrative_version: String,
     #[schema(required = true)]
     pub lead_id: Option<Uuid>,
     #[schema(required = true)]
@@ -65,6 +68,9 @@ pub struct Project {
     pub health: ProjectHealth,
     pub version: String,
     pub etag: String,
+    #[serde(default)]
+    #[schema(required = true, read_only = true)]
+    pub metadata_etag: String,
     #[schema(required = true)]
     pub archived_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
@@ -222,12 +228,10 @@ pub fn project_summary(value: &str) -> Result<String> {
 }
 pub fn validate_project_narrative(value: &DocumentWrite) -> Result<String> {
     let plain = value.validate()?;
-    if value.moderation_reason.is_some()
-        || value.has_attachments()
-        || !value.mention_ids().is_empty()
-        || !value.issue_reference_ids().is_empty()
-    {
-        return Err(Error::Invalid("Project narratives do not yet support attachments, mentions, issue references or moderation reasons".into()));
+    if value.moderation_reason.is_some() {
+        return Err(Error::Invalid(
+            "Moderation reasons apply only to comments".into(),
+        ));
     }
     Ok(plain)
 }
@@ -241,22 +245,22 @@ impl ProjectUpdate {
     }
 }
 
-impl From<Project> for ProjectSummary {
-    fn from(p: Project) -> Self {
+impl From<&Project> for ProjectSummary {
+    fn from(p: &Project) -> Self {
         Self {
             id: p.id,
             workspace_id: p.workspace_id,
             team_id: p.team_id,
-            name: p.name,
-            summary: p.summary,
+            name: p.name.clone(),
+            summary: p.summary.clone(),
             lead_id: p.lead_id,
-            lead: p.lead,
+            lead: p.lead.clone(),
             start_date: p.start_date,
             target_date: p.target_date,
             state: p.state,
             health: p.health,
-            version: p.version,
-            etag: p.etag,
+            version: p.version.clone(),
+            etag: p.etag.clone(),
             archived_at: p.archived_at,
             created_at: p.created_at,
             updated_at: p.updated_at,

@@ -1,0 +1,244 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "competing issue editors preserve the rejected draft and require an explicit reviewed save",
+      "status": "passed",
+      "duration_ms": 1819
+    },
+    {
+      "browser": "chromium",
+      "check": "competing issue editors preserve the rejected draft and can adopt the saved version",
+      "status": "passed",
+      "duration_ms": 1787
+    },
+    {
+      "browser": "chromium",
+      "check": "milestones persist outcomes, keyboard order and scoped assignment, then safely detach on deletion",
+      "status": "passed",
+      "duration_ms": 1769
+    },
+    {
+      "browser": "chromium",
+      "check": "milestone conflicts retain the typed draft and require a review of the saved version",
+      "status": "passed",
+      "duration_ms": 653
+    },
+    {
+      "browser": "chromium",
+      "check": "milestone loading and connection failure remain recoverable without fake empty counts",
+      "status": "passed",
+      "duration_ms": 486
+    },
+    {
+      "browser": "chromium",
+      "check": "cycle creation keeps DST calendar boundaries, rejects overlap and preserves a conflicting draft",
+      "status": "passed",
+      "duration_ms": 784
+    },
+    {
+      "browser": "chromium",
+      "check": "live cycle scope follows completed work while daily snapshots remain immutable across recapture and reload",
+      "status": "passed",
+      "duration_ms": 1131
+    },
+    {
+      "browser": "chromium",
+      "check": "cycle closure preserves issue state, accessible history and explicit conflict-aware carry-forward",
+      "status": "passed",
+      "duration_ms": 6112
+    },
+    {
+      "browser": "chromium",
+      "check": "project creation and brief edits persist while metadata and body versions remain independent",
+      "status": "passed",
+      "duration_ms": 2607
+    },
+    {
+      "browser": "chromium",
+      "check": "project scope excludes canceled, archived and deleted work while completion and updates preserve issue facts",
+      "status": "passed",
+      "duration_ms": 2511
+    },
+    {
+      "browser": "chromium",
+      "check": "stale project metadata drafts are reviewed without overwriting an independently saved brief",
+      "status": "passed",
+      "duration_ms": 1232
+    },
+    {
+      "browser": "chromium",
+      "check": "competing project brief editors retain the rejected draft until an explicit reviewed save",
+      "status": "passed",
+      "duration_ms": 3338
+    },
+    {
+      "browser": "chromium",
+      "check": "project brief references and file bytes persist while revision selection remains read-only and keyboard accessible",
+      "status": "passed",
+      "duration_ms": 4396
+    },
+    {
+      "browser": "firefox",
+      "check": "competing issue editors preserve the rejected draft and require an explicit reviewed save",
+      "status": "passed",
+      "duration_ms": 3560
+    },
+    {
+      "browser": "firefox",
+      "check": "competing issue editors preserve the rejected draft and can adopt the saved version",
+      "status": "passed",
+      "duration_ms": 2809
+    },
+    {
+      "browser": "firefox",
+      "check": "milestones persist outcomes, keyboard order and scoped assignment, then safely detach on deletion",
+      "status": "passed",
+      "duration_ms": 2637
+    },
+    {
+      "browser": "firefox",
+      "check": "milestone conflicts retain the typed draft and require a review of the saved version",
+      "status": "passed",
+      "duration_ms": 1039
+    },
+    {
+      "browser": "firefox",
+      "check": "milestone loading and connection failure remain recoverable without fake empty counts",
+      "status": "passed",
+      "duration_ms": 570
+    },
+    {
+      "browser": "firefox",
+      "check": "cycle creation keeps DST calendar boundaries, rejects overlap and preserves a conflicting draft",
+      "status": "passed",
+      "duration_ms": 1442
+    },
+    {
+      "browser": "firefox",
+      "check": "live cycle scope follows completed work while daily snapshots remain immutable across recapture and reload",
+      "status": "passed",
+      "duration_ms": 1649
+    },
+    {
+      "browser": "firefox",
+      "check": "cycle closure preserves issue state, accessible history and explicit conflict-aware carry-forward",
+      "status": "passed",
+      "duration_ms": 8828
+    },
+    {
+      "browser": "firefox",
+      "check": "project creation and brief edits persist while metadata and body versions remain independent",
+      "status": "passed",
+      "duration_ms": 3674
+    },
+    {
+      "browser": "firefox",
+      "check": "project scope excludes canceled, archived and deleted work while completion and updates preserve issue facts",
+      "status": "passed",
+      "duration_ms": 3281
+    },
+    {
+      "browser": "firefox",
+      "check": "stale project metadata drafts are reviewed without overwriting an independently saved brief",
+      "status": "passed",
+      "duration_ms": 1628
+    },
+    {
+      "browser": "firefox",
+      "check": "competing project brief editors retain the rejected draft until an explicit reviewed save",
+      "status": "passed",
+      "duration_ms": 3825
+    },
+    {
+      "browser": "firefox",
+      "check": "project brief references and file bytes persist while revision selection remains read-only and keyboard accessible",
+      "status": "passed",
+      "duration_ms": 4444
+    },
+    {
+      "browser": "webkit",
+      "check": "competing issue editors preserve the rejected draft and require an explicit reviewed save",
+      "status": "passed",
+      "duration_ms": 3952
+    },
+    {
+      "browser": "webkit",
+      "check": "competing issue editors preserve the rejected draft and can adopt the saved version",
+      "status": "passed",
+      "duration_ms": 2804
+    },
+    {
+      "browser": "webkit",
+      "check": "milestones persist outcomes, keyboard order and scoped assignment, then safely detach on deletion",
+      "status": "passed",
+      "duration_ms": 2488
+    },
+    {
+      "browser": "webkit",
+      "check": "milestone conflicts retain the typed draft and require a review of the saved version",
+      "status": "passed",
+      "duration_ms": 1218
+    },
+    {
+      "browser": "webkit",
+      "check": "milestone loading and connection failure remain recoverable without fake empty counts",
+      "status": "passed",
+      "duration_ms": 890
+    },
+    {
+      "browser": "webkit",
+      "check": "cycle creation keeps DST calendar boundaries, rejects overlap and preserves a conflicting draft",
+      "status": "passed",
+      "duration_ms": 1334
+    },
+    {
+      "browser": "webkit",
+      "check": "live cycle scope follows completed work while daily snapshots remain immutable across recapture and reload",
+      "status": "passed",
+      "duration_ms": 1445
+    },
+    {
+      "browser": "webkit",
+      "check": "cycle closure preserves issue state, accessible history and explicit conflict-aware carry-forward",
+      "status": "passed",
+      "duration_ms": 7220
+    },
+    {
+      "browser": "webkit",
+      "check": "project creation and brief edits persist while metadata and body versions remain independent",
+      "status": "passed",
+      "duration_ms": 3175
+    },
+    {
+      "browser": "webkit",
+      "check": "project scope excludes canceled, archived and deleted work while completion and updates preserve issue facts",
+      "status": "passed",
+      "duration_ms": 2715
+    },
+    {
+      "browser": "webkit",
+      "check": "stale project metadata drafts are reviewed without overwriting an independently saved brief",
+      "status": "passed",
+      "duration_ms": 2051
+    },
+    {
+      "browser": "webkit",
+      "check": "competing project brief editors retain the rejected draft until an explicit reviewed save",
+      "status": "passed",
+      "duration_ms": 3919
+    },
+    {
+      "browser": "webkit",
+      "check": "project brief references and file bytes persist while revision selection remains read-only and keyboard accessible",
+      "status": "passed",
+      "duration_ms": 4377
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}

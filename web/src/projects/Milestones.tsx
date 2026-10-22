@@ -8,7 +8,7 @@ import { useUnsavedChanges } from '../router';
 import type { components } from '../generated/api';
 import type { Session } from '../types';
 import { Progress } from './Projects';
-import { projectPath, type Project } from './types';
+import { projectMetadata, projectMetadataPath, projectPath, type FullProject, type Project } from './types';
 
 export type Milestone = components['schemas']['Milestone'];
 export type MilestoneOverview = components['schemas']['MilestoneOverview'];
@@ -46,13 +46,13 @@ export function Milestones({ project, session, resource, readOnly, changed, deni
     if (target && !target.disabled) target.focus(); else container.current?.querySelector<HTMLButtonElement>(`button[data-edit-id="${focus.id}"]`)?.focus();
     moveFocus.current = null;
   }, [resource.items, resource.loading, resource.error]);
-  async function refresh() { changed(await request<Project>(path)); resource.retry(); }
+  async function refresh() { changed(await request<Project>(projectMetadataPath(project.workspace_id, project.team_id, project.id))); resource.retry(); }
   async function reorder(index: number, delta: number) {
     if (busy || !canManage || resource.loading) return;
     const ids = resource.items.map(item => item.milestone.id); [ids[index], ids[index + delta]] = [ids[index + delta], ids[index]];
     moveFocus.current = { id: resource.items[index].milestone.id, index: index + delta, delta }; if (index + delta >= limit) setLimit(value => value + 50);
     setBusy(true); setError(null);
-    try { changed(await request<Project>(`${path}/milestones/order`, { method: 'PUT', csrf: session.csrf_token, headers: { 'If-Match': project.etag }, body: { milestone_ids: ids } })); resource.retry(); }
+    try { changed(projectMetadata(await request<FullProject>(`${path}/milestones/order`, { method: 'PUT', csrf: session.csrf_token, headers: { 'If-Match': project.etag }, body: { milestone_ids: ids } }))); resource.retry(); }
     catch (error) { moveFocus.current = null; setError(error); if (isAccessError(error)) denied(error); else if (error instanceof ApiError && error.status === 412) { try { await refresh(); } catch (readError) { setError(readError); } } }
     finally { setBusy(false); }
   }
@@ -84,7 +84,7 @@ function MilestoneEditor({ project, session, milestone, close, saved, denied }: 
   }
   async function review() {
     setBusy(true);
-    try { if (base) setLatest(await request<Milestone>(`${path}/milestones/${base.id}`)); else { setProjectEtag((await request<Project>(path)).etag); setConflict(false); } setError(null); }
+    try { if (base) setLatest(await request<Milestone>(`${path}/milestones/${base.id}`)); else { setProjectEtag((await request<Project>(projectMetadataPath(project.workspace_id, project.team_id, project.id))).etag); setConflict(false); } setError(null); }
     catch (error) { setError(error); if (isAccessError(error)) denied(error); }
     finally { setBusy(false); }
   }

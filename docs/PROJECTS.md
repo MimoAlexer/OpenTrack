@@ -6,9 +6,9 @@ Open **Projects** in the workspace sidebar, choose a team, then select **New pro
 
 A project has a name, short summary, rich-text brief, optional lead, start date and target date. Its state is Planned, Active, Paused, Completed or Canceled. Health is a separate manual assessment: On track, At risk or Off track.
 
-The brief supports the editor's ordinary text, lists, checklists, links and code. Project briefs do not yet bind attachments, user mentions or issue references. They currently share the project's version and conflict review; independent brief revision history remains unfinished.
+The overview brief supports ordinary text, lists, checklists, links, code, attachments, user mentions and issue references. It saves independently from project metadata. Conflicts retain the draft for review before an explicit save. **Brief history** opens read-only saved revisions without replacing the current draft; migrated initial snapshots clearly show unknown authorship and migration capture time. History follows the document retention and current-access rules. See the [project brief contract and executed evidence](evidence/2026-10-22-agent-2-issue-26-project-briefs.md).
 
-Use **Edit project** to update these fields. Conflicting edits show the latest saved version beside the draft. Choosing to keep the draft does not save it automatically: review it and select **Save project**.
+Use **Edit project** to update metadata, and edit the brief directly on the overview. Conflicting metadata edits show the latest saved version beside the draft. Choosing to keep the draft does not save it automatically: review it and select **Save project**.
 
 ## Connect issues
 
@@ -39,6 +39,8 @@ Archiving removes the project from the active directory without deleting its wor
 
 ## Current boundaries
 
-Project lifecycle, issue membership, progress and updates connect to the [milestone and cycle planning screens](PLANNING.md). Timeline scheduling, multi-team projects and richer project documents remain separate work. See the [requirements ledger](REQUIREMENTS_STATUS.md).
+Project lifecycle, issue membership, progress and updates connect to the [milestone and cycle planning screens](PLANNING.md). Timeline scheduling, multi-team projects and complete transfer/recovery qualification remain separate work. See the [requirements ledger](REQUIREMENTS_STATUS.md).
 
 Migration `0022_projects.sql` adds the project tables and constraints. Apply it before starting the matching API and worker. Earlier migrations remain immutable. Rollback requires a matching database backup and application binary; no destructive down-migration is provided.
+
+Migration `0026_project_documents.sql` copies existing briefs exactly into independent documents and retains the old columns as immutable snapshots. Use matching application/static assets; old writers are incompatible. A pre-upgrade backup is required for rollback. Retaining snapshots does not prove backup restoration or authorize their removal.

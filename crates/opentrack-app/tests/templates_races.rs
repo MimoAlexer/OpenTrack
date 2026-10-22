@@ -5,7 +5,7 @@ mod support;
 use graph_support::*;
 use opentrack_domain::*;
 use opentrack_store as store;
-use serde_json::json;
+use serde_json::{Value, json};
 use support::Harness;
 use uuid::Uuid;
 
@@ -339,8 +339,25 @@ async fn upgrade(h: &Harness) {
         .create_issue(&a, w, "pre-template-create-retry", create.clone())
         .await
         .unwrap();
-    let document = h.app.issue_document(&a, w, issue.id).await.unwrap();
     let mut tx = h.context(a.user.id, w).await;
+    // Current document readers require 0026; retain the exact 0017 representation.
+    let stored: Value = sqlx::query_scalar(
+        "SELECT to_jsonb(d) FROM documents d WHERE workspace_id=$1 AND issue_id=$2",
+    )
+    .bind(w)
+    .bind(issue.id)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    let mut document: Document = req(json!({
+        "id":stored["id"],"owner_type":"issue","owner_id":issue.id,
+        "schema_version":stored["schema_version"],"schema_supported":true,
+        "body":stored["body"],"plain_text":stored["plain_text"],
+        "version":stored["version"].as_i64().unwrap().to_string(),"etag":"",
+        "created_at":stored["created_at"],"updated_at":stored["updated_at"],
+        "can_edit":true,"mentions":[],"issue_references":[]
+    }));
+    document.refresh_etag();
     let recorded:String=sqlx::query_scalar("SELECT request_hash FROM idempotency_records WHERE route='issues.create' AND response_body->>'id'=$1").bind(issue.id.to_string()).fetch_one(&mut *tx).await.unwrap();
     assert_eq!(recorded, format!("{:x}", Sha256::digest(bytes)));
     tx.commit().await.unwrap();
@@ -378,10 +395,17 @@ async fn upgrade(h: &Harness) {
         .unwrap(),
         serde_json::to_value(&issue).unwrap()
     );
-    assert_eq!(
-        serde_json::to_value(h.app.issue_document(&a, w, issue.id).await.unwrap()).unwrap(),
-        serde_json::to_value(document).unwrap()
-    );
+    let mut tx = h.context(a.user.id, w).await;
+    let intermediate: Value = sqlx::query_scalar(
+        "SELECT to_jsonb(d) FROM documents d WHERE workspace_id=$1 AND issue_id=$2",
+    )
+    .bind(w)
+    .bind(issue.id)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    assert_eq!(intermediate, stored);
+    tx.commit().await.unwrap();
     for table in ["issue_templates", "issue_template_sources"] {
         assert!(sqlx::query_scalar::<_,bool>("SELECT has_table_privilege(current_user,$1,'SELECT') AND has_table_privilege(current_user,$1,'INSERT') AND NOT has_table_privilege(current_user,$1,'DELETE,TRUNCATE')").bind(table).fetch_one(&h.app.pool).await.unwrap());
         assert!(!sqlx::query_scalar::<_,bool>("SELECT has_any_column_privilege(current_user,$1,'SELECT,INSERT,UPDATE,REFERENCES') OR has_table_privilege(current_user,$1,'DELETE,TRUNCATE,TRIGGER')").bind(table).fetch_one(&worker.pool).await.unwrap());
@@ -398,6 +422,15 @@ async fn upgrade(h: &Harness) {
     // Keep the historical 0018 assertions above exact. New writes through the
     // current API require its current schema, including explicit title mode.
     store::MIGRATOR.run(&h.owner).await.unwrap();
+    let mut tx = h.context(a.user.id, w).await;
+    let upgraded: Value = sqlx::query_scalar("SELECT to_jsonb(d)-'project_id'-'migrated_initial' FROM documents d WHERE workspace_id=$1 AND issue_id=$2")
+        .bind(w).bind(issue.id).fetch_one(&mut *tx).await.unwrap();
+    assert_eq!(upgraded, stored);
+    tx.commit().await.unwrap();
+    assert_eq!(
+        serde_json::to_value(h.app.issue_document(&a, w, issue.id).await.unwrap()).unwrap(),
+        serde_json::to_value(document).unwrap()
+    );
     h.app
         .create_template(
             &a,

@@ -106,8 +106,11 @@ async fn project_row(
     edit: bool,
     manage: bool,
 ) -> Result<Project> {
-    let body: serde_json::Value = r.try_get("narrative_body").map_err(db_error)?;
-    let schema_version = r.try_get("narrative_schema_version").map_err(db_error)?;
+    let id: Uuid = r.try_get("id").map_err(db_error)?;
+    let document = sqlx::query("SELECT schema_version,body,plain_text,version::text FROM documents WHERE workspace_id=$1 AND project_id=$2 AND deleted_at IS NULL")
+        .bind(w).bind(id).fetch_one(&mut **tx).await.map_err(db_error)?;
+    let body: serde_json::Value = document.try_get("body").map_err(db_error)?;
+    let schema_version = document.try_get("schema_version").map_err(db_error)?;
     let supported = validate_project_narrative(&DocumentWrite {
         schema_version,
         body: body.clone(),
@@ -116,7 +119,7 @@ async fn project_row(
     .is_ok();
     let lead_id = r.try_get("lead_id").map_err(db_error)?;
     let mut item = Project {
-        id: r.try_get("id").map_err(db_error)?,
+        id,
         workspace_id: w,
         team_id: t,
         name: r.try_get("name").map_err(db_error)?,
@@ -124,9 +127,10 @@ async fn project_row(
         narrative: TemplateDocument {
             schema_version,
             body,
-            plain_text: r.try_get("narrative_plain_text").map_err(db_error)?,
+            plain_text: document.try_get("plain_text").map_err(db_error)?,
             schema_supported: supported,
         },
+        narrative_version: document.try_get("version").map_err(db_error)?,
         lead_id,
         lead: lead(tx, w, t, lead_id).await?,
         start_date: r.try_get("start_date").map_err(db_error)?,
@@ -138,6 +142,7 @@ async fn project_row(
             .map_err(db_error)?
             .to_string(),
         etag: String::new(),
+        metadata_etag: String::new(),
         archived_at: r.try_get("archived_at").map_err(db_error)?,
         created_at: r.try_get("created_at").map_err(db_error)?,
         updated_at: r.try_get("updated_at").map_err(db_error)?,
@@ -147,15 +152,38 @@ async fn project_row(
                 .is_none(),
         can_manage: manage,
     };
-    // The metadata validator includes mutable lead presentation and permissions,
-    // while live issue counts deliberately live at the separate progress URL.
+    refresh_etags(&mut item)?;
+    Ok(item)
+}
+fn refresh_etags(item: &mut Project) -> Result<()> {
+    let mut summary = ProjectSummary::from(&*item);
+    summary.etag.clear();
+    item.metadata_etag = format!(
+        "\"project-metadata:{}:{}:{}\"",
+        item.id,
+        item.version,
+        digest(&serde_json::to_vec(&summary).map_err(|_| Error::Internal)?)
+    );
+    item.etag.clear();
     item.etag = format!(
         "\"project:{}:{}:{}\"",
         item.id,
         item.version,
         digest(&serde_json::to_vec(&item).map_err(|_| Error::Internal)?)
     );
-    Ok(item)
+    Ok(())
+}
+pub(crate) fn metadata(item: &Project) -> ProjectSummary {
+    let mut value = ProjectSummary::from(item);
+    value.etag = item.metadata_etag.clone();
+    value
+}
+pub(crate) fn version(etag: &str, item: &Project) -> Result<()> {
+    if etag == item.metadata_etag {
+        Ok(())
+    } else {
+        lifecycle::version(etag, &item.etag, item)
+    }
 }
 async fn progress(tx: &mut store::Tx, w: Uuid, t: Uuid, id: Uuid) -> Result<ProjectProgress> {
     let r=sqlx::query("SELECT count(*) AS total,count(*) FILTER(WHERE s.category='completed') AS completed,count(*) FILTER(WHERE s.category='canceled') AS canceled,statement_timestamp() AS as_of FROM project_issues pi JOIN issues i ON i.workspace_id=pi.workspace_id AND i.team_id=pi.team_id AND i.id=pi.issue_id JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id WHERE pi.workspace_id=$1 AND pi.team_id=$2 AND pi.project_id=$3 AND i.deleted_at IS NULL AND i.archived_at IS NULL").bind(w).bind(t).bind(id).fetch_one(&mut **tx).await.map_err(db_error)?;
@@ -189,6 +217,32 @@ async fn emit(tx: &mut store::Tx, a: &Actor, w: Uuid, item: &Project, action: &s
     .await
     .map_err(db_error)
 }
+async fn emit_after(
+    tx: &mut store::Tx,
+    a: &Actor,
+    w: Uuid,
+    item: &Project,
+    action: &'static str,
+    mut events: Vec<store::Event<'static>>,
+) -> Result<()> {
+    let mutation = Uuid::new_v4();
+    store::identity_audit(tx, w, a.user.id, item.id, action, mutation)
+        .await
+        .map_err(db_error)?;
+    events.push(store::Event {
+        workspace: w,
+        team: item.team_id,
+        entity: item.id,
+        version: item.version.parse().map_err(|_| Error::Internal)?,
+        actor: a.user.id,
+        kind: action,
+        mutation,
+        changes: json!({}),
+    });
+    store::append_stream_events(tx, &events)
+        .await
+        .map_err(db_error)
+}
 pub(crate) async fn lock(tx: &mut store::Tx, w: Uuid, t: Uuid, id: Uuid) -> Result<()> {
     sqlx::query(
         "SELECT id FROM projects WHERE workspace_id=$1 AND team_id=$2 AND id=$3 FOR UPDATE",
@@ -218,6 +272,10 @@ async fn receipt<T: serde::Serialize>(
     item: &T,
 ) -> Result<()> {
     graph::one(sqlx::query("UPDATE idempotency_records SET response_body=$5 WHERE workspace_id=$1 AND principal_id=$2 AND route=$3 AND key_hash=$4").bind(w).bind(a.user.id).bind(route).bind(key).bind(serde_json::to_value(item).map_err(|_|Error::Internal)?).execute(&mut **tx).await.map_err(db_error)?.rows_affected())
+}
+enum ProjectMatch<'a> {
+    Full(&'a str),
+    Metadata(&'a str),
 }
 impl App {
     pub async fn list_projects(
@@ -269,7 +327,7 @@ impl App {
         };
         let mut data = Vec::new();
         for r in rows.iter().take(limit) {
-            data.push(project_row(&mut tx, w, t, r, edit, manage).await?.into());
+            data.push((&project_row(&mut tx, w, t, r, edit, manage).await?).into());
         }
         tx.commit().await.map_err(db_error)?;
         Ok(Page {
@@ -283,6 +341,15 @@ impl App {
         let item = project(&mut tx, a, w, t, id).await?;
         tx.commit().await.map_err(db_error)?;
         Ok(item)
+    }
+    pub async fn get_project_metadata(
+        &self,
+        a: &Actor,
+        w: Uuid,
+        t: Uuid,
+        id: Uuid,
+    ) -> Result<ProjectSummary> {
+        Ok(metadata(&self.get_project(a, w, t, id).await?))
     }
     pub async fn project_progress(
         &self,
@@ -318,15 +385,32 @@ impl App {
         let route = format!("projects.create:{t}");
         let mut tx = self.scoped(a, w, false).await?;
         let replay = lifecycle::retry::<Project>(&mut tx, w, a.user.id, &route, &kh, &rh).await?;
-        scope(&mut tx, a, w, t, true).await?;
-        if let Some(previous) = replay {
-            project(&mut tx, a, w, t, previous.id).await?;
+        scope(&mut tx, a, w, t, false).await?;
+        if let Some(mut previous) = replay {
+            let current = project(&mut tx, a, w, t, previous.id).await?;
+            previous.narrative = current.narrative;
+            previous.narrative_version = current.narrative_version;
+            previous.can_edit = current.can_edit;
+            previous.can_manage = current.can_manage;
+            previous.lead = lead(&mut tx, w, t, previous.lead_id).await?;
+            refresh_etags(&mut previous)?;
             tx.commit().await.map_err(db_error)?;
             return Ok(previous);
         }
+        crate::issue_references::lock_new_targets(
+            &mut tx,
+            a,
+            w,
+            t,
+            &narrative.body,
+            &serde_json::Value::Null,
+        )
+        .await?;
+        scope(&mut tx, a, w, t, true).await?;
         validate_lead(&mut tx, w, t, req.lead_id).await?;
         let id = Uuid::new_v4();
-        graph::one(sqlx::query("INSERT INTO projects(id,workspace_id,team_id,name,summary,narrative_schema_version,narrative_body,narrative_plain_text,lead_id,start_date,target_date) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)").bind(id).bind(w).bind(t).bind(req.name).bind(req.summary).bind(narrative.schema_version).bind(narrative.body).bind(plain).bind(req.lead_id).bind(req.start_date).bind(req.target_date).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
+        graph::one(sqlx::query("INSERT INTO projects(id,workspace_id,team_id,name,summary,narrative_schema_version,narrative_body,narrative_plain_text,lead_id,start_date,target_date) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)").bind(id).bind(w).bind(t).bind(req.name).bind(req.summary).bind(narrative.schema_version).bind(&narrative.body).bind(&plain).bind(req.lead_id).bind(req.start_date).bind(req.target_date).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
+        documents::create_project_document(&mut tx, a, w, id, &narrative, &plain).await?;
         let item = project(&mut tx, a, w, t, id).await?;
         receipt(&mut tx, w, a, &route, &kh, &item).await?;
         emit(&mut tx, a, w, &item, "project.created").await?;
@@ -342,15 +426,72 @@ impl App {
         etag: &str,
         req: UpdateProject,
     ) -> Result<Project> {
+        self.update_project_fields(a, w, t, id, ProjectMatch::Full(etag), req)
+            .await
+    }
+    pub async fn update_project_metadata(
+        &self,
+        a: &Actor,
+        w: Uuid,
+        t: Uuid,
+        id: Uuid,
+        etag: &str,
+        req: UpdateProject,
+    ) -> Result<ProjectSummary> {
+        Ok(metadata(
+            &self
+                .update_project_fields(a, w, t, id, ProjectMatch::Metadata(etag), req)
+                .await?,
+        ))
+    }
+    async fn update_project_fields(
+        &self,
+        a: &Actor,
+        w: Uuid,
+        t: Uuid,
+        id: Uuid,
+        validator: ProjectMatch<'_>,
+        req: UpdateProject,
+    ) -> Result<Project> {
+        if req.narrative.is_some() && matches!(&validator, ProjectMatch::Metadata(_)) {
+            return Err(Error::Invalid(
+                "Save the project brief through its independent document resource".into(),
+            ));
+        }
+        if let Some(narrative) = &req.narrative {
+            validate_project_narrative(narrative)?;
+        }
         let changed = req.changes_metadata();
         if !changed && req.archived.is_none() {
             return Err(Error::Invalid("Provide a project field to update".into()));
         }
         let mut tx = self.scoped(a, w, false).await?;
+        let document_id = if let Some(narrative) = &req.narrative {
+            scope(&mut tx, a, w, t, false).await?;
+            let document: Uuid = sqlx::query_scalar("SELECT d.id FROM documents d JOIN projects p ON p.workspace_id=d.workspace_id AND p.id=d.project_id WHERE d.workspace_id=$1 AND d.project_id=$2 AND p.team_id=$3 AND d.deleted_at IS NULL")
+                .bind(w).bind(id).bind(t).fetch_optional(&mut *tx).await.map_err(db_error)?.ok_or(Error::NotFound)?;
+            crate::issue_references::lock_document_targets(
+                &mut tx,
+                a,
+                w,
+                document,
+                &narrative.body,
+            )
+            .await?;
+            Some(document)
+        } else {
+            None
+        };
         let (_, manage) = scope(&mut tx, a, w, t, true).await?;
         lock(&mut tx, w, t, id).await?;
         let old = project(&mut tx, a, w, t, id).await?;
-        lifecycle::version(etag, &old.etag, &old)?;
+        match validator {
+            ProjectMatch::Metadata(etag) => {
+                let current = metadata(&old);
+                lifecycle::version(etag, &current.etag, &current)?;
+            }
+            ProjectMatch::Full(etag) => lifecycle::version(etag, &old.etag, &old)?,
+        }
         if req.archived.is_some() && !manage {
             return Err(Error::Forbidden);
         }
@@ -386,27 +527,25 @@ impl App {
         }
         let next_health = req.health.unwrap_or(old.health);
         let archived = req.archived.unwrap_or(old.archived_at.is_some());
-        let (narrative, plain) = if let Some(v) = req.narrative {
-            let plain = validate_project_narrative(&v)?;
-            (v, plain)
-        } else {
-            (
-                DocumentWrite {
-                    schema_version: old.narrative.schema_version,
-                    body: old.narrative.body.clone(),
-                    moderation_reason: None,
-                },
-                old.narrative.plain_text.clone(),
-            )
-        };
-        graph::one(sqlx::query("UPDATE projects SET name=$4,summary=$5,narrative_schema_version=$6,narrative_body=$7,narrative_plain_text=$8,lead_id=$9,start_date=$10,target_date=$11,state=$12,health=$13,archived_at=CASE WHEN $14 THEN coalesce(archived_at,clock_timestamp()) ELSE NULL END,version=version+1,updated_at=clock_timestamp() WHERE workspace_id=$1 AND team_id=$2 AND id=$3").bind(w).bind(t).bind(id).bind(name).bind(summary).bind(narrative.schema_version).bind(narrative.body).bind(plain).bind(lead_id).bind(start).bind(target).bind(next_state.as_str()).bind(next_health.as_str()).bind(archived).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
+        let mut events = Vec::new();
+        if let (Some(document_id), Some(narrative)) = (document_id, &req.narrative)
+            && (narrative.schema_version != old.narrative.schema_version
+                || narrative.body != old.narrative.body)
+        {
+            let owner = documents::document_scope(&mut tx, a, w, document_id, true).await?;
+            let expected = owner.document.etag.clone();
+            let (_, prepared) =
+                documents::write_locked(&mut tx, a, w, owner, &expected, narrative).await?;
+            events = prepared;
+        }
+        graph::one(sqlx::query("UPDATE projects SET name=$4,summary=$5,lead_id=$6,start_date=$7,target_date=$8,state=$9,health=$10,archived_at=CASE WHEN $11 THEN coalesce(archived_at,clock_timestamp()) ELSE NULL END,version=version+1,updated_at=clock_timestamp() WHERE workspace_id=$1 AND team_id=$2 AND id=$3").bind(w).bind(t).bind(id).bind(name).bind(summary).bind(lead_id).bind(start).bind(target).bind(next_state.as_str()).bind(next_health.as_str()).bind(archived).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
         let item = project(&mut tx, a, w, t, id).await?;
         let action = match (old.archived_at.is_some(), archived) {
             (false, true) => "project.archived",
             (true, false) => "project.restored",
             _ => "project.updated",
         };
-        emit(&mut tx, a, w, &item, action).await?;
+        emit_after(&mut tx, a, w, &item, action, events).await?;
         tx.commit().await.map_err(db_error)?;
         Ok(item)
     }
@@ -478,7 +617,7 @@ impl App {
         scope(&mut tx, a, w, t, true).await?;
         lock(&mut tx, w, t, id).await?;
         let old = project(&mut tx, a, w, t, id).await?;
-        lifecycle::version(etag, &old.etag, &old)?;
+        version(etag, &old)?;
         if old.archived_at.is_some() {
             return Err(Error::Conflict(
                 "Restore this project before changing its scope".into(),

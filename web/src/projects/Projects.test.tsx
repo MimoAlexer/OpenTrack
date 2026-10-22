@@ -3,21 +3,24 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RichTextEditorProps } from '../documents/RichTextEditor';
-import { EMPTY_BODY } from '../documents/model';
+import { EMPTY_BODY, fromPlainText } from '../documents/model';
+import type { StructuredDocument } from '../documents/types';
 import { hasUnsavedChanges, parseRoute } from '../router';
 import type { Bootstrap, Session, Team } from '../types';
 import { Projects, Progress } from './Projects';
 import { ProjectEditor } from './ProjectEditor';
 import { ProjectUpdates } from './ProjectUpdates';
 import { ProjectIssues } from './ProjectIssues';
-import type { Project, ProjectProgress } from './types';
+import { projectMetadata, type FullProject, type Project, type ProjectProgress } from './types';
 import { useProjectData, useProjectPage } from './useProjectData';
 
 vi.mock('../documents/Editor', () => ({ StructuredEditor: (props: RichTextEditorProps) => <textarea aria-label={props.label} value={JSON.stringify(props.value)} disabled={props.disabled} onChange={event => props.onChange(JSON.parse(event.target.value))}/> }));
 const team: Team = { id: 'team', key: 'ENG', name: 'Engineering', private: false, archived_at: null };
 const session: Session = { audience: 'web', user: { id: 'owner', email: 'owner@example.test', display_name: 'Example Owner' }, csrf_token: 'csrf', workspaces: [{ id: 'workspace', name: 'Example Workspace', slug: 'example', role: 'owner' }] };
 const data: Bootstrap = { auth_epoch: '1', teams: [team], issues: [], members: [session.user], statuses: [] };
-const project: Project = { id: 'project', workspace_id: 'workspace', team_id: 'team', name: 'New onboarding', summary: 'Help people reach their first result', narrative: { body: EMPTY_BODY, plain_text: '', schema_supported: true, schema_version: 1 }, state: 'planned', health: 'on_track', lead_id: null, lead: null, start_date: null, target_date: null, version: '1', etag: '"project:project:1"', created_at: '2026-10-20T10:00:00Z', updated_at: '2026-10-20T10:00:00Z', archived_at: null, can_edit: true, can_manage: true };
+const project: Project = { id: 'project', workspace_id: 'workspace', team_id: 'team', name: 'New onboarding', summary: 'Help people reach their first result', state: 'planned', health: 'on_track', lead_id: null, lead: null, start_date: null, target_date: null, version: '1', etag: '"project-metadata:project:1"', created_at: '2026-10-20T10:00:00Z', updated_at: '2026-10-20T10:00:00Z', archived_at: null, can_edit: true, can_manage: true };
+function fullProject(overrides: Partial<FullProject> = {}): FullProject { return { ...project, narrative: { body: EMPTY_BODY, plain_text: '', schema_supported: true, schema_version: 1 }, narrative_version: '1', etag: '"project:project:1:document:1"', metadata_etag: project.etag, ...overrides }; }
+function documentRecord(text = 'Saved project brief', version = '1'): StructuredDocument { return { id: 'document', owner_id: project.id, owner_type: 'project', body: fromPlainText(text), plain_text: text, schema_version: 1, schema_supported: true, version, etag: `"document:document:${version}"`, can_edit: true, mentions: [], issue_references: [], created_at: project.created_at, updated_at: project.updated_at }; }
 const progress: ProjectProgress = { completed: 2, eligible: 5, canceled: 1, open: 3, total: 6, unscoped: false, as_of: '2026-10-20T10:00:00Z' };
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 const page = (data: unknown[], next: string | null = null) => ({ data, has_more: !!next, next_cursor: next });
@@ -29,7 +32,7 @@ beforeEach(() => {
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
   container = document.createElement('div'); document.body.append(container); root = createRoot(container);
 });
-afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 async function render(node: ReactNode) { await act(async () => root.render(node)); }
 function button(label: string) { const found = [...container.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === label || item.getAttribute('aria-label') === label); if (!found) throw new Error(`Missing button ${label}`); return found; }
 async function click(label: string) { await act(async () => button(label).click()); }
@@ -38,7 +41,7 @@ async function input(selector: string, value: string) {
   await act(async () => { const proto = element instanceof HTMLSelectElement ? HTMLSelectElement.prototype : element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(proto, 'value')!.set!.call(element, value); element.dispatchEvent(new Event(element instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true })); });
 }
 async function submit(selector = 'form') { await act(async () => container.querySelector(selector)!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); }
-function detailFetch(url: string) { return json(url.includes('/progress') ? progress : url.includes('/milestones') ? { ...page([]), project_etag: project.etag } : url.includes('/issues') || url.includes('/updates') ? page([]) : project); }
+function detailFetch(url: string) { return json(url === '/api/v1/capabilities' ? { features: { attachments: true }, limits: { max_upload_bytes: 1024 } } : url.includes('/revisions') ? page([]) : url.endsWith('/document') || url.endsWith('/documents/document') ? documentRecord() : url.includes('/progress') ? progress : url.includes('/milestones') ? { ...page([]), project_etag: project.etag } : url.includes('/issues') || url.includes('/updates') ? page([]) : url.endsWith('/metadata') ? project : fullProject()); }
 function screen(props: Partial<Parameters<typeof Projects>[0]> = {}) { return <Projects workspaceId="workspace" session={session} data={data} params={new URLSearchParams({ team_id: 'team' })} refresh={0} readOnly={false} {...props}/>; }
 
 describe('project navigation and scope', () => {
@@ -98,6 +101,9 @@ describe('project edits', () => {
     await input('input[name="project-summary"]', 'Updated project summary'); await submit();
     expect(saved).toHaveBeenCalledWith(expect.objectContaining({ lead_id: historical.lead_id, summary: 'Updated project summary' }));
     expect(JSON.parse(fetch.mock.calls[0][1].body as string)).not.toHaveProperty('lead_id');
+    expect(JSON.parse(fetch.mock.calls[0][1].body as string)).not.toHaveProperty('narrative');
+    expect(fetch.mock.calls[0][0]).toBe('/api/v1/workspaces/workspace/teams/team/projects/project/metadata');
+    expect(container.querySelector('textarea[aria-label="Project brief"]')).toBeNull();
   });
   it('sends an explicit null when the user removes the project lead', async () => {
     const historical = { ...project, lead_id: 'former-lead', lead: { id: 'former-lead', display_name: 'Former Lead', assignable: false } };
@@ -125,26 +131,32 @@ describe('project edits', () => {
     expect(container.textContent).toContain('Target date must be on or after the start date.'); expect(button('Save project').disabled).toBe(true); await submit(); expect(fetch).not.toHaveBeenCalled();
   });
   it('preserves a rejected draft and requires review before retrying the latest ETag', async () => {
-    const latest = { ...project, name: 'Saved by a teammate', version: '2', etag: '"project:project:2"' }; let writes = 0;
+    const latest = { ...project, name: 'Saved by a teammate', version: '2', etag: '"project-metadata:project:2"' }; let writes = 0;
     const fetch = vi.fn((_url: string, options: RequestInit) => Promise.resolve(options.method === 'PATCH' ? ++writes === 1 ? json({ code: 'version_conflict', detail: 'This project changed.' }, 412) : json({ ...latest, name: 'My draft' }) : json(latest)));
     vi.stubGlobal('fetch', fetch); await render(editor()); await input('input[name="project-name"]', 'My draft'); await submit();
     expect(container.textContent).toContain('Saved by a teammate'); expect(container.querySelector<HTMLInputElement>('input[name="project-name"]')?.value).toBe('My draft'); expect(button('Save project').disabled).toBe(true);
     await click('Keep my draft for review'); expect(button('Save project').disabled).toBe(false); await submit();
     const requests = fetch.mock.calls.filter(([, options]) => options.method === 'PATCH'); expect(new Headers(requests[1][1].headers).get('If-Match')).toBe(latest.etag);
+    expect(fetch.mock.calls.every(([url]) => url.endsWith('/metadata'))).toBe(true);
+    expect(requests.every(([, options]) => !('narrative' in JSON.parse(options.body as string)))).toBe(true);
   });
   it('retries an uncertain creation with the same body and idempotency key', async () => {
-    let writes = 0; const fetch = vi.fn(() => ++writes === 1 ? Promise.reject(new TypeError('connection lost')) : Promise.resolve(json(project)));
-    vi.stubGlobal('fetch', fetch); const saved = vi.fn(); await render(editor({ project: undefined, saved })); await input('input[name="project-name"]', 'New onboarding'); await submit();
+    let writes = 0; const fetch = vi.fn(() => ++writes === 1 ? Promise.reject(new TypeError('connection lost')) : Promise.resolve(json(fullProject())));
+    vi.stubGlobal('fetch', fetch); const saved = vi.fn(); await render(editor({ project: undefined, saved })); await input('input[name="project-name"]', 'New onboarding'); await input('textarea[aria-label="Project brief"]', JSON.stringify(fromPlainText('Initial brief'))); await submit();
     expect(button('Cancel').disabled).toBe(true); expect(container.querySelector<HTMLInputElement>('input[name="project-name"]')?.disabled).toBe(false); // the enclosing fieldset owns disabled state
     expect(container.querySelector('fieldset')?.disabled).toBe(true); await click('Retry safely');
     const requests = fetch.mock.calls as unknown as [string, RequestInit][];
     expect(new Headers(requests[0][1].headers).get('Idempotency-Key')).toBe(new Headers(requests[1][1].headers).get('Idempotency-Key')); expect(requests[0][1].body).toBe(requests[1][1].body); expect(saved).toHaveBeenCalledTimes(1);
+    expect(requests[0][0]).toBe('/api/v1/workspaces/workspace/teams/team/projects');
+    expect(JSON.parse(requests[0][1].body as string)).toHaveProperty('narrative', { schema_version: 1, body: fromPlainText('Initial brief') });
+    expect(saved).toHaveBeenCalledWith(project);
   });
   it('archives with a versioned metadata-only command', async () => {
     const fetch = vi.fn(() => Promise.resolve(json({ ...project, archived_at: '2026-10-20T12:00:00Z' })));
     vi.stubGlobal('fetch', fetch); await render(editor({ mode: 'archive' })); await submit();
     const request = (fetch.mock.calls as unknown as [string, RequestInit][])[0][1];
     expect(new Headers(request.headers).get('If-Match')).toBe(project.etag); expect(JSON.parse(request.body as string)).toEqual({ archived: true });
+    expect((fetch.mock.calls as unknown as [string, RequestInit][])[0][0]).toBe('/api/v1/workspaces/workspace/teams/team/projects/project/metadata');
   });
   it('does not run a stale save callback after its editor closes', async () => {
     let finish!: (value: Response) => void;
@@ -159,7 +171,103 @@ describe('project edits', () => {
   });
 });
 
+describe('independent project brief', () => {
+  it('discovers and saves its document without refetching metadata or progress', async () => {
+    const fetch = vi.fn((url: string, options: RequestInit) => Promise.resolve(options.method === 'PATCH' ? json(documentRecord('Revised brief', '2')) : detailFetch(url)));
+    vi.stubGlobal('fetch', fetch); await render(screen({ projectId: project.id }));
+    const editor = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Project brief"]')!;
+    expect(editor.value).toBe(JSON.stringify(documentRecord().body));
+    expect(fetch.mock.calls.some(([url]) => url.endsWith('/projects/project/document'))).toBe(true);
+    expect(fetch.mock.calls.some(([url]) => url.endsWith('/projects/project/metadata'))).toBe(true);
+    expect(fetch.mock.calls.some(([url]) => url.endsWith('/projects/project'))).toBe(false);
+    const reads = fetch.mock.calls.filter(([url]) => /\/(metadata|progress)$/.test(url)).length;
+    await input('textarea[aria-label="Project brief"]', JSON.stringify(fromPlainText('Revised brief'))); await click('Save text now');
+    const writes = fetch.mock.calls.filter(([, options]) => options.method === 'PATCH');
+    expect(writes).toHaveLength(1); expect(writes[0][0]).toBe('/api/v1/workspaces/workspace/documents/document');
+    expect(new Headers(writes[0][1].headers).get('If-Match')).toBe(documentRecord().etag);
+    expect(JSON.parse(writes[0][1].body as string)).toEqual({ schema_version: 1, body: fromPlainText('Revised brief') });
+    expect(fetch.mock.calls.filter(([url]) => /\/(metadata|progress)$/.test(url))).toHaveLength(reads);
+    expect(container.querySelector('textarea[aria-label="Project brief"]')).toBe(editor); expect(hasUnsavedChanges()).toBe(false);
+  });
+  it('preserves the brief editor and dirty text across tabs and project refreshes', async () => {
+    vi.useFakeTimers(); vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(detailFetch(url))));
+    await render(screen({ projectId: project.id }));
+    const editor = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Project brief"]')!;
+    const draft = JSON.stringify(fromPlainText('Keep this unsaved brief'));
+    await input('textarea[aria-label="Project brief"]', draft); await click('Issues'); await click('Overview');
+    expect(container.querySelector('textarea[aria-label="Project brief"]')).toBe(editor); expect(editor.value).toBe(draft);
+    await render(screen({ projectId: project.id, refresh: 1 }));
+    expect(container.querySelector('textarea[aria-label="Project brief"]')).toBe(editor); expect(editor.value).toBe(draft); expect(hasUnsavedChanges()).toBe(true);
+  });
+  it('keeps an unsaved brief when a metadata save advances the project version', async () => {
+    vi.useFakeTimers(); const fetch = vi.fn((url: string, options: RequestInit) => Promise.resolve(options.method === 'PATCH' ? json({ ...project, name: 'Revised project name', version: '2', etag: '"project-metadata:project:2"' }) : detailFetch(url)));
+    vi.stubGlobal('fetch', fetch); await render(screen({ projectId: project.id }));
+    const editor = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Project brief"]')!; const draft = JSON.stringify(fromPlainText('Independent brief draft'));
+    await input('textarea[aria-label="Project brief"]', draft); await click('Edit project'); await input('input[name="project-name"]', 'Revised project name'); await submit('dialog[open] form');
+    expect(container.textContent).toContain('Revised project name'); expect(container.querySelector('textarea[aria-label="Project brief"]')).toBe(editor); expect(editor.value).toBe(draft); expect(hasUnsavedChanges()).toBe(true); expect(button('Archive project').disabled).toBe(true);
+    expect(fetch.mock.calls.filter(([, options]) => options.method === 'PATCH').map(([url]) => url)).toEqual(['/api/v1/workspaces/workspace/teams/team/projects/project/metadata']);
+  });
+  it('opens document history lazily without replacing the current brief draft', async () => {
+    vi.useFakeTimers(); const summary = { revision: '1', author: null, migrated: true, schema_version: 1, created_at: project.created_at, expires_at: '2027-10-20T10:00:00Z' };
+    const fetch = vi.fn((url: string) => Promise.resolve(url.endsWith('/revisions/1') ? json({ ...summary, body: fromPlainText('Migrated brief snapshot'), plain_text: 'Migrated brief snapshot', mentions: [], issue_references: [] }) : url.includes('/revisions?') ? json(page([summary])) : detailFetch(url)));
+    vi.stubGlobal('fetch', fetch); await render(screen({ projectId: project.id }));
+    expect(fetch.mock.calls.some(([url]) => url.includes('/revisions'))).toBe(false);
+    const editor = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Project brief"]')!; const draft = JSON.stringify(fromPlainText('Current brief draft'));
+    await input('textarea[aria-label="Project brief"]', draft); await click('Brief history'); await click('View revision 1');
+    expect(fetch.mock.calls.some(([url]) => url === '/api/v1/workspaces/workspace/documents/document/revisions/1')).toBe(true);
+    expect(container.textContent).toContain('Migrated brief snapshot'); expect(container.textContent).toContain('Unknown author');
+    expect(container.querySelector('textarea[aria-label="Project brief"]')).toBe(editor); expect(editor.value).toBe(draft); expect(hasUnsavedChanges()).toBe(true);
+    await click('Done'); expect(editor.value).toBe(draft);
+  });
+  it('blocks archive for a dirty brief and for its pending save, then allows it after confirmation', async () => {
+    vi.useFakeTimers(); let finish!: (value: Response) => void;
+    const fetch = vi.fn((url: string, options: RequestInit) => options.method === 'PATCH' ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(detailFetch(url)));
+    vi.stubGlobal('fetch', fetch); await render(screen({ projectId: project.id }));
+    expect(button('Archive project').disabled).toBe(false);
+    await input('textarea[aria-label="Project brief"]', JSON.stringify(fromPlainText('Pending brief'))); expect(button('Archive project').disabled).toBe(true);
+    await click('Save text now'); expect(button('Archive project').disabled).toBe(true);
+    await act(async () => finish(json(documentRecord('Pending brief', '2')))); expect(button('Archive project').disabled).toBe(false);
+  });
+  it('pauses brief writes while the archive dialog is open', async () => {
+    vi.useFakeTimers(); const fetch = vi.fn((url: string, options: RequestInit) => Promise.resolve(options.method === 'PATCH' ? json(documentRecord('Deferred brief', '2')) : detailFetch(url)));
+    vi.stubGlobal('fetch', fetch); await render(screen({ projectId: project.id })); await click('Archive project');
+    await input('textarea[aria-label="Project brief"]', JSON.stringify(fromPlainText('Deferred brief')));
+    await act(async () => vi.advanceTimersByTime(1000)); expect(fetch.mock.calls.filter(([, options]) => options.method === 'PATCH')).toHaveLength(0);
+    expect(button('Save text now').disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>('.modal-footer .primary')?.disabled).toBe(true); await submit('dialog[open] form');
+    expect(fetch.mock.calls.filter(([, options]) => options.method === 'PATCH')).toHaveLength(0);
+    await click('Cancel'); await act(async () => vi.advanceTimersByTime(750));
+    expect(fetch.mock.calls.filter(([, options]) => options.method === 'PATCH')).toHaveLength(1);
+  });
+  it('allows metadata editing and archive when a newer brief format is read-only', async () => {
+    const unsupported = { ...documentRecord('Future brief'), schema_version: 2, schema_supported: false, can_edit: false, body: { type: 'future' } };
+    const fetch = vi.fn((url: string, options: RequestInit) => Promise.resolve(options.method === 'PATCH' ? json({ ...project, summary: 'Metadata remains editable', version: '2' }) : url.endsWith('/document') ? json(unsupported) : detailFetch(url)));
+    vi.stubGlobal('fetch', fetch); await render(screen({ projectId: project.id }));
+    expect(container.textContent).toContain('Future brief'); expect(container.querySelector('textarea[aria-label="Project brief"]')).toBeNull(); expect(button('Archive project').disabled).toBe(false);
+    await click('Edit project'); await input('input[name="project-summary"]', 'Metadata remains editable'); await submit('dialog[open] form');
+    const write = fetch.mock.calls.find(([, options]) => options.method === 'PATCH')!;
+    expect(write[0]).toBe('/api/v1/workspaces/workspace/teams/team/projects/project/metadata'); expect(new Headers(write[1].headers).get('If-Match')).toBe(project.etag); expect(JSON.parse(write[1].body as string)).not.toHaveProperty('narrative');
+    expect(container.textContent).toContain('Metadata remains editable'); expect(button('Archive project').disabled).toBe(false);
+  });
+  it('conceals parent project facts when current document ownership is denied', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(url.endsWith('/document') ? json({ code: 'not_found', detail: 'Unavailable' }, 404) : detailFetch(url))));
+    await render(screen({ projectId: project.id }));
+    expect(container.textContent).toContain('Project unavailable'); expect(container.textContent).not.toContain(project.name); expect(container.textContent).not.toContain(project.summary); expect(container.querySelector('.project-properties')).toBeNull(); expect(document.title).not.toContain(project.name);
+  });
+});
+
 describe('progress and updates', () => {
+  it('uses the metadata validator and removes the embedded brief from full project responses', () => {
+    expect(projectMetadata(fullProject())).toEqual(project);
+    expect(projectMetadata(fullProject())).not.toHaveProperty('metadata_etag'); expect(projectMetadata(fullProject())).not.toHaveProperty('narrative');
+  });
+  it('normalizes an issue mutation response before replacing project metadata', async () => {
+    const issue = { id: 'issue', key: 'ENG-8', title: 'A useful step', status_id: 'ready', status_name: 'Ready', status_category: 'unstarted', priority: 0, archived_at: null };
+    const updated = fullProject({ version: '2', etag: '"full-body-sensitive-token"', metadata_etag: '"independent-metadata-token"' });
+    const fetch = vi.fn((_url: string, options: RequestInit) => Promise.resolve(json(options.method === 'PUT' ? updated : page([issue]))));
+    vi.stubGlobal('fetch', fetch); const changed = vi.fn(); await render(<ProjectIssues project={project} session={session} refresh={0} readOnly={false} changed={changed} denied={() => {}}/>); await click('Remove ENG-8 from project');
+    expect(changed).toHaveBeenCalledWith({ ...project, version: '2', etag: updated.metadata_etag });
+  });
   it('shows the denominator and exclusions while zero eligible scope is not 100 percent', async () => {
     await render(<Progress value={progress}/>); expect(container.textContent).toContain('40% complete'); expect(container.textContent).toContain('2 / 5 issues'); expect(container.textContent).toContain('1 canceled · excluded'); expect(container.querySelector('progress')?.max).toBe(5);
     await render(<Progress value={{ ...progress, completed: 0, eligible: 0, total: 0, open: 0, canceled: 0, unscoped: true }}/>); expect(container.textContent).toContain('No eligible issue scope'); expect(container.textContent).not.toContain('100%'); expect(container.querySelector('progress')).toBeNull();
@@ -175,6 +283,7 @@ describe('progress and updates', () => {
     const fetch = vi.fn((url: string, options: RequestInit) => Promise.resolve(options.method === 'PUT' ? json({ code: 'version_conflict', detail: 'Scope changed.' }, 412) : url.includes('/issues') ? json(page([issue])) : json({ ...project, etag: '"project:project:2"', version: '2' })));
     vi.stubGlobal('fetch', fetch); const changed = vi.fn(); await render(<ProjectIssues project={project} session={session} refresh={0} readOnly={false} changed={changed} denied={() => {}}/>); await click('Remove ENG-8 from project');
     const writes = fetch.mock.calls.filter(([, options]) => options.method === 'PUT'); expect(writes).toHaveLength(1); expect(new Headers(writes[0][1].headers).get('If-Match')).toBe(project.etag); expect(JSON.parse(writes[0][1].body as string)).toEqual({ included: false }); expect(changed).toHaveBeenCalledWith(expect.objectContaining({ version: '2' })); expect(container.textContent).toContain('review its issues before trying again');
+    expect(fetch.mock.calls.some(([url]) => url.endsWith('/projects/project/metadata'))).toBe(true);
   });
 });
 

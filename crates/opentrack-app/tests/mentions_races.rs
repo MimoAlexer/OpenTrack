@@ -291,7 +291,12 @@ async fn upgrade(h: &Harness) {
         .create_issue(&a, w, "legacy-mentions-receipt", command.clone())
         .await
         .unwrap();
-    let olddoc = h.app.issue_document(&a, w, item.id).await.unwrap();
+    // Capture schema 18 directly; current document owner resolution requires schema 26.
+    let mut tx = h.context(a.user.id, w).await;
+    let mut olddoc: Document = req(sqlx::query_scalar::<_, serde_json::Value>("SELECT jsonb_build_object('id',id,'owner_type','issue','owner_id',issue_id,'schema_supported',schema_version=1,'schema_version',schema_version,'body',body,'plain_text',plain_text,'mentions','[]'::jsonb,'issue_references','[]'::jsonb,'version',version::text,'etag','','created_at',created_at,'updated_at',updated_at,'can_edit',true) FROM documents WHERE workspace_id=$1 AND issue_id=$2")
+        .bind(w).bind(item.id).fetch_one(&mut *tx).await.unwrap());
+    tx.commit().await.unwrap();
+    olddoc.refresh_etag();
     let hidden = issue(h, &a, w, private, json!({"assignee_id":removed.user.id})).await;
     let hiddenmember = h
         .app

@@ -146,7 +146,8 @@ async fn validation_versions(h: &Harness) {
         .unwrap();
     assert_eq!(old.body, document.body);
     assert_eq!(old.plain_text, "First body");
-    assert_eq!(old.summary.author.id, a.user.id);
+    assert_eq!(old.summary.author.as_ref().unwrap().id, a.user.id);
+    assert!(!old.summary.migrated);
     assert_eq!(
         old.summary.expires_at - old.summary.created_at,
         chrono::Duration::days(90)
@@ -580,7 +581,8 @@ async fn upgrade(h: &Harness) {
     assert_eq!(doc.version, "1");
     let revision = h.app.document_revision(&a, w, doc.id, 1).await.unwrap();
     assert_eq!(revision.plain_text, old_text);
-    assert_eq!(revision.summary.author.id, a.user.id);
+    assert_eq!(revision.summary.author.as_ref().unwrap().id, a.user.id);
+    assert!(!revision.summary.migrated);
     let mut modern: CreateIssue = serde_json::from_slice(&encoded).unwrap();
     modern.validate().unwrap();
     assert_eq!(
