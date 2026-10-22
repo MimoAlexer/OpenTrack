@@ -1,8 +1,8 @@
 # OpenTrack implementation handoff
 
-## Started batch completion — 22 October 2026
+## Five-lane execution resumed — 22 October 2026
 
-The latest user instruction is to finish the already-started issues, create and merge their verified pull requests, then stop assigning backlog work. It supersedes the earlier continuous-execution instructions preserved below. See the [batch record](docs/evidence/2026-10-22-started-batch.md), [requirements ledger](docs/REQUIREMENTS_STATUS.md) and current AGENTS.md.
+The latest user instruction resumes complete-product execution through five assigned lanes and supersedes the earlier batch-only stop rule. Each worker follows its assigned queue and shared coordination protocol. Agent 5 owns shared contracts, contiguous migration reservations, exact-head review/merging and final qualification. Finish only after all queues, F01–F47, X01–X66, M01–M21 and product gates have real evidence on integrated main; unavailable manual or external gates remain blockers. See the [accepted batch record](docs/evidence/2026-10-22-started-batch.md), [requirements ledger](docs/REQUIREMENTS_STATUS.md) and current AGENTS.md.
 
 The current planning source requires migrations through 0024: project milestones, team cycles, immutable scope/close reports and explicit reviewed carry-forward. Read the [milestone](docs/MILESTONES.md) and [cycle](docs/CYCLES.md) operating notes before upgrading. Native GUI, physical keyboard/IME and assistive-technology qualification remain distinct from browser and native-core checks.
 
