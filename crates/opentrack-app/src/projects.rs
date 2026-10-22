@@ -4,7 +4,7 @@ use opentrack_domain::*;
 use serde_json::json;
 use sqlx::{Row, postgres::PgRow};
 
-async fn scope(
+pub(crate) async fn scope(
     tx: &mut store::Tx,
     a: &Actor,
     w: Uuid,
@@ -80,7 +80,13 @@ fn health(v: &str) -> Result<ProjectHealth> {
         _ => Err(Error::Internal),
     }
 }
-async fn project(tx: &mut store::Tx, a: &Actor, w: Uuid, t: Uuid, id: Uuid) -> Result<Project> {
+pub(crate) async fn project(
+    tx: &mut store::Tx,
+    a: &Actor,
+    w: Uuid,
+    t: Uuid,
+    id: Uuid,
+) -> Result<Project> {
     let (edit, manage) = scope(tx, a, w, t, false).await?;
     let row = sqlx::query("SELECT * FROM projects WHERE workspace_id=$1 AND team_id=$2 AND id=$3")
         .bind(w)
@@ -183,7 +189,7 @@ async fn emit(tx: &mut store::Tx, a: &Actor, w: Uuid, item: &Project, action: &s
     .await
     .map_err(db_error)
 }
-async fn lock(tx: &mut store::Tx, w: Uuid, t: Uuid, id: Uuid) -> Result<()> {
+pub(crate) async fn lock(tx: &mut store::Tx, w: Uuid, t: Uuid, id: Uuid) -> Result<()> {
     sqlx::query(
         "SELECT id FROM projects WHERE workspace_id=$1 AND team_id=$2 AND id=$3 FOR UPDATE",
     )
@@ -422,7 +428,7 @@ impl App {
             .as_deref()
             .map(|s| self.taxonomy_cursor_decode("project-issues-v1", &binding, s))
             .transpose()?;
-        let rows=sqlx::query("SELECT i.id,t.key||'-'||i.number AS key,i.title,i.status_id,s.name AS status_name,s.category AS status_category,i.priority,i.archived_at FROM project_issues pi JOIN issues i ON i.workspace_id=pi.workspace_id AND i.team_id=pi.team_id AND i.id=pi.issue_id JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id JOIN teams t ON t.workspace_id=i.workspace_id AND t.id=i.team_id WHERE pi.workspace_id=$1 AND pi.team_id=$2 AND pi.project_id=$3 AND i.deleted_at IS NULL AND i.archived_at IS NULL AND ($4::uuid IS NULL OR i.id>$4) ORDER BY i.id LIMIT $5").bind(w).bind(t).bind(id).bind(after).bind(limit as i64+1).fetch_all(&mut *tx).await.map_err(db_error)?;
+        let rows=sqlx::query("SELECT i.id,pi.milestone_id,t.key||'-'||i.number AS key,i.title,i.status_id,s.name AS status_name,s.category AS status_category,i.priority,i.archived_at FROM project_issues pi JOIN issues i ON i.workspace_id=pi.workspace_id AND i.team_id=pi.team_id AND i.id=pi.issue_id JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id JOIN teams t ON t.workspace_id=i.workspace_id AND t.id=i.team_id WHERE pi.workspace_id=$1 AND pi.team_id=$2 AND pi.project_id=$3 AND i.deleted_at IS NULL AND i.archived_at IS NULL AND ($4::uuid IS NULL OR i.id>$4) ORDER BY i.id LIMIT $5").bind(w).bind(t).bind(id).bind(after).bind(limit as i64+1).fetch_all(&mut *tx).await.map_err(db_error)?;
         let has_more = rows.len() > limit;
         let next_cursor = if has_more {
             Some(self.taxonomy_cursor_encode(
@@ -439,6 +445,7 @@ impl App {
             .map(|r| {
                 Ok(ProjectIssue {
                     id: r.try_get("id").map_err(db_error)?,
+                    milestone_id: r.try_get("milestone_id").map_err(db_error)?,
                     key: r.try_get("key").map_err(db_error)?,
                     title: r.try_get("title").map_err(db_error)?,
                     status_id: r.try_get("status_id").map_err(db_error)?,

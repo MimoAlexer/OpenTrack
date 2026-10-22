@@ -1,3 +1,5 @@
+mod milestones;
+pub use milestones::*;
 mod projects;
 pub use projects::*;
 mod preferences;

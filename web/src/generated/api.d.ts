@@ -1157,6 +1157,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{w}/teams/{t}/projects/{p}/issues/{issue}/milestone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["assign_milestone"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{w}/teams/{t}/projects/{p}/milestones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_milestones"];
+        put?: never;
+        post: operations["create_milestone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{w}/teams/{t}/projects/{p}/milestones/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["order_milestones"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{w}/teams/{t}/projects/{p}/milestones/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_milestone"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_milestone"];
+        options?: never;
+        head?: never;
+        patch: operations["update_milestone"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{w}/teams/{t}/projects/{p}/milestones/{id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["milestone_progress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{w}/teams/{t}/statuses": {
         parameters: {
             query?: never;
@@ -1599,6 +1679,11 @@ export interface components {
             /** Format: uuid */
             team_id?: string | null;
         };
+        CreateMilestone: {
+            /** Format: date */
+            target_date?: string | null;
+            title: string;
+        };
         CreateProject: {
             /** Format: uuid */
             lead_id?: string | null;
@@ -1971,6 +2056,50 @@ export interface components {
             /** Format: uuid */
             id: string;
         };
+        Milestone: {
+            can_assign: boolean;
+            can_manage: boolean;
+            /** Format: date-time */
+            completed_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+            etag: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            project_id: string;
+            rank: string;
+            state: components["schemas"]["MilestoneState"];
+            /** Format: date */
+            target_date: string | null;
+            /** Format: uuid */
+            team_id: string;
+            title: string;
+            /** Format: date-time */
+            updated_at: string;
+            version: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        MilestoneAssignment: {
+            /** Format: uuid */
+            milestone_id: string | null;
+        };
+        MilestoneOrder: {
+            milestone_ids: string[];
+        };
+        MilestoneOverview: {
+            milestone: components["schemas"]["Milestone"];
+            progress: components["schemas"]["ProjectProgress"];
+        };
+        MilestonePage: {
+            data: components["schemas"]["MilestoneOverview"][];
+            has_more: boolean;
+            next_cursor: string | null;
+            project_etag: string;
+        };
+        /** @enum {string} */
+        MilestoneState: "planned" | "completed";
         /** @enum {string} */
         MoveAudienceChange: "none" | "public_to_private" | "private_to_public" | "between_private_teams";
         /** @enum {string} */
@@ -2274,6 +2403,8 @@ export interface components {
                 /** Format: uuid */
                 id: string;
                 key: string;
+                /** Format: uuid */
+                milestone_id: string | null;
                 /** Format: int32 */
                 priority: number;
                 status_category: string;
@@ -2476,6 +2607,8 @@ export interface components {
             /** Format: uuid */
             id: string;
             key: string;
+            /** Format: uuid */
+            milestone_id: string | null;
             /** Format: int32 */
             priority: number;
             status_category: string;
@@ -2741,6 +2874,12 @@ export interface components {
         UpdateMember: {
             active?: boolean;
             role?: string;
+        };
+        UpdateMilestone: {
+            state?: components["schemas"]["MilestoneState"];
+            /** Format: date */
+            target_date?: string | null;
+            title?: string;
         };
         UpdateProject: {
             acknowledge_open_issues?: boolean;
@@ -41348,6 +41487,3163 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectUpdate"];
+                };
+            };
+            /** @description The request path, query or JSON is invalid */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "bad_request",
+                     *       "detail": "The request path, query or JSON is invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 400,
+                     *       "title": "Bad Request",
+                     *       "type": "/api/v1/problems/bad_request"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Sign in to continue */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthenticated",
+                     *       "detail": "Sign in to continue",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 401,
+                     *       "title": "Unauthorized",
+                     *       "type": "/api/v1/problems/unauthenticated"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description You do not have permission for this action */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "detail": "You do not have permission for this action",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 403,
+                     *       "title": "Forbidden",
+                     *       "type": "/api/v1/problems/forbidden"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item could not be found */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "detail": "This item could not be found",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 404,
+                     *       "title": "Not Found",
+                     *       "type": "/api/v1/problems/not_found"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This HTTP method is not supported */
+            405: {
+                headers: {
+                    Allow?: string;
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "method_not_allowed",
+                     *       "detail": "This HTTP method is not supported",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 405,
+                     *       "title": "Method Not Allowed",
+                     *       "type": "/api/v1/problems/method_not_allowed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request exceeded its time limit */
+            408: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "request_timeout",
+                     *       "detail": "The request exceeded its time limit",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 408,
+                     *       "title": "Request Timeout",
+                     *       "type": "/api/v1/problems/request_timeout"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The command conflicts with current state */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "conflict",
+                     *       "detail": "The command conflicts with current state",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 409,
+                     *       "title": "Conflict",
+                     *       "type": "/api/v1/problems/conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item changed since you opened it */
+            412: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "version_conflict",
+                     *       "detail": "This item changed since you opened it",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 412,
+                     *       "title": "Precondition Failed",
+                     *       "type": "/api/v1/problems/version_conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request body exceeds the allowed size */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "payload_too_large",
+                     *       "detail": "The request body exceeds the allowed size",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 413,
+                     *       "title": "Payload Too Large",
+                     *       "type": "/api/v1/problems/payload_too_large"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Send application/json */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unsupported_media_type",
+                     *       "detail": "Send application/json",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 415,
+                     *       "title": "Unsupported Media Type",
+                     *       "type": "/api/v1/problems/unsupported_media_type"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request fields or types are invalid */
+            422: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_failed",
+                     *       "detail": "Request fields or types are invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 422,
+                     *       "title": "Unprocessable Entity",
+                     *       "type": "/api/v1/problems/validation_failed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An If-Match version is required */
+            428: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "precondition_required",
+                     *       "detail": "An If-Match version is required",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 428,
+                     *       "title": "Precondition Required",
+                     *       "type": "/api/v1/problems/precondition_required"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many attempts. Try again later */
+            429: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Seconds before retrying; do not automatically replay an ambiguous write. */
+                    "Retry-After"?: string;
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "rate_limited",
+                     *       "detail": "Too many attempts. Try again later",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 429,
+                     *       "title": "Too Many Requests",
+                     *       "type": "/api/v1/problems/rate_limited"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An internal error occurred */
+            500: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "internal_error",
+                     *       "detail": "An internal error occurred",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 500,
+                     *       "title": "Internal Server Error",
+                     *       "type": "/api/v1/problems/internal_error"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Service temporarily unavailable */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "dependency_unavailable",
+                     *       "detail": "Service temporarily unavailable",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 503,
+                     *       "title": "Service Unavailable",
+                     *       "type": "/api/v1/problems/dependency_unavailable"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    assign_milestone: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current project ETag */
+                "If-Match": string;
+                /** @description Required with browser cookies and browser-only public flows; must match an allowed origin. Authenticated native bearer requests do not require it. */
+                Origin?: string;
+            };
+            path: {
+                w: string;
+                t: string;
+                p: string;
+                issue: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestoneAssignment"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Strong quoted aggregate version; send as If-Match on later changes. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            /** @description The request path, query or JSON is invalid */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "bad_request",
+                     *       "detail": "The request path, query or JSON is invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 400,
+                     *       "title": "Bad Request",
+                     *       "type": "/api/v1/problems/bad_request"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Sign in to continue */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthenticated",
+                     *       "detail": "Sign in to continue",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 401,
+                     *       "title": "Unauthorized",
+                     *       "type": "/api/v1/problems/unauthenticated"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description You do not have permission for this action */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "detail": "You do not have permission for this action",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 403,
+                     *       "title": "Forbidden",
+                     *       "type": "/api/v1/problems/forbidden"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item could not be found */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "detail": "This item could not be found",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 404,
+                     *       "title": "Not Found",
+                     *       "type": "/api/v1/problems/not_found"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This HTTP method is not supported */
+            405: {
+                headers: {
+                    Allow?: string;
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "method_not_allowed",
+                     *       "detail": "This HTTP method is not supported",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 405,
+                     *       "title": "Method Not Allowed",
+                     *       "type": "/api/v1/problems/method_not_allowed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request exceeded its time limit */
+            408: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "request_timeout",
+                     *       "detail": "The request exceeded its time limit",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 408,
+                     *       "title": "Request Timeout",
+                     *       "type": "/api/v1/problems/request_timeout"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The command conflicts with current state */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "conflict",
+                     *       "detail": "The command conflicts with current state",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 409,
+                     *       "title": "Conflict",
+                     *       "type": "/api/v1/problems/conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item changed since you opened it */
+            412: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "version_conflict",
+                     *       "detail": "This item changed since you opened it",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 412,
+                     *       "title": "Precondition Failed",
+                     *       "type": "/api/v1/problems/version_conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request body exceeds the allowed size */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "payload_too_large",
+                     *       "detail": "The request body exceeds the allowed size",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 413,
+                     *       "title": "Payload Too Large",
+                     *       "type": "/api/v1/problems/payload_too_large"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Send application/json */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unsupported_media_type",
+                     *       "detail": "Send application/json",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 415,
+                     *       "title": "Unsupported Media Type",
+                     *       "type": "/api/v1/problems/unsupported_media_type"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request fields or types are invalid */
+            422: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_failed",
+                     *       "detail": "Request fields or types are invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 422,
+                     *       "title": "Unprocessable Entity",
+                     *       "type": "/api/v1/problems/validation_failed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An If-Match version is required */
+            428: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "precondition_required",
+                     *       "detail": "An If-Match version is required",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 428,
+                     *       "title": "Precondition Required",
+                     *       "type": "/api/v1/problems/precondition_required"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many attempts. Try again later */
+            429: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Seconds before retrying; do not automatically replay an ambiguous write. */
+                    "Retry-After"?: string;
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "rate_limited",
+                     *       "detail": "Too many attempts. Try again later",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 429,
+                     *       "title": "Too Many Requests",
+                     *       "type": "/api/v1/problems/rate_limited"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An internal error occurred */
+            500: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "internal_error",
+                     *       "detail": "An internal error occurred",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 500,
+                     *       "title": "Internal Server Error",
+                     *       "type": "/api/v1/problems/internal_error"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Service temporarily unavailable */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "dependency_unavailable",
+                     *       "detail": "Service temporarily unavailable",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 503,
+                     *       "title": "Service Unavailable",
+                     *       "type": "/api/v1/problems/dependency_unavailable"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_milestones: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                w: string;
+                t: string;
+                p: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MilestonePage"];
+                };
+            };
+            /** @description The request path, query or JSON is invalid */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "bad_request",
+                     *       "detail": "The request path, query or JSON is invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 400,
+                     *       "title": "Bad Request",
+                     *       "type": "/api/v1/problems/bad_request"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Sign in to continue */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthenticated",
+                     *       "detail": "Sign in to continue",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 401,
+                     *       "title": "Unauthorized",
+                     *       "type": "/api/v1/problems/unauthenticated"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description You do not have permission for this action */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "detail": "You do not have permission for this action",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 403,
+                     *       "title": "Forbidden",
+                     *       "type": "/api/v1/problems/forbidden"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item could not be found */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "detail": "This item could not be found",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 404,
+                     *       "title": "Not Found",
+                     *       "type": "/api/v1/problems/not_found"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This HTTP method is not supported */
+            405: {
+                headers: {
+                    Allow?: string;
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "method_not_allowed",
+                     *       "detail": "This HTTP method is not supported",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 405,
+                     *       "title": "Method Not Allowed",
+                     *       "type": "/api/v1/problems/method_not_allowed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request exceeded its time limit */
+            408: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "request_timeout",
+                     *       "detail": "The request exceeded its time limit",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 408,
+                     *       "title": "Request Timeout",
+                     *       "type": "/api/v1/problems/request_timeout"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The command conflicts with current state */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "conflict",
+                     *       "detail": "The command conflicts with current state",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 409,
+                     *       "title": "Conflict",
+                     *       "type": "/api/v1/problems/conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item changed since you opened it */
+            412: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "version_conflict",
+                     *       "detail": "This item changed since you opened it",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 412,
+                     *       "title": "Precondition Failed",
+                     *       "type": "/api/v1/problems/version_conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request body exceeds the allowed size */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "payload_too_large",
+                     *       "detail": "The request body exceeds the allowed size",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 413,
+                     *       "title": "Payload Too Large",
+                     *       "type": "/api/v1/problems/payload_too_large"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Send application/json */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unsupported_media_type",
+                     *       "detail": "Send application/json",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 415,
+                     *       "title": "Unsupported Media Type",
+                     *       "type": "/api/v1/problems/unsupported_media_type"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request fields or types are invalid */
+            422: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_failed",
+                     *       "detail": "Request fields or types are invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 422,
+                     *       "title": "Unprocessable Entity",
+                     *       "type": "/api/v1/problems/validation_failed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An If-Match version is required */
+            428: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "precondition_required",
+                     *       "detail": "An If-Match version is required",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 428,
+                     *       "title": "Precondition Required",
+                     *       "type": "/api/v1/problems/precondition_required"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many attempts. Try again later */
+            429: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Seconds before retrying; do not automatically replay an ambiguous write. */
+                    "Retry-After"?: string;
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "rate_limited",
+                     *       "detail": "Too many attempts. Try again later",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 429,
+                     *       "title": "Too Many Requests",
+                     *       "type": "/api/v1/problems/rate_limited"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An internal error occurred */
+            500: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "internal_error",
+                     *       "detail": "An internal error occurred",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 500,
+                     *       "title": "Internal Server Error",
+                     *       "type": "/api/v1/problems/internal_error"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Service temporarily unavailable */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "dependency_unavailable",
+                     *       "detail": "Service temporarily unavailable",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 503,
+                     *       "title": "Service Unavailable",
+                     *       "type": "/api/v1/problems/dependency_unavailable"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_milestone: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current project ETag */
+                "If-Match": string;
+                "Idempotency-Key": string;
+                /** @description Required with browser cookies and browser-only public flows; must match an allowed origin. Authenticated native bearer requests do not require it. */
+                Origin?: string;
+            };
+            path: {
+                w: string;
+                t: string;
+                p: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMilestone"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Strong quoted aggregate version; send as If-Match on later changes. */
+                    ETag?: string;
+                    /** @description Canonical resource path */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Milestone"];
+                };
+            };
+            /** @description The request path, query or JSON is invalid */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "bad_request",
+                     *       "detail": "The request path, query or JSON is invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 400,
+                     *       "title": "Bad Request",
+                     *       "type": "/api/v1/problems/bad_request"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Sign in to continue */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthenticated",
+                     *       "detail": "Sign in to continue",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 401,
+                     *       "title": "Unauthorized",
+                     *       "type": "/api/v1/problems/unauthenticated"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description You do not have permission for this action */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "detail": "You do not have permission for this action",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 403,
+                     *       "title": "Forbidden",
+                     *       "type": "/api/v1/problems/forbidden"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item could not be found */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "detail": "This item could not be found",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 404,
+                     *       "title": "Not Found",
+                     *       "type": "/api/v1/problems/not_found"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This HTTP method is not supported */
+            405: {
+                headers: {
+                    Allow?: string;
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "method_not_allowed",
+                     *       "detail": "This HTTP method is not supported",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 405,
+                     *       "title": "Method Not Allowed",
+                     *       "type": "/api/v1/problems/method_not_allowed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request exceeded its time limit */
+            408: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "request_timeout",
+                     *       "detail": "The request exceeded its time limit",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 408,
+                     *       "title": "Request Timeout",
+                     *       "type": "/api/v1/problems/request_timeout"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The command conflicts with current state */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "conflict",
+                     *       "detail": "The command conflicts with current state",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 409,
+                     *       "title": "Conflict",
+                     *       "type": "/api/v1/problems/conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item changed since you opened it */
+            412: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "version_conflict",
+                     *       "detail": "This item changed since you opened it",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 412,
+                     *       "title": "Precondition Failed",
+                     *       "type": "/api/v1/problems/version_conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request body exceeds the allowed size */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "payload_too_large",
+                     *       "detail": "The request body exceeds the allowed size",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 413,
+                     *       "title": "Payload Too Large",
+                     *       "type": "/api/v1/problems/payload_too_large"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Send application/json */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unsupported_media_type",
+                     *       "detail": "Send application/json",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 415,
+                     *       "title": "Unsupported Media Type",
+                     *       "type": "/api/v1/problems/unsupported_media_type"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request fields or types are invalid */
+            422: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_failed",
+                     *       "detail": "Request fields or types are invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 422,
+                     *       "title": "Unprocessable Entity",
+                     *       "type": "/api/v1/problems/validation_failed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An If-Match version is required */
+            428: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "precondition_required",
+                     *       "detail": "An If-Match version is required",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 428,
+                     *       "title": "Precondition Required",
+                     *       "type": "/api/v1/problems/precondition_required"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many attempts. Try again later */
+            429: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Seconds before retrying; do not automatically replay an ambiguous write. */
+                    "Retry-After"?: string;
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "rate_limited",
+                     *       "detail": "Too many attempts. Try again later",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 429,
+                     *       "title": "Too Many Requests",
+                     *       "type": "/api/v1/problems/rate_limited"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An internal error occurred */
+            500: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "internal_error",
+                     *       "detail": "An internal error occurred",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 500,
+                     *       "title": "Internal Server Error",
+                     *       "type": "/api/v1/problems/internal_error"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Service temporarily unavailable */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "dependency_unavailable",
+                     *       "detail": "Service temporarily unavailable",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 503,
+                     *       "title": "Service Unavailable",
+                     *       "type": "/api/v1/problems/dependency_unavailable"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    order_milestones: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current project ETag */
+                "If-Match": string;
+                /** @description Required with browser cookies and browser-only public flows; must match an allowed origin. Authenticated native bearer requests do not require it. */
+                Origin?: string;
+            };
+            path: {
+                w: string;
+                t: string;
+                p: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestoneOrder"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Strong quoted aggregate version; send as If-Match on later changes. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            /** @description The request path, query or JSON is invalid */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "bad_request",
+                     *       "detail": "The request path, query or JSON is invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 400,
+                     *       "title": "Bad Request",
+                     *       "type": "/api/v1/problems/bad_request"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Sign in to continue */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthenticated",
+                     *       "detail": "Sign in to continue",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 401,
+                     *       "title": "Unauthorized",
+                     *       "type": "/api/v1/problems/unauthenticated"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description You do not have permission for this action */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "detail": "You do not have permission for this action",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 403,
+                     *       "title": "Forbidden",
+                     *       "type": "/api/v1/problems/forbidden"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item could not be found */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "detail": "This item could not be found",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 404,
+                     *       "title": "Not Found",
+                     *       "type": "/api/v1/problems/not_found"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This HTTP method is not supported */
+            405: {
+                headers: {
+                    Allow?: string;
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "method_not_allowed",
+                     *       "detail": "This HTTP method is not supported",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 405,
+                     *       "title": "Method Not Allowed",
+                     *       "type": "/api/v1/problems/method_not_allowed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request exceeded its time limit */
+            408: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "request_timeout",
+                     *       "detail": "The request exceeded its time limit",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 408,
+                     *       "title": "Request Timeout",
+                     *       "type": "/api/v1/problems/request_timeout"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The command conflicts with current state */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "conflict",
+                     *       "detail": "The command conflicts with current state",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 409,
+                     *       "title": "Conflict",
+                     *       "type": "/api/v1/problems/conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item changed since you opened it */
+            412: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "version_conflict",
+                     *       "detail": "This item changed since you opened it",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 412,
+                     *       "title": "Precondition Failed",
+                     *       "type": "/api/v1/problems/version_conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request body exceeds the allowed size */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "payload_too_large",
+                     *       "detail": "The request body exceeds the allowed size",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 413,
+                     *       "title": "Payload Too Large",
+                     *       "type": "/api/v1/problems/payload_too_large"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Send application/json */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unsupported_media_type",
+                     *       "detail": "Send application/json",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 415,
+                     *       "title": "Unsupported Media Type",
+                     *       "type": "/api/v1/problems/unsupported_media_type"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request fields or types are invalid */
+            422: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_failed",
+                     *       "detail": "Request fields or types are invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 422,
+                     *       "title": "Unprocessable Entity",
+                     *       "type": "/api/v1/problems/validation_failed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An If-Match version is required */
+            428: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "precondition_required",
+                     *       "detail": "An If-Match version is required",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 428,
+                     *       "title": "Precondition Required",
+                     *       "type": "/api/v1/problems/precondition_required"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many attempts. Try again later */
+            429: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Seconds before retrying; do not automatically replay an ambiguous write. */
+                    "Retry-After"?: string;
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "rate_limited",
+                     *       "detail": "Too many attempts. Try again later",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 429,
+                     *       "title": "Too Many Requests",
+                     *       "type": "/api/v1/problems/rate_limited"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An internal error occurred */
+            500: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "internal_error",
+                     *       "detail": "An internal error occurred",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 500,
+                     *       "title": "Internal Server Error",
+                     *       "type": "/api/v1/problems/internal_error"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Service temporarily unavailable */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "dependency_unavailable",
+                     *       "detail": "Service temporarily unavailable",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 503,
+                     *       "title": "Service Unavailable",
+                     *       "type": "/api/v1/problems/dependency_unavailable"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_milestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                w: string;
+                t: string;
+                p: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Strong quoted aggregate version; send as If-Match on later changes. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Milestone"];
+                };
+            };
+            /** @description The request path, query or JSON is invalid */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "bad_request",
+                     *       "detail": "The request path, query or JSON is invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 400,
+                     *       "title": "Bad Request",
+                     *       "type": "/api/v1/problems/bad_request"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Sign in to continue */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthenticated",
+                     *       "detail": "Sign in to continue",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 401,
+                     *       "title": "Unauthorized",
+                     *       "type": "/api/v1/problems/unauthenticated"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description You do not have permission for this action */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "detail": "You do not have permission for this action",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 403,
+                     *       "title": "Forbidden",
+                     *       "type": "/api/v1/problems/forbidden"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item could not be found */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "detail": "This item could not be found",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 404,
+                     *       "title": "Not Found",
+                     *       "type": "/api/v1/problems/not_found"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This HTTP method is not supported */
+            405: {
+                headers: {
+                    Allow?: string;
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "method_not_allowed",
+                     *       "detail": "This HTTP method is not supported",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 405,
+                     *       "title": "Method Not Allowed",
+                     *       "type": "/api/v1/problems/method_not_allowed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request exceeded its time limit */
+            408: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "request_timeout",
+                     *       "detail": "The request exceeded its time limit",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 408,
+                     *       "title": "Request Timeout",
+                     *       "type": "/api/v1/problems/request_timeout"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The command conflicts with current state */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "conflict",
+                     *       "detail": "The command conflicts with current state",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 409,
+                     *       "title": "Conflict",
+                     *       "type": "/api/v1/problems/conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item changed since you opened it */
+            412: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "version_conflict",
+                     *       "detail": "This item changed since you opened it",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 412,
+                     *       "title": "Precondition Failed",
+                     *       "type": "/api/v1/problems/version_conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request body exceeds the allowed size */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "payload_too_large",
+                     *       "detail": "The request body exceeds the allowed size",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 413,
+                     *       "title": "Payload Too Large",
+                     *       "type": "/api/v1/problems/payload_too_large"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Send application/json */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unsupported_media_type",
+                     *       "detail": "Send application/json",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 415,
+                     *       "title": "Unsupported Media Type",
+                     *       "type": "/api/v1/problems/unsupported_media_type"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request fields or types are invalid */
+            422: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_failed",
+                     *       "detail": "Request fields or types are invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 422,
+                     *       "title": "Unprocessable Entity",
+                     *       "type": "/api/v1/problems/validation_failed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An If-Match version is required */
+            428: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "precondition_required",
+                     *       "detail": "An If-Match version is required",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 428,
+                     *       "title": "Precondition Required",
+                     *       "type": "/api/v1/problems/precondition_required"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many attempts. Try again later */
+            429: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Seconds before retrying; do not automatically replay an ambiguous write. */
+                    "Retry-After"?: string;
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "rate_limited",
+                     *       "detail": "Too many attempts. Try again later",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 429,
+                     *       "title": "Too Many Requests",
+                     *       "type": "/api/v1/problems/rate_limited"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An internal error occurred */
+            500: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "internal_error",
+                     *       "detail": "An internal error occurred",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 500,
+                     *       "title": "Internal Server Error",
+                     *       "type": "/api/v1/problems/internal_error"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Service temporarily unavailable */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "dependency_unavailable",
+                     *       "detail": "Service temporarily unavailable",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 503,
+                     *       "title": "Service Unavailable",
+                     *       "type": "/api/v1/problems/dependency_unavailable"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_milestone: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current milestone ETag */
+                "If-Match": string;
+                /** @description Required with browser cookies and browser-only public flows; must match an allowed origin. Authenticated native bearer requests do not require it. */
+                Origin?: string;
+            };
+            path: {
+                w: string;
+                t: string;
+                p: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Milestone removed; issues and project membership retained */
+            204: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request path, query or JSON is invalid */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "bad_request",
+                     *       "detail": "The request path, query or JSON is invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 400,
+                     *       "title": "Bad Request",
+                     *       "type": "/api/v1/problems/bad_request"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Sign in to continue */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthenticated",
+                     *       "detail": "Sign in to continue",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 401,
+                     *       "title": "Unauthorized",
+                     *       "type": "/api/v1/problems/unauthenticated"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description You do not have permission for this action */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "detail": "You do not have permission for this action",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 403,
+                     *       "title": "Forbidden",
+                     *       "type": "/api/v1/problems/forbidden"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item could not be found */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "detail": "This item could not be found",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 404,
+                     *       "title": "Not Found",
+                     *       "type": "/api/v1/problems/not_found"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This HTTP method is not supported */
+            405: {
+                headers: {
+                    Allow?: string;
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "method_not_allowed",
+                     *       "detail": "This HTTP method is not supported",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 405,
+                     *       "title": "Method Not Allowed",
+                     *       "type": "/api/v1/problems/method_not_allowed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request exceeded its time limit */
+            408: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "request_timeout",
+                     *       "detail": "The request exceeded its time limit",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 408,
+                     *       "title": "Request Timeout",
+                     *       "type": "/api/v1/problems/request_timeout"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The command conflicts with current state */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "conflict",
+                     *       "detail": "The command conflicts with current state",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 409,
+                     *       "title": "Conflict",
+                     *       "type": "/api/v1/problems/conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item changed since you opened it */
+            412: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "version_conflict",
+                     *       "detail": "This item changed since you opened it",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 412,
+                     *       "title": "Precondition Failed",
+                     *       "type": "/api/v1/problems/version_conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request body exceeds the allowed size */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "payload_too_large",
+                     *       "detail": "The request body exceeds the allowed size",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 413,
+                     *       "title": "Payload Too Large",
+                     *       "type": "/api/v1/problems/payload_too_large"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Send application/json */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unsupported_media_type",
+                     *       "detail": "Send application/json",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 415,
+                     *       "title": "Unsupported Media Type",
+                     *       "type": "/api/v1/problems/unsupported_media_type"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request fields or types are invalid */
+            422: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_failed",
+                     *       "detail": "Request fields or types are invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 422,
+                     *       "title": "Unprocessable Entity",
+                     *       "type": "/api/v1/problems/validation_failed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An If-Match version is required */
+            428: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "precondition_required",
+                     *       "detail": "An If-Match version is required",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 428,
+                     *       "title": "Precondition Required",
+                     *       "type": "/api/v1/problems/precondition_required"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many attempts. Try again later */
+            429: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Seconds before retrying; do not automatically replay an ambiguous write. */
+                    "Retry-After"?: string;
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "rate_limited",
+                     *       "detail": "Too many attempts. Try again later",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 429,
+                     *       "title": "Too Many Requests",
+                     *       "type": "/api/v1/problems/rate_limited"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An internal error occurred */
+            500: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "internal_error",
+                     *       "detail": "An internal error occurred",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 500,
+                     *       "title": "Internal Server Error",
+                     *       "type": "/api/v1/problems/internal_error"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Service temporarily unavailable */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "dependency_unavailable",
+                     *       "detail": "Service temporarily unavailable",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 503,
+                     *       "title": "Service Unavailable",
+                     *       "type": "/api/v1/problems/dependency_unavailable"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_milestone: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current milestone ETag */
+                "If-Match": string;
+                /** @description Required with browser cookies and browser-only public flows; must match an allowed origin. Authenticated native bearer requests do not require it. */
+                Origin?: string;
+            };
+            path: {
+                w: string;
+                t: string;
+                p: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMilestone"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Strong quoted aggregate version; send as If-Match on later changes. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Milestone"];
+                };
+            };
+            /** @description The request path, query or JSON is invalid */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "bad_request",
+                     *       "detail": "The request path, query or JSON is invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 400,
+                     *       "title": "Bad Request",
+                     *       "type": "/api/v1/problems/bad_request"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Sign in to continue */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unauthenticated",
+                     *       "detail": "Sign in to continue",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 401,
+                     *       "title": "Unauthorized",
+                     *       "type": "/api/v1/problems/unauthenticated"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description You do not have permission for this action */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "forbidden",
+                     *       "detail": "You do not have permission for this action",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 403,
+                     *       "title": "Forbidden",
+                     *       "type": "/api/v1/problems/forbidden"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item could not be found */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "not_found",
+                     *       "detail": "This item could not be found",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 404,
+                     *       "title": "Not Found",
+                     *       "type": "/api/v1/problems/not_found"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This HTTP method is not supported */
+            405: {
+                headers: {
+                    Allow?: string;
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "method_not_allowed",
+                     *       "detail": "This HTTP method is not supported",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 405,
+                     *       "title": "Method Not Allowed",
+                     *       "type": "/api/v1/problems/method_not_allowed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request exceeded its time limit */
+            408: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "request_timeout",
+                     *       "detail": "The request exceeded its time limit",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 408,
+                     *       "title": "Request Timeout",
+                     *       "type": "/api/v1/problems/request_timeout"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The command conflicts with current state */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "conflict",
+                     *       "detail": "The command conflicts with current state",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 409,
+                     *       "title": "Conflict",
+                     *       "type": "/api/v1/problems/conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description This item changed since you opened it */
+            412: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "version_conflict",
+                     *       "detail": "This item changed since you opened it",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 412,
+                     *       "title": "Precondition Failed",
+                     *       "type": "/api/v1/problems/version_conflict"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request body exceeds the allowed size */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "payload_too_large",
+                     *       "detail": "The request body exceeds the allowed size",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 413,
+                     *       "title": "Payload Too Large",
+                     *       "type": "/api/v1/problems/payload_too_large"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Send application/json */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "unsupported_media_type",
+                     *       "detail": "Send application/json",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 415,
+                     *       "title": "Unsupported Media Type",
+                     *       "type": "/api/v1/problems/unsupported_media_type"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Request fields or types are invalid */
+            422: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "validation_failed",
+                     *       "detail": "Request fields or types are invalid",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 422,
+                     *       "title": "Unprocessable Entity",
+                     *       "type": "/api/v1/problems/validation_failed"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An If-Match version is required */
+            428: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "precondition_required",
+                     *       "detail": "An If-Match version is required",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 428,
+                     *       "title": "Precondition Required",
+                     *       "type": "/api/v1/problems/precondition_required"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Too many attempts. Try again later */
+            429: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Seconds before retrying; do not automatically replay an ambiguous write. */
+                    "Retry-After"?: string;
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "rate_limited",
+                     *       "detail": "Too many attempts. Try again later",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 429,
+                     *       "title": "Too Many Requests",
+                     *       "type": "/api/v1/problems/rate_limited"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description An internal error occurred */
+            500: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "internal_error",
+                     *       "detail": "An internal error occurred",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": false,
+                     *       "status": 500,
+                     *       "title": "Internal Server Error",
+                     *       "type": "/api/v1/problems/internal_error"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Service temporarily unavailable */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "dependency_unavailable",
+                     *       "detail": "Service temporarily unavailable",
+                     *       "field_errors": [],
+                     *       "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                     *       "request_id": "00000000-0000-4000-8000-000000000001",
+                     *       "retryable": true,
+                     *       "status": 503,
+                     *       "title": "Service Unavailable",
+                     *       "type": "/api/v1/problems/dependency_unavailable"
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    milestone_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                w: string;
+                t: string;
+                p: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectProgress"];
                 };
             };
             /** @description The request path, query or JSON is invalid */
