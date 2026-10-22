@@ -10,6 +10,7 @@ import { JoinWorkspace } from './JoinWorkspace';
 import { WorkspaceSettings } from './WorkspaceSettings';
 import { SettingsScreen } from './SettingsScreen';
 import { ApiError } from '../api';
+import { navigate } from '../router';
 import { Reauthenticate, SettingsError, useDirectory } from './shared';
 
 const workspace = { id: 'w', name: 'Workspace', slug: 'workspace', role: 'owner' };
@@ -269,4 +270,102 @@ it('focuses invitation review and rejected credentials without discarding the to
   await click('Use a different token');
   expect(document.activeElement).toBe(container.querySelector('textarea'));
   expect(container.querySelector('textarea')?.value).toBe('synthetic-invitation');
+});
+
+
+describe('selected team settings outside the loaded directory page', () => {
+  const target = { id: 'selected', workspace_id: 'w', name: 'Selected team', key: 'SEL', private: false, version: '1', archived_at: null, can_manage: true };
+  beforeEach(() => { history.replaceState({ otIndex: 0 }, '', '/w/w/settings/teams?team_id=selected'); });
+  afterEach(() => { history.replaceState({ otIndex: 0 }, '', '/'); });
+
+  it('loads a deep link independently of the first 50 rows, preserves reauthentication drafts and refreshes the saved version', async () => {
+    let current = { ...target };
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({ ...target, id: `listed-${index}`, name: `Listed team ${index}` }));
+    const writes: string[] = [];
+    const fetch = vi.fn((url: string, options: RequestInit = {}) => {
+      if (url.includes('/teams?')) return Promise.resolve(json(page(firstPage, 'next-page')));
+      if (url.endsWith('/members?limit=50')) return Promise.resolve(json(page([])));
+      if (options.method === 'PATCH') {
+        writes.push(new Headers(options.headers).get('If-Match')!);
+        current = { ...current, ...JSON.parse(options.body as string), version: String(Number(current.version) + 1) };
+      }
+      return Promise.resolve(json(current));
+    });
+    vi.stubGlobal('fetch', fetch);
+    const props = { workspace, session, changed: async () => {}, reauthenticate: () => {} };
+    await render(<TeamSettings {...props} />);
+    expect(container.querySelectorAll('.settings-team-list > button')).toHaveLength(50);
+    expect(container.querySelector<HTMLInputElement>('.settings-team-detail input')?.value).toBe(target.name);
+    expect(button('Load more')).toBeDefined();
+    await input(container.querySelector<HTMLInputElement>('.settings-team-detail input')!, 'First rename');
+    await render(<TeamSettings {...props} session={{ ...session, csrf_token: 'rotated-csrf' }} />);
+    expect(container.querySelector<HTMLInputElement>('.settings-team-detail input')?.value).toBe('First rename');
+    await submit(container.querySelector('.settings-team-detail form')!);
+    expect(container.querySelector<HTMLInputElement>('.settings-team-detail input')?.value).toBe('First rename');
+    await input(container.querySelector<HTMLInputElement>('.settings-team-detail input')!, 'Second rename');
+    await submit(container.querySelector('.settings-team-detail form')!);
+    expect(writes).toEqual(['"team:selected:1"', '"team:selected:2"']);
+    expect(fetch.mock.calls.some(([url]) => url.includes('cursor='))).toBe(false);
+  });
+
+  it.each([403, 404, 503])('conceals denied private team metadata while keeping %s recovery separate from the directory', async status => {
+    const privateTarget = { ...target, name: 'Private cached team', key: 'HIDDENTEAM', private: true };
+    let finish!: (response: Response) => void; let retried = false; let directoryReads = 0;
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url.includes('/teams?')) { directoryReads++; return Promise.resolve(json(page([privateTarget]))); }
+      if (url.includes('/members?')) return Promise.resolve(json(page([])));
+      if (!retried) return new Promise<Response>(resolve => { finish = resolve; });
+      return Promise.resolve(json({ ...privateTarget, archived_at: '2026-10-22T12:00:00Z' }));
+    }));
+    await render(<TeamSettings workspace={workspace} session={session} changed={async () => {}} reauthenticate={() => {}} />);
+    expect(container.textContent).toContain('Loading selected team');
+    expect(container.querySelector('.settings-team-detail')).toBeNull();
+    await act(async () => finish(json({ code: status === 403 ? 'forbidden' : status === 404 ? 'not_found' : 'unavailable', detail: 'Selected team unavailable.' }, status)));
+    expect(container.querySelector('.settings-team-panel')?.textContent).toContain('Selected team unavailable.');
+    expect(container.querySelector('.settings-team-detail')).toBeNull();
+    expect(container.textContent).not.toContain('No active teams.');
+    if (status === 503) {
+      expect(container.textContent).toContain(privateTarget.name); expect(container.textContent).toContain(privateTarget.key);
+      expect(directoryReads).toBe(1);
+    } else {
+      expect(container.textContent).not.toContain(privateTarget.name); expect(container.textContent).not.toContain(privateTarget.key);
+      expect(directoryReads).toBe(2);
+      expect(button('Add member')).toBeUndefined(); expect(button('Archive team')).toBeUndefined(); expect(button('Save team')).toBeUndefined();
+    }
+    retried = true;
+    await act(async () => container.querySelector<HTMLButtonElement>('.settings-team-panel button')!.click());
+    expect(container.querySelector<HTMLInputElement>('.settings-team-detail input')?.value).toBe(privateTarget.name);
+    expect(container.querySelector<HTMLInputElement>('.settings-team-detail input')?.matches(':disabled')).toBe(true);
+    expect(button('Restore team')).toBeDefined();
+  });
+
+  it('opens an authorized selected team while the separate directory request fails', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(url.includes('/teams?')
+      ? json({ code: 'unavailable', detail: 'Team directory unavailable.' }, 503)
+      : url.includes('/members?') ? json(page([])) : json(target))));
+    await render(<TeamSettings workspace={workspace} session={session} changed={async () => {}} reauthenticate={() => {}} />);
+    expect(container.textContent).toContain('Team directory unavailable.');
+    expect(container.querySelector<HTMLInputElement>('.settings-team-detail input')?.value).toBe(target.name);
+    expect(container.textContent).not.toContain('No active teams.');
+  });
+
+  it.each(['selection', 'workspace', 'account'] as const)('discards a late selected-team response after changing %s scope', async change => {
+    let finishOld!: (response: Response) => void; let finishCurrent!: (response: Response) => void; let changed = false;
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url.includes('/teams?')) return Promise.resolve(json(page([{ ...target, id: changed ? 'current-list' : 'old-list', name: changed ? 'Current list row' : 'Previous private list row' }])));
+      if (url.includes('/members?')) return Promise.resolve(json(page([])));
+      return new Promise<Response>(resolve => { if (changed) finishCurrent = resolve; else finishOld = resolve; });
+    }));
+    const props = { workspace, session, changed: async () => {}, reauthenticate: () => {} };
+    await render(<TeamSettings {...props} />);
+    changed = true;
+    if (change === 'selection') await act(async () => { navigate('/w/w/settings/teams?team_id=current'); });
+    else await render(<TeamSettings {...props} workspace={change === 'workspace' ? { ...workspace, id: 'other' } : workspace} session={change === 'account' ? { ...session, user: { ...session.user, id: 'other-owner' } } : session} />);
+    await act(async () => finishOld(json({ ...target, name: 'Previous private team' })));
+    expect(container.querySelector('.settings-team-detail')).toBeNull();
+    expect(container.textContent).not.toContain('Previous private team');
+    if (change !== 'selection') expect(container.textContent).not.toContain('Previous private list row');
+    await act(async () => finishCurrent(json({ ...target, id: change === 'selection' ? 'current' : target.id, workspace_id: change === 'workspace' ? 'other' : 'w', name: 'Current selected team' })));
+    expect(container.querySelector<HTMLInputElement>('.settings-team-detail input')?.value).toBe('Current selected team');
+  });
 });
