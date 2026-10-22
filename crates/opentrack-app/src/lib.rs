@@ -2,6 +2,7 @@ mod activity;
 mod assignment_cleanup;
 mod attachments;
 mod milestones;
+mod cycles;
 mod preferences;
 mod projects;
 pub use attachments::{

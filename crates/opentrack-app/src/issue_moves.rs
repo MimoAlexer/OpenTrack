@@ -51,6 +51,19 @@ async fn move_scope(
             "Remove this issue from its project before moving it to another team".into(),
         ));
     }
+    let linked: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM cycle_issues WHERE workspace_id=$1 AND issue_id=$2)",
+    )
+    .bind(w)
+    .bind(id)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(db_error)?;
+    if linked {
+        return Err(Error::Conflict(
+            "Remove this issue from its cycle before moving it to another team".into(),
+        ));
+    }
     lifecycle::require_active_team(tx, w, destination).await?;
     Ok(issue)
 }
