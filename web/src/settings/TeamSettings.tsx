@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Archive, ArchiveRestore, Hash, LockKeyhole, Plus } from 'lucide-react';
 import { confirmNavigation, navigate, parseRoute, settingsUrl, useLocation, useUnsavedChanges } from '../router';
 import { TemplateSettings } from '../templates/TemplateSettings';
@@ -6,27 +6,40 @@ import { LabelSettings } from '../taxonomy/LabelSettings';
 import { TeamWorkflow } from '../workflows/TeamWorkflow';
 import type { Workflow } from '../workflows/types';
 import { Avatar, Loading, Modal } from '../components';
+import { ApiError } from '../api';
 import type { Session, Workspace } from '../types';
 import type { TeamDetail, TeamMember, TeamRole, WorkspaceMember } from './types';
+import { useResource } from './useResource';
 import { useScopedRequest, DirectoryFooter, SettingsError, SettingsHeading, tag, UncertainNotice, useCreateRequest, useDirectory } from './shared';
 
 interface Props { workflowChanged?: (workflow: Workflow) => void; workspaceArchived?: boolean; workspace: Workspace; session: Session; reauthenticate: () => void; changed: () => Promise<void> }
 export function TeamSettings(props: Props) {
   const [state, setState] = useState('active'); const [creating, setCreating] = useState(false); const [revision, setRevision] = useState(0);
   const canCreate = ['owner', 'admin'].includes(props.workspace.role);
-  return <><SettingsHeading title="Teams" description="Teams organize work and own their issue workflow. Private teams appear only when you have access.">{canCreate && <button className="button" disabled={props.workspaceArchived} onClick={() => { if (!props.workspaceArchived && confirmNavigation()) setCreating(true); }}><Plus aria-hidden="true" />New team</button>}</SettingsHeading><label className="field settings-state-filter">Show<select value={state} onChange={e => { if (confirmNavigation()) setState(e.target.value); }}><option value="active">Active teams</option><option value="archived">Archived teams</option></select></label><TeamDirectory key={`${state}:${revision}`} {...props} state={state} />{creating && <CreateTeam {...props} close={() => { setCreating(false); setRevision(value => value + 1); }} />}</>;
+  return <><SettingsHeading title="Teams" description="Teams organize work and own their issue workflow. Private teams appear only when you have access.">{canCreate && <button className="button" disabled={props.workspaceArchived} onClick={() => { if (!props.workspaceArchived && confirmNavigation()) setCreating(true); }}><Plus aria-hidden="true" />New team</button>}</SettingsHeading><label className="field settings-state-filter">Show<select value={state} onChange={e => { if (confirmNavigation()) setState(e.target.value); }}><option value="active">Active teams</option><option value="archived">Archived teams</option></select></label><TeamDirectory key={`${props.workspace.id}:${props.session.user.id}:${state}:${revision}`} {...props} state={state} />{creating && <CreateTeam {...props} close={() => { setCreating(false); setRevision(value => value + 1); }} />}</>;
 }
 function TeamDirectory({ state, ...props }: Props & { state: string }) {
+  const [deniedIds, setDeniedIds] = useState<string[]>([]);
   const directory = useDirectory<TeamDetail>(`/workspaces/${props.workspace.id}/teams?state=${state}`);
   const location = useLocation(); const route = parseRoute(location);
   const selected = route.search.get('team_id'); const panel = ['workflow', 'labels', 'templates'].includes(route.search.get('panel') ?? '') ? route.search.get('panel')! : 'team';
-  const team = selected ? directory.items.find(team => team.id === selected) : directory.items[0];
+  const selectedTeam = useResource<TeamDetail>(selected ? `/workspaces/${props.workspace.id}/teams/${encodeURIComponent(selected)}` : null);
+  const denied = selectedTeam.error instanceof ApiError && [403, 404].includes(selectedTeam.error.status);
+  const items = directory.items.filter(item => !deniedIds.includes(item.id) && !(denied && item.id === selected));
+  const team = selected ? selectedTeam.data : items[0];
+  useEffect(() => {
+    if (!selected) return;
+    if (denied) {
+      setDeniedIds(previous => previous.includes(selected) ? previous : [...previous, selected]);
+      directory.reload();
+    } else if (selectedTeam.data) setDeniedIds(previous => previous.includes(selected) ? previous.filter(id => id !== selected) : previous);
+  }, [selected, selectedTeam.error, selectedTeam.data]);
   function select(teamId: string, nextPanel = panel) {
     const params = new URLSearchParams({ team_id: teamId }); if (nextPanel !== 'team') params.set('panel', nextPanel);
     navigate(`${settingsUrl(props.workspace.id, 'teams')}?${params}`);
   }
-  async function changed() { await props.changed(); directory.reload(); }
-  return <><SettingsError error={directory.error} retry={directory.reload} reauthenticate={props.reauthenticate} />{directory.loading && !directory.items.length ? <Loading label="Loading teams…" /> : !directory.items.length ? !directory.error && <div className="settings-empty"><h3>No {state} teams.</h3><p>Only teams you can access are listed here.</p></div> : <div className="settings-team-layout"><div className="settings-team-list" aria-label="Teams">{directory.items.map(item => <button key={item.id} aria-pressed={item.id === team?.id} onClick={() => select(item.id)}>{item.private ? <LockKeyhole aria-hidden="true" /> : <Hash aria-hidden="true" />}<span>{item.name}</span><small>{item.key}</small></button>)}<DirectoryFooter directory={directory} /></div><div className="settings-team-panel">{team ? <><nav className="team-settings-panels" aria-label={`${team.name} settings`}><button aria-pressed={panel === 'team'} onClick={() => select(team.id, 'team')}>Team</button><button aria-pressed={panel === 'workflow'} onClick={() => select(team.id, 'workflow')}>Workflow</button><button aria-pressed={panel === 'labels'} onClick={() => select(team.id, 'labels')}>Labels</button><button aria-pressed={panel === 'templates'} onClick={() => select(team.id, 'templates')}>Templates</button></nav>{panel === 'templates' ? <TemplateSettings key={team.id} workspaceId={props.workspace.id} team={team} session={props.session} workspaceArchived={props.workspaceArchived}/> : panel === 'labels' ? <LabelSettings key={team.id} workspaceId={props.workspace.id} teamId={team.id} scopeName={team.name} session={props.session} canCreate={team.can_manage} archived={props.workspaceArchived || !!team.archived_at} /> : panel === 'workflow' ? <TeamWorkflow key={team.id} workspaceId={props.workspace.id} team={team} session={props.session} workspaceArchived={props.workspaceArchived} changed={props.workflowChanged} /> : <TeamEditor key={`${team.id}:${team.version}`} {...props} team={team} changed={changed} />}</> : <p className="settings-info">Choose a team from the list{directory.hasMore ? ', or load more teams to find the selected team' : ''}.</p>}</div></div>}</>;
+  async function changed() { await props.changed(); directory.reload(); selectedTeam.reload(); }
+  return <><SettingsError error={directory.error} retry={directory.reload} reauthenticate={props.reauthenticate} />{directory.loading && !items.length && !selected ? <Loading label="Loading teams…" /> : !items.length && !selected ? !directory.error && <div className="settings-empty"><h3>No {state} teams.</h3><p>Only teams you can access are listed here.</p></div> : <div className="settings-team-layout"><div className="settings-team-list" aria-label="Teams">{directory.loading && !items.length && <Loading label="Loading teams…" />}{items.map(item => <button key={item.id} aria-pressed={item.id === team?.id} onClick={() => select(item.id)}>{item.private ? <LockKeyhole aria-hidden="true" /> : <Hash aria-hidden="true" />}<span>{item.name}</span><small>{item.key}</small></button>)}<DirectoryFooter directory={directory} /></div><div className="settings-team-panel"><SettingsError error={selectedTeam.error} retry={selectedTeam.reload} reauthenticate={props.reauthenticate} />{selected && selectedTeam.loading ? <Loading label="Loading selected team…" /> : team ? <><nav className="team-settings-panels" aria-label={`${team.name} settings`}><button aria-pressed={panel === 'team'} onClick={() => select(team.id, 'team')}>Team</button><button aria-pressed={panel === 'workflow'} onClick={() => select(team.id, 'workflow')}>Workflow</button><button aria-pressed={panel === 'labels'} onClick={() => select(team.id, 'labels')}>Labels</button><button aria-pressed={panel === 'templates'} onClick={() => select(team.id, 'templates')}>Templates</button></nav>{panel === 'templates' ? <TemplateSettings key={team.id} workspaceId={props.workspace.id} team={team} session={props.session} workspaceArchived={props.workspaceArchived}/> : panel === 'labels' ? <LabelSettings key={team.id} workspaceId={props.workspace.id} teamId={team.id} scopeName={team.name} session={props.session} canCreate={team.can_manage} archived={props.workspaceArchived || !!team.archived_at} /> : panel === 'workflow' ? <TeamWorkflow key={team.id} workspaceId={props.workspace.id} team={team} session={props.session} workspaceArchived={props.workspaceArchived} changed={props.workflowChanged} /> : <TeamEditor key={`${team.id}:${team.version}`} {...props} team={team} changed={changed} />}</> : !selectedTeam.error && <p className="settings-info">Choose a team from the list.</p>}</div></div>}</>;
 
 }
 function TeamEditor({ team, ...props }: Props & { team: TeamDetail }) {
