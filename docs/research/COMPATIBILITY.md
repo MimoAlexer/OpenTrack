@@ -1,5 +1,7 @@
 # Dependency compatibility evidence
 
+Current resolved graphs and advisory/license metadata: [22 October dependency qualification](../evidence/2026-10-22-agent5-dependencies.md). The candidate research below remains a historical planning snapshot; it is not the current locked-build or release qualification.
+
 Checked 2026-10-17 using official documentation and read-only crates.io/npm registry metadata. No packages were installed, no lockfile was resolved, and no build was run. This is declared-compatibility evidence, not runtime proof or a complete vulnerability audit. URLs below are primary package metadata; repeat them before implementation.
 
 ## Observed versions and declared requirements

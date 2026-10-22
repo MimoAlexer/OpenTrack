@@ -275,7 +275,7 @@ The linked milestone owns prerequisites and full deliverable wording. Passing an
 
 | Task | Deliverable | Status | Evidence / remaining work |
 | --- | --- | --- | --- |
-| [M01-T01](milestones/M01_FOUNDATION.md) | Compatibility spike | In progress | [Foundation evidence](evidence/2026-10-17-foundation.md) establishes only the current foundation slice; remaining task deliverables and release checks still apply. |
+| [M01-T01](milestones/M01_FOUNDATION.md) | Compatibility spike | In progress | [Resolved dependency qualification](evidence/2026-10-22-agent5-dependencies.md) records all five lock graphs, license metadata, peers and current advisories; bounded certificate-trust patches remove the recorded vulnerability matches while four desktop maintenance warnings remain. Exact-head CI/native regression, complete distribution/license review and offline install/restore acceptance remain separate gates. [Foundation evidence](evidence/2026-10-17-foundation.md) retains historical build scope. |
 | [M01-T02](milestones/M01_FOUNDATION.md) | Workspace boundaries | Verified | [Boundary evidence](evidence/2026-10-22-workspace-boundaries.md): locked backend/native dependency graphs, edition/toolchain guard, forbidden-edge mutations and real PostgreSQL/user-ingress rejection pass. Function-level placement was inspected; future runner ingress is not claimed. |
 | [M01-T03](milestones/M01_FOUNDATION.md) | Typed settings | Verified for schema 1 | [Startup qualification](evidence/2026-10-22-typed-settings.md), merged in PR #121: typed precedence/provenance, strict versions, safe private secret reads, redacted diagnostics/export and fail-before-listen contracts pass. Unsupported versions never rewrite files; future runtime settings and an actual second-schema migration belong to their implementing releases. Wider administration/audit qualification remains open. |
 | [M01-T04](milestones/M01_FOUNDATION.md) | Contract slice | Verified | [Contract evidence](evidence/2026-10-22-contract-slice.md): real TCP health/capability/schema, shell negotiation, reserved-path failure and byte/MIME/cache/HEAD checks fetch actual emitted frontend assets; generated contracts pass. Broader public API remains separate. |
@@ -322,7 +322,7 @@ The linked milestone owns prerequisites and full deliverable wording. Passing an
 | [M08-T04](milestones/M08_HARDENING.md) | Recovery rehearsals | Unverified | — |
 | [M08-T05](milestones/M08_HARDENING.md) | Quality campaign | Unverified | — |
 | [M08-T06](milestones/M08_HARDENING.md) | Release governance | Unverified | — |
-| [M09-T01](milestones/M09_GIT.md) | App installation | Unverified | — |
+| [M09-T01](milestones/M09_GIT.md) | App installation | Unverified | [Current prerequisite research](evidence/2026-10-22-agent-4-issue-49-github-prerequisites.md) records official installation, token and webhook contracts. M08, registration, credential custody and real installation/ingress evidence remain open; no runtime acceptance claimed. |
 | [M09-T02](milestones/M09_GIT.md) | Webhook ingestion | Unverified | — |
 | [M09-T03](milestones/M09_GIT.md) | PR projection | Unverified | — |
 | [M09-T04](milestones/M09_GIT.md) | Integration UI | Unverified | — |
@@ -332,13 +332,13 @@ The linked milestone owns prerequisites and full deliverable wording. Passing an
 | [M10-T03](milestones/M10_AUTOMATION.md) | Rule engine | Unverified | — |
 | [M10-T04](milestones/M10_AUTOMATION.md) | Builder/simulation | Unverified | — |
 | [M10-T05](milestones/M10_AUTOMATION.md) | Abuse/recovery | Unverified | — |
-| [M11-T01](milestones/M11_AI.md) | Current evidence gate | Unverified | — |
+| [M11-T01](milestones/M11_AI.md) | Current evidence gate | Unverified | [22 October provider research](evidence/2026-10-22-agent-4-issue-59-provider-evidence.md) refreshes authentication, discovery and proposed wire contracts. M08, actual accounts/capability probes and deployment eligibility remain open; no connection or inference executed. |
 | [M11-T02](milestones/M11_AI.md) | Connection vault | Unverified | — |
 | [M11-T03](milestones/M11_AI.md) | Inference adapters | Unverified | — |
 | [M11-T04](milestones/M11_AI.md) | Conversation UI | Unverified | — |
 | [M11-T05](milestones/M11_AI.md) | Tools/budgets | Unverified | — |
 | [M11-T06](milestones/M11_AI.md) | Optional SIWC spike | Unverified | — |
-| [M12-T01](milestones/M12_RUNNERS.md) | Runner threat/profile gate | Unverified | — |
+| [M12-T01](milestones/M12_RUNNERS.md) | Runner threat/profile gate | Unverified | [Runner gate inventory](evidence/2026-10-22-agent-4-issue-65-runner-gates.md) separates planned containment/fencing/publication tests from the current environment inventory. No hostile runner or VM acceptance executed; inherited milestones and profile decision remain open. |
 | [M12-T02](milestones/M12_RUNNERS.md) | Machine control plane | Unverified | — |
 | [M12-T03](milestones/M12_RUNNERS.md) | Environment supervisor | Unverified | — |
 | [M12-T04](milestones/M12_RUNNERS.md) | Runtime adapter | Unverified | — |
