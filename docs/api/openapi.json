@@ -5259,8 +5259,12 @@
             "$ref": "#/components/schemas/TemplateDocument"
           },
           "narrative_version": {
+            "description": "Brief document version; null only for creation receipts predating independent document versioning.",
             "readOnly": true,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "start_date": {
             "format": "date",

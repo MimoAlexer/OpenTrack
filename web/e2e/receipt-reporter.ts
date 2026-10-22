@@ -7,7 +7,7 @@ export default class ReceiptReporter implements Reporter {
   onTestEnd(test: TestCase, result: TestResult) {
     // Deliberately exclude steps, request/response data, stdout, attachments and
     // raw errors: those can contain session headers or credential-bearing calls.
-    const frame = result.error?.stack?.match(/(?:^|[/\\])(collaboration\.browser\.ts|fixtures\.ts):(\d+):\d+/m);
+    const frame = result.error?.stack?.match(/(?:^|[/\\])(collaboration\.browser\.ts|projects\.browser\.ts|fixtures\.ts):(\d+):\d+/m);
     const failure = frame ? `${frame[1]}:${frame[2]}` : `${basename(result.error?.location?.file ?? test.location.file)}:${result.error?.location?.line ?? test.location.line}`;
     const check = { browser: test.parent.project()?.name ?? 'unknown', check: test.title,
       status: result.status, duration_ms: result.duration,

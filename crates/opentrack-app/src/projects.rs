@@ -130,7 +130,7 @@ async fn project_row(
             plain_text: document.try_get("plain_text").map_err(db_error)?,
             schema_supported: supported,
         },
-        narrative_version: document.try_get("version").map_err(db_error)?,
+        narrative_version: Some(document.try_get("version").map_err(db_error)?),
         lead_id,
         lead: lead(tx, w, t, lead_id).await?,
         start_date: r.try_get("start_date").map_err(db_error)?,
@@ -388,8 +388,6 @@ impl App {
         scope(&mut tx, a, w, t, false).await?;
         if let Some(mut previous) = replay {
             let current = project(&mut tx, a, w, t, previous.id).await?;
-            previous.narrative = current.narrative;
-            previous.narrative_version = current.narrative_version;
             previous.can_edit = current.can_edit;
             previous.can_manage = current.can_manage;
             previous.lead = lead(&mut tx, w, t, previous.lead_id).await?;

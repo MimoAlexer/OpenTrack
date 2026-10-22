@@ -53,9 +53,10 @@ pub struct Project {
     pub name: String,
     pub summary: String,
     pub narrative: TemplateDocument,
+    /// Brief document version; null only for creation receipts predating independent document versioning.
     #[serde(default)]
     #[schema(required = true, read_only = true)]
-    pub narrative_version: String,
+    pub narrative_version: Option<String>,
     #[schema(required = true)]
     pub lead_id: Option<Uuid>,
     #[schema(required = true)]

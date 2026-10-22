@@ -3109,7 +3109,8 @@ export interface components {
             readonly metadata_etag: string;
             name: string;
             narrative: components["schemas"]["TemplateDocument"];
-            readonly narrative_version: string;
+            /** @description Brief document version; null only for creation receipts predating independent document versioning. */
+            readonly narrative_version: string | null;
             /** Format: date */
             start_date: string | null;
             state: components["schemas"]["ProjectState"];

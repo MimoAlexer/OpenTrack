@@ -168,6 +168,156 @@ fn document(text: &str) -> Value {
     json!({"schema_version":1,"body":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":text}]}]}})
 }
 
+async fn replay_state(
+    h: &Harness,
+    workspace: uuid::Uuid,
+    team: uuid::Uuid,
+    actor: uuid::Uuid,
+) -> Value {
+    let mut tx = h.lock_team(workspace, team, actor).await;
+    let state = sqlx::query_scalar("SELECT jsonb_build_object('projects',(SELECT coalesce(jsonb_agg(to_jsonb(p) ORDER BY id),'[]') FROM projects p),'documents',(SELECT coalesce(jsonb_agg(to_jsonb(d) ORDER BY id),'[]') FROM documents d),'revisions',(SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY document_id,revision),'[]') FROM document_revisions r),'receipts',(SELECT coalesce(jsonb_agg(to_jsonb(i) ORDER BY principal_id,route,key_hash),'[]') FROM idempotency_records i),'audit',(SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY id),'[]') FROM audit_entries a),'events',(SELECT coalesce(jsonb_agg(to_jsonb(e) ORDER BY seq),'[]') FROM workspace_events e),'stream',(SELECT coalesce(jsonb_agg(to_jsonb(s)),'[]') FROM workspace_stream_heads s),'mentions',(SELECT coalesce(jsonb_agg(to_jsonb(m) ORDER BY id),'[]') FROM mention_intents m))")
+        .fetch_one(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    state
+}
+
+#[tokio::test]
+async fn project_create_replay_keeps_original_brief_snapshot() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let run = tokio::spawn(async move {
+        let (c, base, t, boot) = setup(&copy).await;
+        let workspace = base.rsplit('/').next().unwrap().parse().unwrap();
+        let team = t.parse().unwrap();
+        let actor = boot["members"][0]["id"].as_str().unwrap().parse().unwrap();
+        let directory = format!("{base}/teams/{t}/projects");
+        let key = "project-original-receipt";
+        let body = json!({"name":"Original create outcome","summary":"Original metadata","narrative":document("Original brief")});
+        let created = request(&copy.router, Some(&c), "POST", &directory, Some(body.clone()), &[("idempotency-key", key)]).await;
+        created.expect(StatusCode::CREATED);
+        assert_eq!(created.body["narrative_version"], "1");
+        let url = created.headers["location"].to_str().unwrap();
+        let initial = get(&copy, &c, &format!("{url}/document")).await;
+        let doc_url = format!("{base}/documents/{}", initial.body["id"].as_str().unwrap());
+        let saved = request(&copy.router, Some(&c), "PATCH", &doc_url, Some(document("Later independently saved brief")), &[("if-match", initial.etag())]).await;
+        saved.expect(StatusCode::OK);
+        let metadata = get(&copy, &c, &format!("{url}/metadata")).await;
+        request(&copy.router, Some(&c), "PATCH", &format!("{url}/metadata"), Some(json!({"summary":"Later independently saved metadata"})), &[("if-match", metadata.etag())]).await.expect(StatusCode::OK);
+        let current = get(&copy, &c, url).await;
+        assert_eq!(current.body["narrative_version"], "2");
+        assert_ne!(current.body["version"], created.body["version"]);
+        let before = replay_state(&copy, workspace, team, actor).await;
+        let replay = request(&copy.router, Some(&c), "POST", &directory, Some(body), &[("idempotency-key", key)]).await;
+        replay.expect(StatusCode::CREATED);
+        assert_eq!(replay_state(&copy, workspace, team, actor).await, before,
+            "Receipt replay must not write another document revision, audit, event or receipt outcome");
+        assert_eq!(replay.body["narrative"], created.body["narrative"],
+            "Create replay must retain its original brief instead of the current document");
+        assert_eq!(replay.body["narrative_version"], created.body["narrative_version"]);
+        assert_eq!(replay.body, created.body);
+        assert_eq!(replay.etag(), created.etag());
+        assert_eq!(replay.headers["location"], created.headers["location"]);
+        request(&copy.router, Some(&c), "POST", &directory, Some(json!({"name":"Changed original request"})), &[("idempotency-key", key)]).await.problem(StatusCode::CONFLICT, "conflict");
+        assert_eq!(replay_state(&copy, workspace, team, actor).await, before);
+        assert_eq!(get(&copy, &c, url).await.body, current.body);
+        assert_eq!(get(&copy, &c, &doc_url).await.body, saved.body);
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = run {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+#[tokio::test]
+async fn project_create_replay_preserves_legacy_receipts_and_current_authority() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let run = tokio::spawn(async move {
+        let (owner, base, t, boot) = setup(&copy).await;
+        let member = invite(&copy, &owner, &base, "member").await;
+        let workspace = base.rsplit('/').next().unwrap().parse().unwrap();
+        let team = t.parse().unwrap();
+        let actor = boot["members"][0]["id"].as_str().unwrap().parse().unwrap();
+        let directory = format!("{base}/teams/{t}/projects");
+        let key = "project-legacy-receipt";
+        let body = json!({"name":"Legacy create outcome","summary":"Original historical metadata","narrative":document("Original historical brief")});
+        let made = request(&copy.router, Some(&member), "POST", &directory, Some(body.clone()), &[("idempotency-key", key)]).await;
+        made.expect(StatusCode::CREATED);
+        let url = made.headers["location"].to_str().unwrap();
+        let initial = get(&copy, &member, &format!("{url}/document")).await;
+        let doc_url = format!("{base}/documents/{}", initial.body["id"].as_str().unwrap());
+        let project: uuid::Uuid = made.body["id"].as_str().unwrap().parse().unwrap();
+        let mut legacy = made.body.clone();
+        legacy.as_object_mut().unwrap().remove("narrative_version");
+        legacy.as_object_mut().unwrap().remove("metadata_etag");
+        let mut tx = copy.lock_team(workspace, team, actor).await;
+        let principal: uuid::Uuid = sqlx::query_scalar("UPDATE idempotency_records SET response_body=$2 WHERE response_body->>'id'=$1 AND route LIKE 'projects.create:%' RETURNING principal_id")
+            .bind(project.to_string()).bind(&legacy).fetch_one(&mut *tx).await.unwrap();
+        tx.commit().await.unwrap();
+        let saved = request(&copy.router, Some(&member), "PATCH", &doc_url, Some(document("Current brief after legacy receipt")), &[("if-match", initial.etag())]).await;
+        saved.expect(StatusCode::OK);
+        let metadata = get(&copy, &member, &format!("{url}/metadata")).await;
+        request(&copy.router, Some(&member), "PATCH", &format!("{url}/metadata"), Some(json!({"summary":"Current metadata after legacy receipt"})), &[("if-match", metadata.etag())]).await.expect(StatusCode::OK);
+        let current = get(&copy, &member, url).await;
+        assert_eq!(current.body["narrative_version"], "2");
+        let before = replay_state(&copy, workspace, team, actor).await;
+        let replay = request(&copy.router, Some(&member), "POST", &directory, Some(body.clone()), &[("idempotency-key", key)]).await;
+        replay.expect(StatusCode::CREATED);
+        assert_eq!(replay.body.get("narrative_version"), Some(&Value::Null),
+            "A legacy create receipt cannot claim a document revision it never recorded");
+        for field in ["id", "workspace_id", "team_id", "name", "summary", "narrative", "lead_id", "start_date", "target_date", "state", "health", "version", "created_at", "updated_at", "archived_at"] {
+            assert_eq!(replay.body[field], legacy[field], "Legacy outcome field {field}");
+        }
+        assert!(!replay.body["metadata_etag"].as_str().unwrap().is_empty());
+        assert_ne!(replay.body["metadata_etag"], current.body["metadata_etag"]);
+        assert_eq!(replay.body["etag"], replay.etag());
+        assert_ne!(replay.etag(), current.etag());
+        assert_eq!(replay.headers["location"], made.headers["location"]);
+        assert_eq!(replay_state(&copy, workspace, team, actor).await, before,
+            "Legacy hydration must not rewrite the original stored receipt or emit effects");
+        let repeated = request(&copy.router, Some(&member), "POST", &directory, Some(body.clone()), &[("idempotency-key", key)]).await;
+        repeated.expect(StatusCode::CREATED);
+        assert_eq!(repeated.body, replay.body);
+        assert_eq!(repeated.etag(), replay.etag());
+        request(&copy.router, Some(&member), "PATCH", url,
+            Some(json!({"summary":"Must not use a historical receipt as the current validator","narrative":document("Must not replace the current brief")})),
+            &[("if-match", replay.etag())]).await.problem(StatusCode::PRECONDITION_FAILED, "version_conflict");
+        assert_eq!(replay_state(&copy, workspace, team, actor).await, before);
+
+        let member_url = format!("{base}/members/{principal}");
+        let membership = get(&copy, &owner, &member_url).await;
+        request(&copy.router, Some(&owner), "PATCH", &member_url, Some(json!({"role":"viewer"})), &[("if-match", membership.etag())]).await.expect(StatusCode::OK);
+        let metadata = get(&copy, &owner, &format!("{url}/metadata")).await;
+        request(&copy.router, Some(&owner), "PATCH", &format!("{url}/metadata"), Some(json!({"archived":true})), &[("if-match", metadata.etag())]).await.expect(StatusCode::OK);
+        let before = replay_state(&copy, workspace, team, actor).await;
+        let replay = request(&copy.router, Some(&member), "POST", &directory, Some(body.clone()), &[("idempotency-key", key)]).await;
+        replay.expect(StatusCode::CREATED);
+        assert_eq!(replay.body["can_edit"], false);
+        assert_eq!(replay.body["can_manage"], false);
+        assert_eq!(replay.body["narrative"], legacy["narrative"]);
+        assert_eq!(replay.body["version"], legacy["version"]);
+        assert_eq!(replay.body.get("narrative_version"), Some(&Value::Null));
+        request(&copy.router, Some(&member), "POST", &directory, Some(body.clone()), &[("idempotency-key", "viewer-cannot-create-another")]).await.problem(StatusCode::FORBIDDEN, "forbidden");
+        assert_eq!(replay_state(&copy, workspace, team, actor).await, before);
+        let seen = get(&copy, &member, &doc_url).await;
+        assert_eq!(seen.body["body"], saved.body["body"]);
+        assert_eq!(seen.body["version"], saved.body["version"]);
+        assert_eq!(seen.body["can_edit"], false);
+
+        let membership = get(&copy, &owner, &member_url).await;
+        request(&copy.router, Some(&owner), "PATCH", &member_url, Some(json!({"active":false})), &[("if-match", membership.etag())]).await.expect(StatusCode::OK);
+        let before = replay_state(&copy, workspace, team, actor).await;
+        request(&copy.router, Some(&member), "POST", &directory, Some(body), &[("idempotency-key", key)]).await.problem(StatusCode::NOT_FOUND, "not_found");
+        request(&copy.router, Some(&member), "GET", url, None, &[]).await.problem(StatusCode::NOT_FOUND, "not_found");
+        assert_eq!(replay_state(&copy, workspace, team, actor).await, before,
+            "A known receipt must not bypass current source access or acquire write effects");
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = run {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
 #[tokio::test]
 async fn project_narrative_route_mismatch_does_not_wait_for_unrelated_team_lock() {
     let h = Harness::new().await;

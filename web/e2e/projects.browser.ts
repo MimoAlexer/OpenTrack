@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { Page } from '@playwright/test';
-import { test, expect, paragraph, type SavedWorkspace } from './fixtures';
+import { test, expect, paragraph, SavedWorkspace } from './fixtures';
 import type { StructuredDocument } from '../src/documents/types';
+import type { Team } from '../src/types';
 import type { FullProject, Project, ProjectIssue, ProjectProgress, ProjectUpdate } from '../src/projects/types';
 
 const projectsPath = (saved: SavedWorkspace, id?: string) => `/teams/${saved.team.id}/projects${id ? `/${id}` : ''}`;
@@ -237,15 +238,28 @@ test('competing project brief editors retain the rejected draft until an explici
   } finally { release(); await other.close(); }
 });
 
-test('project brief references and file bytes persist while revision selection remains read-only and keyboard accessible', async ({ page, saved }) => {
+test('project brief references and file bytes persist while revision selection remains read-only and keyboard accessible', async ({ page, saved: owner, playwright }) => {
+  const team = await owner.request<Team>('/teams', 'POST', { name: `Project mention selection ${randomUUID()}`, key: `P${randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase()}`, private: true }, { 'Idempotency-Key': randomUUID() });
+  const saved = new SavedWorkspace(owner.http, owner.session, { ...owner.data, teams: [team] }, owner.origin);
+  const invitation = await saved.request<{ token: string }>('/invitations', 'POST', { email: `project-mention-${randomUUID()}@example.test`, role: 'member', team_ids: [team.id] }, { 'Idempotency-Key': randomUUID() });
+  const member = await playwright.request.newContext({ baseURL: saved.origin, extraHTTPHeaders: { Origin: saved.origin }, storageState: { cookies: [], origins: [] } });
+  try {
+    const accepted = await member.post('/api/v1/invitations/accept', { data: { token: invitation.token, display_name: 'Example A Owner', password: process.env.OPENTRACK_BROWSER_PASSWORD } });
+    expect(accepted.status()).toBe(200);
+  } finally { await member.dispose(); }
   const project = await createProject(saved, 'Connected project brief'); const target = await saved.create(`Project reference target ${randomUUID()}`);
   await openProject(page, saved, project);
   const brief = page.getByRole('region', { name: 'Project brief', exact: true }); const editor = brief.getByRole('textbox', { name: 'Project brief', exact: true });
   await editor.fill('Earlier reviewed project brief'); await editor.press('Control+Enter');
   await expect.poll(async () => (await briefDocument(saved, project.id)).body).toEqual(paragraph('Earlier reviewed project brief'));
   const earlier = await briefDocument(saved, project.id);
-  await editor.fill('Review with '); await editor.press('End'); await editor.pressSequentially('@Example');
-  await expect(brief.getByRole('listbox', { name: 'People to mention', exact: true }).getByRole('option', { name: 'Example Owner', exact: true })).toBeVisible();
+  await editor.fill('Review with '); await editor.press('End'); await editor.pressSequentially('@Owner');
+  const people = brief.getByRole('listbox', { name: 'People to mention', exact: true }); const intendedOwner = people.getByRole('option', { name: 'Example Owner', exact: true });
+  await expect(people).toHaveAttribute('aria-busy', 'false'); await expect(people.getByRole('option')).toHaveCount(2);
+  await expect(intendedOwner).toBeVisible(); await expect(people.getByRole('option', { name: 'Example A Owner', exact: true })).toHaveAttribute('aria-selected', 'true');
+  const candidateCount = await people.getByRole('option').count();
+  for (let attempt = 0; attempt < candidateCount && await intendedOwner.getAttribute('aria-selected') !== 'true'; attempt += 1) await editor.press('ArrowDown');
+  await expect(intendedOwner).toHaveAttribute('aria-selected', 'true');
   await editor.press('Enter'); await editor.pressSequentially(`and #${target.key}`);
   await expect(brief.getByRole('listbox', { name: 'Issues to reference', exact: true }).getByRole('option').filter({ hasText: target.key })).toBeVisible();
   await editor.press('Enter'); await editor.press('Control+Enter');
