@@ -11,7 +11,7 @@ import type { Bootstrap, Session, Team } from '../types';
 import { AddCycleIssue, CarryForward, CloseCycle } from './CycleActions';
 import { CycleEditor } from './CycleEditor';
 import { CurrentCycleIssues, CycleHistory, ScopeSummary, ScopeTable } from './CycleScope';
-import { cyclePath, cycleUrl, date, timestamp, type CloseReport, type Cycle, type CycleIssue, type Snapshot } from './types';
+import { cyclePath, cycleUrl, date, timestamp, type CarryOperation, type CloseReport, type Cycle, type CycleIssue, type Snapshot } from './types';
 import './cycles.css';
 
 interface Props { workspaceId: string; session: Session; data: Bootstrap; cycleId?: string; params: URLSearchParams; refresh: number; readOnly: boolean }
@@ -25,11 +25,17 @@ function CycleDirectory({ workspaceId, session, team, refresh, readOnly }: Props
   if (denied || isAccessError(directory.error)) return <><h2>Cycles unavailable</h2><ErrorBanner error={denied || directory.error}/></>;
   return <><header className="projects-heading"><div><h2>Cycles</h2><p className="project-help">Bounded team work, with explicit closure and carry-forward.</p></div>{!readOnly && <button className="button primary compact" onClick={() => setCreating(true)}><Plus aria-hidden="true"/>New cycle</button>}</header><ErrorBanner error={directory.error} retry={directory.retry}/>{directory.loading && !directory.value ? <Loading label="Loading cycles…"/> : <div className="cycle-directory" aria-busy={directory.loading}>{directory.value?.data.map(cycle => <Link className="cycle-row" key={cycle.id} href={cycleUrl(workspaceId, team.id, cycle.id)}><CalendarRange aria-hidden="true"/><div><strong>{cycle.name}</strong><span>{date(cycle.start_date)} — {date(cycle.end_date_exclusive)} exclusive · {cycle.timezone}</span></div><span className={`cycle-state cycle-${cycle.state}`}>{cycle.state}</span></Link>)}{!directory.value?.data.length && !directory.error && <div className="project-empty project-empty-large"><CalendarRange aria-hidden="true"/><h3>No cycles yet</h3><p>Create an interval, then select the work to include.</p></div>}</div>}{directory.value?.has_more && <button className="button compact project-more" disabled={directory.loading} onClick={directory.more}>Load more cycles</button>}{creating && <CycleEditor workspace={workspaceId} team={team.id} session={session} close={() => setCreating(false)} saved={cycle => navigate(cycleUrl(workspaceId, team.id, cycle.id))} denied={setDenied}/>}</>;
 }
-function CycleDetail({ workspaceId, session, team, cycleId, refresh, readOnly }: Props & { team: Team; cycleId: string }) {
+function CycleDetail({ workspaceId, session, team, cycleId, refresh, readOnly, params }: Props & { team: Team; cycleId: string }) {
   const path = cyclePath(workspaceId, team.id, cycleId); const request = useScopedRequest(); const [revision, setRevision] = useState(0); const resource = useProjectData<Cycle>(path, refresh + revision); const scope = useProjectData<Snapshot>(`${path}/scope`, refresh + revision);
-  const [editing, setEditing] = useState(false); const [adding, setAdding] = useState(false); const [closing, setClosing] = useState(false); const [carrying, setCarrying] = useState(false); const [viewingReport, setViewingReport] = useState(false); const [reopening, setReopening] = useState(false); const [reason, setReason] = useState(''); const [report, setReport] = useState<CloseReport | null>(null);
+  const [editing, setEditing] = useState(false); const [adding, setAdding] = useState(false); const [closing, setClosing] = useState(false); const [carrying, setCarrying] = useState(false); const [viewingReport, setViewingReport] = useState(false); const [reopening, setReopening] = useState(false); const [reason, setReason] = useState(''); const [carryOperation, setCarryOperation] = useState<CarryOperation | null>(null);
+  const [report, setReport] = useState<CloseReport | null>(null);
   const [error, setError] = useState<unknown>(null); const [denied, setDenied] = useState<unknown>(null); const [busy, setBusy] = useState(false);
-  const cycle = resource.value;
+  const cycle = resource.value; const operationId = params.get('carry');
+  useEffect(() => {
+    if (!operationId || !cycle) return; let active = true;
+    void (async () => { const operation = await request<CarryOperation>(`${path}/carry-forward/${encodeURIComponent(operationId)}`); const report = await request<CloseReport>(`${path}/reports/${operation.report_id}`); if (active) { setCarryOperation(operation); setReport(report); setCarrying(true); } })().catch(error => { if (active) { setError(error); if (isAccessError(error)) setDenied(error); } });
+    return () => { active = false; };
+  }, [operationId, cycle?.id]);
   useEffect(() => { if (cycle) document.title = `${cycle.name} · Cycles · OpenTrack`; }, [cycle?.name]);
   useEffect(() => { if (isAccessError(scope.error)) setDenied(scope.error); }, [scope.error]);
   function changed(value: Cycle) { resource.replace(value); setRevision(value => value + 1); }
@@ -47,7 +53,7 @@ function CycleDetail({ workspaceId, session, team, cycleId, refresh, readOnly }:
   }
   async function carry(view = false) {
     if (!cycle?.latest_report_id || busy) return; setBusy(true); setError(null);
-    try { setReport(await request<CloseReport>(`${path}/reports/${cycle.latest_report_id}`)); if (view) setViewingReport(true); else setCarrying(true); }
+    try { setReport(await request<CloseReport>(`${path}/reports/${cycle.latest_report_id}`)); if (view) setViewingReport(true); else { setCarryOperation(null); setCarrying(true); } }
     catch (error) { setError(error); if (isAccessError(error)) setDenied(error); }
     finally { setBusy(false); }
   }
@@ -62,7 +68,7 @@ function CycleDetail({ workspaceId, session, team, cycleId, refresh, readOnly }:
     {adding && <AddCycleIssue cycle={cycle} session={session} included={scope.value?.items.map(item => item.issue_id) ?? []} close={() => setAdding(false)} changed={changed} denied={setDenied}/>}
     {closing && <CloseCycle cycle={cycle} session={session} close={() => setClosing(false)} closed={value => { setReport(value); changed(value.cycle); setClosing(false); }} denied={setDenied}/>}
     {viewingReport && report && <Modal title="Cycle closure report" close={() => setViewingReport(false)}><div className="project-form"><p>Closed {timestamp(report.closed_at)}. Counts, categories and estimates reflect that reviewed closure; issue labels use current access.</p><ScopeSummary scope={report.scope}/><ScopeTable workspace={workspaceId} team={team.id} scope={report.scope} caption="Original cycle closure scope"/><div className="modal-footer"><button className="button" onClick={() => setViewingReport(false)}>Done</button></div></div></Modal>}
-    {carrying && report && <CarryForward cycle={cycle} report={report} session={session} close={() => { setCarrying(false); setRevision(value => value + 1); }} changed={() => setRevision(value => value + 1)} denied={setDenied}/>}
+    {carrying && report && <CarryForward key={carryOperation?.id ?? 'new'} initialOperation={carryOperation ?? undefined} operationSaved={operation => { setCarryOperation(operation); navigate(`${cycleUrl(workspaceId, team.id, cycleId)}&carry=${encodeURIComponent(operation.id)}`, true); }} cycle={cycle} report={report} session={session} close={() => { setCarrying(false); setCarryOperation(null); navigate(cycleUrl(workspaceId, team.id, cycleId), true); setRevision(value => value + 1); }} changed={() => setRevision(value => value + 1)} denied={setDenied}/>}
     {reopening && <Modal title="Reopen cycle" close={() => setReopening(false)} canClose={!busy}><div className="project-form"><p>Reopening permits explicit corrections. Original closure reports remain unchanged.</p><label className="field">Reason<textarea data-autofocus value={reason} maxLength={1000} onChange={event => setReason(event.target.value)} disabled={busy}/></label><ErrorBanner error={error}/><div className="modal-footer"><button className="button" disabled={busy} onClick={() => setReopening(false)}>Cancel</button><button className="button primary" disabled={busy || !reason.trim()} onClick={() => void command('reopen')}>Reopen cycle</button></div></div></Modal>}
   </>;
 }

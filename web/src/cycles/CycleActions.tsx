@@ -74,13 +74,13 @@ export function CloseCycle({ cycle, session, close, closed, denied }: { cycle: C
 
 }
 
-export function CarryForward({ cycle, report, session, close, changed, denied }: { cycle: Cycle; report: CloseReport; session: Session; close: () => void; changed: () => void; denied: (error: unknown) => void }) {
+export function CarryForward({ cycle, report, session, close, changed, denied, initialOperation, operationSaved }: { initialOperation?: CarryOperation; operationSaved?: (operation: CarryOperation) => void; cycle: Cycle; report: CloseReport; session: Session; close: () => void; changed: () => void; denied: (error: unknown) => void }) {
 
   const path = cyclePath(cycle.workspace_id, cycle.team_id, cycle.id); const request = useScopedRequest();
 
   const destinations = useProjectPage<Cycle>(cyclePath(cycle.workspace_id, cycle.team_id), 0, 50);
 
-  const [destination, setDestination] = useState(''); const [selected, setSelected] = useState(new Set<string>()); const [operation, setOperation] = useState<CarryOperation | null>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState<unknown>(null); const [uncertain, setUncertain] = useState(false);
+  const [destination, setDestination] = useState(''); const [selected, setSelected] = useState(new Set<string>()); const [operation, setOperation] = useState<CarryOperation | null>(initialOperation ?? null); const [busy, setBusy] = useState(false); const [error, setError] = useState<unknown>(null); const [uncertain, setUncertain] = useState(false);
 
   const sent = useRef<{ key: string; etag: string; body: object } | null>(null);
 
@@ -90,7 +90,7 @@ export function CarryForward({ cycle, report, session, close, changed, denied }:
 
   const resumeSent = useRef<{ key: string; etag: string; body: object } | null>(null);
 
-  useUnsavedChanges(uncertain);
+  const release = useUnsavedChanges(uncertain);
   const available = destinations.value?.data.filter(item => item.id !== cycle.id && item.state !== 'closed' && item.can_plan && item.start_date >= cycle.end_date_exclusive) ?? [];
 
   async function submit() {
@@ -101,7 +101,7 @@ export function CarryForward({ cycle, report, session, close, changed, denied }:
 
     const pending = sent.current; setBusy(true); setError(null);
 
-    try { setOperation(await request<CarryOperation>(`${path}/carry-forward`, { method: 'POST', csrf: session.csrf_token, headers: { 'If-Match': pending.etag, 'Idempotency-Key': pending.key }, body: pending.body })); setUncertain(false); changed(); }
+    try { const result = await request<CarryOperation>(`${path}/carry-forward`, { method: 'POST', csrf: session.csrf_token, headers: { 'If-Match': pending.etag, 'Idempotency-Key': pending.key }, body: pending.body }); setOperation(result); setUncertain(false); release(); operationSaved?.(result); changed(); }
 
     catch (error) { setError(error); if (isAccessError(error)) denied(error); setUncertain(error instanceof ApiError && (error.status === 0 || error.status >= 500)); }
 
@@ -147,7 +147,7 @@ export function CarryForward({ cycle, report, session, close, changed, denied }:
 
     const pending = resumeSent.current; setBusy(true); setError(null);
 
-    try { setOperation(await request<CarryOperation>(`${path}/carry-forward/${operation.id}/resume`, { method: 'POST', csrf: session.csrf_token, headers: { 'If-Match': pending.etag, 'Idempotency-Key': pending.key }, body: pending.body })); setReview(null); setUncertain(false); changed(); }
+    try { const result = await request<CarryOperation>(`${path}/carry-forward/${operation.id}/resume`, { method: 'POST', csrf: session.csrf_token, headers: { 'If-Match': pending.etag, 'Idempotency-Key': pending.key }, body: pending.body }); setOperation(result); setReview(null); setUncertain(false); release(); operationSaved?.(result); changed(); }
 
     catch (error) { setError(error); if (isAccessError(error)) denied(error); setUncertain(error instanceof ApiError && (error.status === 0 || error.status >= 500)); }
 

@@ -18,7 +18,7 @@ The detail page shows current accessible issue scope and measured progress. Canc
 
 Contributors can explicitly add or remove issues while a cycle is open. Maintainers start cycles, capture snapshots and review closure. Closure requires acknowledgement of the current preview and preserves every issue and status. A stale preview must be reloaded and reviewed. The original closure report remains readable after later corrections or carry-forward.
 
-Carry-forward is a separate action. Choose a later eligible destination and at most 100 unfinished issues; no issue is selected automatically. Each result is displayed. Unresolved accessible items can be loaded again with current versions, explicitly selected and retried against the saved operation. Resolved items are never retried. Restricted results do not imply completion. Reopening a closed cycle requires a recorded reason.
+Carry-forward is a separate action. Choose a later eligible destination and at most 100 unfinished issues; no issue is selected automatically. Each result is displayed. The operation ID is retained in the cycle URL, so reloading or reopening that link restores its result review. Unresolved accessible items can be loaded again with current versions, explicitly selected and retried against the saved operation. Resolved items are never retried. Restricted results do not imply completion. Reopening a closed cycle requires a recorded reason.
 
 Historical reports and points are filtered by current issue access. Counts describe only the visible projection, with an access-filtering notice when necessary. Issue labels are current authorized data; recorded categories and estimates retain their snapshot meaning.
 
