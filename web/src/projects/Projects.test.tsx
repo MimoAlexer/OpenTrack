@@ -38,7 +38,7 @@ async function input(selector: string, value: string) {
   await act(async () => { const proto = element instanceof HTMLSelectElement ? HTMLSelectElement.prototype : element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(proto, 'value')!.set!.call(element, value); element.dispatchEvent(new Event(element instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true })); });
 }
 async function submit(selector = 'form') { await act(async () => container.querySelector(selector)!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); }
-function detailFetch(url: string) { return json(url.includes('/progress') ? progress : url.includes('/issues') || url.includes('/updates') ? page([]) : project); }
+function detailFetch(url: string) { return json(url.includes('/progress') ? progress : url.includes('/milestones') ? { ...page([]), project_etag: project.etag } : url.includes('/issues') || url.includes('/updates') ? page([]) : project); }
 function screen(props: Partial<Parameters<typeof Projects>[0]> = {}) { return <Projects workspaceId="workspace" session={session} data={data} params={new URLSearchParams({ team_id: 'team' })} refresh={0} readOnly={false} {...props}/>; }
 
 describe('project navigation and scope', () => {

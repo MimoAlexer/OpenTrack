@@ -9,16 +9,18 @@ import { useScopedRequest } from '../settings/shared';
 import { useSearchPage } from '../taxonomy/useSearchPage';
 import type { Issue, IssuePage, Session } from '../types';
 import { projectPath, type Project, type ProjectIssue } from './types';
+import type { MilestoneOverview } from './Milestones';
 import { useProjectPage } from './useProjectData';
 
-export function ProjectIssues({ project, session, refresh, readOnly, changed, denied }: { project: Project; session: Session; refresh: number; readOnly: boolean; changed: (value: Project) => void; denied: (error: unknown) => void }) {
+export function ProjectIssues({ project, session, refresh, readOnly, changed, denied, milestones = [] }: { milestones?: MilestoneOverview[]; project: Project; session: Session; refresh: number; readOnly: boolean; changed: (value: Project) => void; denied: (error: unknown) => void }) {
   const path = projectPath(project.workspace_id, project.team_id, project.id); const request = useScopedRequest();
   const directory = useProjectPage<ProjectIssue>(`${path}/issues`, refresh, 50);
+  const [grouped, setGrouped] = useState(false);
   const [adding, setAdding] = useState(false); const [busy, setBusy] = useState<string | null>(null); const [error, setError] = useState<unknown>(null);
   useEffect(() => { if (isAccessError(directory.error)) denied(directory.error); }, [directory.error]);
-  async function membership(issue: { id: string }, included: boolean) {
+  async function membership(issue: { id: string }, included: boolean, milestone?: string) {
     if (busy || readOnly) return; setBusy(issue.id); setError(null);
-    try { const value = await request<Project>(`${path}/issues/${issue.id}`, { method: 'PUT', csrf: session.csrf_token, headers: { 'If-Match': project.etag }, body: { included } }); changed(value); if (included) setAdding(false); }
+    try { const value = await request<Project>(`${path}/issues/${issue.id}${milestone !== undefined ? '/milestone' : ''}`, { method: 'PUT', csrf: session.csrf_token, headers: { 'If-Match': project.etag }, body: milestone !== undefined ? { milestone_id: milestone || null } : { included } }); changed(value); if (included && milestone === undefined) setAdding(false); }
     catch (error) {
       setError(error); if (isAccessError(error)) denied(error);
       if (error instanceof ApiError && error.status === 412) {
@@ -29,9 +31,10 @@ export function ProjectIssues({ project, session, refresh, readOnly, changed, de
   }
   return <section className="project-issues" aria-label="Project issues"><header className="project-section-heading"><div><h3>Issues</h3><p>The work included in this project.</p></div>{!readOnly && <button className="button compact" onClick={() => { setError(null); setAdding(true); }}><Plus aria-hidden="true"/>Add issues</button>}</header>
     {!adding && <ErrorBanner error={error}/>}{!adding && error instanceof ApiError && error.status === 412 && <p className="notice">The project changed. The latest version is loaded; review its issues before trying again.</p>}
+    {milestones.length > 0 && <label className="planning-group-toggle"><input type="checkbox" checked={grouped} onChange={event => setGrouped(event.target.checked)}/>Group by milestone</label>}
     <ErrorBanner error={directory.error} retry={directory.retry}/>
-    {!directory.value && directory.loading ? <Loading label="Loading project issues…"/> : <div className="project-issue-list" aria-busy={directory.loading}>{directory.value?.data.map(issue => <div className="project-issue-row" key={issue.id}><Link href={issuesUrl(project.workspace_id, new URLSearchParams({ team_id: project.team_id }), issue.id)}><span className="project-issue-key">{issue.key}</span><span>{issue.title}</span></Link><span className={`project-issue-status status-${issue.status_category}`}>{issue.status_name}</span>{!readOnly && <button className="icon-button" aria-label={`Remove ${issue.key} from project`} disabled={!!busy} onClick={() => void membership(issue, false)}><X aria-hidden="true"/></button>}</div>)}{!directory.value?.data.length && !directory.error && <div className="project-empty"><h4>No issues yet</h4><p>Add existing issues from this team to define the project scope.</p></div>}</div>}
-    {directory.value?.has_more && <button className="button compact project-more" disabled={directory.loading} onClick={directory.more}>{directory.loading ? 'Loading…' : 'Load more issues'}</button>}
+    {!directory.value && directory.loading ? <Loading label="Loading project issues…"/> : <div className="project-issue-list" aria-busy={directory.loading}>{(grouped ? [...milestones.map(item => ({ id: item.milestone.id, title: item.milestone.title })), { id: null, title: 'No milestone' }] : [{ id: undefined, title: '' }]).map(group => <div className="project-issue-group" key={group.id ?? 'ungrouped'}>{grouped && <h4>{group.title}</h4>}{directory.value?.data.filter(issue => !grouped || (issue.milestone_id ?? null) === group.id).map(issue => <div className="project-issue-row" key={issue.id}><Link href={issuesUrl(project.workspace_id, new URLSearchParams({ team_id: project.team_id }), issue.id)}><span className="project-issue-key">{issue.key}</span><span>{issue.title}</span></Link><span className={`project-issue-status status-${issue.status_category}`}>{issue.status_name}</span>{!readOnly && <select aria-label={`Milestone for ${issue.key}`} value={issue.milestone_id ?? ''} disabled={!!busy} onChange={event => void membership(issue, true, event.target.value)}><option value="">No milestone</option>{milestones.map(({ milestone }) => <option value={milestone.id} key={milestone.id}>{milestone.title}</option>)}</select>}{!readOnly && <button className="icon-button" aria-label={`Remove ${issue.key} from project`} disabled={!!busy} onClick={() => void membership(issue, false)}><X aria-hidden="true"/></button>}</div>)}</div>)}{!directory.value?.data.length && !directory.error && <div className="project-empty"><h4>No issues yet</h4><p>Add existing issues from this team to define the project scope.</p></div>}</div>}
+    {grouped && directory.value?.has_more && <p className="project-help">Groups show the issues loaded so far. Load more to see the remaining project scope.</p>}{directory.value?.has_more && <button className="button compact project-more" disabled={directory.loading} onClick={directory.more}>{directory.loading ? 'Loading…' : 'Load more issues'}</button>}
     {adding && <AddProjectIssues project={project} session={session} included={directory.value?.data.map(item => item.id) ?? []} busy={!!busy} error={error} close={() => { if (!busy) setAdding(false); }} add={issue => void membership(issue, true)}/>}
   </section>;
 }

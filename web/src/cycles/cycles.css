@@ -1,0 +1,40 @@
+@layer components {
+  .cycle-directory { border-top: 1px solid var(--line); }
+  .cycle-row { display: flex; align-items: center; gap: 16px; padding: 20px 4px; border-bottom: 1px solid var(--line); }
+  .cycle-row:hover { background: var(--hover); }
+  .cycle-row > div { flex: 1; min-width: 0; }
+  .cycle-row strong, .cycle-row > div > span { display: block; overflow-wrap: anywhere; }
+  .cycle-row > div > span, .cycle-dates, .cycle-boundaries { color: var(--secondary); font-size: 12px; margin-top: 6px; }
+  .cycle-state { text-transform: capitalize; font-size: 12px; border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; white-space: nowrap; }
+  .cycle-active { color: var(--amber); }
+  .cycle-closed { color: var(--green); }
+  .cycle-scope, .cycle-history { margin: 24px 0 36px; }
+  .cycle-summary { padding: 16px 0; }
+  .cycle-summary > div { max-width: 560px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .cycle-summary progress { width: 100%; height: 6px; accent-color: var(--accent); }
+  .cycle-summary > div > span, .cycle-summary > p { color: var(--secondary); font-size: 12px; }
+  .cycle-summary dl { display: flex; flex-wrap: wrap; gap: 24px; margin: 20px 0; }
+  .cycle-summary dt { color: var(--secondary); font-size: 12px; }
+  .cycle-summary dd { font-variant-numeric: tabular-nums; margin: 5px 0; }
+  .planning-table-wrap { max-width: 100%; overflow-x: auto; }
+  .planning-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+  .planning-table caption { text-align: left; color: var(--secondary); padding: 12px 0; }
+  .planning-table th, .planning-table td { border-bottom: 1px solid var(--line); padding: 12px 8px; vertical-align: top; font-variant-numeric: tabular-nums; }
+  .planning-table th { font-weight: 500; }
+  .planning-table td:first-child { min-width: 180px; }
+  .planning-table a:hover { text-decoration: underline; }
+  .planning-table td > button { white-space: nowrap; }
+  .planning-table td input { min-width: 24px; min-height: 24px; }
+  .cycle-chart { margin: 20px 0; max-width: 720px; color: var(--secondary); }
+  .cycle-chart svg { width: 100%; max-height: 220px; }
+  .cycle-chart figcaption { font-size: 12px; margin-top: 8px; }
+  .planning-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+  .planning-ack, .planning-group-toggle { display: flex; gap: 10px; align-items: flex-start; margin: 18px 0; font-size: 13px; }
+  .planning-ack input, .planning-group-toggle input { min-width: 24px; min-height: 24px; }
+  .carry-results { list-style: none; padding: 0; }
+  .carry-results li { display: flex; gap: 16px; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line); }
+
+}
+@layer responsive {
+  @media (max-width: 780px) { .milestone-group > header, .cycle-row { flex-wrap: wrap; } .project-issue-row { flex-wrap: wrap; } .project-issue-row > a { min-width: 55%; } .project-issue-row > select { flex: 1; } .cycle-summary dl { gap: 16px; } .cycle-boundaries p { overflow-wrap: anywhere; } }
+}
