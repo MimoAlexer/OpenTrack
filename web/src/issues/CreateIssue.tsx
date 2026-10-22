@@ -94,7 +94,7 @@ export function CreateIssue({ workspaceId, data, session, initialTeam, close, cr
     created(issue);
   }
   return <AttachmentProvider workspaceId={workspaceId} session={session}><ReferenceProvider workspaceId={workspaceId} session={session} target={{ team_id: teamId }}><Modal title={parentIssue ? "New subissue" : "New issue"} close={dismiss} canClose={!busy && !uncertain}>
-    <form className="create-form" onSubmit={submit} onKeyDown={e => { if (e.target instanceof Element && e.target.closest('dialog') !== e.currentTarget.closest('dialog')) return; if (!e.nativeEvent.isComposing && !composing && (e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); e.currentTarget.requestSubmit(); } }} aria-busy={busy}>
+    <form className="create-form" onSubmit={submit} onKeyDown={e => { if (e.target instanceof Element && e.target.closest('dialog') !== e.currentTarget.closest('dialog')) return; if (!e.defaultPrevented && !e.nativeEvent.isComposing && e.keyCode !== 229 && !composing && !e.altKey && !e.getModifierState('AltGraph') && !e.repeat && (e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); e.currentTarget.requestSubmit(); } }} aria-busy={busy}>
       <ErrorBanner error={error} /><ErrorBanner error={workflow.error} retry={workflow.refresh} />
       {parentIssue && <div className="parent-context">Parent: <strong>{parentIssue.key}</strong> · {parentIssue.title}</div>}
       {parentReview && <div className="workflow-conflict" role="alert"><strong>Review the parent issue.</strong><p>Your draft is preserved. Refresh the parent before trying again.</p><button type="button" className="button compact" disabled={busy} onClick={refreshParent}>Refresh parent</button></div>}

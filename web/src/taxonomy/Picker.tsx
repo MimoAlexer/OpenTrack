@@ -7,7 +7,7 @@ export interface Choice { id: string; text: string; detail?: string; selected?: 
 export function Picker({ label, value, open, setOpen, query, setQuery, choices, select, multiple = false, loading, error, refresh, more, hasMore, disabled = false, children }: {
   label: string; value: ReactNode; open: boolean; setOpen: (value: boolean) => void; query: string; setQuery: (value: string) => void; choices: Choice[]; select: (id: string) => void; multiple?: boolean; loading: boolean; error: unknown; refresh: () => void; more: () => void; hasMore: boolean; disabled?: boolean; children?: ReactNode;
 }) {
-  const id = useId(); const wrapper = useRef<HTMLDivElement>(null); const trigger = useRef<HTMLButtonElement>(null); const search = useRef<HTMLInputElement>(null);
+  const id = useId(); const wrapper = useRef<HTMLDivElement>(null); const trigger = useRef<HTMLButtonElement>(null); const search = useRef<HTMLInputElement>(null); const composing = useRef(false);
   const [activeId, setActiveId] = useState<string | null>(null); const [placement, setPlacement] = useState<CSSProperties>({});
   const active = activeId === null ? -1 : choices.findIndex(choice => choice.id === activeId);
   useLayoutEffect(() => {
@@ -44,7 +44,7 @@ export function Picker({ label, value, open, setOpen, query, setQuery, choices, 
     window.addEventListener('resize', measure); window.addEventListener('scroll', measure, true);
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure); window.removeEventListener('scroll', measure, true); };
   }, [open, disabled]);
-  useEffect(() => { if (open && !disabled) search.current?.focus(); }, [open, disabled]);
+  useEffect(() => { composing.current = false; if (open && !disabled) search.current?.focus(); }, [open, disabled]);
   useLayoutEffect(() => { setActiveId(null); }, [query]);
   useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
   useEffect(() => {
@@ -60,12 +60,17 @@ export function Picker({ label, value, open, setOpen, query, setQuery, choices, 
     if (!indices.length) return;
     const at = indices.indexOf(active); const next = at < 0 ? indices[delta > 0 ? 0 : indices.length - 1] : indices[(at + delta + indices.length) % indices.length]; activate(next);
   }
-  return <div className="reference-picker" ref={wrapper} onBlur={event => { if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false); }} onKeyDown={event => { if (open && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); } }}>
+  return <div className="reference-picker" ref={wrapper} onBlur={event => { if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false); }} onKeyDown={event => { if (open && event.key === 'Escape' && !composing.current && !event.nativeEvent.isComposing && event.keyCode !== 229 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.getModifierState('AltGraph')) { event.preventDefault(); event.stopPropagation(); close(); } }}>
     <span className="field-label" id={`${id}-label`}>{label}</span>
     <button ref={trigger} type="button" className="reference-trigger" aria-labelledby={`${id}-label ${id}-value`} aria-haspopup="listbox" aria-expanded={open && !disabled} aria-controls={open ? `${id}-list` : undefined} disabled={disabled} onClick={() => { setQuery(''); setOpen(!open); }}><span id={`${id}-value`}>{value}</span><Search aria-hidden="true" /></button>
     {children}
     {open && !disabled && <div className="reference-popover" style={placement}>
-      <label className="reference-search"><Search aria-hidden="true" /><input ref={search} role="combobox" aria-label={`Search ${label.toLowerCase()}`} aria-expanded="true" aria-controls={`${id}-list`} aria-autocomplete="list" aria-activedescendant={active >= 0 && choices[active] && !choices[active].disabled ? `${id}-option-${active}` : undefined} value={query} maxLength={100} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); move(event.key === 'ArrowDown' ? 1 : -1); } else if (event.key === 'Enter') { event.preventDefault(); if (active >= 0 && choices[active] && !choices[active].disabled) choose(choices[active].id); } else if (event.key === 'Home' || event.key === 'End') { if (active >= 0 || !query || event.ctrlKey) { event.preventDefault(); activate(event.key === 'Home' ? choices.findIndex(item => !item.disabled) : choices.map((item, index) => item.disabled ? -1 : index).filter(index => index >= 0).at(-1) ?? -1); } } }} /></label>
+      <label className="reference-search"><Search aria-hidden="true" /><input ref={search} role="combobox" aria-label={`Search ${label.toLowerCase()}`} aria-expanded="true" aria-controls={`${id}-list`} aria-autocomplete="list" aria-activedescendant={active >= 0 && choices[active] && !choices[active].disabled ? `${id}-option-${active}` : undefined} value={query} maxLength={100} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onChange={event => setQuery(event.target.value)} onKeyDown={event => {
+        if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.getModifierState('AltGraph')) { event.stopPropagation(); return; }
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); move(event.key === 'ArrowDown' ? 1 : -1); }
+        else if (event.key === 'Enter') { event.preventDefault(); if (!event.repeat && active >= 0 && choices[active] && !choices[active].disabled) choose(choices[active].id); }
+        else if (event.key === 'Home' || event.key === 'End') { if (active >= 0 || !query) { event.preventDefault(); activate(event.key === 'Home' ? choices.findIndex(item => !item.disabled) : choices.map((item, index) => item.disabled ? -1 : index).filter(index => index >= 0).at(-1) ?? -1); } }
+      }} /></label>
       <ErrorBanner error={error} retry={refresh} />
       <div id={`${id}-list`} role="listbox" aria-label={label} aria-multiselectable={multiple || undefined} aria-busy={loading} className="reference-options">{choices.map((choice, index) => <div role="option" aria-selected={!!choice.selected} aria-disabled={choice.disabled || undefined} id={`${id}-option-${index}`} key={choice.id} className={`reference-option${active === index && !choice.disabled ? ' active' : ''}`} onPointerMove={() => { if (!choice.disabled) setActiveId(choice.id); }} onMouseDown={event => event.preventDefault()} onClick={() => { if (!choice.disabled) choose(choice.id); }}>{choice.icon}<span>{choice.text}{choice.detail && <small>{choice.detail}</small>}</span><span aria-hidden="true">{choice.selected ? '✓' : ''}</span></div>)}</div>
       {loading && <p className="picker-message" role="status">Loading…</p>}{!loading && !error && !choices.length && <p className="picker-message" role="status">No matches.</p>}
