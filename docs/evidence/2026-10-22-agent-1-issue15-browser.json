@@ -1,0 +1,46 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "competing issue editors preserve the rejected draft and require an explicit reviewed save",
+      "status": "passed",
+      "duration_ms": 2172
+    },
+    {
+      "browser": "chromium",
+      "check": "competing issue editors preserve the rejected draft and can adopt the saved version",
+      "status": "passed",
+      "duration_ms": 2979
+    },
+    {
+      "browser": "firefox",
+      "check": "competing issue editors preserve the rejected draft and require an explicit reviewed save",
+      "status": "passed",
+      "duration_ms": 3322
+    },
+    {
+      "browser": "firefox",
+      "check": "competing issue editors preserve the rejected draft and can adopt the saved version",
+      "status": "passed",
+      "duration_ms": 2744
+    },
+    {
+      "browser": "webkit",
+      "check": "competing issue editors preserve the rejected draft and require an explicit reviewed save",
+      "status": "passed",
+      "duration_ms": 3368
+    },
+    {
+      "browser": "webkit",
+      "check": "competing issue editors preserve the rejected draft and can adopt the saved version",
+      "status": "passed",
+      "duration_ms": 2213
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}
