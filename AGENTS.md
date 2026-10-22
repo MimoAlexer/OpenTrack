@@ -2,7 +2,7 @@
 
 ## Authorization and scope
 
-Latest instruction, 22 October 2026: finish only the already-started issue batch, create its pull requests, verify them and merge qualified changes. Do not assign new backlog issues or continue the earlier autonomous complete-product loop after this batch. Keep incomplete native, physical-input and assistive-technology acceptance explicit; merging a tested increment does not authorize closing an incompletely qualified issue. The complete-product specification below remains the roadmap, not a new instruction to resume execution.
+Latest instruction, 22 October 2026: resume the complete-product goal through five assigned lanes. Each worker owns its assigned queue; Agent 5 coordinates contracts, migration reservations, exact-head review/merging and final qualification. This supersedes the earlier batch-only stop rule. Follow each worktree's assignment and the shared coordination protocol. Continue through all queues and regressions; close issues only with full acceptance evidence. Native, physical-input, assistive-technology, provider, recovery and governance gates remain explicit. Only Agent 5 may write COMPLETE.md, after every queue, F/X/M criterion and product gate has real evidence on integrated main.
 
 On 20 October 2026 the user explicitly resumed the complete-product goal and requested continued work until everything is done or they say to stop. They also authorized focused commits after each verified step/issue, pushing progress, and maintaining GitHub issues, project boards, milestones and retrospectives. Close issues and mark project items Done only after their full acceptance criteria have evidence. This supersedes the 18 October pause; docs/PROJECT_HANDOFF_2026-10-18.md remains a historical checkpoint. Do not change repository visibility or release governance merely to maintain progress.
 
@@ -10,7 +10,7 @@ The user explicitly activated the goal to implement the complete OpenTrack produ
 
 Read docs/IMPLEMENTATION_PLAN.md and docs/REQUIREMENTS_STATUS.md for scope and evidence. A requirement becomes complete only after implementation and acceptance evidence are recorded. Historical Phase 0 verification remains historical; an HTML preview, successful build or planning document is not proof of application behavior.
 
-The user also required protection on `main` and explicitly authorized the agent to merge its own pull requests after the required checks pass. Continue committing and pushing feature branches without repeated approval requests; preserve main protection, required GitHub Actions checks and resolved review conversations.
+The user requested protection on `main` and explicitly authorized merging verified pull requests. The current account plan does not support the requested branch protection; enforce all four configured checks and resolved review conversations manually at the exact reviewed head. Agent 5 alone merges under the integration lock using the neutral-identity helper. Continue focused commits and feature-branch pushes without repeated approval requests; never weaken checks or claim unavailable protection exists.
 
 ## Privacy and execution boundaries
 

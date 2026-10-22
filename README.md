@@ -43,7 +43,7 @@ Subscriptions and mention intents are stored, but **inbox and email delivery are
 
 ## What comes next
 
-The remaining roadmap includes native interaction and attachment/recovery qualification, boards, timelines and reporting parity; saved views, broader search, realtime and the inbox follow. Project briefs currently share the project metadata version; independent brief history, mentions, issue references and attachments remain unfinished. New backlog work is not assigned after the current batch without a new request.
+The remaining roadmap includes native interaction and attachment/recovery qualification, boards, timelines and reporting parity; saved views, broader search, realtime and the inbox follow. Project briefs currently share the project metadata version; independent brief history, mentions, issue references and attachments remain unfinished. Complete-product execution resumed on 22 October through five assigned lanes, with one integration owner and acceptance evidence required for every completion claim.
 
 The broader roadmap includes **initiatives, roadmap scenarios and capacity, retrospectives, decisions, feedback, releases, incidents and reports**, alongside integrations and optional AI/isolated agents. These are planned capabilities, not current screens.
 
