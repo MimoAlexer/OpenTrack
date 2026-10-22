@@ -18,8 +18,8 @@ After the offline checks, CI stops the source containers and removes their inter
 
 | Check | Observed result |
 | --- | --- |
-| `python scripts/test-docker-recovery.py` on Windows | 12 passed after the relay/API corrections. |
-| Same boundary suite through the assigned WSL launcher | 12 passed after the relay/API corrections. |
+| `python scripts/test-docker-recovery.py` on Windows | 13 passed after the relay/archive/problem-response corrections. |
+| Same boundary suite through the assigned WSL launcher | 13 passed after the relay/archive/problem-response corrections. |
 | Python syntax parsing | Both changed Python files passed. |
 | PostgreSQL 18.6 `EXPLAIN` of the fingerprint query | Passed against the assigned test database; this plans the query and does not execute a restore. |
 | Independent read-only implementation review | Two findings fixed and rechecked: cleanup failure must not skip source restart; offline evidence must inspect actual networks rather than only intended Compose configuration. |
@@ -31,8 +31,10 @@ The first native run, `39812491138` at `790c3590073ed3b5a860e69bf4c137bc9982a574
 
 The second native run, `39815243139` at `a42bee52cc44df8325721e5151e5b7a5bee60113`, passed the relay, real API/assets/setup/issues/files, worker capture, recreation, missing-secret recovery, stopped seven-volume archives and damaged-archive refusal on both architectures. Both then failed in the restore loop before PostgreSQL startup. The captured bootstrap build used Python package `3.11.2-6+deb12u9`; its exact Debian `tarfile` source lacks the extraction `filter` keyword. Running the original call against that source reproduced the `TypeError`. The corrected call uses the supported API while retaining structural archive validation, numeric ownership and the modern explicit fully-trusted filter where available. A nested archive/byte/ownership sandbox check passed with that exact Debian library source; it is not a container/PostgreSQL restore result. Safe helper diagnostics now identify action, volume and validation/errno category without raw command stderr. Native restore remains unqualified until fresh CI passes.
 
+The third native run, `39823554025` at `8bc7fc3527dd40df1b9eaf87d6ca2c7db36c43f2`, passed all seven restored volume inventories/bytes/UID/GID/modes, database data/authority fingerprints, four restricted-role authentications and restored setup/session/login/issue/document/attachment checks on both architectures. Both then received the expected HTTP 503 for the missing blob but failed the dictionary assertion. The harness decoded only `application/json`, while the canonical API error representation is `application/problem+json`. The corrected parser handles those two explicit API media types, including parameters, while preserving arbitrary file bytes. Its new regression exercises the actual HTTPError decoding path; the blob assertion also requires the dependency-unavailable code, status, no-store and no download disposition. These local checks do not prove the deployed fault/repair loop; fresh native CI must finish both missing/corrupt cases and the subsequent HTTPS transition.
+
 ## Remaining acceptance
 
-Run both configured native-architecture jobs on the exact reviewed head and retain failures/corrections before recording acceptance. Bootstrap Python behavior, real volume ownership, PostgreSQL restart/fingerprint equality, blob failures and the later HTTPS transition still require that execution.
+Run both configured native-architecture jobs on the exact reviewed head and retain failures/corrections before recording acceptance. The previous head executed volume ownership and PostgreSQL restart/fingerprint equality successfully; both blob-fault/repair loops and the later HTTPS transition still require a complete passing run of the corrected head.
 
 Private-team denial after restore, optional HTTPS/operator-output contents, actual provider encryption keys and future modules, encrypted scheduled backups, prior-release/failed-migration and different-host restore remain outside this fixture. F29-A1, GQ08, M08 recovery and the complete product are not marked complete by local unit tests or this harness implementation.

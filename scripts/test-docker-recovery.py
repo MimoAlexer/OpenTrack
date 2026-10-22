@@ -87,6 +87,20 @@ class RecoveryBoundaries(unittest.TestCase):
             arguments = command.call_args.args[0]
             self.assertEqual(arguments[arguments.index("--pull") + 1], "never")
 
+    def test_http_problem_is_decoded_without_treating_file_bytes_as_json(self):
+        problem = {"status": 503, "code": "dependency_unavailable"}
+        for content_type in ("application/problem+json", "application/problem+json; charset=utf-8"):
+            reply = module.urllib.error.HTTPError(self.runner.url, 503, "Unavailable",
+                {"Content-Type": content_type}, io.BytesIO(json.dumps(problem).encode()))
+            with self.subTest(content_type=content_type), patch.object(self.runner.http, "open", side_effect=reply):
+                body, _ = self.runner.request("/fixture/content", expected=(503,))
+                self.assertEqual(body, problem)
+        reply = module.urllib.error.HTTPError(self.runner.url, 503, "Unavailable",
+            {"Content-Type": "application/octet-stream"}, io.BytesIO(b"file bytes"))
+        with patch.object(self.runner.http, "open", side_effect=reply):
+            body, _ = self.runner.request("/fixture/content", expected=(503,))
+            self.assertEqual(body, b"file bytes")
+
     def test_actual_network_state_must_match_internal_project_inventory(self):
         config = copy.deepcopy(self.config)
         config["services"]["app"]["networks"] = {"web": {}}

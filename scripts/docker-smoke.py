@@ -317,7 +317,8 @@ class Qualification:
             status, received = reply.status, reply.read()
             response_headers = reply.headers
         require(status in expected, f"Unexpected HTTP {status} for {method} {path}")
-        if "application/json" in response_headers.get("Content-Type", ""):
+        media_type = response_headers.get("Content-Type", "").partition(";")[0].strip().lower()
+        if media_type in ("application/json", "application/problem+json"):
             return json.loads(received), response_headers
         return received, response_headers
 
@@ -581,8 +582,12 @@ done
                 require(rejected.returncode == 1, "Recovery preflight accepted a missing or corrupt blob")
                 restored.dc("up", "--detach", "--wait", "--wait-timeout", "180", "--no-deps", "app", timeout=240)
                 restored.ready()
-                failure, _ = restored.request(attachment + "/content", expected=(503,))
-                require(isinstance(failure, dict), "Unavailable attachment must expose no file bytes")
+                failure, headers = restored.request(attachment + "/content", expected=(503,))
+                require(isinstance(failure, dict) and failure.get("status") == 503
+                        and failure.get("code") == "dependency_unavailable"
+                        and headers.get("Cache-Control") == "no-store"
+                        and not headers.get("Content-Disposition"),
+                        "Unavailable attachment must return a non-download dependency problem")
                 restored.dc("stop", "--timeout", "35", "app", timeout=55)
                 self.volume_task("repair-blob", restored.project, "blobs", backup, bootstrap_image, storage_key)
                 require(self.volume_task("verify", restored.project, "blobs", backup, bootstrap_image).returncode == 0,
