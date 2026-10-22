@@ -14,7 +14,7 @@
   <a href="https://github.com/MimoAlexer/OpenTrack/milestones">Milestones</a> ·
   <a href="https://github.com/MimoAlexer/OpenTrack/issues">Issues</a> ·
   <a href="docs/README.md">Documentation</a> ·
-  <a href="docs/SESSION_SUMMARY_2026-10-20.md">Latest work summary</a>
+  <a href="docs/evidence/2026-10-22-started-batch.md">Latest work summary</a>
 </p>
 
 <p align="center">
@@ -27,12 +27,13 @@
 
 Keep issues, projects, discussion, files, and workflows together on your own server. The core runs without an AI account or a paid cloud service. Browser and desktop use the same accounts, permissions, and PostgreSQL data.
 
-**Development checkpoint: schema 22, 20 October 2026.** Projects now join issues, documents and collaboration in the shared client. Executed checks for the planning increment are recorded in the [Projects evidence](docs/evidence/2026-10-20-projects.md); the full product is unfinished. The [requirements ledger](docs/REQUIREMENTS_STATUS.md) separates implemented behavior from remaining acceptance work.
+**Development checkpoint: schema 24, 22 October 2026.** Project milestones and team cycles now connect to the shared client, with reviewed close/carry-forward reports and accessible chart tables. The [started-batch record](docs/evidence/2026-10-22-started-batch.md) links implementation and verification; the full product is unfinished. The [requirements ledger](docs/REQUIREMENTS_STATUS.md) separates implemented behavior from remaining acceptance work.
 
 ## What works today
 
 - **Issues with context.** Statuses, priorities, labels, eligible assignees, subissues, related/blocking/duplicate links, team moves and old-key aliases. Archive issues, or delete with a reviewed 30-day restore path.
 - **Projects.** Team-owned projects with a rich brief, lead, dates, state and manual health. Link existing issues, read current progress, publish authored update snapshots, and archive or restore projects. Conflicting edits require review. [Projects guide](docs/PROJECTS.md).
+- **Milestones and cycles.** Order project outcomes and assign linked issues; empty scope has no invented percentage. Plan team cycles with explicit local dates and timezone, immutable scope history, reviewed closure and selective carry-forward with conflict recovery. [Milestones](docs/MILESTONES.md) · [Cycles](docs/CYCLES.md).
 - **Writing and discussion.** Structured descriptions, checklists and code; autosave with explicit conflict review; reviewed JSON/Markdown draft transfer, comments, attributable activity facts, attachments and current-access mentions/references. Personal subscriptions support automatic following or an explicit opt-out.
 - **Reusable team workflows.** Versioned issue templates, opt-in team/date title patterns, preview and merge/replace choices, custom statuses and defaults, and durable status-replacement jobs.
 - **Controlled access.** Private teams, invitations, account-session management, operator recovery and scoped authorization. A separate worker handles bounded background work and assignment cleanup.
@@ -42,7 +43,7 @@ Subscriptions and mention intents are stored, but **inbox and email delivery are
 
 ## What comes next
 
-Finish the remaining collaboration and Projects acceptance gates, including native interaction and attachment/recovery checks. Planning continues with milestones, cycles and boards; saved views, search, realtime and the inbox follow. Project briefs currently share the project metadata version; independent brief history, mentions, issue references and attachments remain unfinished.
+The remaining roadmap includes native interaction and attachment/recovery qualification, boards, timelines and reporting parity; saved views, broader search, realtime and the inbox follow. Project briefs currently share the project metadata version; independent brief history, mentions, issue references and attachments remain unfinished. New backlog work is not assigned after the current batch without a new request.
 
 The broader roadmap includes **initiatives, roadmap scenarios and capacity, retrospectives, decisions, feedback, releases, incidents and reports**, alongside integrations and optional AI/isolated agents. These are planned capabilities, not current screens.
 

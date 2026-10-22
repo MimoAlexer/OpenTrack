@@ -1,5 +1,7 @@
 # Complete-product implementation plan
 
+Current execution boundary, 22 October 2026: finish and merge the already-started batch, then stop assigning issues. The full scope below remains the product roadmap; further backlog execution requires a new user request.
+
 Authorization recorded: 17 October 2026. The user activated a goal to finish the complete OpenTrack product. Scope is F01–F47, X01–X66, the original brief's cross-cutting requirements and all release gates below. This supersedes Phase 0-only restrictions. It does not authorize external publication, paid purchases or messages beyond the user's actual instructions. No implementation requirement is marked complete by this planning update.
 
 ## What complete means
