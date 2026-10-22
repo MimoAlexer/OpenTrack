@@ -145,6 +145,7 @@ fn selected_files_each_require_supported_schema() {
     let temp = Temp::new();
     for text in [
         "[server]\nlisten='127.0.0.1:8080'",
+        "schema_version=0",
         "schema_version=2",
         "schema_version='1'",
     ] {
@@ -156,6 +157,28 @@ fn selected_files_each_require_supported_schema() {
         };
         assert!(invalid(&args, &environment()).contains("schema_version"));
     }
+}
+
+#[test]
+fn future_schema_rejection_never_rewrites_base_overlay_or_creates_backups() {
+    let temp = Temp::new();
+    let base_text = "schema_version=1\n[auth]\nhash_concurrency=3\n";
+    let overlay_text = "schema_version=2\n[auth]\nhash_concurrency=4\n";
+    let base = temp.write("base.toml", base_text);
+    let overlay = temp.write("overlay.toml", overlay_text);
+    let args = Cli {
+        config: Some(base.clone()),
+        environment: Some(overlay.clone()),
+        ..Cli::default()
+    };
+    let mut values = environment();
+    values.insert("OPENTRACK__SCHEMA_VERSION".into(), "1".into());
+    let message = invalid(&args, &values);
+    assert!(message.contains("schema_version"));
+    assert!(message.contains("overlay.toml:1:1"));
+    assert_eq!(fs::read_to_string(base).unwrap(), base_text);
+    assert_eq!(fs::read_to_string(overlay).unwrap(), overlay_text);
+    assert_eq!(fs::read_dir(&temp.0).unwrap().count(), 2);
 }
 
 #[test]
@@ -480,6 +503,56 @@ fn secret_content_has_a_size_limit_utf8_and_nonempty_requirements() {
     assert!(read_secret_file(&path).unwrap_err().contains("UTF-8"));
     fs::write(&path, vec![b'x'; 65537]).unwrap();
     assert!(read_secret_file(&path).unwrap_err().contains("64 KiB"));
+}
+
+#[cfg(unix)]
+#[test]
+fn opened_secret_metadata_rejects_special_files_and_directories() {
+    let temp = Temp::new();
+    assert!(
+        validate_secret_metadata(&fs::metadata(&temp.0).unwrap())
+            .unwrap_err()
+            .contains("regular file")
+    );
+    let path = temp.0.join("pipe");
+    let raw = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).unwrap();
+    // A replaced secret must be rejected even if its owner, mode and size are valid.
+    assert_eq!(unsafe { libc::mkfifo(raw.as_ptr(), 0o600) }, 0);
+    assert!(
+        validate_secret_metadata(&fs::metadata(&path).unwrap())
+            .unwrap_err()
+            .contains("regular file")
+    );
+    assert!(
+        read_secret_file(&path)
+            .unwrap_err()
+            .contains("regular file")
+    );
+}
+
+#[test]
+fn invalid_storage_root_reports_the_winning_source_without_its_value() {
+    let temp = Temp::new();
+    let file = temp.write(
+        "storage.toml",
+        "schema_version=1\n[storage]\nlocal_root='SECRET_PATH_CANARY'\n",
+    );
+    let mut values = environment();
+    values.remove("OPENTRACK__STORAGE__LOCAL_ROOT");
+    let message = invalid(&file_cli(file), &values);
+    assert!(message.contains("storage.local_root"));
+    assert!(message.contains("storage.toml:3:1"));
+    assert!(!message.contains("SECRET_PATH_CANARY"));
+
+    values.insert(
+        "OPENTRACK__STORAGE__LOCAL_ROOT".into(),
+        "SECRET_PATH_CANARY".into(),
+    );
+    let message = invalid(&Cli::default(), &values);
+    assert!(message.contains("environment OPENTRACK__STORAGE__LOCAL_ROOT"));
+    assert!(!message.contains("SECRET_PATH_CANARY"));
+    values.remove("OPENTRACK__STORAGE__LOCAL_ROOT");
+    assert!(invalid(&Cli::default(), &values).contains("default compiled defaults"));
 }
 
 #[test]

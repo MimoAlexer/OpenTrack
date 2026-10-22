@@ -744,10 +744,13 @@ fn validate_values(root: &Value, sources: &BTreeMap<String, Source>, target: Act
     if matches!(target, Action::Serve | Action::Worker) {
         let path = get(root, "storage.local_root").and_then(Value::as_str);
         if path.is_none_or(|p| !Path::new(p).is_absolute()) {
-            return Err(
-                "storage.local_root: an explicit absolute private storage directory is required"
-                    .into(),
-            );
+            return Err(error(
+                "storage.local_root",
+                sources
+                    .get("storage.local_root")
+                    .unwrap_or(&Source::default()),
+                "an explicit absolute private storage directory is required",
+            ));
         }
     }
     if let Some(path) = get(root, "storage.scanner_socket").and_then(Value::as_str) {
@@ -798,6 +801,9 @@ fn validate_secret_file(path: &Path) -> Result<()> {
     validate_secret_metadata(&meta)
 }
 fn validate_secret_metadata(meta: &fs::Metadata) -> Result<()> {
+    if !meta.is_file() {
+        return Err("secret file must be a regular file, not a symlink".into());
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -831,8 +837,8 @@ fn read_secret_file(path: &Path) -> Result<String> {
         #[cfg(target_os = "linux")]
         {
             use std::os::unix::fs::OpenOptionsExt;
-            options.custom_flags(0x20000);
-        } // O_NOFOLLOW
+            options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+        }
         options.open(path).map_err(|_| "cannot open secret file")?
     };
     validate_secret_metadata(
