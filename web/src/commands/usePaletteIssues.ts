@@ -65,7 +65,7 @@ export function usePaletteIssues(source: PaletteIssueSource | undefined, query: 
     try {
       const issue = await request<Issue>(`/workspaces/${encodeURIComponent(source.workspaceId)}/issues/${encodeURIComponent(id)}`, { signal: abort.signal });
       if (!valid()) return false;
-      if (issue.workspace_id !== source.workspaceId) throw new ApiError(404, 'not_found', 'This issue is unavailable.');
+      if (issue.workspace_id !== source.workspaceId || issue.archived_at) throw new ApiError(404, 'not_found', 'This issue is unavailable.');
       return true;
     } catch (error) {
       if (valid()) setResult(previous => previous.scope === key ? { ...previous, items: previous.items.filter(item => item.id !== id), busy: false, error } : previous);

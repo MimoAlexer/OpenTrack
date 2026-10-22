@@ -89,6 +89,17 @@ it('reauthorizes a selected issue before closing, restores focus, and opens once
   expect(frames).toHaveLength(1); frames[0](0); expect(options.open).toHaveBeenCalledExactlyOnceWith('live');
 });
 
+it('removes a suggestion archived after search without navigating', async () => {
+  const options = source(); const close = vi.fn();
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json(page(issue('archived'))))
+    .mockResolvedValueOnce(json({ ...issue('archived'), archived_at: '2026-10-22T00:00:00Z' })));
+  await render(options, close); await query('archived'); await tick(); await enter();
+  expect(close).not.toHaveBeenCalled(); expect(options.open).not.toHaveBeenCalled();
+  expect(container.querySelectorAll('[role="option"]')).toHaveLength(0);
+  expect(container.textContent).toContain('This issue is unavailable.');
+  expect(document.activeElement).toBe(container.querySelector('input'));
+});
+
 it('does not navigate when a selected issue resolves after the palette closes', async () => {
   const pending = deferred(); const options = source(); const close = vi.fn(); vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json(page(issue('live')))).mockReturnValueOnce(pending.promise));
   await render(options, close); await query('live'); await tick(); await enter(); await act(async () => root.render(null));
