@@ -1,6 +1,6 @@
 # OpenTrack blueprint map
 
-Latest checkpoint: [22 October started-batch record](evidence/2026-10-22-started-batch.md). It links the accepted foundation, identity, keyboard and planning increments and the qualification gates that remain open. The user requested completing this batch without assigning new backlog work.
+Latest accepted checkpoint: [22 October started-batch record](evidence/2026-10-22-started-batch.md). It links the accepted foundation, identity, keyboard and planning increments and their remaining qualification gates. The user subsequently resumed complete-product execution through five assigned lanes; [the implementation plan](IMPLEMENTATION_PLAN.md) and [requirements ledger](REQUIREMENTS_STATUS.md) govern current scope and evidence.
 
 Planning implementation: the [Projects guide](PROJECTS.md), [milestone model](MILESTONES.md) and [cycle guide](CYCLES.md) cover briefs, outcomes, linked issues, local intervals, scope history and explicit close/carry-forward. The current source requires migrations through 0024. Timelines, boards, automatic recurrence and richer project documents remain unfinished.
 
