@@ -1,8 +1,8 @@
 # OpenTrack blueprint map
 
-Latest review checkpoint: [20 October session summary](SESSION_SUMMARY_2026-10-20.md) and [recovery validation](evidence/2026-10-20-review-wrapup.md). These summarize merged work, the recovered collaboration increment and the acceptance gates that remain open.
+Latest checkpoint: [22 October started-batch record](evidence/2026-10-22-started-batch.md). It links the accepted foundation, identity, keyboard and planning increments and the qualification gates that remain open. The user requested completing this batch without assigning new backlog work.
 
-Projects implementation: the [user guide](PROJECTS.md) covers project briefs, leads, dates, health, linked issues, progress and authored updates. The [Projects evidence](evidence/2026-10-20-projects.md) tracks final qualification of the schema 0022 increment. Milestones, cycles, timelines and richer project documents remain unfinished.
+Planning implementation: the [Projects guide](PROJECTS.md), [milestone model](MILESTONES.md) and [cycle guide](CYCLES.md) cover briefs, outcomes, linked issues, local intervals, scope history and explicit close/carry-forward. The current source requires migrations through 0024. Timelines, boards, automatic recurrence and richer project documents remain unfinished.
 
 Historical checkpoint: [18 October 2026 project handoff](PROJECT_HANDOFF_2026-10-18.md), including implemented behavior, executed checks and the remaining roadmap. The user resumed complete-product implementation on 20 October 2026; see [the active handoff](../HANDOFF.md). The [GitHub project guide](GITHUB_PROJECT.md) links the project, all 21 milestones and 112 task issues.
 

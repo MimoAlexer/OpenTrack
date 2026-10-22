@@ -1,5 +1,13 @@
 # OpenTrack implementation handoff
 
+## Started batch completion — 22 October 2026
+
+The latest user instruction is to finish the already-started issues, create and merge their verified pull requests, then stop assigning backlog work. It supersedes the earlier continuous-execution instructions preserved below. See the [batch record](docs/evidence/2026-10-22-started-batch.md), [requirements ledger](docs/REQUIREMENTS_STATUS.md) and current AGENTS.md.
+
+The current planning source requires migrations through 0024: project milestones, team cycles, immutable scope/close reports and explicit reviewed carry-forward. Read the [milestone](docs/MILESTONES.md) and [cycle](docs/CYCLES.md) operating notes before upgrading. Native GUI, physical keyboard/IME and assistive-technology qualification remain distinct from browser and native-core checks.
+
+The repository was recreated with a clean root history. PR numbers and protected-branch claims in the historical checkpoints below describe the former repository and must not be treated as current links or settings. The current private repository's account plan does not support the requested branch protection; every batch merge was manually gated on its exact reviewed head and all four configured checks. Use the current batch record for accepted PR identities.
+
 ## Projects continuation — 20 October 2026
 
 The current source adds the first M05 Projects increment on top of the recovered collaboration work. It requires migration `0022_projects.sql` before starting the matching API or worker. The shared browser/desktop UI provides a team project directory and Overview, Issues and Updates tabs: name, summary, rich brief, eligible lead, dates, state, manual health, current issue progress, authored update snapshots, archive and restore. Project mutations enforce current team access, version conflicts and atomic audit/event writes. Linking or completing a project does not change issue states.
