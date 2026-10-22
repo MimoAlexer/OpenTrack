@@ -1,0 +1,4 @@
+# SQLx hashes exact migration bytes; all platforms must embed identical SQL.
+*.sql text eol=lf
+# Executable shell entry points must retain a usable shebang after checkout.
+*.sh text eol=lf

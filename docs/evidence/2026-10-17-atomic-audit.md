@@ -1,0 +1,25 @@
+# Atomic writes and mandatory audit — 17 October 2026
+
+This increment follows invitation checkpoint `94163ca`. It qualifies required write counts in existing setup, session, recovery, account lifecycle and issue commands. It does not change API shapes or add UI screens.
+
+## Behavior
+
+Setup requires its `instance.setup` audit. Bulk session revocation captures the eligible set while holding the account guard, then requires matching revoked and audited counts. Password recovery requires exactly one password update and code consumption, complete session invalidation with matching audit, and one completion event. A suppressed required write returns failure and rolls back all effects.
+
+Issue activity and durable event inserts must each affect one row; the stream-head update already requires its returned row. A failed append rolls back the issue version, number allocation and idempotency response as well as history and cursor changes.
+
+New migration 0008 replaces the existing operator recovery functions and private account lifecycle helper without changing their signatures or authority. Recovery issuance/revocation checks pending-code cleanup, token creation and mandatory audit, including zero-code revoke requests. Disable and legacy re-enable require the account update and all eligible session/recovery/outgoing-invitation cleanup. The existing guard order, two workspace loops, owner protections, fixed search paths and restricted grants remain unchanged. Applied migrations 0001–0007 are not edited.
+
+## Verification
+
+Environment: Linux, Rust 1.98.1, PostgreSQL 18.6 on isolated loopback 55432, Node 22.22.1. Contract fixtures use fresh schemas with separate runtime, migration and operator identities.
+
+Focused application contract passed 1 test in 34.45 seconds. It injects silent BEFORE-trigger suppression into required audits and selected entity writes, checks exact rollback, then retries successfully. It covers setup gate/session creation, partial bulk revocation, issue create/update history/events/stream head, operator code issuance/revocation, recovery completion, normal account disable and legacy enable cleanup. HTTP contract passed 1 test in 14.57 seconds, verifying failure statuses, cookie/Location/ETag boundaries, rollback and successful retries.
+
+Focused CLI recovery/lifecycle checks passed 2 tests in 8.61 seconds, including suppressed issuance/revocation/no-op audit, preserved private code files and no false success receipt. Application/API/server test Clippy checks passed with warnings denied. `scripts/check.sh` passed on the final source at 21:44 UTC: 49 Rust tests, 75 frontend tests and 3 Python provisioning tests, formatting, workspace/all-targets Clippy with warnings denied, generated OpenAPI/TypeScript consistency, TypeScript and the production frontend build. Full log: ignored `work/check-atomic-audit.log`. Migration 0008 and the explicit operator grant check then succeeded against development; the rebuilt native server passed readiness on loopback 18970 and the existing authenticated Members settings page reloaded successfully. This browser check establishes continuity, not a recovery or permission mutation.
+
+## Migration and limits
+
+0008 is a forward migration; apply it with the migration credential before using the new server. Existing explicit operator grants survive function replacement. A private pre-migration database archive (123,813 bytes, mode 0600) and the running pre-migration server binary were preserved under ignored `work/postgres/`. With development writes stopped, the archive restored into a separate private database. All 24 public table row-count/content fingerprints matched; table owners, effective ACLs, forced RLS flags and function owners/ACLs/fixed paths matched. The first comparison rejected raw ACL array ordering and explicit-versus-default ACL representation; the verifier was corrected to compare sorted effective grants, and parity then passed. No database data or grants were changed to satisfy the comparison. The preserved binary started against the restored database on loopback 18971, passed readiness and reopened the existing authenticated issue list, including both persisted issues. [Browser evidence](2026-10-17-restored-issues.png) records this read-only check. The temporary server and rehearsal database were removed afterward; the original database, private archive, preserved binary and ignored verification result remain. This proves this database-only pre-0008 snapshot can be restored on the current host; blob/key recovery, a different host and full-product disaster recovery are not yet covered. Restoring a matching prior database and binary is the rollback route; there is no automatic down-migration.
+
+No live browser recovery or permission mutation, external delivery, hosted CI, container execution or whole-product restore is claimed. Organization administration, optional OIDC, additional authorization/UI qualification and future assignment/key/job cleanup remain unfinished, as does the full product expansion.

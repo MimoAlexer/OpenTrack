@@ -1,0 +1,26 @@
+productName = "OpenTrack"
+version = "0.1.0"
+identifier = "app.opentrack.desktop"
+
+[build]
+frontendDist = "../web/dist"
+
+[app]
+withGlobalTauri = false
+
+[app.security]
+capabilities = ["main"]
+csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src ipc: http://ipc.localhost; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+
+[bundle]
+active = true
+targets = ["deb"]
+icon = ["icons/icon.png"]
+category = "Productivity"
+shortDescription = "OpenTrack workspace desktop client"
+
+[bundle.linux.deb]
+desktopTemplate = "linux/OpenTrack.desktop.hbs"
+
+[plugins.deep-link.desktop]
+schemes = ["opentrack"]

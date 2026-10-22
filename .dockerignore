@@ -1,0 +1,14 @@
+.git
+work
+target
+**/node_modules
+**/dist
+**/coverage
+**/test-results
+**/playwright-report
+deploy/secrets
+deploy/backups
+.env
+.env.*
+config/*.local.toml
+*.log

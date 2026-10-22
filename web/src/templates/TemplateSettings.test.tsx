@@ -1,0 +1,109 @@
+// @vitest-environment jsdom
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { TemplateSettings } from './TemplateSettings';
+import type { RichTextEditorProps } from '../documents/RichTextEditor';
+import { fromPlainText, plainText } from '../documents/model';
+import { hasUnsavedChanges } from '../router';
+import type { Session } from '../types';
+import type { TeamDetail } from '../settings/types';
+import type { IssueTemplate, TemplatePreview } from './types';
+let editor: RichTextEditorProps;
+vi.mock('../documents/Editor', () => ({ StructuredEditor: (props: RichTextEditorProps) => { editor = props; return <div aria-label={props.label}/>; } }));
+vi.mock('../taxonomy/LabelPicker', () => ({ LabelPicker: () => null }));
+vi.mock('../workflows/useWorkflow', () => ({ useWorkflow: () => ({ data: { statuses: [{ id: 'ready', name: 'Ready', category: 'unstarted', archived_at: null, retiring_at: null }] } }) }));
+const session: Session = { audience: 'web', user: { id: 'u', display_name: 'Example Owner', email: 'owner@example.test' }, csrf_token: 'csrf', workspaces: [] };
+const team = { id: 't', name: 'Team', key: 'ENG', private: false, archived_at: null, can_manage: true } as TeamDetail;
+const record = (version = '1'): IssueTemplate => ({ id: 'template', team_id: 't', name: 'Bug report', version, etag: `"template:${version}"`, archived_at: null, updated_at: '2026-10-18T12:00:00Z', can_manage: true, can_use: true, title_mode: 'literal', title: 'Original title', defaults: { status_id: null, priority: 0, label_ids: [] }, document: { schema_version: 1, schema_supported: true, body: fromPlainText('Original body'), plain_text: 'Original body' } });
+const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
+let container: HTMLDivElement; let root: Root; let current: IssueTemplate; let command: (options: RequestInit) => Promise<Response>; let fetchMock: ReturnType<typeof vi.fn>;
+beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true); HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); }; HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
+  container = document.createElement('div'); document.body.append(container); root = createRoot(container); current = record(); command = async () => json(current);
+  fetchMock = vi.fn((url: string, options: RequestInit) => {
+    if (options.method === 'PATCH' || options.method === 'POST') return command(options);
+    if (url.endsWith('/preview')) return Promise.resolve(json({ template: current, materialized_title: current.title, title_context_at: '2026-10-20T12:00:00Z', resolved_status: null, labels: [], diagnostics: [], can_create: true } satisfies TemplatePreview));
+    return Promise.resolve(json({ data: [current], next_cursor: null, has_more: false }));
+  }); vi.stubGlobal('fetch', fetchMock);
+});
+afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+async function render(manage = true, account = session) { await act(async () => root.render(<TemplateSettings workspaceId="w" team={{ ...team, can_manage: manage }} session={account}/>)); }
+const button = (label: string) => [...container.querySelectorAll<HTMLButtonElement>('button')].find(item => item.getAttribute('aria-label') === label || item.textContent?.trim() === label)!;
+async function click(label: string) { expect(button(label), label).toBeTruthy(); await act(async () => button(label).click()); }
+function input(label: string) { return [...container.querySelectorAll('label')].find(item => item.textContent?.startsWith(label))!.querySelector<HTMLInputElement>('input')!; }
+async function fill(label: string, value: string) { const element = input(label); await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, value); element.dispatchEvent(new Event('input', { bubbles: true })); }); }
+async function submit() { await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); }
+
+it('uses server management flags, loads the body lazily, and exposes only preview to a reader', async () => {
+  current = { ...current, can_manage: false }; await render(false); expect(button('New template')).toBeUndefined(); expect(button('Edit Bug report')).toBeUndefined(); expect(fetchMock.mock.calls.every(([url]) => !String(url).endsWith('/preview'))).toBe(true);
+  await click('Preview Bug report'); expect(container.textContent).toContain('Original body'); expect(container.querySelector('form')).toBeNull();
+});
+it('preserves a failed new-template draft and retries unknown creation with the same key and body', async () => {
+  let attempts = 0; command = async () => ++attempts === 1 ? Promise.reject(new TypeError('lost response')) : json(current);
+  await render(); await click('New template'); expect(document.activeElement).toBe(input('Template name')); await fill('Template name', 'Checklist'); await act(async () => editor.onChange(fromPlainText('Review the change')));
+  expect(editor.attachmentTarget).toBeUndefined(); await submit(); expect(container.textContent).toContain('Retry safely'); expect(hasUnsavedChanges()).toBe(true); expect(input('Template name').value).toBe('Checklist');
+  await submit(); const writes = fetchMock.mock.calls.filter(([, options]) => (options as RequestInit).method === 'POST').map(([, options]) => options as RequestInit);
+  expect(writes[0].body).toBe(writes[1].body); expect(new Headers(writes[0].headers).get('Idempotency-Key')).toBe(new Headers(writes[1].headers).get('Idempotency-Key')); expect(hasUnsavedChanges()).toBe(false); expect(container.querySelector('form')).toBeNull();
+});
+it('shows latest versus local text after 412 and preserves edits until explicitly reviewed', async () => {
+  await render(); await click('Edit Bug report'); await fill('Issue title', 'Local title'); await act(async () => editor.onChange(fromPlainText('Local body')));
+  current = { ...record('2'), title: 'Remote title', document: { ...current.document, body: fromPlainText('Remote body'), plain_text: 'Remote body' } }; command = async () => json({ code: 'version_conflict', detail: 'Changed', details: { current } }, 412);
+  await submit(); expect(container.textContent).toContain('Remote body'); expect(container.textContent).toContain('Local body'); expect(button('Save template').disabled).toBe(true); await click('Keep my draft for review');
+  expect(input('Issue title').value).toBe('Local title'); expect(plainText(editor.value)).toBe('Local body'); command = async () => json({ ...current, version: '3' }); await submit();
+  const writes = fetchMock.mock.calls.filter(([, options]) => (options as RequestInit).method === 'PATCH').map(([, options]) => options as RequestInit); expect(new Headers(writes[1].headers).get('If-Match')).toBe('"template:2"');
+});
+it('archives and restores with only the lifecycle field and current ETag', async () => {
+  await render(); await click('Archive Bug report'); await submit(); let write = fetchMock.mock.calls.find(([, options]) => (options as RequestInit).method === 'PATCH')![1] as RequestInit; expect(JSON.parse(write.body as string)).toEqual({ archived: true }); expect(new Headers(write.headers).get('If-Match')).toBe('"template:1"');
+  current = { ...record('2'), archived_at: '2026-10-18T13:00:00Z', can_use: false }; const state = container.querySelector<HTMLSelectElement>('.settings-state-filter select')!; await act(async () => { state.value = 'archived'; state.dispatchEvent(new Event('change', { bubbles: true })); }); await click('Restore'); await submit();
+  write = fetchMock.mock.calls.filter(([, options]) => (options as RequestInit).method === 'PATCH').at(-1)![1] as RequestInit; expect(JSON.parse(write.body as string)).toEqual({ archived: false }); expect(new Headers(write.headers).get('If-Match')).toBe('"template:2"');
+});
+it('keeps a draft through same-user refresh but withholds private content after access denial', async () => {
+  await render(); await click('Edit Bug report'); await fill('Issue title', 'Local title'); await act(async () => editor.onChange(fromPlainText('Local body')));
+  await render(true, { ...session, csrf_token: 'new' }); expect(input('Issue title').value).toBe('Local title'); expect(plainText(editor.value)).toBe('Local body');
+  command = async () => json({ code: 'not_found', detail: 'Unavailable.' }, 404); await submit(); expect(container.querySelector('form')).toBeNull(); expect(container.textContent).not.toContain('Local body'); expect(container.textContent).not.toContain('Original body'); expect(container.textContent).not.toContain('Bug report'); expect(container.textContent).toContain('Templates unavailable');
+});
+
+it('can retry a transient permission refresh without discarding the edited template', async () => {
+  await render(); await click('Edit Bug report'); await fill('Issue title', 'Local title'); await act(async () => editor.onChange(fromPlainText('Local body')));
+  let failed = true;
+  fetchMock.mockImplementation((url: string) => Promise.resolve(url.endsWith('/preview') && failed ? json({ code: 'unavailable', detail: 'Refresh unavailable.' }, 503) : json(url.endsWith('/preview') ? { template: current, materialized_title: current.title, title_context_at: '2026-10-20T12:00:00Z', resolved_status: null, labels: [], diagnostics: [], can_create: true } : { data: [current], next_cursor: null, has_more: false })));
+  await render(true, { ...session, csrf_token: 'new' }); expect(button('Save template').disabled).toBe(true); expect(input('Issue title').value).toBe('Local title');
+  failed = false; await click('Try again'); expect(button('Save template').disabled).toBe(false); expect(input('Issue title').value).toBe('Local title'); expect(plainText(editor.value)).toBe('Local body');
+});
+it('hides an open editor when directory access is denied even if its separate detail refresh succeeds', async () => {
+  await render(); await click('Edit Bug report'); await fill('Issue title', 'Private local draft');
+  fetchMock.mockImplementation((url: string) => Promise.resolve(url.endsWith('/preview') ? json({ template: current, materialized_title: current.title, title_context_at: '2026-10-20T12:00:00Z', resolved_status: null, labels: [], diagnostics: [], can_create: true }) : json({ code: 'forbidden', detail: 'Access changed.' }, 403)));
+  await render(true, { ...session, csrf_token: 'rotated' }); expect(container.textContent).toContain('Templates unavailable'); expect(container.textContent).not.toContain('Bug report'); expect(container.querySelector('form')).toBeNull(); expect(container.querySelector('input')).toBeNull();
+});
+it.each(['archive', 'restore'])('moves focus to a stable heading when %s removes the selected row', async mode => {
+  current = { ...record(), archived_at: mode === 'restore' ? '2026-10-18T13:00:00Z' : null };
+  fetchMock.mockImplementation((url: string, options: RequestInit) => {
+    if (options.method === 'PATCH') { current = { ...current, archived_at: JSON.parse(options.body as string).archived ? '2026-10-18T13:00:00Z' : null, version: '2' }; return Promise.resolve(json(current)); }
+    return Promise.resolve(json(url.endsWith('/preview') ? { template: current, materialized_title: current.title, title_context_at: '2026-10-20T12:00:00Z', resolved_status: null, labels: [], diagnostics: [], can_create: true } : { data: url.includes('archived=true') === !!current.archived_at ? [current] : [], next_cursor: null, has_more: false }));
+  });
+  await render();
+  if (mode === 'restore') { const state = container.querySelector<HTMLSelectElement>('.settings-state-filter select')!; await act(async () => { state.value = 'archived'; state.dispatchEvent(new Event('change', { bubbles: true })); }); }
+  const trigger = button(mode === 'restore' ? 'Restore' : 'Archive Bug report'); trigger.focus(); await click(mode === 'restore' ? 'Restore' : 'Archive Bug report'); await submit();
+  expect(trigger.isConnected).toBe(false); expect(document.activeElement).toBe(container.querySelector('h3[tabindex="-1"]')); expect(container.querySelector('dialog')).toBeNull();
+});
+
+it('requires opting into pattern mode and preserves rejected pattern text for correction', async () => {
+  await render(); await click('New template'); await fill('Template name', 'Daily review');
+  const mode = container.querySelector<HTMLSelectElement>('[aria-label="Title mode"]')!; expect(mode.value).toBe('literal');
+  await act(async () => { mode.value = 'pattern'; mode.dispatchEvent(new Event('change', { bubbles: true })); });
+  expect(container.textContent).toContain('UTC YYYY-MM-DD'); await fill('Issue title', '{{unknown}}');
+  command = async () => json({ code: 'validation_failed', detail: 'Title patterns support only {{team.name}}, {{team.key}} and {{date}}' }, 422);
+  await submit(); expect(input('Issue title').value).toBe('{{unknown}}'); expect(mode.value).toBe('pattern'); expect(hasUnsavedChanges()).toBe(true);
+  await fill('Issue title', '{{team.key}} {{date}}'); command = async () => json({ ...current, title_mode: 'pattern', title: '{{team.key}} {{date}}' }); await submit();
+  const writes = fetchMock.mock.calls.filter(([, options]) => (options as RequestInit).method === 'POST').map(([, options]) => JSON.parse((options as RequestInit).body as string));
+  expect(writes[0].title_mode).toBe('pattern'); expect(writes[1].title).toBe('{{team.key}} {{date}}'); expect(writes[1].title_mode).toBe('pattern'); expect(hasUnsavedChanges()).toBe(false);
+});
+
+it('treats changing only title mode as an unsaved edit and restores latest mode after conflict', async () => {
+  await render(); await click('Edit Bug report');
+  const mode = container.querySelector<HTMLSelectElement>('[aria-label="Title mode"]')!;
+  await act(async () => { mode.value = 'pattern'; mode.dispatchEvent(new Event('change', { bubbles: true })); }); expect(hasUnsavedChanges()).toBe(true);
+  current = record('2'); command = async () => json({ code: 'version_conflict', detail: 'Changed', details: { current } }, 412);
+  await submit(); expect(container.textContent).toContain('Title mode: pattern'); expect(container.textContent).toContain('Title mode: literal'); await click('Use latest'); expect(mode.value).toBe('literal'); expect(hasUnsavedChanges()).toBe(false);
+});

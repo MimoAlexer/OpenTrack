@@ -1,0 +1,48 @@
+# Select explicitly: opentrack-server --config config/opentrack.example.toml serve
+# OPENTRACK_CONFIG is a compatible explicit selector; no file is auto-discovered.
+# This is the implemented foundation subset; unimplemented settings are rejected.
+# Every selected base/overlay file requires schema_version. See config/REFERENCE.md.
+schema_version = 1
+
+[server]
+environment = "development"
+listen = "127.0.0.1:8080"
+public_url = "http://127.0.0.1:8080"
+allowed_origins = ["http://127.0.0.1:5173", "http://localhost:5173"]
+static_dir = "web/dist"
+
+[database]
+# Prefer mounted service-owned 0400/0600 secret files in production. The local dev helper
+# supplies OPENTRACK_DATABASE_URL and OPENTRACK_MIGRATION_DATABASE_URL instead.
+# A literal and its corresponding file reference cannot both be configured.
+# url_file = "/run/secrets/database_url"
+# migration_url_file = "/run/secrets/migration_database_url"
+api_max_connections = 20
+
+[auth]
+# setup_token_file = "/run/secrets/setup_token"
+hash_concurrency = 2
+recovery_ttl_minutes = 30
+
+# Configure only for explicit offline operator commands; never mount this secret
+# in the serving application. See docs/ACCOUNT_SECURITY.md for provisioning.
+# [operator]
+# database_url_file = "/run/secrets/operator_database_url"
+
+# Configure for the separate worker process only. API serving does not require
+# this credential. Apply migrations and deploy/grant-worker.sql first.
+# [worker]
+# database_url_file = "/run/secrets/worker_database_url"
+# max_connections = 5
+# lease_seconds = 60
+# poll_interval_ms = 2000
+
+[storage]
+backend = "local"
+# Create this directory owned by the service UID, mode 0700, outside the checkout.
+local_root = "/var/lib/opentrack/blobs"
+max_upload_bytes = 26214400
+workspace_quota_bytes = 5368709120
+quarantine_ttl = 86400
+antivirus_required = false
+# scanner_socket = "/run/clamav/clamd.ctl"

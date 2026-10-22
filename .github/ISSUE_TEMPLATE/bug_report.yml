@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible problem in OpenTrack.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For suspected vulnerabilities, follow [SECURITY.md](https://github.com/MimoAlexer/OpenTrack/blob/main/SECURITY.md). Remove credentials and private workspace content from all examples and screenshots.
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened?
+      description: Describe the actual result and how it affects your work.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the starting screen or command and the smallest repeatable sequence. Say if it happens intermittently.
+      placeholder: |
+        1. Open ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where does it happen?
+      options:
+        - Browser
+        - Desktop app
+        - API or worker
+        - Setup, upgrade, or packaging
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Version and environment
+      description: Include the commit or package version, operating system, browser version if applicable, and how you run OpenTrack. For desktop, say whether it was restarted after an update. Write unknown for anything unavailable.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Supporting evidence
+      description: Optional redacted error text, request ID, screenshot, or short recording. Include a last working version if known. Do not attach database dumps, env files, cookies, tokens, or recovery codes.

@@ -1,0 +1,15 @@
+{
+  # TLS remains enabled; the default localhost site uses Caddy's local CA.
+  auto_https disable_redirects
+}
+
+{$OPENTRACK_DOMAIN:localhost} {
+  encode zstd gzip
+  reverse_proxy app:8080 {
+    # Flush SSE immediately instead of waiting for a response-size threshold.
+    flush_interval -1
+    transport http {
+      response_header_timeout 30s
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "headSha": "8a067ebb8ecc5cb4b1d96d8ecc0c648dd2ab4afb",
+  "status": "completed",
+  "conclusion": "success",
+  "url": "https://github.com/MimoAlexer/OpenTrack/actions/runs/39392148446",
+  "createdAt": "2026-10-20T08:15:56Z",
+  "updatedAt": "2026-10-20T08:21:36Z",
+  "runId": 39392148446,
+  "extractedAt": "2026-10-20T08:24:29.884840+00:00",
+  "jobs": {
+    "amd64": {
+      "jobId": 118525990362,
+      "name": "runtime (ubuntu-24.04, amd64)",
+      "url": "https://github.com/MimoAlexer/OpenTrack/actions/runs/39392148446/job/118525990362",
+      "status": "completed",
+      "conclusion": "success",
+      "dockerEngine": "28.0.4",
+      "dockerCompose": "2.38.2",
+      "runtimeReceipt": "amd64-runtime.json",
+      "httpsReceipt": "amd64-https.json"
+    },
+    "arm64": {
+      "jobId": 118525989968,
+      "name": "runtime (ubuntu-24.04-arm, arm64)",
+      "url": "https://github.com/MimoAlexer/OpenTrack/actions/runs/39392148446/job/118525989968",
+      "status": "completed",
+      "conclusion": "success",
+      "dockerEngine": "28.0.4",
+      "dockerCompose": "2.38.2",
+      "runtimeReceipt": "arm64-runtime.json",
+      "httpsReceipt": "arm64-https.json"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "opentrack-contract-tools",
+  "private": true,
+  "type": "module",
+  "description": "Isolated generator compiler matches openapi-typescript's TypeScript 5 peer contract; application compilation remains TypeScript 7.",
+  "dependencies": { "openapi-typescript": "7.13.0", "typescript": "5.9.3" }
+}

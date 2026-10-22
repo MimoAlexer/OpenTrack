@@ -1,0 +1,44 @@
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+publish = false
+
+[workspace.dependencies]
+tokio-util = { version = "=0.7.20", features = ["io"] }
+futures-util = "=0.3.34"
+opentrack-domain = { path = "crates/opentrack-domain" }
+opentrack-store = { path = "crates/opentrack-store" }
+opentrack-app = { path = "crates/opentrack-app" }
+opentrack-api = { path = "crates/opentrack-api" }
+opentrack-adapters = { path = "crates/opentrack-adapters" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.23", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2.0"
+axum = "0.8.9"
+tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time", "fs", "io-util"] }
+tower = { version = "0.5", features = ["util", "limit", "load-shed"] }
+tower-http = { version = "0.6.11", features = ["fs", "trace", "request-id", "timeout", "set-header"] }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls-ring-webpki", "postgres", "uuid", "chrono", "json", "derive", "migrate", "macros"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+argon2 = "0.5"
+rand = "0.8"
+sha2 = "0.10"
+base64 = "0.22"
+hmac = "0.12"
+libc = "0.2"
+subtle = "2.6"
+toml = "0.9"
+url = "2.5"
+utoipa = { version = "6.0.0", features = ["chrono", "uuid", "axum_extras"] }
+
+[profile.release]
+lto = "thin"
+strip = "symbols"

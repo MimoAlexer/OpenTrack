@@ -1,0 +1,7 @@
+@layer components {
+  .issue-reference { border-radius: 3px; background: var(--selected); color: var(--text); padding: 1px 3px; white-space: normal; overflow-wrap: anywhere; text-decoration: none; }
+  a.issue-reference:hover { text-decoration: underline; }
+  .issue-reference.unavailable { color: var(--muted); background: transparent; }
+  .reference-choice-key { display: block; color: var(--secondary); font-size: 11px; margin-bottom: 3px; }
+  .reference-choice-title { overflow-wrap: anywhere; }
+}

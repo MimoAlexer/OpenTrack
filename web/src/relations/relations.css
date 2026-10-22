@@ -1,0 +1,43 @@
+@layer components {
+  .issue-relationships { position: relative; }
+  .issue-relationships > .sr-only { top: 0; left: 0; }
+.issue-relationships { width: calc(100% - 64px); max-width: 760px; margin: 0 auto 24px; border-top: 1px solid var(--line); padding-top: 16px; min-width: 0; }
+.graph-heading, .graph-group > header { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.graph-heading h2 { margin: 0; font-size: 13px; font-weight: 600; }
+.graph-actions { position: relative; display: flex; align-items: center; gap: 3px; margin-left: auto; }
+.graph-add { font-size: 12px; gap: 6px; }
+.graph-add > svg { width: 14px; height: 14px; }
+.graph-add > svg:last-child { width: 12px; height: 12px; color: var(--muted); }
+.graph-actions > [aria-expanded='true'] { background: var(--selected); color: var(--text); }
+.graph-action-popover { position: absolute; z-index: 30; top: calc(100% + 5px); right: 0; width: 218px; max-width: calc(100vw - 48px); padding: 5px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); }
+.graph-action-popover button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 7px 9px; text-align: left; font-size: 12px; border-radius: 3px; }
+.graph-action-popover button:hover:not(:disabled), .graph-action-popover button:focus-visible { background: var(--hover); }
+.graph-action-popover button svg { width: 14px; height: 14px; color: var(--secondary); }
+.graph-group { margin-top: 14px; min-width: 0; }
+.graph-group h3 { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: var(--muted); font-weight: 500; }
+.graph-group h3 svg { width: 14px; height: 14px; }
+.graph-count { font-size: 11px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.graph-group .quiet, .graph-heading .quiet { font-size: 12px; }
+.graph-empty { font-size: 12px; color: var(--muted); margin: 9px 0 0; }
+.graph-loading { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); margin: 9px 0 0; }
+.graph-loading svg { width: 13px; height: 13px; }
+.graph-row { display: flex; align-items: center; min-width: 0; border-bottom: 1px solid var(--line); min-height: 38px; gap: 6px; }
+.graph-row:last-child { border-bottom: 0; }
+.graph-target { display: flex; flex: 1; align-items: center; gap: 9px; min-width: 0; padding: 7px 2px; color: inherit; text-decoration: none; font-size: 12px; }
+.graph-target:hover .graph-title { text-decoration: underline; }
+.graph-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.graph-target small, .unavailable-target { color: var(--muted); font-size: 11px; }
+.unavailable-target { flex: 1; }
+.graph-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); flex-shrink: 0; }
+.graph-status svg { width: 12px; height: 12px; }
+.graph-relation-group h4 { margin: 13px 0 1px; font-size: 11px; font-weight: 500; color: var(--muted); }
+.move-audience, .move-blockers { padding: 12px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; }
+.move-audience strong, .move-blockers strong { font-weight: 600; }
+.move-audience p, .move-blockers p { margin: 6px 0; }
+.move-acknowledgement { display: flex; align-items: flex-start; gap: 9px; font-size: 12px; line-height: 1.5; }
+.move-acknowledgement input { flex: 0 0 auto; margin-top: 3px; width: 14px; height: 14px; }
+.parent-context { padding: 9px 11px; border: 1px solid var(--line); border-radius: 5px; font-size: 12px; overflow-wrap: anywhere; }
+.issue-relationships, .issue-detail > .activity { flex-shrink: 0; }
+.issue-detail > .activity { width: calc(100% - 64px); max-width: 760px; margin: 0 auto 26px; }
+@container issue-pane (max-width: 560px) { .issue-relationships, .issue-detail > .activity { width: calc(100% - 40px); } .graph-target { flex-wrap: wrap; gap: 6px; } .graph-target .graph-title { min-width: 100px; } .graph-status { max-width: 100%; overflow: hidden; } }
+}

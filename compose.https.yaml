@@ -1,0 +1,39 @@
+# Merge with compose.yaml and select --profile https. The app's development
+# listener is never published when strict production HTTPS is selected.
+services:
+  app:
+    environment:
+      OPENTRACK_ENVIRONMENT: production
+      OPENTRACK__SERVER__LOCAL_CONTAINER: 'false'
+      OPENTRACK_PUBLIC_URL: ${OPENTRACK_PUBLIC_URL:?Set the externally used HTTPS origin}
+    ports: !reset []
+
+  proxy:
+    profiles: [https]
+    image: opentrack-proxy:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+      target: proxy
+    user: '10001:10001'
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ['/tmp:size=16m,mode=1777']
+    environment:
+      OPENTRACK_DOMAIN: ${OPENTRACK_DOMAIN:?Set the HTTPS hostname without a scheme or port}
+    ports:
+      - '${OPENTRACK_HTTPS_BIND_ADDRESS:-127.0.0.1}:${OPENTRACK_HTTPS_PORT:-8443}:8443'
+    volumes:
+      - proxy_data:/data
+      - proxy_config:/config
+    networks: [web]
+    depends_on:
+      app:
+        condition: service_healthy
+    stop_grace_period: 35s
+
+volumes:
+  proxy_data:
+  proxy_config:

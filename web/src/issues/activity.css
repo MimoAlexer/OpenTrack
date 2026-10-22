@@ -1,0 +1,11 @@
+@layer components {
+  .activity-facts { margin: 6px 0; font-size: 12px; line-height: 1.6; color: var(--secondary); }
+  .activity-facts > div { display: flex; flex-wrap: wrap; gap: 4px; }
+  .activity-facts dt { font-weight: 500; }
+  .activity-facts dt::after { content: ':'; }
+  .activity-facts dd { margin: 0; overflow-wrap: anywhere; }
+  .activity-group summary { font-size: 12px; line-height: 1.7; cursor: pointer; color: var(--secondary); }
+  .activity-group summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .activity-group-events { margin-top: 12px; border-left: 1px solid var(--line); padding-left: 12px; }
+  .activity-group-events > div + div { margin-top: 14px; }
+}

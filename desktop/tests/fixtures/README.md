@@ -1,0 +1,1 @@
+These are an intentionally untrusted, self-signed loopback TLS certificate and its test-only private key. They are used exclusively to verify that the native HTTP client rejects an unknown trust root. They are not used by the application, deployment, or a real service.

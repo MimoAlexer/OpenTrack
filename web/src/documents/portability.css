@@ -1,0 +1,4 @@
+@layer components {
+  .document-transfer-actions { display: flex; justify-content: flex-end; padding: 4px 10px 8px; font-size: 11px; color: var(--secondary); }
+  .document-import-preview { max-height: 16rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+}

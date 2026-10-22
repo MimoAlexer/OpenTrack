@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Only implemented fields; runtime additionally validates origins, cross-field constraints, secret ownership and command-specific required secrets. Future catalog keys are rejected until implemented.",
+  "properties": {
+    "auth": {
+      "additionalProperties": false,
+      "properties": {
+        "hash_concurrency": {
+          "default": 2,
+          "description": "Maximum concurrent password hashing tasks.",
+          "maximum": 8,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "recovery_ttl_minutes": {
+          "default": 30,
+          "description": "Lifetime in minutes of newly issued local-operator recovery codes.",
+          "maximum": 60,
+          "minimum": 5,
+          "type": "integer"
+        },
+        "setup_token_file": {
+          "description": "Absolute service-owned 0400/0600 UTF-8 file containing the setup token.",
+          "type": "string",
+          "writeOnly": true
+        }
+      },
+      "type": "object"
+    },
+    "database": {
+      "additionalProperties": false,
+      "properties": {
+        "api_max_connections": {
+          "default": 20,
+          "description": "Maximum connections in the API database pool.",
+          "maximum": 100,
+          "minimum": 2,
+          "type": "integer"
+        },
+        "migration_url_file": {
+          "description": "Absolute service-owned 0400/0600 UTF-8 file containing the separate migrator PostgreSQL URL.",
+          "type": "string",
+          "writeOnly": true
+        },
+        "url_file": {
+          "description": "Absolute service-owned 0400/0600 UTF-8 file containing the runtime PostgreSQL URL.",
+          "type": "string",
+          "writeOnly": true
+        }
+      },
+      "type": "object"
+    },
+    "operator": {
+      "additionalProperties": false,
+      "properties": {
+        "database_url_file": {
+          "description": "Absolute service-owned 0400/0600 file with the separate local-operator PostgreSQL URL; mount only for operator commands.",
+          "type": "string",
+          "writeOnly": true
+        }
+      },
+      "type": "object"
+    },
+    "schema_version": {
+      "default": 1,
+      "description": "Required in every selected TOML file. Only schema version 1 is implemented.",
+      "maximum": 1,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "server": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_origins": {
+          "default": [],
+          "description": "Additional exact origins. The public origin is always included. Arrays replace rather than concatenate.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "environment": {
+          "default": "production",
+          "description": "production, development, or test. Development/test listen only on loopback unless local_container is explicitly enabled for development.",
+          "enum": [
+            "production",
+            "development",
+            "test"
+          ],
+          "type": "string"
+        },
+        "listen": {
+          "default": "127.0.0.1:8080",
+          "description": "Listener IP and port; default 127.0.0.1:8080.",
+          "type": "string"
+        },
+        "local_container": {
+          "default": false,
+          "description": "Default false. Development-only wildcard container listener with exclusively HTTP loopback origins. Publish host ports only on loopback; never enable for a directly exposed host service. Production HTTPS mode rejects this flag.",
+          "type": "boolean"
+        },
+        "public_url": {
+          "description": "Explicit HTTPS origin; loopback HTTP only in development/test. No credentials, path, query, or fragment.",
+          "type": "string"
+        },
+        "static_dir": {
+          "default": "web/dist",
+          "description": "Built frontend directory; production serving requires an absolute path. Development default is web/dist; migrations do not use it.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "storage": {
+      "additionalProperties": false,
+      "properties": {
+        "antivirus_required": {
+          "default": false,
+          "description": "Require a configured ClamAV scanner before any attachment becomes ready; no scanner reports not_scanned when optional.",
+          "type": "boolean"
+        },
+        "backend": {
+          "default": "local",
+          "description": "Only local immutable blob storage is implemented.",
+          "type": "string"
+        },
+        "local_root": {
+          "description": "Explicit absolute existing service-owned mode-0700 directory, outside webroot and Git checkouts. Required for API and worker.",
+          "type": "string"
+        },
+        "max_upload_bytes": {
+          "default": 26214400,
+          "description": "Maximum bytes per attachment.",
+          "maximum": 104857600,
+          "minimum": 1048576,
+          "type": "integer"
+        },
+        "quarantine_ttl": {
+          "default": 86400,
+          "description": "Unlinked upload lifetime in seconds; expired bytes become eligible for fenced worker cleanup.",
+          "maximum": 604800,
+          "minimum": 60,
+          "type": "integer"
+        },
+        "scanner_socket": {
+          "description": "Absolute ClamAV Unix socket; configured scanner failures retain quarantine for retry.",
+          "type": "string"
+        },
+        "workspace_quota_bytes": {
+          "default": 5368709120,
+          "description": "Workspace quota including pending, quarantine and not-yet-collected deleted bytes.",
+          "maximum": 9223372036854775807,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "worker": {
+      "additionalProperties": false,
+      "properties": {
+        "database_url_file": {
+          "description": "Absolute service-owned 0400/0600 file with the restricted worker PostgreSQL URL; mount only in the worker.",
+          "type": "string",
+          "writeOnly": true
+        },
+        "lease_seconds": {
+          "default": 60,
+          "description": "Lease per bounded batch; renewed by a new claim between batches, with a fencing token.",
+          "maximum": 300,
+          "minimum": 10,
+          "type": "integer"
+        },
+        "max_connections": {
+          "default": 5,
+          "description": "Maximum worker pool connections; one batch executes at a time in this implementation.",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "poll_interval_ms": {
+          "default": 2000,
+          "description": "Idle discovery interval in milliseconds. No transaction is held while waiting.",
+          "maximum": 60000,
+          "minimum": 100,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version"
+  ],
+  "title": "OpenTrack implemented configuration schema v1",
+  "type": "object"
+}

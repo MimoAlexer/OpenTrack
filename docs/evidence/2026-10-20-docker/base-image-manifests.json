@@ -1,0 +1,170 @@
+{
+  "verified_at_utc": "2026-10-20T08:04:02.716332+00:00",
+  "source": "Official Docker Hub Registry HTTP API; anonymous pull-scoped bearer tokens kept only in memory",
+  "source_files": [
+    "deploy/Dockerfile",
+    "deploy/postgres.Dockerfile"
+  ],
+  "images": [
+    {
+      "image": "caddy:2-alpine",
+      "repository": "library/caddy",
+      "pinned_digest": "sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f",
+      "registry": "registry-1.docker.io",
+      "verified": true,
+      "downloaded_digest": "sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f",
+      "registry_content_digest": "sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f",
+      "media_type": "application/vnd.oci.image.index.v1+json",
+      "manifest_count": 14,
+      "platforms": [
+        {
+          "os": "linux",
+          "architecture": "amd64",
+          "variant": null,
+          "digest": "sha256:173b26306d711395accaeba8b67afcaad2a085ccb1e6bf26010bfe8c095a5229",
+          "config_digest": "sha256:f77f856a30f0004200b36b322d61da17fade31e24875699d77fb968399b9eb77",
+          "layers": 5,
+          "child_digest_verified": true
+        },
+        {
+          "os": "linux",
+          "architecture": "arm64",
+          "variant": "v8",
+          "digest": "sha256:84058f1a0e5beb97664a9b79dcfd267b594c033d5bb88d8463cdfb59c0779197",
+          "config_digest": "sha256:f6a2207268b0f0914df9d3569e1824d6adcfa7b59fbffe0f3cbc5d2d60423f71",
+          "layers": 5,
+          "child_digest_verified": true
+        }
+      ]
+    },
+    {
+      "image": "debian:bookworm-slim",
+      "repository": "library/debian",
+      "pinned_digest": "sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587",
+      "registry": "registry-1.docker.io",
+      "verified": true,
+      "downloaded_digest": "sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587",
+      "registry_content_digest": "sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587",
+      "media_type": "application/vnd.oci.image.index.v1+json",
+      "manifest_count": 10,
+      "platforms": [
+        {
+          "os": "linux",
+          "architecture": "amd64",
+          "variant": null,
+          "digest": "sha256:a4672c0cb26fbdde88e38fa2dfb6c681942306680e41e4378b28770b6e79ee91",
+          "config_digest": "sha256:d4c45f66efc59f89b0597d343a9bd72808493c0eacecde5285961743252cee23",
+          "layers": 1,
+          "child_digest_verified": true
+        },
+        {
+          "os": "linux",
+          "architecture": "arm64",
+          "variant": "v8",
+          "digest": "sha256:a1b86db52ce3daef089e45aabe36dfec4091f82464c25c1fdcf03de197cbe82a",
+          "config_digest": "sha256:2a64693fa3d2d9c0fd20e6e74c9001aa672a1c081fce5178d104ef160231c409",
+          "layers": 1,
+          "child_digest_verified": true
+        }
+      ]
+    },
+    {
+      "image": "node:22-bookworm-slim",
+      "repository": "library/node",
+      "pinned_digest": "sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392",
+      "registry": "registry-1.docker.io",
+      "verified": true,
+      "downloaded_digest": "sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392",
+      "registry_content_digest": "sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392",
+      "media_type": "application/vnd.oci.image.index.v1+json",
+      "manifest_count": 8,
+      "platforms": [
+        {
+          "os": "linux",
+          "architecture": "amd64",
+          "variant": null,
+          "digest": "sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562",
+          "config_digest": "sha256:d0a16be756b6ec6658aecb8b7bcf87fa6c7d0d7fcc6ca53ad14bb49a4c90bdd7",
+          "layers": 5,
+          "child_digest_verified": true
+        },
+        {
+          "os": "linux",
+          "architecture": "arm64",
+          "variant": "v8",
+          "digest": "sha256:b20fe038d9592822dd534600a1ddf467e985178aa3fed60ec441a056c2cc45bd",
+          "config_digest": "sha256:cd2df7ff65c5fce1f8a18ce89e3aac24a80c1db3776d5842a4cf86bc27f300a2",
+          "layers": 5,
+          "child_digest_verified": true
+        }
+      ]
+    },
+    {
+      "image": "postgres:18.6-bookworm",
+      "repository": "library/postgres",
+      "pinned_digest": "sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c",
+      "registry": "registry-1.docker.io",
+      "verified": true,
+      "downloaded_digest": "sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c",
+      "registry_content_digest": "sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c",
+      "media_type": "application/vnd.oci.image.index.v1+json",
+      "manifest_count": 10,
+      "platforms": [
+        {
+          "os": "linux",
+          "architecture": "amd64",
+          "variant": null,
+          "digest": "sha256:9551dd5bf356409a21b31248f49b33bba9bb1877365f3a7e933aecd9af3cf52d",
+          "config_digest": "sha256:2e182ed2ff8f5d0835353864264437a26dffc542a9a6c677ec495aa54e491627",
+          "layers": 13,
+          "child_digest_verified": true
+        },
+        {
+          "os": "linux",
+          "architecture": "arm64",
+          "variant": "v8",
+          "digest": "sha256:67ba68a22dc7d5af3627b7e0f33d10bbefad07562ff9703b3a6c2de247649129",
+          "config_digest": "sha256:1f1c66e06b20326e8605215d3033d79e67a1341a46138ab8439e08cb58c231bc",
+          "layers": 13,
+          "child_digest_verified": true
+        }
+      ]
+    },
+    {
+      "image": "rust:1.98.1-bookworm",
+      "repository": "library/rust",
+      "pinned_digest": "sha256:93ce27a88655056a51dbdd8f5f2d7ddc071c7b0070fb288a37b5a285fc83971e",
+      "registry": "registry-1.docker.io",
+      "verified": true,
+      "downloaded_digest": "sha256:93ce27a88655056a51dbdd8f5f2d7ddc071c7b0070fb288a37b5a285fc83971e",
+      "registry_content_digest": "sha256:93ce27a88655056a51dbdd8f5f2d7ddc071c7b0070fb288a37b5a285fc83971e",
+      "media_type": "application/vnd.oci.image.index.v1+json",
+      "manifest_count": 10,
+      "platforms": [
+        {
+          "os": "linux",
+          "architecture": "amd64",
+          "variant": null,
+          "digest": "sha256:c49256cbe5ea0188bc658a689500d70c41eb51f009a7a7be209caf60a944f3ec",
+          "config_digest": "sha256:26d41993b1f2f78dbd010160b83b06b0a38e17b57a269e9bf0be7f2078073f98",
+          "layers": 5,
+          "child_digest_verified": true
+        },
+        {
+          "os": "linux",
+          "architecture": "arm64",
+          "variant": "v8",
+          "digest": "sha256:5b993f23fb69746405496e76f91e511d96c82b5b23304fd5d20b4a80a8b223ea",
+          "config_digest": "sha256:c1999f81da8e1f787006d58cbaece8ac4837d7ae04ad16784d829470f4bebc8d",
+          "layers": 5,
+          "child_digest_verified": true
+        }
+      ]
+    }
+  ],
+  "all_required_platforms_verified": true,
+  "limitations": [
+    "Manifest existence and digest verification are not execution or layer-content qualification.",
+    "Registry tag heads were not used to replace pinned digests."
+  ]
+}

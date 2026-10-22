@@ -1,0 +1,50 @@
+@layer components {
+  .template-choice { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 18px; font-size: 12px; }
+  .template-choice .quiet { display: inline-flex; align-items: center; gap: 7px; }
+  .template-choice svg { width: 14px; height: 14px; }
+  .template-warning { flex-basis: 100%; color: var(--secondary); line-height: 1.6; }
+  .template-picker { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(0, 1.3fr); min-height: 240px; }
+  .template-picker-list { border-right: 1px solid var(--line); padding: 20px 12px; }
+  .template-picker-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 7px 12px; font-size: 12px; }
+  .template-picker-list > button { width: 100%; display: flex; gap: 12px; justify-content: space-between; text-align: left; padding: 10px 8px; border-radius: 5px; font-size: 12px; }
+  .template-picker-list > button[aria-pressed=true] { background: var(--selected); }
+  .template-picker-list > button:hover { background: var(--hover); }
+  .template-picker-list small { color: var(--muted); }
+  .template-picker-preview { padding: 22px; min-width: 0; }
+  .template-preview-state { min-height: 18px; font-size: 11px; margin-bottom: 8px; }
+  .template-preview header { display: flex; gap: 12px; justify-content: space-between; align-items: baseline; margin-bottom: 20px; }
+  .template-preview h3 { font-size: 14px; font-weight: 550; }
+  .template-preview h4 { font-size: 18px; font-weight: 550; margin: 0 0 16px; line-height: 1.4; }
+  .template-defaults { display: flex; flex-wrap: wrap; gap: 12px 22px; margin-bottom: 22px; font-size: 12px; }
+  .template-defaults dt { color: var(--muted); margin-bottom: 4px; }
+  .template-defaults dd { margin: 0; color: var(--secondary); }
+  .template-diagnostics { padding-left: 18px; margin: 12px 0; color: var(--secondary); font-size: 12px; line-height: 1.7; }
+  .template-apply { padding: 16px 22px 22px; border-top: 1px solid var(--line); }
+  .template-apply > p { color: var(--secondary); font-size: 12px; line-height: 1.6; margin-bottom: 14px; }
+  .template-apply .button-row { justify-content: flex-end; flex-wrap: wrap; }
+  .template-editor .field { margin-bottom: 16px; }
+  .template-editor-defaults, .template-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .template-editor fieldset > section > h3 { font-size: 12px; color: var(--secondary); margin: 20px 0 10px; }
+  .template-version-conflict { border-left: 2px solid var(--line); padding: 4px 0 8px 14px; margin-bottom: 20px; font-size: 12px; line-height: 1.6; }
+  .template-version-conflict h3 { font-size: 14px; margin: 0 0 8px; }
+  .template-compare { margin: 14px 0; }
+  @media (max-width: 560px) { .template-picker { grid-template-columns: minmax(0, 1fr); } .template-picker-list { border-right: 0; border-bottom: 1px solid var(--line); max-height: 180px; overflow-y: auto; } .template-picker-preview, .template-apply { padding: 18px; } }
+}
+
+@layer responsive {
+  .modal[open]:has(> .template-picker) { display: flex; flex-direction: column; width: min(860px, calc(100vw - 32px)); height: min(640px, calc(100svh - 48px)); max-height: calc(100svh - 48px); overflow: hidden; }
+  .modal:has(> .template-picker) > .modal-header, .modal:has(> .template-picker) > .template-apply { flex-shrink: 0; }
+  .modal > .template-picker { flex: 1; min-height: 0; grid-template-columns: 220px minmax(0, 1fr); overflow: hidden; }
+  .template-picker-list, .template-picker-preview { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+  @media (max-width: 560px) {
+    .modal[open]:has(> .template-picker) { width: calc(100vw - 24px); height: calc(100svh - 24px); max-height: calc(100svh - 24px); }
+    .modal > .template-picker { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(70px, .3fr) minmax(0, 1fr); }
+    .template-picker-list { max-height: none; padding: 10px 12px; }
+    .template-picker-heading { padding-bottom: 6px; }
+    .template-apply { padding: 12px 16px 16px; }
+    .template-apply > p { margin-bottom: 10px; }
+  }
+  @media (max-height: 480px) {
+    .template-apply > p { max-height: 3.2em; overflow-y: auto; }
+  }
+}

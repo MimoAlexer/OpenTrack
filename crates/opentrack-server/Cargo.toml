@@ -1,0 +1,23 @@
+[package]
+name = "opentrack-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+opentrack-adapters.workspace = true
+opentrack-app.workspace = true
+opentrack-api.workspace = true
+opentrack-store.workspace = true
+opentrack-domain.workspace = true
+tokio.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+url.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+libc.workspace = true

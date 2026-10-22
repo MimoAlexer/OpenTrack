@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose a workflow or improvement with a clear outcome.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check existing issues and the [roadmap](https://github.com/MimoAlexer/OpenTrack/blob/main/docs/ROADMAP.md) first. Planned scope and implemented behavior are tracked separately in the [requirements ledger](https://github.com/MimoAlexer/OpenTrack/blob/main/docs/REQUIREMENTS_STATUS.md).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What work is difficult today?
+      description: Describe who needs this and a concrete example. Avoid private customer or workspace data.
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Proposed workflow
+      description: Describe what someone would do in OpenTrack and the result they should get.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: How would we know it works?
+      description: Give observable acceptance checks. Include permissions or failure behavior when they matter.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or current workaround
+      description: Optional. Explain what you have tried and where it falls short.
+  - type: input
+    id: references
+    attributes:
+      label: Related issues or requirements
+      description: Optional links or existing F, X, and milestone IDs. No new ID is needed to submit an idea.

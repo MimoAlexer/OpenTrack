@@ -1,0 +1,13 @@
+import type { components } from '../generated/api';
+type Schemas = components['schemas'];
+export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'viewer';
+export type TeamRole = 'maintainer' | 'contributor';
+export type WorkspaceDetail = Omit<Schemas['WorkspaceDetail'], 'role'> & { role: WorkspaceRole };
+export type TeamDetail = Schemas['TeamDetail'];
+export type WorkspaceMember = Omit<Schemas['WorkspaceMember'], 'role'> & { role: WorkspaceRole };
+export type TeamMember = Omit<Schemas['TeamMember'], 'role'> & { role: TeamRole };
+export type Invitation = Omit<Schemas['Invitation'], 'role'> & { role: 'admin' | 'member' | 'viewer' };
+export type InvitationIssued = Omit<Schemas['InvitationIssued'], 'invitation'> & { invitation: Invitation };
+export type InvitationPreview = Schemas['InvitationPreview'];
+export type OrganizationSummary = Schemas['OrganizationSummary'];
+export type Page<T> = Omit<Schemas['Page_WorkspaceMember'], 'data'> & { data: T[] };

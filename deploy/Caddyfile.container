@@ -1,0 +1,17 @@
+{
+  admin off
+  auto_https disable_redirects
+  skip_install_trust
+  https_port 8443
+  grace_period 30s
+}
+
+{$OPENTRACK_DOMAIN} {
+  encode zstd gzip
+  reverse_proxy app:8080 {
+    flush_interval -1
+    transport http {
+      response_header_timeout 30s
+    }
+  }
+}

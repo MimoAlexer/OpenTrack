@@ -1,0 +1,22 @@
+# Build products and dependencies
+/target/
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+__pycache__/
+*.py[cod]
+
+# Task-local runtimes, databases, credentials and evidence scratch files
+/work/
+/.env
+/.env.*
+!/.env.example
+/config/*.local.toml
+/config/opentrack.toml
+/deploy/secrets/
+/deploy/backups/
+*.log
+.DS_Store

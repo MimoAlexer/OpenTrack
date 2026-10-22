@@ -1,0 +1,264 @@
+name: opentrack
+
+x-runtime: &runtime
+  image: opentrack-runtime:local
+  build:
+    context: .
+    dockerfile: deploy/Dockerfile
+    target: runtime
+  user: '10001:10001'
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  networks: [database]
+
+x-postgres-client: &postgres-client
+  image: opentrack-postgres:local
+  build:
+    context: .
+    dockerfile: deploy/postgres.Dockerfile
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: 'no'
+  networks: [database]
+
+services:
+  initialize:
+    image: opentrack-bootstrap:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+      target: bootstrap
+    command: [initialize]
+    user: '0:0'
+    restart: 'no'
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    network_mode: none
+    volumes:
+      - {type: volume, source: database_secrets, target: /bootstrap/database, volume: {nocopy: true}}
+      - {type: volume, source: api_secrets, target: /bootstrap/app, volume: {nocopy: true}}
+      - {type: volume, source: migration_secrets, target: /bootstrap/migration, volume: {nocopy: true}}
+      - {type: volume, source: worker_secrets, target: /bootstrap/worker, volume: {nocopy: true}}
+      - {type: volume, source: operator_secrets, target: /bootstrap/operator, volume: {nocopy: true}}
+      - {type: volume, source: blobs, target: /var/lib/opentrack, volume: {nocopy: true}}
+      - {type: volume, source: database, target: /database-state, read_only: true, volume: {nocopy: true}}
+
+  database:
+    image: opentrack-postgres:local
+    build:
+      context: .
+      dockerfile: deploy/postgres.Dockerfile
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - {type: volume, source: database, target: /var/lib/postgresql, volume: {nocopy: true}}
+      - {type: volume, source: database_secrets, target: /run/secrets, read_only: true, volume: {nocopy: true}}
+    networks: [database]
+    shm_size: 128mb
+    depends_on:
+      initialize:
+        condition: service_completed_successfully
+    healthcheck:
+      # The initialization server accepts only Unix-socket connections. Wait
+      # for final TCP startup, after database/role creation has completed.
+      test: [CMD, pg_isready, -h, '127.0.0.1', -U, postgres, -d, opentrack]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    stop_grace_period: 35s
+
+  migrate:
+    <<: *runtime
+    command: [migrate]
+    restart: 'no'
+    environment:
+      OPENTRACK_ENVIRONMENT: production
+      OPENTRACK_PUBLIC_URL: https://localhost
+      OPENTRACK_MIGRATION_DATABASE_URL_FILE: /run/secrets/migration-database-url
+    volumes:
+      - {type: volume, source: migration_secrets, target: /run/secrets, read_only: true, volume: {nocopy: true}}
+    depends_on:
+      database:
+        condition: service_healthy
+
+  app:
+    <<: *runtime
+    restart: unless-stopped
+    tmpfs: ['/tmp:size=64m,mode=1777']
+    environment:
+      OPENTRACK_ENVIRONMENT: development
+      OPENTRACK__SERVER__LOCAL_CONTAINER: 'true'
+      OPENTRACK_LISTEN: 0.0.0.0:8080
+      OPENTRACK_PUBLIC_URL: http://localhost:${OPENTRACK_HTTP_PORT:-8080}
+      OPENTRACK_DATABASE_URL_FILE: /run/secrets/database-url
+      OPENTRACK_SETUP_TOKEN_FILE: /run/secrets/setup-token
+      OPENTRACK_STATIC_DIR: /app/web/dist
+      OPENTRACK__STORAGE__LOCAL_ROOT: /var/lib/opentrack/blobs
+    volumes:
+      - {type: volume, source: api_secrets, target: /run/secrets, read_only: true, volume: {nocopy: true}}
+      - {type: volume, source: blobs, target: /var/lib/opentrack, volume: {nocopy: true}}
+    ports:
+      - '127.0.0.1:${OPENTRACK_HTTP_PORT:-8080}:8080'
+    networks: [database, web]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --connect-timeout, '1', --max-time, '2', --output, /dev/null, http://127.0.0.1:8080/health/ready]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+    stop_grace_period: 35s
+
+  worker-provision:
+    <<: *postgres-client
+    user: '999:999'
+    entrypoint: [/bin/sh, /opt/opentrack/provision-worker.sh]
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-password
+      OPENTRACK_WORKER_PASSWORD_FILE: /run/secrets/worker-password
+    volumes:
+      - {type: volume, source: database_secrets, target: /run/secrets, read_only: true, volume: {nocopy: true}}
+    depends_on:
+      database:
+        condition: service_healthy
+
+  worker-grant:
+    <<: *postgres-client
+    user: '10001:10001'
+    entrypoint: [/bin/sh, /opt/opentrack/grant-worker.sh]
+    environment:
+      OPENTRACK_MIGRATION_DATABASE_URL_FILE: /run/secrets/migration-database-url
+      OPENTRACK_WORKER_ROLE: opentrack_worker
+      OPENTRACK_WORKER_SCHEMA: public
+    volumes:
+      - {type: volume, source: migration_secrets, target: /run/secrets, read_only: true, volume: {nocopy: true}}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      worker-provision:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *runtime
+    command: [worker]
+    restart: unless-stopped
+    environment:
+      OPENTRACK_ENVIRONMENT: production
+      OPENTRACK_WORKER_DATABASE_URL_FILE: /run/secrets/worker-database-url
+      OPENTRACK__STORAGE__LOCAL_ROOT: /var/lib/opentrack/blobs
+    volumes:
+      - {type: volume, source: worker_secrets, target: /run/secrets, read_only: true, volume: {nocopy: true}}
+      - {type: volume, source: blobs, target: /var/lib/opentrack, volume: {nocopy: true}}
+    depends_on:
+      worker-grant:
+        condition: service_completed_successfully
+    stop_grace_period: 35s
+
+  credentials:
+    profiles: [tools]
+    image: opentrack-bootstrap:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+      target: bootstrap
+    command: [setup-token, --app-secrets, /run/secrets]
+    user: '10001:10001'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    network_mode: none
+    volumes:
+      - {type: volume, source: api_secrets, target: /run/secrets, read_only: true, volume: {nocopy: true}}
+
+  operator-provision:
+    <<: *postgres-client
+    profiles: [operator]
+    user: '999:999'
+    entrypoint: [/bin/sh, /opt/opentrack/provision-operator.sh]
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-password
+      OPENTRACK_OPERATOR_PASSWORD_FILE: /run/secrets/operator-password
+    volumes:
+      - {type: volume, source: database_secrets, target: /run/secrets, read_only: true, volume: {nocopy: true}}
+    depends_on:
+      database:
+        condition: service_healthy
+
+  operator-grant:
+    <<: *postgres-client
+    profiles: [operator]
+    user: '10001:10001'
+    entrypoint: [/bin/sh, /opt/opentrack/grant-operator.sh]
+    environment:
+      OPENTRACK_MIGRATION_DATABASE_URL_FILE: /run/secrets/migration-database-url
+      OPENTRACK_OPERATOR_ROLE: opentrack_operator
+      OPENTRACK_OPERATOR_SCHEMA: public
+    volumes:
+      - {type: volume, source: migration_secrets, target: /run/secrets, read_only: true, volume: {nocopy: true}}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      operator-provision:
+        condition: service_completed_successfully
+
+  operator-output-init:
+    profiles: [operator]
+    image: opentrack-bootstrap:local
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+      target: bootstrap
+    command: [prepare-output, --directory, /operator-output]
+    user: '0:0'
+    restart: 'no'
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    network_mode: none
+    volumes:
+      - {type: volume, source: operator_output, target: /operator-output, volume: {nocopy: true}}
+
+  operator:
+    <<: *runtime
+    profiles: [operator]
+    command: [--help]
+    restart: 'no'
+    environment:
+      OPENTRACK_ENVIRONMENT: production
+      OPENTRACK_PUBLIC_URL: https://localhost
+      OPENTRACK_OPERATOR_DATABASE_URL_FILE: /run/secrets/operator-database-url
+    volumes:
+      - {type: volume, source: operator_secrets, target: /run/secrets, read_only: true, volume: {nocopy: true}}
+      - {type: volume, source: operator_output, target: /operator-output, volume: {nocopy: true}}
+    depends_on:
+      operator-grant:
+        condition: service_completed_successfully
+      operator-output-init:
+        condition: service_completed_successfully
+
+networks:
+  database:
+    internal: true
+  web:
+
+volumes:
+  database:
+  blobs:
+  database_secrets:
+  api_secrets:
+  migration_secrets:
+  worker_secrets:
+  operator_secrets:
+  operator_output:

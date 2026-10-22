@@ -1,0 +1,63 @@
+@layer components {
+  .team-settings-panels { display: flex; gap: 20px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+  .team-settings-panels button { padding: 10px 0; font-size: 12px; color: var(--secondary); border-bottom: 2px solid transparent; }
+  .team-settings-panels button[aria-pressed=true] { color: var(--text); border-bottom-color: var(--text); }
+  .team-workflow { min-width: 0; }
+  .workflow-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
+  .workflow-heading h3 { margin: 0 0 8px; }
+  .workflow-heading p { color: var(--secondary); font-size: 12px; line-height: 1.7; }
+  .workflow-heading strong { font-weight: 500; color: var(--text); }
+  .team-workflow .error-banner { margin: 12px 0; }
+  .workflow-category { margin: 18px 0 0; }
+  .workflow-category h4 { display: flex; align-items: center; gap: 8px; color: var(--secondary); font-size: 11px; font-weight: 500; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .workflow-category h4 span { color: var(--muted); font-size: 10px; }
+  .workflow-category ol { list-style: none; margin: 0; padding: 0; }
+  .workflow-empty-category { font-size: 11px; color: var(--muted); padding: 10px 0 3px; }
+  .workflow-row { display: flex; gap: 10px; align-items: center; min-height: 46px; border-bottom: 1px solid var(--line); padding: 7px 0; position: relative; }
+  .workflow-status-name { display: flex; flex: 1; align-items: center; flex-wrap: wrap; gap: 7px; min-width: 0; }
+  .workflow-status-name strong { font-size: 12px; font-weight: 400; overflow-wrap: anywhere; }
+  .workflow-status-name small { font-size: 10px; color: var(--secondary); }
+  .workflow-status-name .workflow-badge { font-size: 9px; border: 1px solid var(--line); padding: 2px 5px; border-radius: 4px; }
+  .workflow-actions { display: flex; gap: 2px; align-items: center; margin-left: auto; }
+  .workflow-actions .icon-button, .workflow-row-menu > summary { min-width: 28px; width: 28px; height: 30px; }
+  .workflow-actions svg { width: 13px; height: 13px; }
+  .workflow-row-menu { position: relative; }
+  .workflow-row-menu > summary { list-style: none; cursor: pointer; text-align: center; line-height: 30px; border-radius: 4px; }
+  .workflow-row-menu > summary:hover { background: var(--hover); }
+  .workflow-row-menu > summary[aria-disabled=true] { color: var(--muted); }
+  .workflow-row-menu > div { position: absolute; z-index: 20; right: 0; top: 32px; min-width: 180px; padding: 5px; background: var(--panel); border: 1px solid var(--control); border-radius: 5px; box-shadow: var(--shadow); }
+  .workflow-row-menu button { display: flex; align-items: center; gap: 7px; width: 100%; text-align: left; padding: 9px; border-radius: 3px; font-size: 11px; }
+  .workflow-row-menu button:hover:not(:disabled) { background: var(--hover); }
+  .workflow-save { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 15px; font-size: 11px; color: var(--secondary); }
+  .workflow-save > span { line-height: 1.6; }
+  .workflow-conflict { padding: 13px; margin: 15px 0; border: 1px solid var(--control); border-radius: 5px; background: var(--side); font-size: 12px; line-height: 1.7; }
+  .workflow-conflict strong { font-weight: 500; }
+  .workflow-conflict p { color: var(--secondary); margin: 5px 0 12px; }
+  .workflow-fixed-category { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; color: var(--text); }
+  .workflow-fixed-category small { color: var(--muted); font-size: 11px; line-height: 1.6; }
+  .replacement-preview { border: 1px solid var(--line); border-radius: 5px; padding: 13px; margin: 15px 0; font-size: 12px; line-height: 1.8; }
+  .replacement-preview strong { font-weight: 500; }
+  .replacement-preview p { color: var(--secondary); margin-top: 6px; }
+  .replacement-progress { border: 1px solid var(--line); border-radius: 5px; padding: 15px; margin-top: 20px; font-size: 12px; line-height: 1.8; }
+  .replacement-title { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+  .replacement-title strong { font-weight: 500; overflow-wrap: anywhere; }
+  .replacement-title > span { color: var(--secondary); font-size: 11px; }
+  .replacement-progress p { margin: 5px 0; }
+  .replacement-progress .button { margin-top: 9px; }
+  .workflow-history-toggle { margin-top: 25px; display: inline-flex; align-items: center; gap: 7px; font-size: 12px; }
+  .workflow-history-toggle svg { width: 14px; height: 14px; }
+  .workflow-history { margin-top: 14px; }
+  .status-field-notice { color: var(--secondary); font-size: 11px; line-height: 1.6; }
+}
+@layer responsive {
+  @media(max-width: 600px) {
+    .workflow-heading { flex-wrap: wrap; }
+    .workflow-row { flex-wrap: wrap; gap: 7px; }
+    .workflow-status-name { min-width: calc(100% - 26px); }
+    .workflow-actions { margin-left: 23px; }
+    .workflow-actions .icon-button, .workflow-row-menu > summary { width: 36px; height: 34px; min-width: 36px; }
+    .workflow-row-menu > summary { line-height: 34px; }
+    .workflow-row-menu > div { left: 0; right: auto; }
+    .workflow-save .button-row { flex-wrap: wrap; }
+  }
+}

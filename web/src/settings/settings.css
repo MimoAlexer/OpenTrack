@@ -1,0 +1,80 @@
+@layer components {
+  .muted { color: var(--muted); font-size: 12px; }
+  .settings-state-filter { max-width: 220px; }
+  .join-mode { display: flex; gap: 8px; margin: 0 0 20px; }
+  .join-mode button { flex: 1; padding: 10px 8px; border: 1px solid var(--line); border-radius: 5px; font-size: 12px; color: var(--secondary); }
+  .join-mode button[aria-pressed=true] { border-color: var(--control); background: var(--selected); color: var(--text); }
+  .settings-archive-section { margin-top: 36px; padding-top: 23px; border-top: 1px solid var(--line); }
+  .settings-archive-section h3 { font-size: 13px; font-weight: 500; margin-bottom: 8px; }
+  .settings-archive-section p { color: var(--secondary); font-size: 12px; line-height: 1.8; margin-bottom: 15px; }
+  .settings-page { min-height: 0; overflow: auto; flex: 1; }
+  .settings-tabs { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 25px; padding: 0 28px; border-bottom: 1px solid var(--line); background: var(--bg); overflow-x: auto; }
+  .settings-tabs a { display: inline-flex; align-items: center; gap: 7px; padding: 17px 0 14px; border-bottom: 2px solid transparent; color: var(--secondary); font-size: 12px; white-space: nowrap; }
+  .settings-tabs a[aria-current='page'] { color: var(--text); border-bottom-color: var(--text); }
+  .settings-tabs svg { width: 14px; height: 14px; }
+  .settings-content { width: 100%; max-width: 1020px; margin: 0 auto; padding: 32px 30px 50px; }
+  .settings-heading { display: flex; align-items: flex-start; gap: 20px; justify-content: space-between; margin-bottom: 28px; }
+  .settings-heading h2 { font-size: 20px; font-weight: 500; letter-spacing: -.5px; margin-bottom: 8px; }
+  .settings-heading p { max-width: 570px; font-size: 12px; line-height: 1.8; color: var(--secondary); }
+  .settings-content > .error-banner, .settings-content form > .error-banner { margin: 0 0 20px; }
+  .settings-form { max-width: 560px; }
+  .settings-form .field { margin-bottom: 22px; }
+  .settings-form .field small { line-height: 1.7; }
+  .settings-form-footer { display: flex; align-items: center; gap: 10px; padding-top: 18px; margin-top: 22px; border-top: 1px solid var(--line); }
+  .settings-form-footer > span { margin-right: auto; color: var(--green); font-size: 11px; }
+  .settings-info { font-size: 12px; line-height: 1.8; color: var(--secondary); padding: 15px 17px; background: var(--side); border: 1px solid var(--line); border-radius: 5px; margin-bottom: 23px; }
+  .settings-info strong { color: var(--text); font-weight: 500; }
+  .settings-meta { border-top: 1px solid var(--line); margin-top: 30px; padding-top: 18px; font-size: 11px; color: var(--muted); }
+  .settings-meta dl { margin: 0; }
+  .settings-meta dl > div { display: flex; gap: 20px; align-items: baseline; margin-bottom: 10px; }
+  .settings-meta dt { width: 90px; flex-shrink: 0; }
+  .settings-meta dd { margin: 0; overflow-wrap: anywhere; }
+  .settings-subheading { display: flex; align-items: center; justify-content: space-between; margin: 28px 0 12px; gap: 15px; }
+  .settings-subheading h3 { font-size: 13px; font-weight: 500; }
+  .settings-list { border-top: 1px solid var(--line); }
+  .settings-row { display: flex; align-items: center; gap: 13px; padding: 15px 0; border-bottom: 1px solid var(--line); }
+  .settings-row-main { flex: 1; min-width: 0; }
+  .settings-row-main strong { display: block; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+  .settings-row-main small { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+  .settings-row .row-role { color: var(--secondary); font-size: 11px; text-transform: capitalize; }
+  .settings-row .row-actions { display: flex; align-items: center; gap: 7px; margin-left: auto; }
+  .settings-row .button { font-size: 11px; }
+  .settings-row select { background: var(--panel); border: 1px solid var(--control); font-size: 11px; padding: 6px 7px; min-height: 32px; }
+  .settings-row.inactive { color: var(--muted); }
+  .settings-empty { padding: 35px 0; color: var(--secondary); font-size: 12px; line-height: 1.8; }
+  .settings-empty h3 { margin-bottom: 8px; font-size: 14px; color: var(--text); font-weight: 500; }
+  .settings-team-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 25px; }
+  .settings-team-list { border-right: 1px solid var(--line); padding-right: 16px; }
+  .settings-team-list button { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 11px; font-size: 12px; border-radius: 5px; margin-bottom: 5px; }
+  .settings-team-list button:hover { background: var(--hover); }
+  .settings-team-list button[aria-pressed=true] { background: var(--selected); }
+  .settings-team-list button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .settings-team-list button small { margin-left: auto; font-size: 10px; color: var(--muted); }
+  .settings-team-detail h3 { font-size: 16px; font-weight: 500; letter-spacing: -.2px; margin-bottom: 10px; }
+  .settings-team-description { font-size: 12px; line-height: 1.8; color: var(--secondary); margin-bottom: 24px; }
+  .settings-checkbox { display: flex; align-items: flex-start; gap: 10px; font-size: 12px; color: var(--text); margin-bottom: 19px; }
+  .settings-checkbox input { width: 16px; height: 16px; accent-color: var(--accent); margin-top: 2px; }
+  .settings-checkbox small { display: block; margin-top: 5px; color: var(--muted); line-height: 1.6; font-size: 11px; }
+  .settings-modal-content { padding: 22px; }
+  .settings-modal-content .error-banner { margin: 0 0 18px; }
+  .settings-modal-content > p { color: var(--secondary); font-size: 12px; line-height: 1.8; margin-bottom: 20px; }
+  .invitation-token { border: 1px solid var(--control); border-radius: 6px; padding: 16px; margin: 20px 0; }
+  .invitation-token h3 { font-size: 13px; font-weight: 500; margin-bottom: 8px; }
+  .invitation-token p { color: var(--secondary); font-size: 12px; line-height: 1.8; margin-bottom: 14px; }
+  .invitation-token textarea { width: 100%; resize: none; border: 1px solid var(--control); background: var(--side); padding: 10px; font: 12px/1.8 ui-monospace, monospace; overflow-wrap: anywhere; word-break: break-all; }
+  .invitation-token .button-row { margin-top: 12px; }
+  .invitation-token small { color: var(--green); font-size: 11px; }
+  .join-panel { max-width: 480px; }
+  .join-panel .button-row { margin-top: 20px; }
+  .join-panel .auth-back { margin-bottom: 28px; display: inline-flex; align-items: center; gap: 7px; color: var(--secondary); font-size: 12px; }
+  .join-panel textarea { font: 12px/1.8 ui-monospace, monospace; }
+  .workspace-switch-actions { display: flex; gap: 6px; margin: 0 3px 5px; }
+  .workspace-switch-actions button, .workspace-switch-actions a { flex: 1; font-size: 10px; color: var(--muted); padding: 5px; text-align: center; border-radius: 4px; }
+  .workspace-switch-actions button:hover, .workspace-switch-actions a:hover { background: var(--hover); color: var(--text); }
+  .auth-secondary { text-align: center; font-size: 12px; color: var(--secondary); margin-top: 22px; }
+  .auth-secondary a { text-decoration: underline; text-underline-offset: 3px; }
+}
+@layer responsive {
+  @media (max-width: 900px) { .settings-team-layout { grid-template-columns: minmax(0, 1fr); gap: 20px; } .settings-team-list { border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 12px; display: flex; gap: 8px; overflow-x: auto; } .settings-team-list button { width: auto; flex-shrink: 0; gap: 8px; } }
+  @media (max-width: 600px) { .settings-tabs { padding: 0 20px; gap: 20px; } .settings-content { padding: 25px 20px; } .settings-heading { flex-wrap: wrap; gap: 15px; } .settings-heading h2 { font-size: 19px; } .settings-row { flex-wrap: wrap; gap: 10px; } .settings-row .row-actions { margin-left: 40px; width: 100%; } .settings-modal-content { padding: 17px; } .settings-form-footer { flex-wrap: wrap; } }
+}

@@ -1,0 +1,86 @@
+{
+  "checked_at_utc": "2026-10-20T08:27:40Z",
+  "release": "https://github.com/docker/compose/releases/tag/v2.24.4",
+  "binary_url": "https://github.com/docker/compose/releases/download/v2.24.4/docker-compose-windows-x86_64.exe",
+  "checksum_url": "https://github.com/docker/compose/releases/download/v2.24.4/docker-compose-windows-x86_64.exe.sha256",
+  "version": "Docker Compose version v2.24.4",
+  "published_sha256": "e68c6eb31cc0aff2d9eb0f11d48e709888f25c0c204ce74bfbe69e33af3bbcbb",
+  "actual_sha256": "e68c6eb31cc0aff2d9eb0f11d48e709888f25c0c204ce74bfbe69e33af3bbcbb",
+  "binary_bytes": 62425088,
+  "os": "Microsoft Windows 10.0.26340",
+  "head": "8a067ebb8ecc5cb4b1d96d8ecc0c648dd2ab4afb",
+  "compose_yaml_sha256": "b79055abf8fbd9c134386ae3934c771b021056eaf3fcfd3a10c9d6ec93c4942c",
+  "compose_https_yaml_sha256": "3c08e2475e240addc42cd072014382059b62cdbafae7e2df3ed296280436bc98",
+  "checks": [
+    {
+      "name": "default",
+      "arguments": [
+        "--env-file",
+        "work/docker-tools/v2.24.4/validation.env",
+        "-f",
+        "compose.yaml",
+        "config",
+        "--quiet"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "name": "tools-and-operator",
+      "arguments": [
+        "--env-file",
+        "work/docker-tools/v2.24.4/validation.env",
+        "-f",
+        "compose.yaml",
+        "--profile",
+        "tools",
+        "--profile",
+        "operator",
+        "config",
+        "--quiet"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "name": "https",
+      "arguments": [
+        "--env-file",
+        "work/docker-tools/v2.24.4/validation.env",
+        "-f",
+        "compose.yaml",
+        "-f",
+        "compose.https.yaml",
+        "--profile",
+        "https",
+        "config",
+        "--quiet"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "name": "https-tools-and-operator",
+      "arguments": [
+        "--env-file",
+        "work/docker-tools/v2.24.4/validation.env",
+        "-f",
+        "compose.yaml",
+        "-f",
+        "compose.https.yaml",
+        "--profile",
+        "https",
+        "--profile",
+        "tools",
+        "--profile",
+        "operator",
+        "config",
+        "--quiet"
+      ],
+      "exit_code": 0,
+      "output": ""
+    }
+  ],
+  "scope": "Configuration parsing/merging only. No Docker daemon contacted, container started, or native-host runtime qualification claimed.",
+  "path_redaction": "Only the task-local environment-file path is expressed relative to the checkout; command options and results are unchanged."
+}

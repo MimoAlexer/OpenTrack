@@ -1,0 +1,29 @@
+[package]
+name = "opentrack-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+tokio-util.workspace = true
+futures-util.workspace = true
+opentrack-adapters.workspace = true
+utoipa.workspace = true
+opentrack-domain.workspace = true
+opentrack-app.workspace = true
+axum.workspace = true
+tokio.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+sha2.workspace = true
+opentrack-store.workspace = true
+sqlx.workspace = true
+url.workspace = true

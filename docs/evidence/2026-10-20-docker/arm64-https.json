@@ -1,0 +1,37 @@
+{
+  "project": "opentrack-smoke-39392148446-arm64",
+  "origin": "https://localhost:18443",
+  "checks": [
+    "strict production HTTPS profile, no published app HTTP port, and nonroot read-only services",
+    "HTTPS readiness verified using only the current proxy's exported public CA",
+    "untrusted TLS certificate rejected without the test CA",
+    "verified HTTPS app HTML, JavaScript, CSS and retained completed owner setup",
+    "bounded graceful proxy shutdown and verified HTTPS after restart using the same trusted CA"
+  ],
+  "ca_sha256_der": "1745f98a418152b1d4e6d567df65f9dee3ae94b45240b989f8fa21a30a5fce76",
+  "ca_file": "work/docker-smoke/local-ca.crt",
+  "system_trust_rejected_local_ca": true,
+  "proxy_shutdown_seconds": 0.2,
+  "assets": [
+    {
+      "path": "/assets/index-CGgqL1Rg.js",
+      "kind": "javascript",
+      "bytes": 552722
+    },
+    {
+      "path": "/assets/index-Crn-1-dE.css",
+      "kind": "css",
+      "bytes": 71578
+    },
+    {
+      "path": "/theme.js",
+      "kind": "javascript",
+      "bytes": 321
+    }
+  ],
+  "limitations": [
+    "no authenticated HTTPS session flow tested",
+    "no publicly trusted certificate or external network route qualified",
+    "not a native Docker Desktop host certification or full backup/restore"
+  ]
+}

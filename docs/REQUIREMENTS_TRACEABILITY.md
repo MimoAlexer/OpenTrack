@@ -1,0 +1,31 @@
+# Phase 0 requirements traceability
+
+This map follows all nineteen sections of the [original brief](PHASE_0_BRIEF.md). It reports historical Phase 0 planning coverage, never implementation completion. The user subsequently authorized the complete product; [REQUIREMENTS_STATUS](REQUIREMENTS_STATUS.md) and [IMPLEMENTATION_PLAN](IMPLEMENTATION_PLAN.md) now track F01–F47, X01–X66 and release gates. The [feature matrix](FEATURE_MATRIX.md) maps each of the 36 features to its twelve-part specification and delivery milestone; the [review](ARCHITECTURE_REVIEW.md) records actual documentation checks.
+
+| Brief section | Planning evidence | Completion or remaining boundary |
+| --- | --- | --- |
+| 1. Product vision and philosophy | [Vision](PRODUCT_VISION.md), [product research](research/PRODUCT_RESEARCH.md), [specification](PRODUCT_SPECIFICATION.md) | Personas, differentiators, core-without-AI contract, original design; public name/license still gated |
+| 2. Technology strategy | [Technology decisions](TECHNOLOGY_DECISIONS.md), [compatibility](research/COMPATIBILITY.md), [ADRs](adr/README.md) | Rust-first baseline; Next.js alternative justified; exact resolved build is M01 |
+| 3. Configuration standards | [Configuration policy](CONFIGURATION_POLICY.md), [ADR-007](adr/007_CONFIGURATION.md) | Typed TOML precedence, schema migration, secrets and option catalog; mandatory native-format exceptions explicit |
+| 4. Complete functional specification | [Feature matrix](FEATURE_MATRIX.md), [product specification](PRODUCT_SPECIFICATION.md) | 36 features, twelve dimensions each, stable acceptance IDs and MVP/advanced tiers |
+| 5. UI/UX architecture and design system | [Design system](design/DESIGN_SYSTEM.md), [tokens](design/DESIGN_TOKENS.md), [components](design/COMPONENT_SPECIFICATIONS.md), [interaction](design/INTERACTION_PATTERNS.md), [screens](design/SCREEN_SPECIFICATIONS.md), [wireframes](design/WIREFRAMES.md), [accessibility](design/ACCESSIBILITY.md) | Concrete colors, geometry, motion, keyboard, states and eighteen surfaces; contrast calculations are not runtime accessibility proof |
+| 6. Rust backend architecture | [Architecture](ARCHITECTURE.md), [ADR-001](adr/001_MODULAR_MONOLITH.md), [standards](DEVELOPMENT_STANDARDS.md) | Crate/module boundaries, async ownership, lock order, transactions, shutdown and errors |
+| 7. Database and persistence | [Database design](DATABASE_DESIGN.md), [deployment](DEPLOYMENT_ARCHITECTURE.md) | Logical catalogs, ERD, tenant constraints, indexes, lifecycle, migration and complete recovery plan; no DDL executed |
+| 8. Realtime synchronization | [Realtime](REALTIME_ARCHITECTURE.md), [ADR-004](adr/004_REALTIME.md), [F25](features/F25_REALTIME.md) | Alternatives compared; SSE/REST, commit ordering, replay, authorization, projection retention and conflicts specified |
+| 9. AI provider architecture | [AI architecture](ai/AI_ARCHITECTURE.md), [provider integrations](ai/PROVIDER_INTEGRATIONS.md), [authentication research](ai/AUTHENTICATION_RESEARCH.md) | Five separate identity/entitlement/execution concerns; official mechanisms researched; deployment eligibility remains gated |
+| 10. Autonomous coding agents | [Execution](ai/AGENT_EXECUTION.md), [lifecycle](ai/AGENT_LIFECYCLE.md), [security](ai/AGENT_SECURITY.md), [F34](features/F34_AGENTS.md) | Isolated attempts, grants, budgets, supervision, exact-artifact review and reconciled PR publication; no runtime launched |
+| 11. Security architecture | [Security architecture](SECURITY_ARCHITECTURE.md), [agent security](ai/AGENT_SECURITY.md), [testing](TESTING_STRATEGY.md) | Assets, trust boundaries, permission matrix, 25 core threat cases plus runner tests; not a security certification |
+| 12. Performance and scalability | [Performance strategy](PERFORMANCE_STRATEGY.md) | Hardware/data/workload assumptions, measurable budgets, profiling and reconsideration triggers; every number remains a target |
+| 13. Testing and quality | [Testing strategy](TESTING_STRATEGY.md), per-feature section 12, milestone validation | Unit, real DB, contracts, frontend, browser, accessibility, security, concurrency, migration, recovery and load plan |
+| 14. Developer experience and standards | [Development standards](DEVELOPMENT_STANDARDS.md), [AGENTS](../AGENTS.md), [configuration](CONFIGURATION_POLICY.md) | Repository/branch/review/release/contribution/dependency/documentation practices and future agent handoff |
+| 15. Implementation roadmap | [Roadmap](ROADMAP.md), [M01 foundation](milestones/M01_FOUNDATION.md) | Fourteen sequenced milestones, eighty tasks, prerequisites, done conditions, tests and risks; all planned |
+| 16. Decision-making requirements | [ADR index](adr/README.md), [sources](research/SOURCES.md), [risks](RISKS_AND_ASSUMPTIONS.md) | Fifteen problem/options/decision/risk/reconsideration records, dated primary evidence and unresolved gates |
+| 17. Required planning deliverables | [Documentation map](README.md) | Every requested filename exists; features/research/review/traceability add navigation and evidence |
+| 18. Final architecture review | [Critical review](ARCHITECTURE_REVIEW.md) | Two meaningful design passes, corrections, structural checks and explicit validation limits |
+| 19. Strict phase boundary | [Repository overview](../README.md), [AGENTS](../AGENTS.md), review inventory | Historical Phase 0 boundary honored at that stage; superseded by the explicit complete-product implementation authorization in AGENTS.md |
+
+## Feature delivery interpretation
+
+A feature can have a foundation earlier than its full delivery milestone. M03 needs a scoped issue picker, activity writes and durable events; it does not wait for M04's discussion UI or M06's complete search/realtime experience. Configuration and storage primitives precede M08's administration screens. Browser API contracts begin in M01/M03; developer tokens arrive in M10. Git inbound hooks are M09, generic outbound hooks M10. Agent patch delivery is M12, exact-artifact PR publication M13. These distinctions avoid circular milestone prerequisites.
+
+Every milestone carries tests and completion conditions. M14 groups independent advanced tracks rather than creating a single compulsory successor to every optional integration. The core MVP is M01–M08 and can be released without AI, GitHub, hosted email or desktop support.

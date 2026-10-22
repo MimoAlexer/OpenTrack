@@ -1,0 +1,263 @@
+name: opentrack
+
+services:
+  database:
+    image: postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    secrets: [postgres_password, runtime_password, migration_password, operator_password, worker_password]
+    volumes:
+      # PostgreSQL 18 image stores its versioned cluster below this directory.
+      - database:/var/lib/postgresql
+      - ./init-db.sh:/docker-entrypoint-initdb.d/10-opentrack.sh:ro
+    networks: [database]
+    shm_size: 128mb
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U postgres -d opentrack']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+  migrate:
+    image: opentrack-local:0.1.0-u${OPENTRACK_SERVICE_UID:?Pass the generated secrets/compose.env}-g${OPENTRACK_SERVICE_GID:?Pass the generated secrets/compose.env}
+    user: '${OPENTRACK_SERVICE_UID}:${OPENTRACK_SERVICE_GID}'
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        OPENTRACK_SERVICE_UID: '${OPENTRACK_SERVICE_UID}'
+        OPENTRACK_SERVICE_GID: '${OPENTRACK_SERVICE_GID}'
+    command: [migrate]
+    restart: 'no'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      OPENTRACK_ENVIRONMENT: production
+      OPENTRACK_PUBLIC_URL: ${OPENTRACK_PUBLIC_URL:-https://localhost:8443}
+      OPENTRACK_MIGRATION_DATABASE_URL_FILE: /run/secrets/migration_database_url
+    secrets: [migration_database_url]
+    networks: [database]
+    depends_on:
+      database:
+        condition: service_healthy
+
+  app:
+    image: opentrack-local:0.1.0-u${OPENTRACK_SERVICE_UID:?Pass the generated secrets/compose.env}-g${OPENTRACK_SERVICE_GID:?Pass the generated secrets/compose.env}
+    user: '${OPENTRACK_SERVICE_UID}:${OPENTRACK_SERVICE_GID}'
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        OPENTRACK_SERVICE_UID: '${OPENTRACK_SERVICE_UID}'
+        OPENTRACK_SERVICE_GID: '${OPENTRACK_SERVICE_GID}'
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ['/tmp:size=64m,mode=1777']
+    environment:
+      OPENTRACK_ENVIRONMENT: production
+      OPENTRACK_LISTEN: 0.0.0.0:8080
+      OPENTRACK_PUBLIC_URL: ${OPENTRACK_PUBLIC_URL:-https://localhost:8443}
+      OPENTRACK_DATABASE_URL_FILE: /run/secrets/database_url
+      OPENTRACK_SETUP_TOKEN_FILE: /run/secrets/setup_token
+      OPENTRACK_STATIC_DIR: /app/web/dist
+      OPENTRACK__STORAGE__LOCAL_ROOT: /var/lib/opentrack/blobs
+    secrets: [database_url, setup_token]
+    volumes:
+      - blobs:/var/lib/opentrack
+    networks: [database, web]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    stop_grace_period: 35s
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --output, /dev/null, http://127.0.0.1:8080/health/ready]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+
+  worker-provision:
+    image: postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+    user: '${OPENTRACK_SERVICE_UID}:${OPENTRACK_SERVICE_GID}'
+    entrypoint: [/bin/sh, /worker-tools/provision-worker.sh]
+    restart: 'no'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    secrets: [postgres_password, worker_password]
+    volumes:
+      - ./provision-worker.sh:/worker-tools/provision-worker.sh:ro
+    networks: [database]
+    depends_on:
+      database:
+        condition: service_healthy
+
+  worker-grant:
+    image: postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+    user: '${OPENTRACK_SERVICE_UID}:${OPENTRACK_SERVICE_GID}'
+    entrypoint: [/bin/sh, /worker-tools/grant-worker.sh]
+    restart: 'no'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      OPENTRACK_MIGRATION_DATABASE_URL_FILE: /run/secrets/migration_database_url
+      OPENTRACK_WORKER_ROLE: opentrack_worker
+      OPENTRACK_WORKER_SCHEMA: public
+    secrets: [migration_database_url]
+    volumes:
+      - ./grant-worker.sh:/worker-tools/grant-worker.sh:ro
+      - ./grant-worker.sql:/worker-tools/grant-worker.sql:ro
+    networks: [database]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      worker-provision:
+        condition: service_completed_successfully
+
+  worker:
+    image: opentrack-local:0.1.0-u${OPENTRACK_SERVICE_UID}-g${OPENTRACK_SERVICE_GID}
+    user: '${OPENTRACK_SERVICE_UID}:${OPENTRACK_SERVICE_GID}'
+    command: [worker]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      OPENTRACK_ENVIRONMENT: production
+      OPENTRACK_WORKER_DATABASE_URL_FILE: /run/secrets/worker_database_url
+      OPENTRACK__STORAGE__LOCAL_ROOT: /var/lib/opentrack/blobs
+    secrets: [worker_database_url]
+    volumes:
+      - blobs:/var/lib/opentrack
+    networks: [database]
+    depends_on:
+      worker-grant:
+        condition: service_completed_successfully
+    stop_grace_period: 35s
+
+  # Operator services are deliberately absent from normal `compose up`.
+  operator-provision:
+    profiles: [operator]
+    image: postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+    user: '${OPENTRACK_SERVICE_UID}:${OPENTRACK_SERVICE_GID}'
+    entrypoint: [/bin/sh, /operator-tools/provision-operator.sh]
+    restart: 'no'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    secrets: [postgres_password, operator_password]
+    volumes:
+      - ./provision-operator.sh:/operator-tools/provision-operator.sh:ro
+    networks: [database]
+    depends_on:
+      database:
+        condition: service_healthy
+
+  operator-grant:
+    profiles: [operator]
+    image: postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+    user: '${OPENTRACK_SERVICE_UID}:${OPENTRACK_SERVICE_GID}'
+    entrypoint: [/bin/sh, /operator-tools/grant-operator.sh]
+    restart: 'no'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      OPENTRACK_MIGRATION_DATABASE_URL_FILE: /run/secrets/migration_database_url
+      OPENTRACK_OPERATOR_ROLE: opentrack_operator
+      OPENTRACK_OPERATOR_SCHEMA: public
+    secrets: [migration_database_url]
+    volumes:
+      - ./grant-operator.sh:/operator-tools/grant-operator.sh:ro
+      - ./grant-operator.sql:/operator-tools/grant-operator.sql:ro
+    networks: [database]
+    depends_on:
+      database:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      operator-provision:
+        condition: service_completed_successfully
+
+  operator:
+    profiles: [operator]
+    image: opentrack-local:0.1.0-u${OPENTRACK_SERVICE_UID}-g${OPENTRACK_SERVICE_GID}
+    user: '${OPENTRACK_SERVICE_UID}:${OPENTRACK_SERVICE_GID}'
+    command: [--help]
+    restart: 'no'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      OPENTRACK_ENVIRONMENT: production
+      OPENTRACK_PUBLIC_URL: ${OPENTRACK_PUBLIC_URL:-https://localhost:8443}
+      OPENTRACK_OPERATOR_DATABASE_URL_FILE: /run/secrets/operator_database_url
+    secrets: [operator_database_url]
+    volumes:
+      - type: bind
+        source: ${OPENTRACK_OPERATOR_OUTPUT_DIR:-/nonexistent/opentrack-operator-output}
+        target: /operator-output
+        bind:
+          create_host_path: false
+    networks: [database]
+    depends_on:
+      database:
+        condition: service_healthy
+
+  proxy:
+    image: caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    restart: unless-stopped
+    environment:
+      OPENTRACK_DOMAIN: ${OPENTRACK_DOMAIN:-localhost}
+    ports:
+      - '${OPENTRACK_BIND_ADDRESS:-127.0.0.1}:${OPENTRACK_HTTPS_PORT:-8443}:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - proxy_data:/data
+      - proxy_config:/config
+    networks: [web]
+    depends_on:
+      app:
+        condition: service_healthy
+
+networks:
+  database:
+    internal: true
+  web:
+
+volumes:
+  database:
+  blobs:
+  proxy_data:
+  proxy_config:
+
+secrets:
+  postgres_password:
+    file: ${OPENTRACK_SECRETS_DIR:-./secrets}/postgres-password
+  runtime_password:
+    file: ${OPENTRACK_SECRETS_DIR:-./secrets}/runtime-password
+  migration_password:
+    file: ${OPENTRACK_SECRETS_DIR:-./secrets}/migration-password
+  operator_password:
+    file: ${OPENTRACK_SECRETS_DIR:-./secrets}/operator-password
+  worker_password:
+    file: ${OPENTRACK_SECRETS_DIR:-./secrets}/worker-password
+  database_url:
+    file: ${OPENTRACK_SECRETS_DIR:-./secrets}/database-url
+  migration_database_url:
+    file: ${OPENTRACK_SECRETS_DIR:-./secrets}/migration-database-url
+  operator_database_url:
+    file: ${OPENTRACK_SECRETS_DIR:-./secrets}/operator-database-url
+  worker_database_url:
+    file: ${OPENTRACK_SECRETS_DIR:-./secrets}/worker-database-url
+  setup_token:
+    file: ${OPENTRACK_SECRETS_DIR:-./secrets}/setup-token

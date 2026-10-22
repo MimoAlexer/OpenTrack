@@ -1,0 +1,12 @@
+identifier = "main"
+description = "Only bundled main-window documents may call the explicit native bridge."
+windows = ["main"]
+permissions = [
+  "allow-connection-read", "allow-connection-select", "allow-connection-forget",
+  "allow-auth-begin", "allow-auth-cancel", "allow-auth-logout",
+  "allow-open-browser-action", "allow-api-request", "allow-issue-link-read", "allow-issue-link-dismiss",
+  "allow-open-document-link",
+  "allow-attachment-pick", "allow-attachment-release", "allow-attachment-upload",
+  "allow-attachment-cancel", "allow-attachment-download",
+  "core:event:allow-listen", "core:event:allow-unlisten",
+]

@@ -1,0 +1,13 @@
+import type { components } from '../generated/api';
+export type IssueGraphTarget = components['schemas']['IssueGraphTarget'];
+export type IssueParent = components['schemas']['IssueParent'];
+export type CreateRelationKind = components['schemas']['CreateRelationKind'];
+export type RelationKind = components['schemas']['RelationKind'];
+export type IssueRelation = components['schemas']['IssueRelation'];
+export type GraphPage<T> = Omit<components['schemas']['GraphPage_IssueGraphTarget'], 'data'> & { data: T[] };
+export type RelationMutation = components['schemas']['RelationMutation'];
+export type MoveDestination = components['schemas']['MoveDestination'];
+export type IssueMovePreview = components['schemas']['IssueMovePreview'];
+export type MoveIssueBody = components['schemas']['MoveIssue'];
+export type Page<T> = Omit<components['schemas']['Page_IssueGraphTarget'], 'data'> & { data: T[] };
+export const relationNames: Record<RelationKind, string> = { blocked_by: 'Blocked by', blocks: 'Blocks', related: 'Related', duplicate_of: 'Duplicate of', has_duplicate: 'Duplicates' };

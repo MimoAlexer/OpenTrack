@@ -1,0 +1,10 @@
+@layer components {
+  .recovery-panel { max-width: 420px; }
+  .recovery-panel .auth-intro { margin-bottom: 20px; }
+  .recovery-explanation { color: var(--secondary); font-size: 12px; line-height: 1.8; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .recovery-uncertain strong { display: block; font-weight: 500; margin-bottom: 5px; }
+  .recovery-uncertain a { display: inline-block; margin-top: 9px; text-decoration: underline; text-underline-offset: 3px; }
+  .recovery-start-again { display: block; margin: 18px auto 0; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+  .recovery-success-icon { width: 26px; height: 26px; color: var(--green); margin-bottom: 18px; }
+  .recovery-page a[aria-disabled='true'] { opacity: .55; cursor: wait; }
+}

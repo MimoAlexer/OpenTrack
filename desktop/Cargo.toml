@@ -1,0 +1,62 @@
+[workspace]
+exclude = ["vendor/glib-0.18.5"]
+
+[package]
+name = "opentrack-desktop"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+publish = false
+
+[features]
+default = ["shell", "custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+shell = ["dep:tauri", "dep:tauri-plugin-single-instance", "dep:tauri-plugin-deep-link", "dep:tauri-plugin-dialog"]
+
+[[bin]]
+name = "opentrack-desktop"
+path = "src/main.rs"
+required-features = ["shell"]
+
+[dependencies]
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+url = { version = "=2.5.8", features = ["serde"] }
+uuid = { version = "=1.28.0", features = ["serde", "v4"] }
+tauri = { version = "=2.12.4", default-features = false, features = ["wry", "compression", "x11", "dbus", "config-toml"], optional = true }
+tauri-plugin-single-instance = { version = "=2.5.4", optional = true }
+tauri-plugin-deep-link = { version = "=2.6.2", optional = true }
+tauri-plugin-dialog = { version = "=2.8.3", optional = true }
+
+tokio = { version = "=1.53.3", features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util", "process", "fs"] }
+tokio-util = { version = "=0.7.20", features = ["io"] }
+futures-util = "=0.3.34"
+libc = "=0.2.191"
+reqwest = { version = "=0.13.5", default-features = false, features = ["rustls", "json", "stream"] }
+sha2 = "=0.10.9"
+base64 = "=0.22.1"
+getrandom = "=0.3.4"
+zeroize = "=1.8.2"
+chrono = { version = "=0.4.45", default-features = false, features = ["clock", "serde"] }
+toml = "=0.9.8"
+keyring-core = "=1.0.1"
+zbus-secret-service-keyring-store = { version = "=1.0.1", features = ["rt-tokio-crypto-rust"] }
+# deep-link 2.6.2 initializes ParseOption fields from this compatible release.
+rust-ini = "=0.21.1"
+
+[build-dependencies]
+tauri-build = { version = "=2.7.3", default-features = false, features = ["config-toml"] }
+
+[patch.crates-io]
+glib = { path = "vendor/glib-0.18.5" }
+
+[dev-dependencies]
+glib = "=0.18.5"
+rustls = "=0.23.46"
+tokio-rustls = "=0.26.6"
+
+[profile.dev.package.glib]
+opt-level = 2
+
+[profile.test.package.glib]
+opt-level = 2

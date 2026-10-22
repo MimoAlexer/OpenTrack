@@ -1,0 +1,140 @@
+name: Verify Docker runtime
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scope:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      docker: ${{ steps.scope.outputs.docker }}
+    steps:
+      - name: Checkout complete history for authoritative scope
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test conservative change detection
+        run: python3 scripts/test-ci-scope.py
+      - name: Test disposable browser runtime boundaries without starting services
+        run: python3 scripts/test-browser-acceptance.py
+      - name: Determine Docker scope
+        id: scope
+        run: python3 scripts/ci-scope.py
+
+  runtime:
+    needs: scope
+    if: ${{ always() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            architecture: amd64
+          - runner: ubuntu-24.04-arm
+            architecture: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      COMPOSE_PROJECT_NAME: opentrack-smoke-${{ github.run_id }}-${{ matrix.architecture }}
+      OPENTRACK_HTTP_PORT: '18080'
+      COMPOSE_PARALLEL_LIMIT: '2'
+    steps:
+      - name: Require a successful explicit scope decision
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          RUN_FULL: ${{ needs.scope.outputs.docker }}
+        run: |
+          if [ "$SCOPE_RESULT" != success ]; then
+            echo '::error::Change detection failed; required Docker verification cannot be skipped.'
+            exit 1
+          fi
+          case "$RUN_FULL" in true|false) ;; *) echo '::error::Invalid or absent scope output.'; exit 1;; esac
+      - name: Complete unchanged Docker check
+        if: ${{ needs.scope.outputs.docker == 'false' }}
+        run: echo 'Required native architecture check passed; this range changes no container inputs.'
+      - name: Checkout
+        if: ${{ needs.scope.outputs.docker == 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Report native container environment
+        if: ${{ needs.scope.outputs.docker == 'true' }}
+        run: |
+          docker version
+          docker compose version
+          docker info --format '{{.OSType}}/{{.Architecture}}'
+          df -h .
+      - name: Validate local and production Compose configuration
+        if: ${{ needs.scope.outputs.docker == 'true' }}
+        run: |
+          docker compose config --quiet
+          OPENTRACK_DOMAIN=tracker.example OPENTRACK_PUBLIC_URL=https://tracker.example docker compose -f compose.yaml -f compose.https.yaml config --quiet
+      - name: Build container initialization and database tools
+        if: ${{ needs.scope.outputs.docker == 'true' }}
+        run: docker compose build initialize database
+      - name: Verify real Linux credential ownership and failure boundaries
+        if: ${{ needs.scope.outputs.docker == 'true' }}
+        run: docker run --rm --network none --entrypoint python3 opentrack-bootstrap:local /opt/opentrack/test-container-credentials.py
+      - name: Build the complete application and HTTPS proxy inside Docker
+        if: ${{ needs.scope.outputs.docker == 'true' }}
+        run: |
+          docker compose build app worker
+          OPENTRACK_DOMAIN=localhost OPENTRACK_PUBLIC_URL=https://localhost:18443 docker compose -f compose.yaml -f compose.https.yaml --profile https build proxy
+      - name: Start a fresh disposable stack
+        if: ${{ needs.scope.outputs.docker == 'true' }}
+        run: docker compose up --detach --wait --wait-timeout 180 --no-build
+      - name: Execute HTTP, worker, persistence, shutdown and credential-failure checks
+        if: ${{ needs.scope.outputs.docker == 'true' }}
+        run: python3 scripts/docker-smoke.py --project "$COMPOSE_PROJECT_NAME" --url http://localhost:18080 --expected-architecture "${{ matrix.architecture }}"
+      - name: Verify production HTTPS with the test proxy CA
+        if: ${{ needs.scope.outputs.docker == 'true' }}
+        run: python3 scripts/docker-https-smoke.py --project "$COMPOSE_PROJECT_NAME"
+      - name: Browser acceptance Node toolchain
+        if: ${{ needs.scope.outputs.docker == 'true' && matrix.architecture == 'amd64' }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22.22.1
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install pinned browser test tooling and official browser builds
+        if: ${{ needs.scope.outputs.docker == 'true' && matrix.architecture == 'amd64' }}
+        working-directory: web
+        run: |
+          npm ci --ignore-scripts
+          npm run typecheck
+          npm run test:browser:list
+          npx playwright install --with-deps chromium firefox webkit
+      - name: Verify saved collaboration in real browsers against a separate disposable Docker stack
+        if: ${{ needs.scope.outputs.docker == 'true' && matrix.architecture == 'amd64' }}
+        run: python3 scripts/browser-acceptance.py --project "opentrack-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-amd64"
+      - name: Show credential-free browser receipt
+        if: ${{ always() && needs.scope.result == 'success' && needs.scope.outputs.docker == 'true' && matrix.architecture == 'amd64' }}
+        run: |
+          if test -f work/browser-acceptance/receipt.json; then cat work/browser-acceptance/receipt.json; fi
+      - name: Remove only this run's disposable browser project after interruption
+        if: ${{ always() && needs.scope.result == 'success' && needs.scope.outputs.docker == 'true' && matrix.architecture == 'amd64' }}
+        run: python3 scripts/browser-acceptance.py --project "opentrack-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-amd64" --cleanup
+      - name: Show qualification receipt
+        if: ${{ always() && needs.scope.result == 'success' && needs.scope.outputs.docker == 'true' }}
+        run: |
+          if test -f work/docker-smoke/receipt.json; then cat work/docker-smoke/receipt.json; fi
+          if test -f work/docker-smoke/https-receipt.json; then cat work/docker-smoke/https-receipt.json; fi
+          docker compose ps --all
+      - name: Show failure diagnostics
+        if: ${{ failure() && needs.scope.result == 'success' && needs.scope.outputs.docker == 'true' }}
+        run: OPENTRACK_DOMAIN=localhost OPENTRACK_PUBLIC_URL=https://localhost:18443 docker compose -f compose.yaml -f compose.https.yaml --profile https logs --no-color --tail 100
+      - name: Remove only this job's disposable containers and volumes
+        if: ${{ always() && needs.scope.result == 'success' && needs.scope.outputs.docker == 'true' }}
+        run: OPENTRACK_DOMAIN=localhost OPENTRACK_PUBLIC_URL=https://localhost:18443 docker compose -f compose.yaml -f compose.https.yaml --profile https down --volumes --remove-orphans --timeout 35

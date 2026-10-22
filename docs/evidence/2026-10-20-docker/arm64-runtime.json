@@ -1,0 +1,29 @@
+{
+  "project": "opentrack-smoke-39392148446-arm64",
+  "docker": "28.0.4",
+  "compose": "2.38.2",
+  "architecture": "arm64",
+  "expected_architecture": "arm64",
+  "runtime_images": {
+    "app": "sha256:7cc26384f328e887318976ce3af3393dec97142d2b3f7eb66b6822a85ad9c550",
+    "worker": "sha256:7cc26384f328e887318976ce3af3393dec97142d2b3f7eb66b6822a85ad9c550"
+  },
+  "checks": [
+    "healthy API and fetched built JavaScript/CSS assets with AI disabled",
+    "native Linux arm64 engine/runtime images and unpublished database port",
+    "nonroot read-only services and separate least-privilege database credentials",
+    "first-owner setup, repeated setup rejection and authenticated workspace bootstrap",
+    "conditional issue update persists and stale ETag rejects without overwriting",
+    "real issue/document, streamed attachment, safe replay and unauthorized-request rejection",
+    "restricted worker captured real durable workspace events",
+    "bounded graceful API and worker shutdown without forced kill",
+    "container recreation preserves login, session, issue, document, attachment bytes and secrets",
+    "missing secret fails closed; restoring the original file recovers the same data"
+  ],
+  "attachment_bytes": 1605681,
+  "shutdown_seconds": 0.23,
+  "limitations": [
+    "not a native Docker Desktop host certification",
+    "not a full backup/restore or production TLS qualification"
+  ]
+}

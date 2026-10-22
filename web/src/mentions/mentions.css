@@ -1,0 +1,25 @@
+@layer components {
+  .user-mention { border-radius: 3px; background: var(--selected); color: var(--text); padding: 1px 3px; white-space: normal; overflow-wrap: anywhere; }
+  .user-mention.unavailable { color: var(--muted); background: transparent; }
+  .mention-picker { position: absolute; z-index: 60; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--control); border-radius: 7px; background: var(--bg); color: var(--text); box-shadow: var(--shadow); padding: 5px; font-size: 12px; text-align: left; }
+  .mention-picker-heading { color: var(--muted); padding: 6px 8px; font-size: 11px; }
+  .mention-picker [role=option] { padding: 8px; border-radius: 4px; cursor: pointer; }
+  .mention-picker [aria-selected=true], .mention-picker [role=option]:hover { background: var(--selected); }
+  .mention-picker > p { padding: 8px; color: var(--secondary); line-height: 1.5; }
+  .mention-picker button { text-decoration: underline; }
+}
+@layer components {
+  .issue-comments > .discussion-heading { flex-wrap: wrap; gap: 8px 12px; }
+  .discussion-controls { display: flex; align-items: center; gap: 18px; margin-left: auto; }
+  .issue-subscription { position: relative; font-size: 12px; }
+  .subscription-trigger { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .subscription-trigger svg { width: 13px; height: 13px; }
+  .subscription-menu { position: absolute; z-index: 30; right: 0; top: calc(100% + 8px); width: min(300px, calc(100vw - 48px)); max-height: 360px; overflow: auto; background: var(--bg); color: var(--text); border: 1px solid var(--control); border-radius: 7px; padding: 8px; box-shadow: var(--shadow); }
+  .subscription-menu > strong { display: block; font-weight: 500; padding: 6px 8px; }
+  .subscription-menu [role=menuitemradio] { display: block; width: 100%; text-align: left; padding: 8px; border-radius: 4px; }
+  .subscription-menu [role=menuitemradio]:hover, .subscription-menu [aria-checked=true] { background: var(--selected); }
+  .subscription-menu small { display: block; color: var(--secondary); margin-top: 3px; line-height: 1.45; font-size: 11px; }
+  .subscription-menu > p { color: var(--secondary); line-height: 1.5; padding: 8px; font-size: 11px; }
+  .subscription-menu > p button { text-decoration: underline; }
+}
+@layer components { .subscription-trigger { min-width: 124px; justify-content: flex-start; } }

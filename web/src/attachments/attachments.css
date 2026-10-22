@@ -1,0 +1,7 @@
+@layer components {
+.attachment-card,.attachment-queue>li{display:flex;align-items:center;gap:10px;padding:11px 12px;min-width:0;border:1px solid var(--line);border-radius:7px;background:var(--panel)}
+.attachment-card{margin:9px 0;user-select:text}.attachment-node{max-width:100%}.attachment-node.ProseMirror-selectednode .attachment-card{outline:2px solid var(--accent);outline-offset:1px}
+.attachment-file-icon{width:18px;height:18px;flex:0 0 auto;color:var(--muted)}.attachment-information{display:flex;flex-direction:column;flex:1;gap:3px;min-width:0;line-height:1.4}.attachment-information>strong{font-size:12px;font-weight:550;overflow-wrap:anywhere}.attachment-information>span{font-size:11px;color:var(--muted);overflow-wrap:anywhere}.attachment-information .attachment-error{color:var(--red)}.attachment-information .quiet{font-size:inherit;padding:0 3px;text-decoration:underline}
+.attachment-card .icon-button,.attachment-queue .icon-button{width:28px;height:28px;flex:0 0 auto}.attachment-card .icon-button svg,.attachment-queue .icon-button svg{width:15px;height:15px}.attachment-queue{list-style:none;padding:0 10px 10px!important;margin:0;display:flex;flex-direction:column;gap:6px}.attachment-queue .quiet{font-size:11px;flex-shrink:0}.attachment-queue progress{width:min(100%,240px);height:3px;border:0;margin-top:3px;accent-color:var(--accent)}.attachment-progress-icon{width:14px;height:14px;flex:0 0 auto;color:var(--muted)}
+.attachment-file-input{display:none}.document-editor.is-file-drop{outline:2px solid var(--accent);outline-offset:2px}
+}
