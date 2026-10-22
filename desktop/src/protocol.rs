@@ -273,11 +273,57 @@ fn team_route(method: Method, path: &[&str]) -> bool {
         _ => false,
     }
 }
+pub(crate) fn large_cycle_response(method: Method, path: &str) -> bool {
+    if !route_allowed(method, path) {
+        return false;
+    }
+    let parts = path.split('/').collect::<Vec<_>>();
+    match parts.as_slice() {
+        [
+            "",
+            "api",
+            "v1",
+            "workspaces",
+            _,
+            "teams",
+            _,
+            "cycles",
+            _,
+            "scope" | "close-preview",
+        ] => method == Method::Get,
+        [
+            "",
+            "api",
+            "v1",
+            "workspaces",
+            _,
+            "teams",
+            _,
+            "cycles",
+            _,
+            "reports",
+            _,
+        ] => method == Method::Get,
+        [
+            "",
+            "api",
+            "v1",
+            "workspaces",
+            _,
+            "teams",
+            _,
+            "cycles",
+            _,
+            "close" | "snapshots",
+        ] => method == Method::Post,
+        _ => false,
+    }
+}
 fn cycle_route(method: Method, path: &[&str]) -> bool {
     use Method::*;
     match path {
         [] => matches!(method, Get | Patch | Delete),
-        ["scope" | "close-preview"] => method == Get,
+        ["scope" | "close-preview" | "issues"] => method == Get,
         ["snapshots"] => matches!(method, Get | Post),
         ["open" | "reopen" | "close" | "carry-forward"] => method == Post,
         ["issues", issue] => id(issue) && method == Put,
@@ -846,6 +892,7 @@ mod cycle_route_tests {
                 vec![Method::Get, Method::Patch, Method::Delete],
             ),
             (format!("/{c}/scope"), vec![Method::Get]),
+            (format!("/{c}/issues"), vec![Method::Get]),
             (format!("/{c}/close-preview"), vec![Method::Get]),
             (format!("/{c}/snapshots"), vec![Method::Get, Method::Post]),
             (format!("/{c}/open"), vec![Method::Post]),

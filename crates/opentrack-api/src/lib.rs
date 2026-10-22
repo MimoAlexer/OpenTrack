@@ -109,7 +109,7 @@ pub fn router(state: ApiState) -> Router {
             HeaderValue::from_static("no-cache"),
         ));
     Router::new().nest("/api/v1",api)
-        .route("/health/live",get(|| async {Json(json!({"status":"live"}))}))
+        .route("/health/live",get(live))
         .route("/health/ready",get(ready))
         .nest("/assets",assets)
         .merge(theme)
@@ -393,31 +393,80 @@ async fn problem_documentation(Path(code): Path<String>) -> Result<Json<Value>, 
         json!({"code":code,"format":"RFC 9457 application/problem+json","contract":"/api/v1/openapi.json","guidance":"Read detail for the safe explanation. Preserve drafts on version_conflict; sign in on unauthenticated; reconcile ambiguous mutations before retrying."}),
     ))
 }
+async fn live() -> impl IntoResponse {
+    (
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(json!({"status":"live"})),
+    )
+}
 async fn ready(State(s): State<ApiState>) -> Response {
-    if s.app.ready().await {
-        (StatusCode::OK, Json(json!({"status":"ready"}))).into_response()
+    let (status, value) = if s.app.ready().await {
+        (StatusCode::OK, "ready")
     } else {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(json!({"status":"unavailable"})),
-        )
-            .into_response()
-    }
+        (StatusCode::SERVICE_UNAVAILABLE, "unavailable")
+    };
+    (
+        status,
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(json!({"status":value})),
+    )
+        .into_response()
+}
+fn accepts_html(headers: &HeaderMap) -> bool {
+    headers
+        .get_all(header::ACCEPT)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .any(|value| {
+            value.split(',').any(|range| {
+                let mut parts = range.trim().split(';');
+                if !parts
+                    .next()
+                    .is_some_and(|media| media.trim().eq_ignore_ascii_case("text/html"))
+                {
+                    return false;
+                }
+                let mut quality = None;
+                for parameter in parts {
+                    let Some((name, value)) = parameter.trim().split_once('=') else {
+                        return false;
+                    };
+                    if name.trim().is_empty() || value.trim().is_empty() {
+                        return false;
+                    }
+                    if !name.trim().eq_ignore_ascii_case("q") {
+                        continue;
+                    }
+                    let value = value.trim();
+                    let valid = matches!(value, "0" | "1")
+                        || value.split_once('.').is_some_and(|(whole, fraction)| {
+                            matches!(whole, "0" | "1")
+                                && fraction.len() <= 3
+                                && fraction.bytes().all(|digit| {
+                                    digit.is_ascii_digit() && (whole == "0" || digit == b'0')
+                                })
+                        });
+                    if quality.is_some() || !valid {
+                        return false;
+                    }
+                    quality = Some(value.bytes().any(|digit| matches!(digit, b'1'..=b'9')));
+                }
+                quality.unwrap_or(true)
+            })
+        })
 }
 async fn spa(State(s): State<ApiState>, uri: Uri, method: Method, headers: HeaderMap) -> Response {
     if !matches!(method, Method::GET | Method::HEAD) {
         return StatusCode::METHOD_NOT_ALLOWED.into_response();
     }
-    let wants_html = headers
-        .get(header::ACCEPT)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|v| {
-            v.split(',')
-                .any(|part| part.trim().starts_with("text/html"))
-        });
-    if !wants_html
-        || uri.path() == "/api"
-        || uri.path().starts_with("/api/")
+    if !accepts_html(&headers)
+        || ["/api", "/assets", "/health"].iter().any(|prefix| {
+            uri.path() == *prefix
+                || uri
+                    .path()
+                    .strip_prefix(prefix)
+                    .is_some_and(|suffix| suffix.starts_with('/'))
+        })
         || uri
             .path()
             .rsplit('/')
@@ -427,26 +476,34 @@ async fn spa(State(s): State<ApiState>, uri: Uri, method: Method, headers: Heade
         return ApiError::from(Error::NotFound).into_response();
     }
     match tokio::fs::read(s.static_dir.join("index.html")).await {
-        Ok(content) => (
-            [
-                (header::CONTENT_TYPE, "text/html; charset=utf-8"),
-                (header::CACHE_CONTROL, "no-cache"),
-            ],
-            if method == Method::HEAD {
-                Body::empty()
-            } else {
-                Body::from(content)
-            },
-        )
-            .into_response(),
+        Ok(content) => {
+            let length = content.len();
+            let mut response = (
+                [
+                    (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+                    (header::CACHE_CONTROL, "no-cache"),
+                    (header::VARY, "Accept"),
+                ],
+                if method == Method::HEAD {
+                    Body::empty()
+                } else {
+                    Body::from(content)
+                },
+            )
+                .into_response();
+            response
+                .headers_mut()
+                .insert(header::CONTENT_LENGTH, HeaderValue::from(length));
+            response
+        }
         Err(_) => (
             StatusCode::SERVICE_UNAVAILABLE,
+            [(header::CACHE_CONTROL, "no-store")],
             "The web client is not available. Build web/ before starting the server.",
         )
             .into_response(),
     }
 }
-
 pub async fn serve(
     listener: tokio::net::TcpListener,
     state: ApiState,

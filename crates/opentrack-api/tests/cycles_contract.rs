@@ -272,6 +272,19 @@ async fn lifecycle(h: &Harness) {
     for i in [&unfinished, &done, &canceled] {
         spring = attach(h, &c, &url, &spring, i).await;
     }
+    let page = get(h, &c, &format!("{url}/issues?limit=2")).await;
+    assert_eq!(page.body["data"].as_array().unwrap().len(), 2);
+    assert_eq!(page.body["has_more"], true);
+    assert!(page.body["data"][0]["title"].as_str().is_some());
+    let first_id = page.body["data"][0]["id"].as_str().unwrap();
+    let canonical = get(h, &c, &format!("{base}/issues/{first_id}")).await;
+    assert_eq!(page.body["data"][0]["etag"], canonical.body["etag"]);
+    let cursor = url::form_urlencoded::Serializer::new(String::new())
+        .append_pair("cursor", page.body["next_cursor"].as_str().unwrap())
+        .finish();
+    let next = get(h, &c, &format!("{url}/issues?limit=2&{cursor}")).await;
+    assert_eq!(next.body["data"].as_array().unwrap().len(), 1);
+    assert_eq!(next.body["has_more"], false);
     let stale = spring.etag().to_owned();
     spring = action(h, &c, &url, &spring, "open", None).await;
     let opened = get(h, &c, &format!("{url}/snapshots")).await;
@@ -626,6 +639,7 @@ async fn permissions(h: &Harness) {
         &private_dir,
         private_url,
         &format!("{private_url}/scope"),
+        &format!("{private_url}/issues"),
         &format!("{private_url}/snapshots"),
         &format!("{private_url}/close-preview"),
     ] {

@@ -1,6 +1,22 @@
 -- Extension ownership is database-wide even for isolated application schemas.
 SELECT pg_advisory_xact_lock(hashtextextended('opentrack:btree_gist:'||current_database(),0));
-CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA public;
+CREATE SCHEMA IF NOT EXISTS opentrack_extensions;
+DO $extension$
+DECLARE extension_owner oid; extension_schema text;
+BEGIN
+ IF (SELECT nspowner FROM pg_namespace WHERE nspname='opentrack_extensions')<>current_user::regrole THEN
+  RAISE EXCEPTION 'The migration role must own opentrack_extensions; review namespace ownership before upgrade';
+ END IF;
+ SELECT e.extowner,n.nspname INTO extension_owner,extension_schema FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace WHERE e.extname='btree_gist';
+ IF extension_owner IS NULL THEN
+  CREATE EXTENSION btree_gist WITH SCHEMA opentrack_extensions;
+ ELSIF extension_owner<>current_user::regrole THEN
+  RAISE EXCEPTION 'The migration role must own preinstalled btree_gist; an operator must review ownership and relocate it into opentrack_extensions';
+ ELSIF extension_schema<>'opentrack_extensions' THEN
+  RAISE EXCEPTION 'Preinstalled btree_gist requires database-operator relocation into migration-owned opentrack_extensions before upgrade';
+ END IF;
+END $extension$;
+REVOKE ALL ON SCHEMA opentrack_extensions FROM PUBLIC;
 CREATE TABLE cycles (
  id uuid PRIMARY KEY,workspace_id uuid NOT NULL,team_id uuid NOT NULL,
  name text NOT NULL CHECK(length(name) BETWEEN 1 AND 160 AND name=btrim(name) AND name !~ '[[:cntrl:]]'),
@@ -12,7 +28,7 @@ CREATE TABLE cycles (
  CHECK((state='closed')=(closed_at IS NOT NULL)),CHECK(deleted_at IS NULL OR state='planned'),
  UNIQUE(workspace_id,id),UNIQUE(workspace_id,team_id,id),
  FOREIGN KEY(workspace_id,team_id) REFERENCES teams(workspace_id,id),
- CONSTRAINT cycles_no_overlap EXCLUDE USING gist (workspace_id public.gist_uuid_ops WITH =,team_id public.gist_uuid_ops WITH =,daterange(start_date,end_date_exclusive,'[)') WITH &&) WHERE(deleted_at IS NULL)
+ CONSTRAINT cycles_no_overlap EXCLUDE USING gist (workspace_id opentrack_extensions.gist_uuid_ops WITH =,team_id opentrack_extensions.gist_uuid_ops WITH =,daterange(start_date,end_date_exclusive,'[)') WITH &&) WHERE(deleted_at IS NULL)
 );
 CREATE INDEX cycles_directory ON cycles(workspace_id,team_id,start_date DESC,id);
 CREATE TABLE cycle_issues (

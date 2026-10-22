@@ -4,6 +4,9 @@ set -Eeuo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+python3 scripts/test-workspace-boundaries.py
+python3 scripts/check-workspace-boundaries.py
+
 declare -A test_overrides
 for name in OPENTRACK_TEST_DATABASE_URL OPENTRACK_TEST_MIGRATION_DATABASE_URL OPENTRACK_TEST_OPERATOR_DATABASE_URL OPENTRACK_TEST_WORKER_DATABASE_URL; do
   if [[ -v "$name" ]]; then test_overrides["$name"]="${!name}"; fi
@@ -46,4 +49,5 @@ scripts/generate-contracts.sh --check
 npm --prefix web ci --no-audit --no-fund
 npm --prefix web test
 npm --prefix web run build
-printf '%s\n' 'Formatting, lint, real PostgreSQL Rust contracts, frontend tests, and production frontend build passed.'
+cargo test --locked -p opentrack-api --test built_router_contract -- --ignored
+printf '%s\n' 'Formatting, lint, real PostgreSQL Rust contracts, frontend tests, production frontend build, and built-asset HTTP delivery passed.'

@@ -1339,6 +1339,68 @@
         ],
         "type": "object"
       },
+      "CycleIssue": {
+        "properties": {
+          "archived_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "estimate": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "etag": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "priority": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "status_category": {
+            "type": "string"
+          },
+          "status_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status_name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "title",
+          "status_id",
+          "status_name",
+          "status_category",
+          "priority",
+          "estimate",
+          "archived_at",
+          "version",
+          "etag"
+        ],
+        "type": "object"
+      },
       "CycleMembership": {
         "additionalProperties": false,
         "properties": {
@@ -1461,6 +1523,76 @@
           "excluded_count",
           "estimate_total",
           "items"
+        ],
+        "type": "object"
+      },
+      "CycleSnapshotPoint": {
+        "properties": {
+          "canceled_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "completed_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cycle_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "definition_version": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "estimate_total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "excluded_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "local_date": {
+            "format": "date",
+            "type": "string"
+          },
+          "redacted": {
+            "type": "boolean"
+          },
+          "scope_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unfinished_count": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "redacted",
+          "id",
+          "cycle_id",
+          "local_date",
+          "captured_at",
+          "kind",
+          "definition_version",
+          "scope_count",
+          "completed_count",
+          "canceled_count",
+          "unfinished_count",
+          "excluded_count",
+          "estimate_total"
         ],
         "type": "object"
       },
@@ -3554,7 +3686,91 @@
         ],
         "type": "object"
       },
-      "Page_CycleSnapshot": {
+      "Page_CycleIssue": {
+        "properties": {
+          "data": {
+            "items": {
+              "properties": {
+                "archived_at": {
+                  "format": "date-time",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "estimate": {
+                  "format": "int32",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "etag": {
+                  "type": "string"
+                },
+                "id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "priority": {
+                  "format": "int32",
+                  "type": "integer"
+                },
+                "status_category": {
+                  "type": "string"
+                },
+                "status_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "status_name": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "key",
+                "title",
+                "status_id",
+                "status_name",
+                "status_category",
+                "priority",
+                "estimate",
+                "archived_at",
+                "version",
+                "etag"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data",
+          "next_cursor",
+          "has_more"
+        ],
+        "type": "object"
+      },
+      "Page_CycleSnapshotPoint": {
         "properties": {
           "data": {
             "items": {
@@ -3591,12 +3807,6 @@
                   "format": "uuid",
                   "type": "string"
                 },
-                "items": {
-                  "items": {
-                    "$ref": "#/components/schemas/CycleScopeItem"
-                  },
-                  "type": "array"
-                },
                 "kind": {
                   "type": "string"
                 },
@@ -3629,8 +3839,7 @@
                 "canceled_count",
                 "unfinished_count",
                 "excluded_count",
-                "estimate_total",
-                "items"
+                "estimate_total"
               ],
               "type": "object"
             },
@@ -64520,6 +64729,617 @@
         ]
       }
     },
+    "/api/v1/workspaces/{w}/teams/{t}/cycles/{id}/issues": {
+      "get": {
+        "operationId": "cycles_issues",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "w",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "t",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CycleIssue"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "bad_request",
+                  "detail": "The request path, query or JSON is invalid",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 400,
+                  "title": "Bad Request",
+                  "type": "/api/v1/problems/bad_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request path, query or JSON is invalid",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "unauthenticated",
+                  "detail": "Sign in to continue",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 401,
+                  "title": "Unauthorized",
+                  "type": "/api/v1/problems/unauthenticated"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Sign in to continue",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "forbidden",
+                  "detail": "You do not have permission for this action",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 403,
+                  "title": "Forbidden",
+                  "type": "/api/v1/problems/forbidden"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "You do not have permission for this action",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "not_found",
+                  "detail": "This item could not be found",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 404,
+                  "title": "Not Found",
+                  "type": "/api/v1/problems/not_found"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This item could not be found",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "method_not_allowed",
+                  "detail": "This HTTP method is not supported",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 405,
+                  "title": "Method Not Allowed",
+                  "type": "/api/v1/problems/method_not_allowed"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This HTTP method is not supported",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "408": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "request_timeout",
+                  "detail": "The request exceeded its time limit",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": true,
+                  "status": 408,
+                  "title": "Request Timeout",
+                  "type": "/api/v1/problems/request_timeout"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request exceeded its time limit",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "conflict",
+                  "detail": "The command conflicts with current state",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 409,
+                  "title": "Conflict",
+                  "type": "/api/v1/problems/conflict"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The command conflicts with current state",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "version_conflict",
+                  "detail": "This item changed since you opened it",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 412,
+                  "title": "Precondition Failed",
+                  "type": "/api/v1/problems/version_conflict"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This item changed since you opened it",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "payload_too_large",
+                  "detail": "The request body exceeds the allowed size",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 413,
+                  "title": "Payload Too Large",
+                  "type": "/api/v1/problems/payload_too_large"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request body exceeds the allowed size",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "unsupported_media_type",
+                  "detail": "Send application/json",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 415,
+                  "title": "Unsupported Media Type",
+                  "type": "/api/v1/problems/unsupported_media_type"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Send application/json",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "validation_failed",
+                  "detail": "Request fields or types are invalid",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 422,
+                  "title": "Unprocessable Entity",
+                  "type": "/api/v1/problems/validation_failed"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Request fields or types are invalid",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "precondition_required",
+                  "detail": "An If-Match version is required",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 428,
+                  "title": "Precondition Required",
+                  "type": "/api/v1/problems/precondition_required"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "An If-Match version is required",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "rate_limited",
+                  "detail": "Too many attempts. Try again later",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": true,
+                  "status": 429,
+                  "title": "Too Many Requests",
+                  "type": "/api/v1/problems/rate_limited"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Too many attempts. Try again later",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds before retrying; do not automatically replay an ambiguous write.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "internal_error",
+                  "detail": "An internal error occurred",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 500,
+                  "title": "Internal Server Error",
+                  "type": "/api/v1/problems/internal_error"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "An internal error occurred",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "dependency_unavailable",
+                  "detail": "Service temporarily unavailable",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": true,
+                  "status": 503,
+                  "title": "Service Unavailable",
+                  "type": "/api/v1/problems/dependency_unavailable"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Service temporarily unavailable",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "crate::cycles"
+        ]
+      }
+    },
     "/api/v1/workspaces/{w}/teams/{t}/cycles/{id}/issues/{issue}": {
       "put": {
         "operationId": "cycles_membership",
@@ -67661,7 +68481,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Page_CycleSnapshot"
+                  "$ref": "#/components/schemas/Page_CycleSnapshotPoint"
                 }
               }
             },

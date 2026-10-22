@@ -128,7 +128,7 @@ async fn emit(tx: &mut store::Tx, a: &Actor, c: &Cycle, action: &str) -> Result<
     .map_err(db_error)
 }
 async fn current_scope(tx: &mut store::Tx, c: &Cycle, kind: &str) -> Result<CycleSnapshot> {
-    let rows=sqlx::query("SELECT i.id,i.version,i.estimate,s.category,(i.deleted_at IS NOT NULL OR i.archived_at IS NOT NULL) AS excluded FROM cycle_issues ci JOIN issues i ON i.workspace_id=ci.workspace_id AND i.team_id=ci.team_id AND i.id=ci.issue_id JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id WHERE ci.workspace_id=$1 AND ci.team_id=$2 AND ci.cycle_id=$3 ORDER BY i.id LIMIT 10001").bind(c.workspace_id).bind(c.team_id).bind(c.id).fetch_all(&mut **tx).await.map_err(db_error)?;
+    let rows=sqlx::query("SELECT i.id,i.version,i.estimate,s.category,(i.deleted_at IS NOT NULL OR i.archived_at IS NOT NULL) AS excluded FROM issues i JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id WHERE i.workspace_id=$1 AND i.team_id=$2 AND i.id=ANY(ARRAY(SELECT issue_id FROM cycle_issues WHERE workspace_id=$1 AND team_id=$2 AND cycle_id=$3 ORDER BY issue_id LIMIT 10001)) ORDER BY i.id").bind(c.workspace_id).bind(c.team_id).bind(c.id).fetch_all(&mut **tx).await.map_err(db_error)?;
     if rows.len() > 10000 {
         return Err(Error::Conflict(
             "A cycle scope is limited to 10,000 issues".into(),
@@ -646,7 +646,7 @@ impl App {
         t: Uuid,
         id: Uuid,
         q: CycleQuery,
-    ) -> Result<Page<CycleSnapshot>> {
+    ) -> Result<Page<CycleSnapshotPoint>> {
         let n = limit(&q)?;
         let mut tx = self.scoped(a, w, false).await?;
         cycle(&mut tx, a, w, t, id).await?;
@@ -657,32 +657,21 @@ impl App {
             .as_deref()
             .map(|s| self.taxonomy_cursor_decode("cycle-snapshots-v1", &binding, s))
             .transpose()?;
-        let rows=sqlx::query("SELECT * FROM cycle_snapshots WHERE workspace_id=$1 AND team_id=$2 AND cycle_id=$3 AND ($4::timestamptz IS NULL OR (captured_at,id)<($4,$5)) ORDER BY captured_at DESC,id DESC LIMIT $6").bind(w).bind(t).bind(id).bind(after.map(|v|v.0)).bind(after.map(|v|v.1)).bind(n as i64+1).fetch_all(&mut *tx).await.map_err(db_error)?;
-        let has_more = rows.len() > n;
+        let mut data =
+            store::cycle_snapshot_points(&mut tx, w, a.user.id, t, id, after, n as i64 + 1)
+                .await
+                .map_err(db_error)?;
+        let has_more = data.len() > n;
         let next_cursor = if has_more {
-            let r = &rows[n - 1];
-            Some(
-                self.taxonomy_cursor_encode(
-                    "cycle-snapshots-v1",
-                    &binding,
-                    &(
-                        r.try_get::<DateTime<Utc>, _>("captured_at")
-                            .map_err(db_error)?,
-                        r.try_get::<Uuid, _>("id").map_err(db_error)?,
-                    ),
-                )?,
-            )
+            Some(self.taxonomy_cursor_encode(
+                "cycle-snapshots-v1",
+                &binding,
+                &(data[n - 1].captured_at, data[n - 1].id),
+            )?)
         } else {
             None
         };
-        let mut data = rows
-            .into_iter()
-            .take(n)
-            .map(snapshot_row)
-            .collect::<Result<Vec<_>>>()?;
-        for s in &mut data {
-            redact_snapshot(&mut tx, a, w, s).await?;
-        }
+        data.truncate(n);
         tx.commit().await.map_err(db_error)?;
         Ok(Page {
             data,
@@ -1162,4 +1151,42 @@ async fn visible_sources(
     ids: &[Uuid],
 ) -> Result<std::collections::HashSet<Uuid>> {
     Ok(sqlx::query_scalar::<_,Uuid>("SELECT i.id FROM issues i JOIN teams t ON t.workspace_id=i.workspace_id AND t.id=i.team_id WHERE i.workspace_id=$1 AND i.id=ANY($2) AND i.deleted_at IS NULL AND (NOT t.private OR EXISTS(SELECT 1 FROM team_members m WHERE m.workspace_id=t.workspace_id AND m.team_id=t.id AND m.user_id=$3))").bind(w).bind(ids).bind(a.user.id).fetch_all(&mut **tx).await.map_err(db_error)?.into_iter().collect())
+}
+
+impl App {
+    pub async fn cycle_issues(
+        &self,
+        a: &Actor,
+        w: Uuid,
+        t: Uuid,
+        id: Uuid,
+        q: CycleQuery,
+    ) -> Result<Page<CycleIssue>> {
+        let n = limit(&q)?;
+        let mut tx = self.scoped(a, w, false).await?;
+        cycle(&mut tx, a, w, t, id).await?;
+        let epoch = store::auth_epoch(&mut tx, w).await.map_err(db_error)?;
+        let binding = format!("{w}:{t}:{id}:{}:{epoch}:{n}", a.user.id);
+        let after: Option<Uuid> = q
+            .cursor
+            .as_deref()
+            .map(|s| self.taxonomy_cursor_decode("cycle-issues-v1", &binding, s))
+            .transpose()?;
+        let mut data = store::cycle_issue_page(&mut tx, w, a.user.id, t, id, after, n as i64 + 1)
+            .await
+            .map_err(db_error)?;
+        let has_more = data.len() > n;
+        let next_cursor = if has_more {
+            Some(self.taxonomy_cursor_encode("cycle-issues-v1", &binding, &data[n - 1].id)?)
+        } else {
+            None
+        };
+        data.truncate(n);
+        tx.commit().await.map_err(db_error)?;
+        Ok(Page {
+            data,
+            has_more,
+            next_cursor,
+        })
+    }
 }

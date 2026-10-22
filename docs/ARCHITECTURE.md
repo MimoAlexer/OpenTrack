@@ -42,9 +42,9 @@ Core workers perform trusted housekeeping and integration calls. They never exec
 | I11 | Permission revocation prevents new authorized operations and purges affected UI caches; audit remains restricted | Security |
 | I12 | Documented numbers are budgets until a named benchmark or test records a measurement | Performance |
 
-## Planned Cargo boundaries
+## Cargo boundaries
 
-This table describes future directories; none have been scaffolded.
+The root workspace implements six crates: domain, store, app, adapters, API and server. The native shell is a separate workspace under `desktop/`. `scripts/check-workspace-boundaries.py` checks both Cargo metadata inventories, including optional, renamed, build and platform-specific dependencies. Unknown product packages or local edges require an explicit policy review. `scripts/check.sh` runs the checker and its mutation regressions before the existing Rust format, Clippy and runtime checks.
 
 | Crate | Responsibilities | Allowed inward dependencies |
 | --- | --- | --- |
@@ -52,12 +52,13 @@ This table describes future directories; none have been scaffolded.
 | opentrack-app | Use cases, transaction orchestration, feature modules, bounded ports for external systems | domain, store; SQLx transaction types permitted deliberately |
 | opentrack-store | SQLx repositories, query projections, migrations, leases, blob metadata persistence | domain; no app orchestration |
 | opentrack-adapters | SMTP, GitHub, inference protocols, blob implementations, credential-envelope implementation | domain and app ports; no API transport |
-| opentrack-api | Axum extraction, session middleware, REST/SSE, serialization, static asset serving | app, domain; no direct feature-table SQL |
-| opentrack-worker | Durable job execution, projections, schedules, outbox deliveries, agent control plane | app, store, adapters |
+| opentrack-api | Axum extraction, session middleware, REST/SSE, serialization, static asset serving | app, domain, blob adapter; store/SQLx only in integration tests, no direct feature-table SQL |
+| worker modules in app/server | Durable job execution, projections, schedules, outbox deliveries, agent control plane | app use cases/store; server composes adapters, no separate worker crate |
 | opentrack-server | Composition root, validated config, shared observability, process lifecycle; API/worker subcommands | all core crates |
-| opentrack-runner | Later independent binary: enrollment, environment supervision, log/artifact transfer | domain protocol types only; no database credentials |
+| opentrack-desktop | Native transport, vault, transfer and lifecycle shell; server remains authorization authority | no backend crates or database drivers |
+| opentrack-runner (not implemented) | Later independent binary: enrollment, environment supervision, log/artifact transfer | domain protocol types only; no database credentials |
 
-Concrete SQLx-backed repositories are acceptable inside app use cases. Do not invent a generic repository/transaction framework or async trait for every table. A transaction is opened by a use case and passed explicitly to store functions; external ports exist where an alternate provider or a fake is useful. Store never calls app. Domain never imports Tokio, Axum, SQLx, or a provider SDK. Expose small feature modules within app: identity, tenancy, tracking, planning, collaboration, automation, integrations, AI, and agents. Split more crates only when compile-time or ownership evidence warrants it.
+Concrete SQLx-backed repositories are acceptable inside app use cases. Do not invent a generic repository/transaction framework or async trait for every table. A transaction is opened by a use case and passed explicitly to store functions; external ports exist where an alternate provider or a fake is useful. Store never calls app. Domain never imports Tokio, Axum, SQLx, or a provider SDK; its external library allowlist contains only current value/validation/serialization/schema dependencies. API transport dependencies stay out of app/store/adapters/native; database drivers stay in app/store/composition, with API integration-test access only. All owned packages use Rust 2024. Expose small feature modules within app: identity, tenancy, tracking, planning, collaboration, automation, integrations, AI, and agents. Split more crates only when compile-time or ownership evidence warrants it.
 
 The API composition root receives a state object containing an application service, PgPool handles, shutdown token, bounded broadcaster and immutable validated settings. Do not place mutable domain state in global singletons. The frontend organizes feature modules and a shared design system; generated wire types are distinct from local UI state.
 
@@ -88,6 +89,8 @@ workspace_events is the replay log and durable source for asynchronous projectio
 ## API evolution and testing seams
 
 Public /api/v1 is the same business surface used by the UI, with stricter token scopes where relevant. /internal/v1 runner control has a separate authenticated listener and audience. No privileged hidden browser API. Additive fields are allowed within v1; incompatible semantics need v2 or an opt-in capability. OpenAPI JSON and generated TypeScript types will be checked for drift during implementation.
+
+Current user-session ingress accepts only `web` cookies or `desktop` bearer credentials and queries the stored audience explicitly. Machine/control ingress remains unimplemented. The database and user-session type reject `internal`; the real PostgreSQL audience regression also admits an internal row in an isolated fixture to prove neither user authentication path accepts or refreshes it, independently of that database constraint (F31-A4).
 
 Unit tests cover pure invariants, real PostgreSQL tests cover transaction and RLS behavior, adapter fixtures cover provider boundaries, and two-client browser tests cover convergence. Document compatibility has been researched; no crate combination or application behavior has been executed in Phase 0.
 

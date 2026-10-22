@@ -11,6 +11,7 @@ use std::result::Result;
 use uuid::Uuid;
 pub(crate) fn routes() -> Router<ApiState> {
     Router::new()
+        .route("/workspaces/{w}/teams/{t}/cycles/{id}/issues", get(issues))
         .route("/workspaces/{w}/teams/{t}/cycles", get(list).post(create))
         .route(
             "/workspaces/{w}/teams/{t}/cycles/{id}",
@@ -223,7 +224,7 @@ pub(crate) async fn report(
     let item = s.app.cycle_report(&a, w, t, id, report).await?;
     Ok(Json(item).into_response())
 }
-#[utoipa::path(operation_id="cycles_snapshots",get,path="/api/v1/workspaces/{w}/teams/{t}/cycles/{id}/snapshots",params(("w"=Uuid,Path),("t"=Uuid,Path),("id"=Uuid,Path),("limit"=Option<u32>,Query,minimum=1,maximum=100),("cursor"=Option<String>,Query)),responses((status=200,body=Page<CycleSnapshot>)))]
+#[utoipa::path(operation_id="cycles_snapshots",get,path="/api/v1/workspaces/{w}/teams/{t}/cycles/{id}/snapshots",params(("w"=Uuid,Path),("t"=Uuid,Path),("id"=Uuid,Path),("limit"=Option<u32>,Query,minimum=1,maximum=100),("cursor"=Option<String>,Query)),responses((status=200,body=Page<CycleSnapshotPoint>)))]
 pub(crate) async fn snapshots(
     State(s): State<ApiState>,
     Auth(a): Auth,
@@ -317,4 +318,14 @@ pub(crate) async fn delete(
     csrf(&s, &headers, &a)?;
     s.app.delete_cycle(&a, w, t, id, etag(&headers)?).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[utoipa::path(operation_id="cycles_issues",get,path="/api/v1/workspaces/{w}/teams/{t}/cycles/{id}/issues",params(("w"=Uuid,Path),("t"=Uuid,Path),("id"=Uuid,Path),("limit"=Option<u32>,Query,minimum=1,maximum=100),("cursor"=Option<String>,Query)),responses((status=200,body=Page<CycleIssue>)))]
+pub(crate) async fn issues(
+    State(s): State<ApiState>,
+    Auth(a): Auth,
+    Path((w, t, id)): Path<(Uuid, Uuid, Uuid)>,
+    Query(q): Query<CycleQuery>,
+) -> Result<Response, ApiError> {
+    Ok(Json(s.app.cycle_issues(&a, w, t, id, q).await?).into_response())
 }

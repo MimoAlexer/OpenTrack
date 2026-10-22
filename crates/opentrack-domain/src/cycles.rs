@@ -181,3 +181,37 @@ mod tests {
         assert!(serde_json::from_str::<UpdateCycle>(r#"{"state":"closed"}"#).is_err());
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct CycleIssue {
+    pub id: Uuid,
+    pub key: String,
+    pub title: String,
+    pub status_id: Uuid,
+    pub status_name: String,
+    pub status_category: String,
+    pub priority: i16,
+    #[schema(required = true)]
+    pub estimate: Option<i32>,
+    #[schema(required = true)]
+    pub archived_at: Option<DateTime<Utc>>,
+    pub version: String,
+    pub etag: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct CycleSnapshotPoint {
+    pub redacted: bool,
+    pub id: Uuid,
+    pub cycle_id: Uuid,
+    pub local_date: NaiveDate,
+    pub captured_at: DateTime<Utc>,
+    pub kind: String,
+    pub definition_version: i32,
+    pub scope_count: i64,
+    pub completed_count: i64,
+    pub canceled_count: i64,
+    pub unfinished_count: i64,
+    pub excluded_count: i64,
+    pub estimate_total: i64,
+}
