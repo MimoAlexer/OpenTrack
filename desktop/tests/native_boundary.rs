@@ -1139,3 +1139,87 @@ async fn an_untrusted_tls_certificate_is_rejected_without_sending_http_credentia
     assert_eq!(result.err().unwrap().code, "network_error");
     server.await.unwrap();
 }
+
+#[tokio::test]
+async fn only_bounded_single_cycle_responses_receive_the_four_mib_cap() {
+    let base = "/api/v1/workspaces/00000000-0000-0000-0000-000000000001/teams/00000000-0000-0000-0000-000000000002/cycles";
+    let cycle = format!("{base}/00000000-0000-0000-0000-000000000003");
+    let report = "00000000-0000-0000-0000-000000000004";
+    for (method, path, size, accepted) in [
+        (Method::Get, format!("{cycle}/scope"), 3100 * 1024, true),
+        (
+            Method::Get,
+            format!("{cycle}/close-preview"),
+            3100 * 1024,
+            true,
+        ),
+        (
+            Method::Get,
+            format!("{cycle}/reports/{report}"),
+            3100 * 1024,
+            true,
+        ),
+        (Method::Post, format!("{cycle}/close"), 3100 * 1024, true),
+        (
+            Method::Post,
+            format!("{cycle}/snapshots"),
+            3100 * 1024,
+            true,
+        ),
+        (
+            Method::Get,
+            format!("{cycle}/snapshots"),
+            1100 * 1024,
+            false,
+        ),
+        (Method::Get, format!("{cycle}/issues"), 1100 * 1024, false),
+        (Method::Get, cycle.clone(), 1100 * 1024, false),
+        (Method::Get, base.to_owned(), 1100 * 1024, false),
+        (Method::Post, format!("{cycle}/scope"), 1100 * 1024, false),
+        (
+            Method::Post,
+            format!("{cycle}/close-preview"),
+            1100 * 1024,
+            false,
+        ),
+        (
+            Method::Get,
+            format!("{cycle}/reports/invalid"),
+            1100 * 1024,
+            false,
+        ),
+        (
+            Method::Get,
+            format!("{cycle}/scope/extra"),
+            1100 * 1024,
+            false,
+        ),
+        (
+            Method::Get,
+            format!("{cycle}/scope"),
+            4 * 1024 * 1024,
+            false,
+        ),
+    ] {
+        let mut server = Server::new().await;
+        let transport = Transport::new().unwrap();
+        let origin = ServerOrigin::parse(&server.origin).unwrap();
+        let running = tokio::spawn(async move {
+            transport
+                .send(&origin, method, &path, None, &BTreeMap::new(), None, None)
+                .await
+        });
+        server
+            .next()
+            .await
+            .respond
+            .send(Response::json(200, json!({"text":"x".repeat(size)})))
+            .ok();
+        let result = running.await.unwrap();
+        if accepted {
+            assert!(result.is_ok());
+        } else {
+            assert_eq!(result.err().unwrap().code, NativeError::server().code);
+        }
+    }
+}

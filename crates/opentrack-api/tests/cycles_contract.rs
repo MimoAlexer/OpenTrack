@@ -1,0 +1,704 @@
+//! Cycle lifecycle, concurrency and durable invariants against real PostgreSQL.
+#[allow(dead_code)]
+mod support;
+use axum::{
+    Router,
+    body::{Body, to_bytes},
+    http::{HeaderMap, Request, StatusCode},
+};
+use serde_json::{Value, json};
+use support::{Harness, ORIGIN};
+use tower::ServiceExt;
+
+#[derive(Clone)]
+struct Client {
+    cookie: String,
+    csrf: String,
+}
+struct Reply {
+    status: StatusCode,
+    headers: HeaderMap,
+    body: Value,
+}
+impl Reply {
+    #[track_caller]
+    fn expect(&self, status: StatusCode) {
+        assert_eq!(self.status, status, "{}", self.body);
+    }
+    fn etag(&self) -> &str {
+        self.headers["etag"].to_str().unwrap()
+    }
+    #[track_caller]
+    fn problem(&self, status: StatusCode, code: &str) {
+        self.expect(status);
+        assert_eq!(self.body["code"], code);
+        assert_eq!(self.headers["content-type"], "application/problem+json");
+        assert!(!self.headers.contains_key("etag"));
+        assert!(!self.headers.contains_key("location"));
+    }
+}
+async fn request(
+    router: &Router,
+    client: Option<&Client>,
+    method: &str,
+    path: &str,
+    body: Option<Value>,
+    extra: &[(&str, &str)],
+) -> Reply {
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(path)
+        .header("origin", ORIGIN);
+    if let Some(client) = client {
+        builder = builder
+            .header("cookie", &client.cookie)
+            .header("x-csrf-token", &client.csrf);
+    }
+    for (key, value) in extra {
+        builder = builder.header(*key, *value);
+    }
+    if body.is_some() {
+        builder = builder.header("content-type", "application/json");
+    }
+    let response = router
+        .clone()
+        .oneshot(
+            builder
+                .body(Body::from(
+                    body.map(|value| serde_json::to_vec(&value).unwrap())
+                        .unwrap_or_default(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let headers = response.headers().clone();
+    assert_eq!(headers["cache-control"], "no-store");
+    let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+    Reply {
+        status,
+        headers,
+        body: if bytes.is_empty() {
+            Value::Null
+        } else {
+            serde_json::from_slice(&bytes).unwrap()
+        },
+    }
+}
+
+fn client(reply: &Reply) -> Client {
+    Client {
+        cookie: reply.headers["set-cookie"]
+            .to_str()
+            .unwrap()
+            .split(';')
+            .next()
+            .unwrap()
+            .into(),
+        csrf: reply.body["csrf_token"].as_str().unwrap().into(),
+    }
+}
+async fn setup(h: &Harness) -> (Client, String, String, Value) {
+    let out=request(&h.router,None,"POST","/api/v1/setup",Some(json!({"setup_token":h.setup_token,"email":"owner@cycles.example.test","display_name":"Example Owner","password":"Cycle acceptance verification password 2026!","workspace_name":"Cycle contracts","team_name":"Engineering","team_key":"ENG"})),&[]).await;
+    out.expect(StatusCode::CREATED);
+    let c = client(&out);
+    let base = format!(
+        "/api/v1/workspaces/{}",
+        out.body["workspaces"][0]["id"].as_str().unwrap()
+    );
+    let boot = request(
+        &h.router,
+        Some(&c),
+        "GET",
+        &format!("{base}/bootstrap"),
+        None,
+        &[],
+    )
+    .await;
+    boot.expect(StatusCode::OK);
+    let t = boot.body["teams"][0]["id"].as_str().unwrap().to_owned();
+    (c, base, t, boot.body)
+}
+async fn get(h: &Harness, c: &Client, url: &str) -> Reply {
+    let out = request(&h.router, Some(c), "GET", url, None, &[]).await;
+    out.expect(StatusCode::OK);
+    out
+}
+async fn issue(h: &Harness, c: &Client, base: &str, t: &str, status: &str, name: &str) -> Reply {
+    let out = request(
+        &h.router,
+        Some(c),
+        "POST",
+        &format!("{base}/issues"),
+        Some(json!({"team_id":t,"title":name,"status_id":status})),
+        &[("idempotency-key", &format!("cycle-issue-{name}"))],
+    )
+    .await;
+    out.expect(StatusCode::CREATED);
+    out
+}
+
+async fn create_cycle(
+    h: &Harness,
+    c: &Client,
+    url: &str,
+    start: &str,
+    end: &str,
+    key: &str,
+) -> Reply {
+    let r=request(&h.router,Some(c),"POST",url,Some(json!({"name":"Delivery interval","start_date":start,"end_date_exclusive":end,"timezone":"Europe/Berlin"})),&[("idempotency-key",key)]).await;
+    r.expect(StatusCode::CREATED);
+    r
+}
+async fn action(
+    h: &Harness,
+    c: &Client,
+    url: &str,
+    p: &Reply,
+    action: &str,
+    body: Option<Value>,
+) -> Reply {
+    let r = request(
+        &h.router,
+        Some(c),
+        "POST",
+        &format!("{url}/{action}"),
+        body,
+        &[
+            ("if-match", p.etag()),
+            ("idempotency-key", &format!("cycle-action-{action}")),
+        ],
+    )
+    .await;
+    r.expect(StatusCode::OK);
+    r
+}
+async fn attach(h: &Harness, c: &Client, url: &str, p: &Reply, i: &Reply) -> Reply {
+    let r = request(
+        &h.router,
+        Some(c),
+        "PUT",
+        &format!("{url}/issues/{}", i.body["id"].as_str().unwrap()),
+        Some(json!({"included":true,"issue_etag":i.etag()})),
+        &[("if-match", p.etag())],
+    )
+    .await;
+    r.expect(StatusCode::OK);
+    r
+}
+#[tokio::test]
+async fn cycle_lifecycle_dst_close_and_reviewed_resumable_carry() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let run = tokio::spawn(async move { lifecycle(&copy).await }).await;
+    h.cleanup().await;
+    if let Err(e) = run {
+        std::panic::resume_unwind(e.into_panic());
+    }
+}
+async fn lifecycle(h: &Harness) {
+    let (c, base, t, boot) = setup(h).await;
+    let directory = format!("{base}/teams/{t}/cycles");
+    let mut spring = create_cycle(
+        h,
+        &c,
+        &directory,
+        "2026-03-29",
+        "2026-03-30",
+        "cycle-spring",
+    )
+    .await;
+    let url = spring.headers["location"].to_str().unwrap().to_owned();
+    assert_eq!(spring.body["starts_at"], "2026-03-28T23:00:00Z");
+    assert_eq!(spring.body["ends_at"], "2026-03-29T22:00:00Z");
+    let fall = create_cycle(h, &c, &directory, "2026-10-25", "2026-10-26", "cycle-fall").await;
+    assert_eq!(fall.body["starts_at"], "2026-10-24T22:00:00Z");
+    assert_eq!(fall.body["ends_at"], "2026-10-25T23:00:00Z");
+    let destination = create_cycle(
+        h,
+        &c,
+        &directory,
+        "2026-03-30",
+        "2026-04-06",
+        "cycle-followup",
+    )
+    .await;
+    let dest_url = destination.headers["location"].to_str().unwrap().to_owned();
+    let temporary = create_cycle(
+        h,
+        &c,
+        &directory,
+        "2026-09-01",
+        "2026-09-08",
+        "temporary-planned-cycle",
+    )
+    .await;
+    let temporary_url = temporary.headers["location"].to_str().unwrap();
+    request(
+        &h.router,
+        Some(&c),
+        "DELETE",
+        temporary_url,
+        None,
+        &[("if-match", temporary.etag())],
+    )
+    .await
+    .expect(StatusCode::NO_CONTENT);
+    request(&h.router, Some(&c), "GET", temporary_url, None, &[])
+        .await
+        .problem(StatusCode::NOT_FOUND, "not_found");
+    create_cycle(
+        h,
+        &c,
+        &directory,
+        "2026-09-01",
+        "2026-09-08",
+        "reused-planned-dates",
+    )
+    .await;
+    let statuses = boot["statuses"].as_array().unwrap();
+    let status = |category: &str| {
+        statuses
+            .iter()
+            .find(|v| v["team_id"] == t && v["category"] == category)
+            .unwrap()["id"]
+            .as_str()
+            .unwrap()
+    };
+    let unfinished = issue(h, &c, &base, &t, status("unstarted"), "Unfinished").await;
+    let done = issue(h, &c, &base, &t, status("completed"), "Completed").await;
+    let canceled = issue(h, &c, &base, &t, status("canceled"), "Canceled").await;
+    for i in [&unfinished, &done, &canceled] {
+        spring = attach(h, &c, &url, &spring, i).await;
+    }
+    let page = get(h, &c, &format!("{url}/issues?limit=2")).await;
+    assert_eq!(page.body["data"].as_array().unwrap().len(), 2);
+    assert_eq!(page.body["has_more"], true);
+    assert!(page.body["data"][0]["title"].as_str().is_some());
+    let first_id = page.body["data"][0]["id"].as_str().unwrap();
+    let canonical = get(h, &c, &format!("{base}/issues/{first_id}")).await;
+    assert_eq!(page.body["data"][0]["etag"], canonical.body["etag"]);
+    let cursor = url::form_urlencoded::Serializer::new(String::new())
+        .append_pair("cursor", page.body["next_cursor"].as_str().unwrap())
+        .finish();
+    let next = get(h, &c, &format!("{url}/issues?limit=2&{cursor}")).await;
+    assert_eq!(next.body["data"].as_array().unwrap().len(), 1);
+    assert_eq!(next.body["has_more"], false);
+    let stale = spring.etag().to_owned();
+    spring = action(h, &c, &url, &spring, "open", None).await;
+    let opened = get(h, &c, &format!("{url}/snapshots")).await;
+    assert_eq!(opened.body["data"][0]["kind"], "opened");
+    assert_eq!(opened.body["data"][0]["scope_count"], 3);
+    let first = action(h, &c, &url, &spring, "snapshots", None).await;
+    let repeat = action(h, &c, &url, &spring, "snapshots", None).await;
+    assert_eq!(first.body, repeat.body);
+    let preview = get(h, &c, &format!("{url}/close-preview")).await;
+    assert_eq!(preview.body["scope"]["unfinished_count"], 1);
+    assert_eq!(preview.body["scope"]["completed_count"], 1);
+    assert_eq!(preview.body["scope"]["canceled_count"], 1);
+    request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &format!("{url}/close"),
+        Some(json!({"review_token":preview.body["review_token"]})),
+        &[
+            ("if-match", &stale),
+            ("idempotency-key", "stale-close-request"),
+        ],
+    )
+    .await
+    .problem(StatusCode::PRECONDITION_FAILED, "version_conflict");
+    let issue_url = format!("{base}/issues/{}", unfinished.body["id"].as_str().unwrap());
+    let current = get(h, &c, &issue_url).await;
+    let changed = request(
+        &h.router,
+        Some(&c),
+        "PATCH",
+        &issue_url,
+        Some(json!({"priority":2})),
+        &[("if-match", current.etag())],
+    )
+    .await;
+    changed.expect(StatusCode::OK);
+    request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &format!("{url}/close"),
+        Some(json!({"review_token":preview.body["review_token"]})),
+        &[
+            ("if-match", spring.etag()),
+            ("idempotency-key", "stale-preview-request"),
+        ],
+    )
+    .await
+    .problem(StatusCode::CONFLICT, "conflict");
+    let preview = get(h, &c, &format!("{url}/close-preview")).await;
+    let closed = action(
+        h,
+        &c,
+        &url,
+        &spring,
+        "close",
+        Some(json!({"review_token":preview.body["review_token"]})),
+    )
+    .await;
+    let replay = action(
+        h,
+        &c,
+        &url,
+        &spring,
+        "close",
+        Some(json!({"review_token":preview.body["review_token"]})),
+    )
+    .await;
+    assert_eq!(closed.body, replay.body);
+    assert_eq!(
+        get(h, &c, &issue_url).await.body["status_id"],
+        changed.body["status_id"]
+    );
+    assert_eq!(
+        get(h, &c, &issue_url).await.body["version"],
+        changed.body["version"]
+    );
+    assert_eq!(
+        get(h, &c, &format!("{url}/scope")).await.body["scope_count"],
+        3
+    );
+    assert_eq!(
+        get(h, &c, &format!("{dest_url}/scope")).await.body["scope_count"],
+        0
+    );
+    let closed_cycle = get(h, &c, &url).await;
+    request(
+        &h.router,
+        Some(&c),
+        "PATCH",
+        &url,
+        Some(json!({"name":"Silent correction"})),
+        &[("if-match", closed_cycle.etag())],
+    )
+    .await
+    .problem(StatusCode::CONFLICT, "conflict");
+    let iid = unfinished.body["id"].clone();
+    let carry_body = json!({"report_id":closed.body["id"],"destination_cycle_id":destination.body["id"],"destination_etag":destination.etag(),"items":[{"issue_id":iid,"issue_version":"1"}]});
+    let failed = action(
+        h,
+        &c,
+        &url,
+        &closed_cycle,
+        "carry-forward",
+        Some(carry_body.clone()),
+    )
+    .await;
+    assert_eq!(failed.body["state"], "needs_review");
+    assert_eq!(failed.body["results"][0]["outcome"], "version_conflict");
+    let replay = action(
+        h,
+        &c,
+        &url,
+        &closed_cycle,
+        "carry-forward",
+        Some(carry_body),
+    )
+    .await;
+    assert_eq!(replay.body, failed.body);
+    let op_url = format!(
+        "{url}/carry-forward/{}",
+        failed.body["id"].as_str().unwrap()
+    );
+    let resume_body = json!({"destination_etag":destination.etag(),"items":[{"issue_id":iid,"issue_version":changed.body["version"]}]});
+    let resumed = action(h, &c, &op_url, &failed, "resume", Some(resume_body.clone())).await;
+    assert_eq!(resumed.body["state"], "complete");
+    assert_eq!(resumed.body["results"][0]["outcome"], "moved");
+    let replay = action(h, &c, &op_url, &failed, "resume", Some(resume_body)).await;
+    assert_eq!(replay.body, resumed.body);
+    assert_eq!(
+        get(h, &c, &format!("{dest_url}/scope")).await.body["unfinished_count"],
+        1
+    );
+    assert_eq!(
+        get(h, &c, &format!("{url}/scope")).await.body["scope_count"],
+        2
+    );
+    assert_eq!(
+        get(
+            h,
+            &c,
+            &format!("{url}/reports/{}", closed.body["id"].as_str().unwrap())
+        )
+        .await
+        .body["scope"]["scope_count"],
+        3
+    );
+    let current = get(h, &c, &url).await;
+    let reopened = action(
+        h,
+        &c,
+        &url,
+        &current,
+        "reopen",
+        Some(json!({"reason":"Review a late correction"})),
+    )
+    .await;
+    assert_eq!(reopened.body["state"], "active");
+    let history = get(h, &c, &format!("{url}/snapshots")).await;
+    assert!(
+        history.body["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["kind"] == "closed")
+    );
+    assert_eq!(
+        get(
+            h,
+            &c,
+            &format!("{url}/reports/{}", closed.body["id"].as_str().unwrap())
+        )
+        .await
+        .body["cycle"]["state"],
+        "closed"
+    );
+}
+async fn invite(h: &Harness, c: &Client, base: &str, role: &str) -> Client {
+    let invited = request(
+        &h.router,
+        Some(c),
+        "POST",
+        &format!("{base}/invitations"),
+        Some(json!({"email":format!("{role}@cycles.example.test"),"role":role,"team_ids":[]})),
+        &[("idempotency-key", &format!("cycle-invite-{role}"))],
+    )
+    .await;
+    invited.expect(StatusCode::CREATED);
+    let accepted=request(&h.router,None,"POST","/api/v1/invitations/accept",Some(json!({"token":invited.body["token"],"display_name":format!("Example {role}"),"password":"Cycle member verification password 2026!"})),&[]).await;
+    accepted.expect(StatusCode::OK);
+    client(&accepted)
+}
+
+#[tokio::test]
+async fn cycle_permissions_validation_private_scope_and_atomic_rollback() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let run = tokio::spawn(async move { permissions(&copy).await }).await;
+    h.cleanup().await;
+    if let Err(e) = run {
+        std::panic::resume_unwind(e.into_panic());
+    }
+}
+async fn permissions(h: &Harness) {
+    let (owner, base, t, boot) = setup(h).await;
+    let directory = format!("{base}/teams/{t}/cycles");
+    let member = invite(h, &owner, &base, "member").await;
+    let viewer = invite(h, &owner, &base, "viewer").await;
+    let body = json!({"name":"Delivery","start_date":"2026-05-01","end_date_exclusive":"2026-05-08","timezone":"UTC"});
+    for client in [&member, &viewer] {
+        request(
+            &h.router,
+            Some(client),
+            "POST",
+            &directory,
+            Some(body.clone()),
+            &[("idempotency-key", "denied-cycle-create")],
+        )
+        .await
+        .problem(StatusCode::FORBIDDEN, "forbidden");
+    }
+    for (key, value) in [
+        ("timezone", json!("Invalid/Zone")),
+        ("timezone", json!("EST")),
+        ("end_date_exclusive", json!("2026-05-01")),
+        ("end_date_exclusive", json!("2028-05-01")),
+    ] {
+        let mut invalid = body.clone();
+        invalid[key] = value;
+        request(
+            &h.router,
+            Some(&owner),
+            "POST",
+            &directory,
+            Some(invalid),
+            &[("idempotency-key", "invalid-cycle-create")],
+        )
+        .await
+        .problem(StatusCode::UNPROCESSABLE_ENTITY, "validation_failed");
+    }
+    let made = create_cycle(
+        h,
+        &owner,
+        &directory,
+        "2026-05-01",
+        "2026-05-08",
+        "permission-cycle",
+    )
+    .await;
+    let url = made.headers["location"].to_str().unwrap();
+    request(
+        &h.router,
+        Some(&owner),
+        "POST",
+        &directory,
+        Some(body),
+        &[("idempotency-key", "overlap-cycle-create")],
+    )
+    .await
+    .problem(StatusCode::CONFLICT, "conflict");
+    let adjacent = create_cycle(
+        h,
+        &owner,
+        &directory,
+        "2026-05-08",
+        "2026-05-15",
+        "adjacent-cycle",
+    )
+    .await;
+    let adjacent_url = adjacent.headers["location"].to_str().unwrap();
+    request(
+        &h.router,
+        Some(&owner),
+        "PATCH",
+        adjacent_url,
+        Some(json!({"start_date":"2026-05-07"})),
+        &[("if-match", adjacent.etag())],
+    )
+    .await
+    .problem(StatusCode::CONFLICT, "conflict");
+    request(
+        &h.router,
+        Some(&owner),
+        "PATCH",
+        url,
+        Some(json!({"name":"Missing validator"})),
+        &[],
+    )
+    .await
+    .problem(StatusCode::PRECONDITION_REQUIRED, "precondition_required");
+    let task = issue(
+        h,
+        &owner,
+        &base,
+        &t,
+        boot["statuses"][0]["id"].as_str().unwrap(),
+        "Member planning",
+    )
+    .await;
+    let seen = get(h, &member, url).await;
+    let planned = attach(h, &member, url, &seen, &task).await;
+    assert_eq!(planned.body["can_plan"], true);
+    assert_eq!(planned.body["can_manage"], false);
+    request(
+        &h.router,
+        Some(&member),
+        "POST",
+        &format!("{url}/open"),
+        None,
+        &[("if-match", planned.etag())],
+    )
+    .await
+    .problem(StatusCode::FORBIDDEN, "forbidden");
+    let seen = get(h, &viewer, url).await;
+    assert_eq!(seen.body["can_plan"], false);
+    request(
+        &h.router,
+        Some(&viewer),
+        "PUT",
+        &format!("{url}/issues/{}", task.body["id"].as_str().unwrap()),
+        Some(json!({"included":false,"issue_etag":task.etag()})),
+        &[("if-match", seen.etag())],
+    )
+    .await
+    .problem(StatusCode::FORBIDDEN, "forbidden");
+    let private = request(
+        &h.router,
+        Some(&owner),
+        "POST",
+        &format!("{base}/teams"),
+        Some(json!({"name":"Private delivery","key":"PRV","private":true})),
+        &[("idempotency-key", "private-cycle-team")],
+    )
+    .await;
+    private.expect(StatusCode::CREATED);
+    let private_dir = format!(
+        "{base}/teams/{}/cycles",
+        private.body["id"].as_str().unwrap()
+    );
+    let private_cycle = create_cycle(
+        h,
+        &owner,
+        &private_dir,
+        "2026-05-01",
+        "2026-05-08",
+        "private-cycle-create",
+    )
+    .await;
+    let private_url = private_cycle.headers["location"].to_str().unwrap();
+    for endpoint in [
+        &private_dir,
+        private_url,
+        &format!("{private_url}/scope"),
+        &format!("{private_url}/issues"),
+        &format!("{private_url}/snapshots"),
+        &format!("{private_url}/close-preview"),
+    ] {
+        request(&h.router, Some(&member), "GET", endpoint, None, &[])
+            .await
+            .problem(StatusCode::NOT_FOUND, "not_found");
+    }
+    let w = base.rsplit('/').next().unwrap().parse().unwrap();
+    let actor = boot["members"][0]["id"].as_str().unwrap().parse().unwrap();
+    let team = t.parse().unwrap();
+    let mut tx = h.lock_team(w, team, actor).await;
+    sqlx::query("CREATE FUNCTION suppress_cycle_close() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN IF NEW.event_type='cycle.closed' THEN RETURN NULL;END IF;RETURN NEW;END$$").execute(&mut *tx).await.unwrap();
+    sqlx::query("CREATE TRIGGER suppress_cycle_close BEFORE INSERT ON workspace_events FOR EACH ROW EXECUTE FUNCTION suppress_cycle_close()").execute(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    let current = get(h, &owner, url).await;
+    let opened = action(h, &owner, url, &current, "open", None).await;
+    let preview = get(h, &owner, &format!("{url}/close-preview")).await;
+    request(
+        &h.router,
+        Some(&owner),
+        "POST",
+        &format!("{url}/close"),
+        Some(json!({"review_token":preview.body["review_token"]})),
+        &[
+            ("if-match", opened.etag()),
+            ("idempotency-key", "must-rollback-close"),
+        ],
+    )
+    .await
+    .problem(StatusCode::INTERNAL_SERVER_ERROR, "internal_error");
+    assert_eq!(get(h, &owner, url).await.body["state"], "active");
+    let history = get(h, &owner, &format!("{url}/snapshots")).await;
+    assert!(
+        !history.body["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["kind"] == "closed")
+    );
+    let mut tx = h.lock_team(w, team, actor).await;
+    let receipts:i64=sqlx::query_scalar("SELECT count(*) FROM idempotency_records WHERE workspace_id=$1 AND route LIKE 'cycles.close:%'").bind(w).fetch_one(&mut *tx).await.unwrap();
+    assert_eq!(receipts, 0);
+    opentrack_store::context(&mut tx, actor, Some(uuid::Uuid::new_v4()))
+        .await
+        .unwrap();
+    for table in [
+        "cycles",
+        "cycle_issues",
+        "cycle_snapshots",
+        "cycle_close_reports",
+        "cycle_carry_operations",
+        "cycle_reopen_reasons",
+    ] {
+        let count: i64 =
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+        assert_eq!(count, 0);
+    }
+    tx.rollback().await.unwrap();
+}
