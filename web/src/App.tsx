@@ -22,6 +22,7 @@ import { Trash } from './issues/Trash';
 import { CommandPalette, CommandHelp } from './commands/CommandPalette';
 import { useCommandShortcuts, type Command } from './commands/registry';
 import { useShortcutPreference } from './commands/useShortcutPreference';
+import { useRecentIssues } from './commands/usePaletteIssues';
 import { issuesUrl, settingsUrl, trashUrl, Link, navigate, parseRoute, useLocation } from './router';
 import { SettingsScreen } from './settings/SettingsScreen';
 import { CreateWorkspace } from './settings/WorkspaceSettings';
@@ -153,6 +154,8 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
   const [accessBlocked, setAccessBlocked] = useState(true);
   const [lastKnownEpoch, setLastKnownEpoch] = useState<string | null>(null);
   const [workspaceArchived, setWorkspaceArchived] = useState(false);
+  const paletteScope = accessBlocked ? '' : `${sessionScope}:${workspace.id}:${accessRevision}:${lastKnownEpoch}`;
+  const recentIssues = useRecentIssues(paletteScope, accessBlocked ? undefined : route.issueId);
   const readOnly = workspace.role === 'viewer' || workspaceArchived;
   const activeTeams = data?.teams.filter(team => !team.archived_at) ?? [];
   const team = data?.teams.find(team => team.id === route.search.get('team_id'));
@@ -253,7 +256,7 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
     {creating && data && <CreateIssue workspaceId={workspace.id} data={data} session={session} initialTeam={team?.id} close={() => setCreating(false)} created={created} workflowChanged={workflowChanged} />}
     {creatingWorkspace && <CreateWorkspace session={session} close={() => setCreatingWorkspace(false)} reauthenticate={() => setReauth(true)} created={async item => { await settingsChanged(); setCreatingWorkspace(false); navigate(issuesUrl(item.id)); }} />}
     {reauth && <Reauthenticate session={session} close={() => setReauth(false)} authenticated={authenticated} />}
-    {palette && <CommandPalette charactersEnabled={shortcutPreference.charactersEnabled} commands={commands.filter(command => command.id !== 'commands')} close={() => setPalette(false)} />}
+    {palette && !accessBlocked && <CommandPalette key={paletteScope} charactersEnabled={shortcutPreference.charactersEnabled} commands={commands.filter(command => command.id !== 'commands')} issueSource={{ workspaceId: workspace.id, scope: paletteScope, recentIds: recentIssues, open: id => navigate(issuesUrl(workspace.id, new URLSearchParams(), id)) }} close={() => setPalette(false)} />}
     {shortcuts && <CommandHelp preference={shortcutPreference} commands={commands} close={() => setShortcuts(false)} />}
   </div>;
 }

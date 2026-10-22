@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 export interface Command {
   id: string;
   label: string;
-  section: 'Actions' | 'Navigation' | 'Help';
+  section: 'Actions' | 'Navigation' | 'Help' | 'Issues' | 'Recent issues';
   keywords?: string;
   shortcut?: { key: string; primary?: boolean; then?: string };
   available?: boolean;
