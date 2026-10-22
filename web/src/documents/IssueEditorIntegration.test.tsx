@@ -31,3 +31,14 @@ it('serializes metadata behind body save and uses the acknowledged representatio
  latest={...issue,description:'Edited body',body_version:'2',etag:'"issue:i:1:body2"'};await act(async()=>finish(json(doc('Edited body','2'))));expect(container.querySelector<HTMLTextAreaElement>('#issue-title')!.value).toBe('Edited title');expect(updated).toHaveBeenCalledWith(latest,{refreshList:false});expect(save().disabled).toBe(false);await act(async()=>save().click());expect(latest.title).toBe('Edited title');expect(container.textContent).not.toContain('This issue changed while');
 });
 it('keeps independent unsaved registrations until every editor is clean',async()=>{function Guard({dirty}:{dirty:boolean}){useUnsavedChanges(dirty);return null;}await act(async()=>root.render(<><Guard dirty/><Guard dirty/></>));expect(hasUnsavedChanges()).toBe(true);await act(async()=>root.render(<><Guard dirty/><Guard dirty={false}/></>));expect(hasUnsavedChanges()).toBe(true);await act(async()=>root.render(<><Guard dirty={false}/><Guard dirty={false}/></>));expect(hasUnsavedChanges()).toBe(false);});
+
+it('keeps legacy IME and modified editing keys from submitting issue metadata', async () => {
+ const fetch = vi.fn((url: string, options: RequestInit) => Promise.resolve(json(url.endsWith('/document') ? doc('Original body', '1') : options.method === 'PATCH' ? { ...issue, title: 'Reviewed title', version: '2' } : issue))); vi.stubGlobal('fetch', fetch);
+ await act(async () => root.render(<IssueEditor workspaceId="w" issueId="i" data={data} session={session} close={() => {}} updated={() => {}} />)); await type('#issue-title', 'Reviewed title');
+ const input = container.querySelector<HTMLTextAreaElement>('#issue-title')!;
+ for (const options of [{ keyCode: 229 }, { isComposing: true }, { altKey: true }, { repeat: true }]) await act(async () => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true, ...options })));
+ const event = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true }); Object.defineProperty(event, 'getModifierState', { value: (name: string) => name === 'AltGraph' }); await act(async () => input.dispatchEvent(event));
+ expect(fetch.mock.calls.filter(([, options]) => options.method === 'PATCH')).toHaveLength(0);
+ await act(async () => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true })));
+ expect(fetch.mock.calls.filter(([, options]) => options.method === 'PATCH')).toHaveLength(1);
+});

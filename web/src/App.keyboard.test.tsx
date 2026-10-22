@@ -66,3 +66,15 @@ it('navigates G then M only while enabled and keeps My work visible', async () =
   expect(location.search).toBe('?view=mine'); expect(container.querySelector('a[aria-current="page"]')!.textContent).toBe('My work');
   await click('Keyboard shortcuts'); expect(container.textContent).toContain('G then M'); expect(container.textContent).not.toContain('Inbox');
 });
+
+it('does not submit a create draft for legacy IME, AltGraph or repeated Mod+Enter', async () => {
+  await act(async () => root.render(<App />)); await key(window, 'c');
+  const input = await setTitle('Reviewed keyboard issue');
+  for (const options of [{ keyCode: 229 }, { isComposing: true }, { altKey: true }, { repeat: true }]) await key(input, 'Enter', { ctrlKey: true, ...options });
+  const event = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'getModifierState', { value: (name: string) => name === 'AltGraph' });
+  await act(async () => input.dispatchEvent(event));
+  expect(fetchMock.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(0);
+  expect(input.value).toBe('Reviewed keyboard issue');
+  await key(input, 'Enter', { ctrlKey: true }); expect(location.pathname).toBe('/w/w/issues/created');
+});

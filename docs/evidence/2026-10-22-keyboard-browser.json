@@ -1,0 +1,100 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "keyboard-only create, status, save, search and recent navigation work with character shortcuts disabled",
+      "status": "passed",
+      "duration_ms": 1574
+    },
+    {
+      "browser": "chromium",
+      "check": "picker ignores synthetic composition and modified text keys before ordinary keyboard selection",
+      "status": "passed",
+      "duration_ms": 455
+    },
+    {
+      "browser": "chromium",
+      "check": "private-team revocation removes a real recent issue title and excludes it from search",
+      "status": "passed",
+      "duration_ms": 4336
+    },
+    {
+      "browser": "chromium",
+      "check": "palette searches saved issues and reauthorizes recent titles with character shortcuts disabled",
+      "status": "passed",
+      "duration_ms": 827
+    },
+    {
+      "browser": "chromium",
+      "check": "palette keeps focus and removes a saved result deleted before it is selected",
+      "status": "passed",
+      "duration_ms": 600
+    },
+    {
+      "browser": "firefox",
+      "check": "keyboard-only create, status, save, search and recent navigation work with character shortcuts disabled",
+      "status": "passed",
+      "duration_ms": 3147
+    },
+    {
+      "browser": "firefox",
+      "check": "picker ignores synthetic composition and modified text keys before ordinary keyboard selection",
+      "status": "passed",
+      "duration_ms": 1130
+    },
+    {
+      "browser": "firefox",
+      "check": "private-team revocation removes a real recent issue title and excludes it from search",
+      "status": "passed",
+      "duration_ms": 5409
+    },
+    {
+      "browser": "firefox",
+      "check": "palette searches saved issues and reauthorizes recent titles with character shortcuts disabled",
+      "status": "passed",
+      "duration_ms": 2907
+    },
+    {
+      "browser": "firefox",
+      "check": "palette keeps focus and removes a saved result deleted before it is selected",
+      "status": "passed",
+      "duration_ms": 1741
+    },
+    {
+      "browser": "webkit",
+      "check": "keyboard-only create, status, save, search and recent navigation work with character shortcuts disabled",
+      "status": "passed",
+      "duration_ms": 2383
+    },
+    {
+      "browser": "webkit",
+      "check": "picker ignores synthetic composition and modified text keys before ordinary keyboard selection",
+      "status": "passed",
+      "duration_ms": 1306
+    },
+    {
+      "browser": "webkit",
+      "check": "private-team revocation removes a real recent issue title and excludes it from search",
+      "status": "passed",
+      "duration_ms": 5297
+    },
+    {
+      "browser": "webkit",
+      "check": "palette searches saved issues and reauthorizes recent titles with character shortcuts disabled",
+      "status": "passed",
+      "duration_ms": 1524
+    },
+    {
+      "browser": "webkit",
+      "check": "palette keeps focus and removes a saved result deleted before it is selected",
+      "status": "passed",
+      "duration_ms": 1684
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}

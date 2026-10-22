@@ -16,6 +16,19 @@ describe('real Tiptap surface',()=>{
  it('retains the same editable DOM, focus and selection when the same body is acknowledged',async()=>{const body=fromPlainText('A stable caret');const change=vi.fn();await act(async()=>root.render(<RichTextEditor value={body} onChange={change} label="Description"/>));const editable=container.querySelector<HTMLElement>('[contenteditable="true"]')!;const text=editable.querySelector('p')!.firstChild!;const selection=window.getSelection()!;await act(async()=>{editable.focus();const range=document.createRange();range.setStart(text,5);range.collapse(true);selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));await new Promise(resolve=>setTimeout(resolve,30));});expect(selection.anchorOffset).toBe(5);await act(async()=>root.render(<RichTextEditor value={JSON.parse(JSON.stringify(body))} onChange={change} label="Description"/>));expect(container.querySelector('[contenteditable="true"]')).toBe(editable);expect(document.activeElement).toBe(editable);expect(selection.anchorNode).toBe(text);expect(selection.anchorOffset).toBe(5);expect(change).not.toHaveBeenCalled();});
 });
 
+it('keeps legacy IME and AltGraph confirmation out of the editor save shortcut', async () => {
+ const save = vi.fn(); await act(async () => root.render(<RichTextEditor value={fromPlainText('Reviewed text')} onChange={() => {}} onSave={save} label="Description" />));
+ const editable = container.querySelector<HTMLElement>('[contenteditable="true"]')!;
+ for (const options of [{ keyCode: 229 }, { isComposing: true }, { altKey: true }, { repeat: true }]) {
+  await act(async () => editable.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true, ...options })));
+ }
+ const event = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true });
+ Object.defineProperty(event, 'getModifierState', { value: (name: string) => name === 'AltGraph' }); await act(async () => editable.dispatchEvent(event));
+ expect(save).not.toHaveBeenCalled();
+ await act(async () => editable.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true })));
+ expect(save).toHaveBeenCalledOnce();
+});
+
 import { IssueComments } from './IssueComments';
 import type { Session } from '../types';
 const session: Session = { audience:'web',user:{id:'u',display_name:'Example Owner',email:'owner@example.test'},csrf_token:'csrf',workspaces:[{id:'w',name:'Workspace',slug:'workspace',role:'member'}] };
