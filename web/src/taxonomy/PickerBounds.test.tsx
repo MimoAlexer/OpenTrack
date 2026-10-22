@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { Picker } from './Picker';
+import { Picker, type Choice } from './Picker';
 
 let container: HTMLDivElement; let root: Root;
 let paneRect: DOMRect; let wrapperRect: DOMRect; let dialogRect: DOMRect;
@@ -12,6 +12,7 @@ const disconnect = vi.fn();
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.stubGlobal('innerWidth', 1360);
+  vi.stubGlobal('innerHeight', 800);
   paneRect = new DOMRect(220, 0, 400, 800);
   wrapperRect = new DOMRect(390, 100, 150, 60);
   dialogRect = new DOMRect(400, 80, 560, 600);
@@ -35,8 +36,8 @@ afterEach(async () => {
   await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals();
 });
 
-async function render(pane: 'issue-list' | 'issue-detail', inDialog = false) {
-  const picker = <Picker label="Labels" value="Select labels" open setOpen={() => {}} query="" setQuery={() => {}} choices={[]} select={() => {}} loading={false} error={null} refresh={() => {}} more={() => {}} hasMore={false} />;
+async function render(pane: 'issue-list' | 'issue-detail', inDialog = false, choices: Choice[] = []) {
+  const picker = <Picker label="Labels" value="Select labels" open setOpen={() => {}} query="" setQuery={() => {}} choices={choices} select={() => {}} loading={false} error={null} refresh={() => {}} more={() => {}} hasMore={false} />;
   await act(async () => root.render(<div className={pane}>{inDialog ? <dialog open>{picker}</dialog> : picker}</div>));
 }
 
@@ -83,4 +84,30 @@ it('repositions after pane scrolling and releases observation on close', async (
   expect(position()).toEqual({ left: 236, width: 330, right: 566 });
   await act(async () => root.render(null));
   expect(disconnect).toHaveBeenCalledOnce();
+});
+
+it('opens above a low trigger and limits its height to the visible pane', async () => {
+  wrapperRect = new DOMRect(390, 700, 150, 60);
+  await render('issue-detail');
+  const popup = container.querySelector<HTMLElement>('.reference-popover')!;
+  expect(popup.style.transform).toBe('translateY(-100%)');
+  expect(popup.style.top).toBe('14px');
+  expect(popup.style.maxHeight).toBe('390px');
+  paneRect = new DOMRect(220, 600, 400, 200);
+  await act(async () => resizePane());
+  expect(popup.style.maxHeight).toBe('98px');
+});
+
+it('preserves the active entity across async results and skips disabled endpoints', async () => {
+  const choices = [{ id: 'first', text: 'First result' }, { id: 'last', text: 'Last result' }];
+  await render('issue-list', false, choices);
+  const search = container.querySelector<HTMLInputElement>('[role=combobox]')!;
+  const key = async (value: string) => act(async () => search.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true })));
+  await key('ArrowDown');
+  const activeText = () => document.getElementById(search.getAttribute('aria-activedescendant')!)?.textContent;
+  expect(activeText()).toBe('First result');
+  await render('issue-list', false, [choices[1], choices[0], { id: 'disabled', text: 'Unavailable result', disabled: true }]);
+  expect(activeText()).toBe('First result');
+  await key('Home'); expect(activeText()).toBe('Last result');
+  await key('End'); expect(activeText()).toBe('First result');
 });

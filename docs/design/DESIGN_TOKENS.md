@@ -1,33 +1,33 @@
 # Design tokens
 
-The approved product direction is the compact neutral theme implemented by the frontend in [styles.css](../../web/src/styles.css). That source currently owns the working token values. Its charcoal/off-white surfaces, restrained indigo focus/selection and neutral primary buttons supersede the old teal/slate palette below. The frontend owns exact value reconciliation and new contrast/runtime evidence; the Phase 0 contrast result must not be cited as proof for changed colors.
+The approved product direction is the compact neutral theme implemented in [styles.css](../../web/src/styles.css): charcoal/off-white surfaces, restrained indigo focus/selection and neutral primary buttons. The semantic color table below matches that implementation. [Shared-primitives evidence](../evidence/2026-10-22-design-primitives.md) records computed browser contrast and exercised application controls; historical Phase 0 results do not qualify changed values.
 
-The following tables preserve the historical Phase 0 proposal until the implemented token set receives its own recorded contrast/accessibility review. They are not instructions to restore rejected styling. Use semantic tokens rather than raw component palette values.
+Use semantic CSS tokens rather than raw component palette values.
 
-| Semantic token | Light | Dark | Use |
+| CSS token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| canvas | #F8FAFC | #0B1220 | Application background |
-| surface | #FFFFFF | #111827 | Panels, dialogs |
-| surface-raised | #F1F5F9 | #1E293B | Hover/secondary panels |
-| text-primary | #0F172A | #F1F5F9 | Body and headings |
-| text-secondary | #475569 | #CBD5E1 | Metadata |
-| text-muted | #526176 | #94A3B8 | Tertiary text; still readable |
-| border-subtle | #CBD5E1 | #334155 | Decorative dividers only |
-| border-control | #64748B | #64748B | Essential input/control boundary |
-| accent | #0F766E | #5EEAD4 | Primary fill, link, focus ring |
-| accent-hover | #115E59 | #99F6E4 | Primary hover fill |
-| accent-soft | #CCFBF1 | #134E4A | Selection background |
-| on-accent | #FFFFFF | #042F2E | Text on primary fill |
-| success-text | #166534 | #86EFAC | Completed/success label |
-| success-surface | #DCFCE7 | #14532D | Success message background |
-| warning-text | #92400E | #FDE68A | Pending approval/warning label |
-| warning-surface | #FEF3C7 | #78350F | Warning background |
-| danger-text | #B91C1C | #FCA5A5 | Destructive/error label |
-| danger-surface | #FEE2E2 | #7F1D1D | Error background |
-| info-text | #1D4ED8 | #93C5FD | Informational label |
-| info-surface | #DBEAFE | #1E3A8A | Information background |
+| bg | #FCFCFB | #1B1B1E | Canvas and modal background |
+| side | #F3F3F1 | #161618 | Navigation and group headings |
+| panel | #FFFFFF | #202023 | Inputs and popovers |
+| hover | #F0F0EE | #252528 | Hover and active option surface |
+| selected | #EBECF1 | #2A2A32 | Selected option/navigation surface |
+| text | #242426 | #E9E9EC | Primary text |
+| secondary | #606067 | #AAAAB2 | Secondary text |
+| muted | #66666E | #9797A1 | Readable metadata/placeholders |
+| line | #E2E2DF | #333337 | Decorative dividers only |
+| control | #73737C | #73737C | Essential control and popover boundary |
+| accent | #4D5BB7 | #A5ADF0 | Links, focus and active option outline |
+| accent-bg | #EDF0FA | #2C3042 | Informational/selection surface |
+| green | #416F50 | #95B6A0 | Success text |
+| green-bg | #EDF3EE | #27322C | Success surface |
+| amber | #865E13 | #CFB484 | Warning text |
+| amber-bg | #F7F0DF | #382F23 | Warning surface |
+| red | #A13C36 | #EEAAA4 | Error/destructive text |
+| red-bg | #FCF0EF | #3C2827 | Error surface |
+| solid | #2B2B2E | #DEDEE4 | Primary button fill |
+| solid-text | #FFFFFF | #252528 | Primary button text |
 
-Accent-soft selection uses text-primary or the matching accessible accent foreground, never on-accent (which is for the solid accent fill). Error buttons use danger-text as foreground on danger-surface or an independently tested solid-danger pair. Border-subtle must not be the only indicator of an editable input. Overlay uses black at 40% light/60% dark, with actual modal content tested on opaque surface.
+Selection uses `text`, never `solid-text`. Error text uses `red` on `red-bg`. Decorative `line` must not be the sole boundary of an editable field or picker. The shared keyboard focus outline is 2px `accent` with a 3px offset; an active combobox option uses a 2px inset outline as well as a surface change. Disabled controls retain their native disabled state; explanatory text stays readable.
 
 | Typography token | Size / line height | Weight | Purpose |
 | --- | --- | --- | --- |
@@ -41,7 +41,7 @@ Accent-soft selection uses text-primary or the matching accessible accent foregr
 | display | 32 / 40 px | 600 | Onboarding only |
 | code | 13 / 20 px | 400 | Monospace blocks/logs |
 
-Spacing tokens: space-0=0,1=4 px,2=8 px,3=12 px,4=16 px,5=20 px,6=24 px,8=32 px,10=40 px,12=48 px,16=64 px. An explicit 2 px micro-gap is permitted for icon alignment, not general layout. Radii: none 0, small 4 px, medium 6 px, large 8 px, dialog 12 px, pill 999 px. Borders 1 px; focus 2 px+2 px offset. Heights: input/button 36 px, small 32 px, touch 44 px; list compact 32 px/default 40 px/touch 48 px. Minimum independent pointer target 24 px with spacing, preferred 44 px for touch.
+Spacing tokens: space-0=0,1=4 px,2=8 px,3=12 px,4=16 px,5=20 px,6=24 px,8=32 px,10=40 px,12=48 px,16=64 px. An explicit 2 px micro-gap is permitted for icon alignment, not general layout. Radii: none 0, small 4 px, medium 6 px, large 8 px, dialog 12 px, pill 999 px. Borders 1 px; focus 2 px+3 px offset. Heights: input/button 36 px, small 32 px, touch 44 px; list compact 32 px/default 40 px/touch 48 px. Minimum independent pointer target 24 px with spacing, preferred 44 px for touch.
 
 Elevation: base none; popover light 0 4 px 12 px rgba(15,23,42,0.10), dark 0 4 px 16 px rgba(0,0,0,0.35); modal light 0 12 px 32 px rgba(15,23,42,0.16), dark 0 16 px 40 px rgba(0,0,0,0.50). Shadows supplement visible boundary, never replace it.
 
