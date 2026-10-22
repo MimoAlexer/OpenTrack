@@ -18,7 +18,7 @@ Project overview shows chronological milestone sections and scope count. Issue p
 
 ## 4. Data requirements
 
-milestones plus issue.project_id/milestone_id composite FK. Rank updates and project version protect ordering; state planned/completed and completed_at for explicit manual completion.
+Milestones plus the project_issues project/milestone composite FK; project membership is not duplicated on issues. Rank updates and project version protect ordering; state planned/completed and completed_at for explicit manual completion. The implemented model, API, denominator and migration contract are described in [Milestones](../MILESTONES.md). Planning screen and keyboard/date-label acceptance remain separate M05-T04 work.
 
 ## 5. API requirements
 

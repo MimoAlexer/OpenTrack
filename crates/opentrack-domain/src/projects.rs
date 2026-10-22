@@ -177,6 +177,8 @@ pub struct ProjectMembership {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ProjectIssue {
     pub id: Uuid,
+    #[schema(required = true)]
+    pub milestone_id: Option<Uuid>,
     pub key: String,
     pub title: String,
     pub status_id: Uuid,

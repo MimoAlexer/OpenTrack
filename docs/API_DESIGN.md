@@ -52,7 +52,8 @@ All workspace paths below inherit the prefix above. Named action subresources us
 | Taxonomy/ownership | GET/POST /labels; GET/PATCH /labels/{label}; GET /teams/{team}/assignees; issue PATCH label_ids | Shared/team label management, complete label-set replacement and paginated eligible assignees; existing links preserve historical metadata |
 | Discussion/editor | /issues/{id}/comments; /comments/{id}; /documents/{id}; /documents/{id}/revisions | author edits own comments; maintainer may moderate with audit; no secret history in public errors |
 | Projects | /teams/{t}/projects; /teams/{t}/projects/{id}; /teams/{t}/projects/{id}/issues,progress,updates | Implemented single-team scope; see [Projects](#projects-0022) for exact methods and version rules |
-| Further planning | project milestones; /teams/{id}/cycles; /cycles/{id}/close | Target only: cycle close idempotent; roadmap is an authorized project projection |
+| Milestones | Project milestone CRUD/order and project issue milestone assignment | Implemented, versioned and authorized; [wire and denominator contract](MILESTONES.md#concurrency-and-api). |
+| Further planning | /teams/{id}/cycles; /cycles/{id}/close | Target only: cycle close idempotent; roadmap is an authorized project projection |
 | Views/search | /views; /saved-searches; /search; /search/suggestions | constrained filter AST, no raw SQL; private saved searches; never disclose inaccessible suggestions |
 | Discussion references | /mention-candidates; /issues/{id}/subscription | current authorized readers only; own subscription GET/PATCH with If-Match; no recipient selection on writes |
 | Inbox | /notifications; /notifications/{id}; /notifications/mark-read; /notification-preferences | recipient-only mutations; mark-all uses an upper bound cursor, not future arrivals |

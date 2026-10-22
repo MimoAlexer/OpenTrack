@@ -1,5 +1,6 @@
 mod account;
 mod attachments;
+mod milestones;
 mod preferences;
 mod projects;
 pub use attachments::AttachmentService;
@@ -73,6 +74,7 @@ pub fn router(state: ApiState) -> Router {
         .merge(taxonomy::routes())
         .merge(templates::routes())
         .merge(projects::routes())
+        .merge(milestones::routes())
         .merge(mentions::routes())
         .merge(preferences::routes())
         .merge(graph::routes())

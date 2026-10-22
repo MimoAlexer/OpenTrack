@@ -277,6 +277,11 @@ fn project_route(method: Method, path: &[&str]) -> bool {
         [] => matches!(method, Get | Patch),
         ["progress" | "issues"] => method == Get,
         ["issues", issue] => id(issue) && method == Put,
+        ["issues", issue, "milestone"] => id(issue) && method == Put,
+        ["milestones"] => matches!(method, Get | Post),
+        ["milestones", "order"] => method == Put,
+        ["milestones", milestone] => id(milestone) && matches!(method, Get | Patch | Delete),
+        ["milestones", milestone, "progress"] => id(milestone) && method == Get,
         ["updates"] => matches!(method, Get | Post),
         ["updates", update] => id(update) && method == Get,
         _ => false,
@@ -302,6 +307,23 @@ mod tests {
             (format!("/{PROJECT}"), vec![Method::Get, Method::Patch]),
             (format!("/{PROJECT}/progress"), vec![Method::Get]),
             (format!("/{PROJECT}/issues"), vec![Method::Get]),
+            (
+                format!("/{PROJECT}/milestones"),
+                vec![Method::Get, Method::Post],
+            ),
+            (format!("/{PROJECT}/milestones/order"), vec![Method::Put]),
+            (
+                format!("/{PROJECT}/milestones/{PROJECT_ISSUE}"),
+                vec![Method::Get, Method::Patch, Method::Delete],
+            ),
+            (
+                format!("/{PROJECT}/milestones/{PROJECT_ISSUE}/progress"),
+                vec![Method::Get],
+            ),
+            (
+                format!("/{PROJECT}/issues/{PROJECT_ISSUE}/milestone"),
+                vec![Method::Put],
+            ),
             (
                 format!("/{PROJECT}/issues/{PROJECT_ISSUE}"),
                 vec![Method::Put],
@@ -344,7 +366,7 @@ mod tests {
             format!("{base}/{PROJECT}/archive"),
             format!("{base}/{PROJECT}/restore"),
             format!("{base}/{PROJECT}/delete"),
-            format!("{base}/{PROJECT}/milestones"),
+            format!("{base}/{PROJECT}/milestones/order/extra"),
             format!("{base}/{PROJECT}/progress/refresh"),
             format!("{base}/{PROJECT}/issues/{PROJECT_ISSUE}/"),
             format!("{base}/{PROJECT}/issues/{PROJECT_ISSUE}/move"),
@@ -368,6 +390,9 @@ mod tests {
                 format!("{base}/{invalid}/updates"),
                 format!("{base}/{PROJECT}/issues/{invalid}"),
                 format!("{base}/{PROJECT}/updates/{invalid}"),
+                format!("{base}/{PROJECT}/milestones/{invalid}"),
+                format!("{base}/{PROJECT}/milestones/{invalid}/progress"),
+                format!("{base}/{PROJECT}/issues/{invalid}/milestone"),
             ]);
         }
         for path in denied {
