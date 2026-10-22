@@ -164,6 +164,23 @@ pub(crate) struct IssuePatch {
         crate::mentions::issue_reference_candidates,
         crate::mentions::subscription,
         crate::mentions::update_subscription,
+        crate::cycles::list,
+        crate::cycles::create,
+        crate::cycles::detail,
+        crate::cycles::delete,
+        crate::cycles::update,
+        crate::cycles::membership,
+        crate::cycles::scope,
+        crate::cycles::open,
+        crate::cycles::reopen,
+        crate::cycles::preview,
+        crate::cycles::close,
+        crate::cycles::report,
+        crate::cycles::snapshots,
+        crate::cycles::capture,
+        crate::cycles::carry,
+        crate::cycles::carry_detail,
+        crate::cycles::resume,
         crate::projects::list,
         crate::milestones::list,
         crate::milestones::create,
@@ -454,6 +471,8 @@ pub fn openapi() -> Value {
                             "/api/v1/workspaces/{w}/labels/{label}",
                             "/api/v1/workspaces/{w}/teams/{t}",
                             "/api/v1/workspaces/{w}/teams/{t}/templates/{id}",
+                            "/api/v1/workspaces/{w}/teams/{t}/cycles/{id}",
+                            "/api/v1/workspaces/{w}/teams/{t}/cycles/{id}/carry-forward/{operation}",
                             "/api/v1/workspaces/{w}/teams/{t}/projects/{id}",
                             "/api/v1/workspaces/{w}/teams/{t}/projects/{id}/updates/{update}",
                             "/api/v1/workspaces/{w}/teams/{t}/projects/{p}/milestones/{id}",
@@ -842,6 +861,48 @@ mod tests {
             paths["/api/v1/workspaces/{w}/members/{u}"]["get"]["responses"]["200"]["headers"]
                 .get("X-OpenTrack-Session-Invalidated")
                 .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod cycle_contract_tests {
+    use super::openapi;
+    #[test]
+    fn cycle_operations_have_distinct_client_names_and_required_review_fields() {
+        let doc = openapi();
+        let mut ids = std::collections::HashSet::new();
+        let mut count = 0;
+        for (path, methods) in doc["paths"].as_object().unwrap() {
+            if !path.contains("/cycles") {
+                continue;
+            }
+            for (_, op) in methods.as_object().unwrap() {
+                if let Some(id) = op["operationId"].as_str() {
+                    assert!(id.starts_with("cycles_"));
+                    assert!(ids.insert(id));
+                    count += 1;
+                }
+            }
+        }
+        assert_eq!(count, 17);
+        for schema in [
+            "CloseCycle",
+            "CycleMembership",
+            "CarryForwardCycle",
+            "ResumeCycleCarry",
+        ] {
+            assert_eq!(
+                doc["components"]["schemas"][schema]["additionalProperties"],
+                false
+            );
+        }
+        assert!(
+            doc["components"]["schemas"]["CycleSnapshot"]["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v == "redacted")
         );
     }
 }

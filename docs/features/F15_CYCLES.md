@@ -18,11 +18,11 @@ Team cycle list opens scope, progress and change history. Date picker displays t
 
 ## 4. Data requirements
 
-cycles, issues.cycle_id, daily cycle_snapshots with metric definition version. Exclusion constraint prevents overlap; date semantics avoid DST-duration ambiguity.
+Implemented storage uses cycles and the authoritative single-membership cycle_issues join, immutable cycle_snapshots with metric definition version, close reports, reopen reasons and resumable carry operations. Exclusion constraint prevents overlap; captured IANA timezone and local-date semantics avoid DST-duration ambiguity. Explicit daily capture is deduplicated by local date; scheduling and recurrence remain later work. See [cycle behavior](../CYCLES.md).
 
 ## 5. API requirements
 
-Cycle CRUD, issue assignment, close command with expected versions and optional destination cycle. Return per-item conflicts on carry-forward.
+Cycle CRUD, issue assignment, explicit open/reopen, snapshots, close preview and versioned close report. Carry-forward is a separate reviewed command against that report, with durable per-item conflicts and versioned resumption; closure alone never moves work. Generated API and [cycle behavior](../CYCLES.md) define the implemented wire contract.
 
 ## 6. Authorization rules
 
