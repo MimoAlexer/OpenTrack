@@ -117,7 +117,17 @@ impl App {
         .fetch_one(&pool)
         .await
         .map_err(db_error)?;
-        if worker_authority || consumer_table_authority {
+        let event_limit_authority: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM pg_roles r CROSS JOIN pg_class c
+             JOIN pg_attribute a ON a.attrelid=c.oid
+             WHERE (r.rolname=current_user OR pg_has_role(current_user,r.oid,'MEMBER'))
+               AND c.relnamespace=current_schema()::regnamespace AND c.relname='workspace_stream_heads'
+               AND a.attname IN ('max_pending_events','max_retained_event_bytes','retained_event_bytes')
+               AND NOT a.attisdropped
+               AND (has_column_privilege(r.oid,c.oid,a.attnum,'INSERT,UPDATE')
+                 OR has_table_privilege(r.oid,c.oid,'DELETE,TRUNCATE,TRIGGER')))",
+        ).fetch_one(&pool).await.map_err(db_error)?;
+        if worker_authority || consumer_table_authority || event_limit_authority {
             tracing::error!(
                 "Runtime database role must not have direct or reachable worker authority"
             );
@@ -203,6 +213,9 @@ impl App {
 }
 pub(crate) fn db_error(e: sqlx::Error) -> Error {
     if let sqlx::Error::Database(ref d) = e {
+        if d.constraint() == Some("event_admission_blocked") {
+            return Error::Unavailable;
+        }
         if d.constraint() == Some("issue_template_capacity") {
             return Error::Conflict(
                 "This team already has 100 templates, including archived templates".into(),

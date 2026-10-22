@@ -15,6 +15,8 @@ DECLARE
  consumer_disposition_function regprocedure;
  consumer_enabled_function regprocedure;
  cleanup_resume_function regprocedure;
+ admission_limits_function regprocedure;
+ admission_status_function regprocedure;
  relation record;
 BEGIN
  SELECT * INTO candidate FROM pg_roles WHERE rolname=role_name;
@@ -35,12 +37,14 @@ BEGIN
  consumer_disposition_function := to_regprocedure(format('%I.operator_consumer_disposition(uuid,uuid,text,text)',schema_name));
  consumer_enabled_function := to_regprocedure(format('%I.operator_consumer_set_enabled(uuid,boolean,text)',schema_name));
  cleanup_resume_function := to_regprocedure(format('%I.operator_resume_assignment_cleanup(uuid,uuid,text)',schema_name));
+ admission_limits_function := to_regprocedure(format('%I.operator_event_admission_limits(uuid,bigint,bigint,text)',schema_name));
+ admission_status_function := to_regprocedure(format('%I.operator_event_admission_status(uuid)',schema_name));
  IF issue_function IS NULL OR revoke_function IS NULL OR disable_function IS NULL OR enable_function IS NULL
- OR consumer_status_function IS NULL OR consumer_disposition_function IS NULL OR consumer_enabled_function IS NULL OR cleanup_resume_function IS NULL THEN
+ OR consumer_status_function IS NULL OR consumer_disposition_function IS NULL OR consumer_enabled_function IS NULL OR cleanup_resume_function IS NULL OR admission_limits_function IS NULL OR admission_status_function IS NULL THEN
   RAISE EXCEPTION 'Apply all operator migrations before granting operator capabilities';
  END IF;
- IF EXISTS(SELECT 1 FROM pg_proc WHERE oid IN(issue_function,revoke_function,disable_function,enable_function,consumer_status_function,consumer_disposition_function,consumer_enabled_function,cleanup_resume_function) AND NOT prosecdef)
-    OR EXISTS(SELECT 1 FROM pg_proc p CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl WHERE p.oid IN(issue_function,revoke_function,disable_function,enable_function,consumer_status_function,consumer_disposition_function,consumer_enabled_function,cleanup_resume_function) AND acl.grantee=0 AND acl.privilege_type='EXECUTE') THEN
+ IF EXISTS(SELECT 1 FROM pg_proc WHERE oid IN(issue_function,revoke_function,disable_function,enable_function,consumer_status_function,consumer_disposition_function,consumer_enabled_function,cleanup_resume_function,admission_limits_function,admission_status_function) AND NOT prosecdef)
+    OR EXISTS(SELECT 1 FROM pg_proc p CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl WHERE p.oid IN(issue_function,revoke_function,disable_function,enable_function,consumer_status_function,consumer_disposition_function,consumer_enabled_function,cleanup_resume_function,admission_limits_function,admission_status_function) AND acl.grantee=0 AND acl.privilege_type='EXECUTE') THEN
   RAISE EXCEPTION 'Operator capability functions must be SECURITY DEFINER and deny PUBLIC execution';
  END IF;
  EXECUTE format('REVOKE CREATE ON SCHEMA %I FROM %I',schema_name,role_name);
@@ -55,6 +59,6 @@ BEGIN
  EXECUTE format('REVOKE ALL ON ALL FUNCTIONS IN SCHEMA %I FROM %I',schema_name,role_name);
  EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I',current_database(),role_name);
  EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I',schema_name,role_name);
- EXECUTE format('GRANT EXECUTE ON FUNCTION %s,%s,%s,%s,%s,%s,%s,%s TO %I',issue_function,revoke_function,disable_function,enable_function,consumer_status_function,consumer_disposition_function,consumer_enabled_function,cleanup_resume_function,role_name);
+ EXECUTE format('GRANT EXECUTE ON FUNCTION %s,%s,%s,%s,%s,%s,%s,%s,%s,%s TO %I',issue_function,revoke_function,disable_function,enable_function,consumer_status_function,consumer_disposition_function,consumer_enabled_function,cleanup_resume_function,admission_limits_function,admission_status_function,role_name);
 END $$;
 COMMIT;

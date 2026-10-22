@@ -130,6 +130,11 @@ for database in ['opentrack', 'opentrack_test']:
     print(f'REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM {operator};')
     print(f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {database};')
     print(f'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {database};')
+    for command in [
+        f'REVOKE INSERT,UPDATE,DELETE ON public.workspace_stream_heads FROM {database}',
+        f'GRANT INSERT(workspace_id),UPDATE(last_seq) ON public.workspace_stream_heads TO {database}',
+    ]:
+        print("SELECT '" + command + "' WHERE EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('public.workspace_stream_heads') AND attname='retained_event_bytes' AND NOT attisdropped)\\gexec")
     print(f"SELECT 'REVOKE UPDATE, DELETE, TRUNCATE ON public.audit_entries FROM {database}' WHERE to_regclass('public.audit_entries') IS NOT NULL\\gexec")
     print(f"SELECT 'REVOKE UPDATE, DELETE, TRUNCATE ON public.account_security_events FROM {database}' WHERE to_regclass('public.account_security_events') IS NOT NULL\\gexec")
     print(f"SELECT 'REVOKE UPDATE, DELETE, TRUNCATE ON public.document_revisions FROM {database}' WHERE to_regclass('public.document_revisions') IS NOT NULL\\gexec")

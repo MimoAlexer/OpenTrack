@@ -106,7 +106,10 @@ pub async fn run(cli: &Cli, cfg: &Settings) -> Result<(), String> {
             .fetch_one(&worker.pool)
             .await
             .map_err(|_| "Cannot inspect the worker schema")?;
-    if !current_schema {
+    let admission_ready = opentrack_store::event_admission_ready(&worker.pool)
+        .await
+        .map_err(|_| "Cannot check event admission schema")?;
+    if !current_schema || !admission_ready {
         worker.pool.close().await;
         return Err(
             "Apply current document and event-consumer migrations before starting this worker version".into(),

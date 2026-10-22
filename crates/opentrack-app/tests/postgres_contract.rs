@@ -62,6 +62,12 @@ impl Harness {
                 "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {schema} TO \"{role}\""
             ),
             format!("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA {schema} TO \"{role}\""),
+            format!(
+                "REVOKE INSERT,UPDATE,DELETE ON {schema}.workspace_stream_heads FROM \"{role}\""
+            ),
+            format!(
+                "GRANT INSERT(workspace_id),UPDATE(last_seq) ON {schema}.workspace_stream_heads TO \"{role}\""
+            ),
             format!("REVOKE UPDATE, DELETE, TRUNCATE ON {schema}.audit_entries FROM \"{role}\""),
             format!(
                 "REVOKE UPDATE, DELETE, TRUNCATE ON {schema}.account_security_events FROM \"{role}\""

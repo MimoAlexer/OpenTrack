@@ -102,6 +102,23 @@ impl Harness {
             sqlx::query(AssertSqlSafe(format!("REVOKE ALL ON {schema}.assignment_reconciliations,{schema}.consumer_registrations,{schema}.consumer_checkpoints,{schema}.consumer_receipts,{schema}.consumer_dead_letters,{schema}.consumer_alerts,{schema}.event_retention_state,{schema}.consumer_operations FROM \"{role}\"")))
                 .execute(&base_owner).await.unwrap();
         }
+        let admission: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='workspace_stream_heads'::regclass AND attname='retained_event_bytes' AND NOT attisdropped)")
+            .fetch_one(&owner).await.unwrap();
+        if admission {
+            for statement in [
+                format!(
+                    "REVOKE INSERT,UPDATE,DELETE ON {schema}.workspace_stream_heads FROM \"{role}\""
+                ),
+                format!(
+                    "GRANT INSERT(workspace_id),UPDATE(last_seq) ON {schema}.workspace_stream_heads TO \"{role}\""
+                ),
+            ] {
+                sqlx::query(AssertSqlSafe(statement))
+                    .execute(&base_owner)
+                    .await
+                    .unwrap();
+            }
+        }
         let documents: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
             .bind(format!("{schema}.documents"))
             .fetch_one(&base_owner)
@@ -310,6 +327,9 @@ impl Harness {
                 .unwrap();
         if consumers {
             sqlx::query(AssertSqlSafe(format!("GRANT EXECUTE ON FUNCTION {}.operator_consumer_status(uuid),{}.operator_consumer_disposition(uuid,uuid,text,text),{}.operator_consumer_set_enabled(uuid,boolean,text),{}.operator_resume_assignment_cleanup(uuid,uuid,text) TO \"{role}\"",self.schema,self.schema,self.schema,self.schema))).execute(&self.owner).await.unwrap();
+        }
+        if sqlx::query_scalar::<_, bool>("SELECT to_regprocedure('operator_event_admission_limits(uuid,bigint,bigint,text)') IS NOT NULL").fetch_one(&self.owner).await.unwrap() {
+            sqlx::query(AssertSqlSafe(format!("GRANT EXECUTE ON FUNCTION {}.operator_event_admission_limits(uuid,bigint,bigint,text),{}.operator_event_admission_status(uuid) TO \"{role}\"",self.schema,self.schema))).execute(&self.owner).await.unwrap();
         }
         scoped_url(operator, &self.schema).to_string()
     }

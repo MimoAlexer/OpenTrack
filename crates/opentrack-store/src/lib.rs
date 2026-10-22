@@ -318,6 +318,15 @@ pub struct Event<'a> {
     pub mutation: Uuid,
     pub changes: Value,
 }
+pub async fn event_admission_ready(pool: &PgPool) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT (SELECT count(*)=3 FROM pg_attribute WHERE attrelid=to_regclass('workspace_stream_heads') AND attname IN ('max_pending_events','max_retained_event_bytes','retained_event_bytes') AND NOT attisdropped)
+         AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('workspace_events') AND attname='storage_bytes' AND NOT attisdropped)
+         AND (SELECT count(*)=4 FROM pg_trigger WHERE tgrelid=to_regclass('workspace_events') AND tgname IN ('event_storage_charge','event_storage_insert','event_storage_update','event_storage_delete') AND tgenabled IN ('O','A'))
+         AND to_regprocedure('operator_event_admission_status(uuid)') IS NOT NULL
+         AND to_regprocedure('operator_event_admission_limits(uuid,bigint,bigint,text)') IS NOT NULL",
+    ).fetch_one(pool).await
+}
 pub async fn append_activity(tx: &mut Tx, event: &Event<'_>) -> Result<(), sqlx::Error> {
     let appended = sqlx::query("INSERT INTO activity_entries(id,workspace_id,team_id,entity_id,actor_id,event_kind,changes) VALUES($1,$2,$3,$4,$5,$6,$7)").bind(Uuid::new_v4()).bind(event.workspace).bind(event.team).bind(event.entity).bind(event.actor).bind(event.kind).bind(&event.changes).execute(&mut **tx).await?;
     if appended.rows_affected() != 1 {

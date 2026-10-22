@@ -79,6 +79,20 @@ async fn run_consumer(cli: &Cli, operator: &Operator) -> Result<(), String> {
             .as_deref()
             .ok_or("Consumer changes require --reason")?;
         let (action, target, result) = match cli.action {
+            Action::OperatorEventLimits => (
+                "event_limits",
+                None,
+                operator
+                    .set_event_admission_limits(
+                        workspace,
+                        cli.max_pending_events
+                            .ok_or("Event limits require --max-pending-events")?,
+                        cli.max_event_bytes
+                            .ok_or("Event limits require --max-event-bytes")?,
+                        reason,
+                    )
+                    .await,
+            ),
             Action::OperatorConsumerDisposition => {
                 let target = cli
                     .operator_dead_letter
