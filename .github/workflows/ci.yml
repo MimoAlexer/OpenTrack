@@ -99,6 +99,12 @@ jobs:
             sudo apt-get update
             sudo apt-get install --yes --no-install-recommends postgresql-client
           fi
+      - name: Storage and installed-scanner qualification prerequisites
+        if: ${{ needs.scope.outputs.verify == 'true' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends clamav-daemon util-linux
+          dpkg-query --show clamav-daemon util-linux
       - name: Isolated database identities
         if: ${{ needs.scope.outputs.verify == 'true' }}
         env:
@@ -110,6 +116,13 @@ jobs:
       - name: Verify Rust, PostgreSQL contracts and frontend
         if: ${{ needs.scope.outputs.verify == 'true' }}
         run: scripts/check.sh
+      - name: Qualify real storage exhaustion and installed scanner failures
+        if: ${{ needs.scope.outputs.verify == 'true' }}
+        env:
+          OPENTRACK_TEST_CLAMD_BIN: /usr/sbin/clamd
+        run: |
+          bash scripts/qualify-attachment-storage.sh
+          bash scripts/qualify-attachment-scanner.sh
       - name: Report workspace disk usage
         if: ${{ always() && needs.scope.result == 'success' && needs.scope.outputs.verify == 'true' }}
         shell: bash
