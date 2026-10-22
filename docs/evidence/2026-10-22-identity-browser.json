@@ -1,0 +1,64 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "local password login works with every external origin blocked and recovers keyboard focus",
+      "status": "passed",
+      "duration_ms": 3907
+    },
+    {
+      "browser": "chromium",
+      "check": "rename retains saved issue URLs and switching replaces the previous workspace content",
+      "status": "passed",
+      "duration_ms": 769
+    },
+    {
+      "browser": "chromium",
+      "check": "invitation keyboard acceptance switches accounts and member settings conceal owner actions",
+      "status": "passed",
+      "duration_ms": 2812
+    },
+    {
+      "browser": "firefox",
+      "check": "local password login works with every external origin blocked and recovers keyboard focus",
+      "status": "passed",
+      "duration_ms": 5513
+    },
+    {
+      "browser": "firefox",
+      "check": "rename retains saved issue URLs and switching replaces the previous workspace content",
+      "status": "passed",
+      "duration_ms": 1174
+    },
+    {
+      "browser": "firefox",
+      "check": "invitation keyboard acceptance switches accounts and member settings conceal owner actions",
+      "status": "passed",
+      "duration_ms": 4111
+    },
+    {
+      "browser": "webkit",
+      "check": "local password login works with every external origin blocked and recovers keyboard focus",
+      "status": "passed",
+      "duration_ms": 5243
+    },
+    {
+      "browser": "webkit",
+      "check": "rename retains saved issue URLs and switching replaces the previous workspace content",
+      "status": "passed",
+      "duration_ms": 1763
+    },
+    {
+      "browser": "webkit",
+      "check": "invitation keyboard acceptance switches accounts and member settings conceal owner actions",
+      "status": "passed",
+      "duration_ms": 3909
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}

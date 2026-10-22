@@ -135,7 +135,7 @@ it.each([false, true])('requires password verification after an uncertain reset 
   expect(field('password').value).toBe('');
   await fill('email', recovered.user.email); await fill('password', password); await submit();
   expect(location.pathname).toBe('/signin');
-  expect(container.textContent).toContain('The password was not accepted.');
+  expect(container.textContent).toContain('Email or password was not accepted. Try again.');
   expect(container.textContent).toContain('Sign in to OpenTrack.');
   await submit();
   expect(container.textContent).not.toContain('Sign in to OpenTrack.');
