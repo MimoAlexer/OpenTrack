@@ -29,6 +29,8 @@ jobs:
         run: python3 scripts/test-ci-scope.py
       - name: Test disposable browser runtime boundaries without starting services
         run: python3 scripts/test-browser-acceptance.py
+      - name: Test cold recovery archive and resource boundaries without starting services
+        run: python3 scripts/test-docker-recovery.py
       - name: Determine Docker scope
         id: scope
         run: python3 scripts/ci-scope.py
@@ -92,12 +94,22 @@ jobs:
         run: |
           docker compose build app worker
           OPENTRACK_DOMAIN=localhost OPENTRACK_PUBLIC_URL=https://localhost:18443 docker compose -f compose.yaml -f compose.https.yaml --profile https build proxy
-      - name: Start a fresh disposable stack
+      - name: Start a fresh disposable stack with cached images and external egress disabled
         if: ${{ needs.scope.outputs.docker == 'true' }}
-        run: docker compose up --detach --wait --wait-timeout 180 --no-build
-      - name: Execute HTTP, worker, persistence, shutdown and credential-failure checks
+        run: |
+          mkdir -p work/docker-smoke
+          cat > work/docker-smoke/offline-compose.yaml <<'YAML'
+          networks:
+            web:
+              internal: true
+          YAML
+          docker compose -f compose.yaml -f work/docker-smoke/offline-compose.yaml up --detach --wait --wait-timeout 180 --no-build --pull never
+      - name: Execute offline HTTP, worker, persistence, cold restore and failure checks
         if: ${{ needs.scope.outputs.docker == 'true' }}
-        run: python3 scripts/docker-smoke.py --project "$COMPOSE_PROJECT_NAME" --url http://localhost:18080 --expected-architecture "${{ matrix.architecture }}"
+        run: python3 scripts/docker-smoke.py --project "$COMPOSE_PROJECT_NAME" --compose-file work/docker-smoke/offline-compose.yaml --url http://localhost:18080 --expected-architecture "${{ matrix.architecture }}"
+      - name: Stop the offline networks before independent HTTPS qualification
+        if: ${{ needs.scope.outputs.docker == 'true' }}
+        run: docker compose -f compose.yaml -f work/docker-smoke/offline-compose.yaml down --timeout 35
       - name: Verify production HTTPS with the test proxy CA
         if: ${{ needs.scope.outputs.docker == 'true' }}
         run: python3 scripts/docker-https-smoke.py --project "$COMPOSE_PROJECT_NAME"
@@ -135,6 +147,12 @@ jobs:
       - name: Show failure diagnostics
         if: ${{ failure() && needs.scope.result == 'success' && needs.scope.outputs.docker == 'true' }}
         run: OPENTRACK_DOMAIN=localhost OPENTRACK_PUBLIC_URL=https://localhost:18443 docker compose -f compose.yaml -f compose.https.yaml --profile https logs --no-color --tail 100
+      - name: Remove only this job's labelled recovery fixtures after interruption
+        if: ${{ always() && needs.scope.result == 'success' && needs.scope.outputs.docker == 'true' }}
+        run: |
+          if test -f work/docker-smoke/offline-compose.yaml; then
+            python3 scripts/docker-smoke.py --project "$COMPOSE_PROJECT_NAME" --compose-file work/docker-smoke/offline-compose.yaml --expected-architecture "${{ matrix.architecture }}" --cleanup-recovery --cleanup-backup
+          fi
       - name: Remove only this job's disposable containers and volumes
         if: ${{ always() && needs.scope.result == 'success' && needs.scope.outputs.docker == 'true' }}
         run: OPENTRACK_DOMAIN=localhost OPENTRACK_PUBLIC_URL=https://localhost:18443 docker compose -f compose.yaml -f compose.https.yaml --profile https down --volumes --remove-orphans --timeout 35
