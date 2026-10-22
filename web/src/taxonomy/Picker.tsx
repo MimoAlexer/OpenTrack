@@ -68,7 +68,7 @@ export function Picker({ label, value, open, setOpen, query, setQuery, choices, 
       <label className="reference-search"><Search aria-hidden="true" /><input ref={search} role="combobox" aria-label={`Search ${label.toLowerCase()}`} aria-expanded="true" aria-controls={`${id}-list`} aria-autocomplete="list" aria-activedescendant={active >= 0 && choices[active] && !choices[active].disabled ? `${id}-option-${active}` : undefined} value={query} maxLength={100} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onChange={event => setQuery(event.target.value)} onKeyDown={event => {
         if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.getModifierState('AltGraph')) { event.stopPropagation(); return; }
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); move(event.key === 'ArrowDown' ? 1 : -1); }
-        else if (event.key === 'Enter' && !event.repeat) { event.preventDefault(); if (active >= 0 && choices[active] && !choices[active].disabled) choose(choices[active].id); }
+        else if (event.key === 'Enter') { event.preventDefault(); if (!event.repeat && active >= 0 && choices[active] && !choices[active].disabled) choose(choices[active].id); }
         else if (event.key === 'Home' || event.key === 'End') { if (active >= 0 || !query) { event.preventDefault(); activate(event.key === 'Home' ? choices.findIndex(item => !item.disabled) : choices.map((item, index) => item.disabled ? -1 : index).filter(index => index >= 0).at(-1) ?? -1); } }
       }} /></label>
       <ErrorBanner error={error} retry={refresh} />

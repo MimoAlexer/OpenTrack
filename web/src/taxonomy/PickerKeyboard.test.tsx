@@ -39,7 +39,7 @@ it('tracks composition lifetime even when the native key flag is absent, then re
   expect(active()).toBe('First'); expect(select).not.toHaveBeenCalled(); expect(setOpen).not.toHaveBeenCalled();
   await act(async () => input().dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })));
   await key('End'); expect(active()).toBe('Last');
-  await key('Enter', { repeat: true }); expect(select).not.toHaveBeenCalled();
+  expect((await key('Enter', { repeat: true })).defaultPrevented).toBe(true); expect(select).not.toHaveBeenCalled();
   await key('Enter'); expect(select).toHaveBeenCalledExactlyOnceWith('last'); expect(setOpen).toHaveBeenCalledExactlyOnceWith(false);
 });
 
