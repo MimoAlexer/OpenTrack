@@ -39,6 +39,6 @@ Archiving removes the project from the active directory without deleting its wor
 
 ## Current boundaries
 
-This increment provides project lifecycle, issue membership, progress and updates. Milestones, cycles, timeline scheduling, multi-team projects and richer project documents remain separate work. See the [requirements ledger](REQUIREMENTS_STATUS.md).
+Project lifecycle, issue membership, progress and updates connect to the [milestone and cycle planning screens](PLANNING.md). Timeline scheduling, multi-team projects and richer project documents remain separate work. See the [requirements ledger](REQUIREMENTS_STATUS.md).
 
 Migration `0022_projects.sql` adds the project tables and constraints. Apply it before starting the matching API and worker. Earlier migrations remain immutable. Rollback requires a matching database backup and application binary; no destructive down-migration is provided.

@@ -95,6 +95,7 @@ test('private-team revocation removes a real recent issue title and excludes it 
     expect((await member.get(`${saved.path}/issues/${issue.id}`)).status()).toBe(404);
     await expect(page.locator('body')).not.toContainText(issue.title);
     await expect(palette).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Search commands', exact: true })).toBeEnabled();
     await page.keyboard.press('Control+k');
     await expect(palette.getByRole('combobox', { name: 'Search commands', exact: true })).toBeFocused();
     await expect(palette).not.toContainText(issue.title);

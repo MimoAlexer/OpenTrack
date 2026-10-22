@@ -1,0 +1,14 @@
+import type { components } from '../generated/api';
+type Schemas = components['schemas'];
+export type Cycle = Schemas['Cycle'];
+export type CycleIssue = Schemas['CycleIssue'];
+export type SnapshotPoint = Schemas['CycleSnapshotPoint'];
+export type Snapshot = Schemas['CycleSnapshot'];
+export type ScopeItem = Schemas['CycleScopeItem'];
+export type ClosePreview = Schemas['CycleClosePreview'];
+export type CloseReport = Schemas['CycleCloseReport'];
+export type CarryOperation = Schemas['CycleCarryOperation'];
+export const cyclePath = (workspace: string, team: string, cycle?: string) => `/workspaces/${encodeURIComponent(workspace)}/teams/${encodeURIComponent(team)}/cycles${cycle ? `/${encodeURIComponent(cycle)}` : ''}`;
+export const cycleUrl = (workspace: string, team: string, cycle?: string) => `/w/${encodeURIComponent(workspace)}/cycles${cycle ? `/${encodeURIComponent(cycle)}` : ''}?${new URLSearchParams({ team_id: team })}`;
+export const date = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+export const timestamp = (value: string) => new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
