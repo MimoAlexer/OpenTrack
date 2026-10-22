@@ -47,6 +47,12 @@ class RecoveryBoundaries(unittest.TestCase):
                     "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"],
                     "tmpfs": module.RELAY_TMPFS.copy(), "networks": {"web": {}, "offline_ingress": {}},
                     "ports": [{"host_ip": "127.0.0.1", "published": "18080", "target": 8080}]}}}
+        request_id = "00000000-0000-0000-0000-000000000001"
+        self.problem = {"type": "/api/v1/problems/not_found", "title": "Not Found", "status": 404,
+            "detail": "This item could not be found", "instance": "urn:uuid:" + request_id,
+            "code": "not_found", "request_id": request_id, "retryable": False, "field_errors": []}
+        self.problem_headers = {"X-Request-ID": request_id, "Content-Type": "application/problem+json",
+                                "Cache-Control": "no-store"}
 
     def test_compose_excludes_foreign_storage_egress_and_ports(self):
         module.validate_compose(self.config, self.project, 18080)
@@ -101,6 +107,45 @@ class RecoveryBoundaries(unittest.TestCase):
             body, _ = self.runner.request("/fixture/content", expected=(503,))
             self.assertEqual(body, b"file bytes")
 
+    def test_concealed_response_accepts_only_the_generic_not_found_envelope(self):
+        for content_type in ("application/problem+json", "application/problem+json; charset=utf-8"):
+            headers = {**self.problem_headers, "Content-Type": content_type, "Content-Length": "256"}
+            with self.subTest(content_type=content_type):
+                module.require_concealed(self.problem, headers)
+        changes = [{"status": 401, "code": "unauthenticated", "detail": "Sign in to continue"},
+            {"status": 200}, {"status": 206}, {"status": 304},
+            {"type": "/api/v1/problems/private_resource"}, {"title": "Private fixture"},
+            {"detail": "Private fixture"}, {"original_name": "private-fixture.txt"},
+            {"storage_key": "private-storage-marker"}, {"retryable": True},
+            {"field_errors": [{"field": "private-fixture"}]},
+            {"request_id": "00000000-0000-0000-0000-000000000002"},
+            {"instance": "urn:uuid:00000000-0000-0000-0000-000000000002"}]
+        for change in changes:
+            with self.subTest(change=change), self.assertRaises(RuntimeError):
+                module.require_concealed({**self.problem, **change}, self.problem_headers)
+        for field in self.problem:
+            problem = {key: value for key, value in self.problem.items() if key != field}
+            with self.subTest(missing=field), self.assertRaises(RuntimeError):
+                module.require_concealed(problem, self.problem_headers)
+        for problem in (b"private file bytes", None, []):
+            with self.subTest(problem=problem), self.assertRaises(RuntimeError):
+                module.require_concealed(problem, self.problem_headers)
+
+    def test_concealed_response_rejects_cacheable_or_metadata_bearing_headers(self):
+        changes = [{"Cache-Control": "public, max-age=3600"}, {"Cache-Control": "no-cache"},
+            {"Content-Type": "application/json"}, {"Content-Type": "application/octet-stream"},
+            {"X-Request-ID": "not-a-request-id"}]
+        changes.extend({name: value} for name in
+            ("ETag", "Last-Modified", "Content-Disposition", "Content-Range", "Accept-Ranges", "Location")
+            for value in ("private-fixture-marker", ""))
+        for change in changes:
+            with self.subTest(change=change), self.assertRaises(RuntimeError):
+                module.require_concealed(self.problem, {**self.problem_headers, **change})
+        for field in self.problem_headers:
+            headers = {key: value for key, value in self.problem_headers.items() if key != field}
+            with self.subTest(missing=field), self.assertRaises(RuntimeError):
+                module.require_concealed(self.problem, headers)
+
     def test_actual_network_state_must_match_internal_project_inventory(self):
         config = copy.deepcopy(self.config)
         config["services"]["app"]["networks"] = {"web": {}}
@@ -152,6 +197,14 @@ class RecoveryBoundaries(unittest.TestCase):
 
     def test_source_restart_is_attempted_even_when_cleanup_fails(self):
         starts = []
+        readers = []
+        def seed(runner, reader, base):
+            reader.cookies.set_cookie(module.http.cookiejar.Cookie(version=0, name="opentrack_session",
+                value="synthetic-reader-session", port=None, port_specified=False, domain="localhost.local",
+                domain_specified=False, domain_initial_dot=False, path="/", path_specified=True,
+                secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={}))
+            readers.append(reader)
+            return {}
         def dc(runner, *arguments, **kwargs):
             if arguments[0] == "config":
                 config = copy.deepcopy(self.config)
@@ -169,6 +222,9 @@ class RecoveryBoundaries(unittest.TestCase):
             return argparse.Namespace(stdout=json.dumps(states) if arguments[1] == "inspect" else "")
         identifier = "00000000-0000-0000-0000-000000000001"
         with patch.object(module.Qualification, "dc", new=dc), \
+                patch.object(module.Qualification, "seed_private_recovery", new=seed), \
+                patch.object(module.Qualification, "check_private_revocation"), \
+                patch.object(self.runner, "record"), \
                 patch.object(self.runner, "command", side_effect=command), \
                 patch.object(self.runner, "volume_info", return_value=None), \
                 patch.object(self.runner, "container", return_value={"Image": "fixture"}), \
@@ -184,6 +240,8 @@ class RecoveryBoundaries(unittest.TestCase):
             self.assertEqual(str(raised.exception.__context__), "snapshot failure")
             self.assertEqual(starts, [self.project])
             ready.assert_called_once()
+            self.assertEqual(len(readers), 1)
+            self.assertEqual(list(readers[0].cookies), [])
 
     def test_archive_rejects_paths_links_special_files_and_authority(self):
         bad = []

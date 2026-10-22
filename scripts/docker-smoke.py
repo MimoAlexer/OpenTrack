@@ -254,6 +254,21 @@ class FrontendAssets(HTMLParser):
             self.assets.append((attrs["href"], "stylesheet"))
 
 
+def require_concealed(problem, headers):
+    request_id = headers.get("X-Request-ID", "")
+    require(bool(re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", request_id))
+            and problem == {"type": "/api/v1/problems/not_found", "title": "Not Found",
+                            "status": 404, "detail": "This item could not be found",
+                            "instance": "urn:uuid:" + request_id, "code": "not_found",
+                            "request_id": request_id, "retryable": False, "field_errors": []},
+            "Private resource denial must contain only the generic not-found problem")
+    require(headers.get("Content-Type", "").partition(";")[0].strip().lower() == "application/problem+json"
+            and headers.get("Cache-Control") == "no-store"
+            and all(name not in headers for name in ("ETag", "Last-Modified", "Content-Disposition",
+                                                       "Content-Range", "Accept-Ranges", "Location")),
+            "Private resource denial exposed metadata or permitted caching")
+
+
 class Qualification:
     def __init__(self, args):
         validate_project(args.project)
@@ -490,6 +505,94 @@ class Qualification:
                         and (network.get("Labels") or {}).get("com.docker.compose.project") == self.project,
                         "Offline runtime network is external or belongs to another project")
 
+    def seed_private_recovery(self, reader, base):
+        team, _ = self.request(base + "/teams", "POST",
+            {"name": "Private restore team", "key": "RCV", "private": True},
+            headers={"Idempotency-Key": "docker-private-team"}, expected=(201,))
+        invitation, _ = self.request(base + "/invitations", "POST",
+            {"email": "restore-reader@example.test", "role": "viewer", "team_ids": [team["id"]]},
+            headers={"Idempotency-Key": "docker-private-reader"}, expected=(201,))
+        session, _ = reader.request("/api/v1/invitations/accept", "POST",
+            {"token": invitation["token"], "display_name": "Example Reader",
+             "password": secrets.token_urlsafe(36) + "A1!"})
+        reader.csrf = session["csrf_token"]
+        content = b"private-recovery-byte-marker-40192\n"
+        digest = hashlib.sha256(content).hexdigest()
+        file, headers = self.request(base + "/attachments", "POST",
+            {"team_id": team["id"], "original_name": "private-cold-restore.txt",
+             "size_bytes": len(content), "sha256": digest, "mime_hint": "text/plain"},
+            headers={"Idempotency-Key": "docker-private-file"}, expected=(201,))
+        attachment = base + "/attachments/" + file["id"]
+        self.request(attachment + "/content", "PUT", raw=content,
+            headers={"If-Match": headers["ETag"], "Content-Type": "application/octet-stream"})
+        body = {"type": "doc", "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "Private cold restore fixture"}]},
+            {"type": "attachment", "attrs": {"id": file["id"]}},
+        ]}
+        issue, _ = self.request(base + "/issues", "POST",
+            {"team_id": team["id"], "title": "Private cold restore fixture",
+             "document": {"schema_version": 1, "body": body}},
+            headers={"Idempotency-Key": "docker-private-issue"}, expected=(201,))
+        issue_path = base + "/issues/" + issue["id"]
+        document, _ = self.request(issue_path + "/document")
+        fixture = {"reader": reader, "reader_id": session["user"]["id"],
+                   "workspace": base.rsplit("/", 1)[1], "team": team["id"],
+                   "issue": issue_path, "document": base + "/documents/" + document["id"],
+                   "attachment": attachment, "body": body, "digest": digest,
+                   "markers": (team["id"], issue["id"], document["id"], file["id"], digest,
+                               "Private cold restore fixture", "private-cold-restore.txt", content.decode().strip())}
+        fixture["etag"] = reader.check_private_reads(fixture)
+        fixture["cookies"] = tuple((c.name, c.value, c.domain, c.path) for c in reader.cookies)
+        require(fixture["cookies"], "Private reader did not receive an independent session")
+        membership = base + "/teams/" + team["id"] + "/members/" + fixture["reader_id"]
+        _, headers = self.request(membership)
+        self.request(membership, "DELETE", headers={"If-Match": headers["ETag"]}, expected=(204,))
+        self.record("synthetic private-team viewer reads saved resources before team membership removal")
+        return fixture
+
+    def check_private_reads(self, fixture):
+        issue, _ = self.request(fixture["issue"])
+        document, _ = self.request(fixture["issue"] + "/document")
+        direct, _ = self.request(fixture["document"])
+        metadata, headers = self.request(fixture["attachment"])
+        content, _ = self.request(fixture["attachment"] + "/content")
+        require(issue["id"] == fixture["issue"].rsplit("/", 1)[1]
+                and issue["team_id"] == fixture["team"] and issue["title"] == "Private cold restore fixture"
+                and document["id"] == direct["id"] == fixture["document"].rsplit("/", 1)[1]
+                and document["body"] == direct["body"] == fixture["body"]
+                and metadata["id"] == fixture["attachment"].rsplit("/", 1)[1]
+                and metadata["sha256"] == fixture["digest"]
+                and hashlib.sha256(content).hexdigest() == fixture["digest"],
+                "Authorized private issue, document or attachment control differs")
+        require(bool(headers.get("ETag")), "Private attachment control has no saved validator")
+        return headers["ETag"]
+
+    def check_private_revocation(self, fixture, issue_path, attachment, body, digest):
+        reader = fixture["reader"]
+        session, _ = reader.request("/api/v1/auth/session")
+        require(session["user"]["id"] == fixture["reader_id"]
+                and any(w["id"] == fixture["workspace"] and w["role"] == "viewer" for w in session["workspaces"]),
+                "Private-team removal must preserve the reader's workspace session")
+        public, _ = reader.request(issue_path)
+        document, _ = reader.request(issue_path + "/document")
+        content, _ = reader.request(attachment + "/content")
+        require(public["id"] == issue_path.rsplit("/", 1)[1] and document["body"] == body
+                and hashlib.sha256(content).hexdigest() == digest,
+                "Revoked private-team reader lost the public content control")
+        self.check_private_reads(fixture)
+        paths = (fixture["issue"], fixture["issue"] + "/document", fixture["document"],
+                 fixture["attachment"], fixture["attachment"] + "/content")
+        for path in paths:
+            variants = ({}, {"Range": "bytes=0-15", "If-None-Match": fixture["etag"]},
+                        {"If-None-Match": "*"}) if path.startswith(fixture["attachment"]) else ({},)
+            for fields in variants:
+                problem, headers = reader.request(path, headers=fields, expected=(404,))
+                require_concealed(problem, headers)
+                require(not any(marker in str(headers) for marker in fixture["markers"]),
+                        "Private resource denial disclosed fixture metadata")
+        require(tuple((c.name, c.value, c.domain, c.path) for c in reader.cookies) == fixture["cookies"],
+                "Revocation checks must reuse the original reader session without replacement")
+
     def cold_recovery(self, account, password, issue_path, attachment, body, digest):
         config = json.loads(self.dc("config", "--format", "json").stdout)
         validate_compose(config, self.project, self.port)
@@ -510,8 +613,14 @@ class Qualification:
         relay_image = self.container("offline-relay")["Image"]
         database_image = self.container("database")["Image"]
         self.command(["docker", "volume", "create", "--label", f"{RECOVERY_LABEL}={self.project}", backup])
+        reader = Qualification(argparse.Namespace(project=self.project, url=self.url,
+                               output=str(self.output), expected_architecture=self.expected_architecture,
+                               compose_file=self.compose_files))
         source_stopped = False
         try:
+            private = self.seed_private_recovery(reader, issue_path.rsplit("/issues/", 1)[0])
+            self.check_private_revocation(private, issue_path, attachment, body, digest)
+            self.record("live revoked private-team reader keeps public access; saved private URLs conceal content and metadata")
             source_stopped = True
             self.dc("stop", "--timeout", "35", "app", "worker", timeout=70)
             fingerprint = self.database_fingerprint()
@@ -575,6 +684,8 @@ done
                     "Restored document or attachment checksum differs")
             restored.request(attachment + "/content", authenticated=False, expected=(401,))
             self.record("isolated offline restore preserves setup token, session, login, issue, document and populated attachment")
+            restored.check_private_revocation(private, issue_path, attachment, body, digest)
+            self.record("cold restore preserves the same reader session and current private-team denial with authorized owner and public controls")
             for action in ("missing-blob", "corrupt-blob"):
                 restored.dc("stop", "--timeout", "35", "app", timeout=55)
                 self.volume_task(action, restored.project, "blobs", backup, bootstrap_image, storage_key)
@@ -595,18 +706,20 @@ done
             self.record("missing/corrupt restored blobs fail preflight and authorized downloads without exposing bytes; original backup repairs both")
         finally:
             try:
-                self.cleanup_recovery()
+                try:
+                    self.cleanup_recovery()
+                finally:
+                    if source_stopped:
+                        self.dc("up", "--detach", "--wait", "--wait-timeout", "180", timeout=240)
+                        self.ready()
             finally:
-                if source_stopped:
-                    self.dc("up", "--detach", "--wait", "--wait-timeout", "180", timeout=240)
-                    self.ready()
+                reader.cookies.clear()
         self.record("only the owned restore project removed; source installation and private recovery backup retained")
         return {"volumes": list(RECOVERY_VOLUMES), "backup_volume": backup,
                 "external_dispatch": "restored worker never started; application networks internal; fixed HTTP relay only",
                 "limitations": ["cold same-host/same-architecture snapshot, not an encrypted scheduled backup profile",
                                 "operator_output and optional HTTPS volumes are outside the normal runtime fixture",
                                 "provider encryption keys and future module data are not implemented fixture coverage",
-                                "private-team membership denial after restore requires a separate fixture",
                                 "not a prior-release migration failure or different-host restore rehearsal"]}
 
     def run(self):
