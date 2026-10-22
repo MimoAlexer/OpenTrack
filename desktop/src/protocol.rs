@@ -255,6 +255,8 @@ fn team_route(method: Method, path: &[&str]) -> bool {
     match path {
         [] => matches!(method, Get | Patch),
         ["assignees" | "members" | "workflow"] => method == Get,
+        ["cycles"] => matches!(method, Get | Post),
+        ["cycles", cycle, rest @ ..] if id(cycle) => cycle_route(method, rest),
         ["members", member] => id(member) && matches!(method, Get | Put | Delete),
         ["statuses"] => matches!(method, Get | Post),
         ["templates"] => matches!(method, Get | Post),
@@ -268,6 +270,20 @@ fn team_route(method: Method, path: &[&str]) -> bool {
         ["workflow-replacements", job] => id(job) && method == Get,
         ["workflow-replacements", job, "resume"] => id(job) && method == Post,
         ["workflow", "default" | "order"] => method == Put,
+        _ => false,
+    }
+}
+fn cycle_route(method: Method, path: &[&str]) -> bool {
+    use Method::*;
+    match path {
+        [] => matches!(method, Get | Patch | Delete),
+        ["scope" | "close-preview"] => method == Get,
+        ["snapshots"] => matches!(method, Get | Post),
+        ["open" | "reopen" | "close" | "carry-forward"] => method == Post,
+        ["issues", issue] => id(issue) && method == Put,
+        ["reports", report] => id(report) && method == Get,
+        ["carry-forward", operation] => id(operation) && method == Get,
+        ["carry-forward", operation, "resume"] => id(operation) && method == Post,
         _ => false,
     }
 }
@@ -808,6 +824,73 @@ mod tests {
                     method.as_str(),
                     path
                 );
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod cycle_route_tests {
+    use super::*;
+    #[test]
+    fn native_cycle_routes_are_method_and_uuid_scoped() {
+        let w = "00000000-0000-0000-0000-000000000001";
+        let t = "00000000-0000-0000-0000-000000000002";
+        let c = "00000000-0000-0000-0000-000000000003";
+        let item = "00000000-0000-0000-0000-000000000004";
+        let base = format!("/api/v1/workspaces/{w}/teams/{t}/cycles");
+        let cases = [
+            (String::new(), vec![Method::Get, Method::Post]),
+            (
+                format!("/{c}"),
+                vec![Method::Get, Method::Patch, Method::Delete],
+            ),
+            (format!("/{c}/scope"), vec![Method::Get]),
+            (format!("/{c}/close-preview"), vec![Method::Get]),
+            (format!("/{c}/snapshots"), vec![Method::Get, Method::Post]),
+            (format!("/{c}/open"), vec![Method::Post]),
+            (format!("/{c}/close"), vec![Method::Post]),
+            (format!("/{c}/reopen"), vec![Method::Post]),
+            (format!("/{c}/carry-forward"), vec![Method::Post]),
+            (format!("/{c}/carry-forward/{item}"), vec![Method::Get]),
+            (
+                format!("/{c}/carry-forward/{item}/resume"),
+                vec![Method::Post],
+            ),
+            (format!("/{c}/reports/{item}"), vec![Method::Get]),
+            (format!("/{c}/issues/{item}"), vec![Method::Put]),
+        ];
+        for (suffix, allowed) in cases {
+            for method in [
+                Method::Get,
+                Method::Post,
+                Method::Patch,
+                Method::Put,
+                Method::Delete,
+            ] {
+                assert_eq!(
+                    route_allowed(method, &format!("{base}{suffix}")),
+                    allowed.contains(&method)
+                );
+            }
+        }
+        for path in [
+            format!("{base}/invalid"),
+            format!("{base}/{c}/reports/invalid"),
+            format!("{base}/{c}/issues/invalid"),
+            format!("{base}/{c}/carry-forward/invalid/resume"),
+            format!("{base}/{c}/close/extra"),
+            format!("{base}/{c}/snapshots/extra"),
+            format!("{base}/{c}/reports/{item}/extra"),
+        ] {
+            for method in [
+                Method::Get,
+                Method::Post,
+                Method::Patch,
+                Method::Put,
+                Method::Delete,
+            ] {
+                assert!(!route_allowed(method, &path));
             }
         }
     }
