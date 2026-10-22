@@ -26,6 +26,9 @@ import urllib.request
 RECOVERY_VOLUMES = ("database", "blobs", "database_secrets", "api_secrets",
                     "migration_secrets", "worker_secrets", "operator_secrets")
 RECOVERY_LABEL = "org.opentrack.qualification.recovery"
+RELAY_COMMAND = ["reverse-proxy", "--from", "http://:8080", "--to", "http://app:8080"]
+RELAY_TMPFS = ["/data:uid=10001,gid=10001,mode=0700,size=4m",
+               "/config:uid=10001,gid=10001,mode=0700,size=4m"]
 DATABASE_FINGERPRINT = """
 SELECT jsonb_build_object(
  'tables',(SELECT jsonb_agg(jsonb_build_array(c.relname,pg_get_userbyid(c.relowner),
@@ -64,10 +67,12 @@ def validate_compose(config, project, port):
                 and volume.get("driver") in (None, "local") and volume.get("name") == f"{project}_{name}",
                 "Recovery refuses external or renamed installation volumes")
     networks = config.get("networks", {})
-    require(networks and all(network.get("internal") and not network.get("external")
+    require(set(networks) == {"database", "web", "offline_ingress"}
+            and all(bool(network.get("internal")) == (name != "offline_ingress") and not network.get("external")
                              and network.get("name") == f"{project}_{name}"
                              for name, network in networks.items()),
-            "Offline qualification requires exclusively internal project networks")
+            "Offline qualification requires internal application networks and one owned relay network")
+    require("offline-relay" in config.get("services", {}), "Offline qualification requires its fixed HTTP relay")
     for name, service in config.get("services", {}).items():
         require(not service.get("privileged") and not service.get("volumes_from")
                 and service.get("network_mode") in (None, "none"),
@@ -76,11 +81,22 @@ def validate_compose(config, project, port):
         require(all(mount.get("type") == "volume" and mount.get("source") in volumes
                     for mount in service.get("volumes", [])), "Recovery refuses host-bound volumes")
         ports = service.get("ports", [])
-        if name == "app":
+        if name == "offline-relay":
+            require(service.get("image") == "opentrack-proxy:local"
+                    and service.get("entrypoint") == ["caddy"]
+                    and service.get("command") == RELAY_COMMAND
+                    and set(service.get("networks", {})) == {"web", "offline_ingress"}
+                    and not service.get("volumes") and set(service.get("tmpfs", [])) == set(RELAY_TMPFS)
+                    and service.get("user") == "10001:10001" and service.get("read_only")
+                    and service.get("cap_drop") == ["ALL"] and not service.get("cap_add")
+                    and service.get("security_opt") == ["no-new-privileges:true"],
+                    "Offline relay must be the fixed nonroot proxy without persistent or secret mounts")
             require(len(ports) == 1 and ports[0].get("host_ip") == "127.0.0.1"
                     and str(ports[0].get("published")) == str(port)
-                    and ports[0].get("target") == 8080, "Recovery requires the owned loopback app port")
+                    and ports[0].get("target") == 8080, "Recovery requires the owned loopback relay port")
         else:
+            require("offline_ingress" not in service.get("networks", {}),
+                    "Application services cannot use the relay's outward network")
             require(not ports, "Recovery refuses additional published ports")
 
 
@@ -265,11 +281,15 @@ class Qualification:
         return result
 
     def dc(self, *arguments, **kwargs):
+        operation = arguments[0] if arguments else "unknown"
         if arguments and arguments[0] in ("up", "run"):
             arguments = (arguments[0], "--pull", "never", *arguments[1:])
         if arguments and arguments[0] == "up" and "--no-build" not in arguments:
             arguments = (arguments[0], "--no-build", *arguments[1:])
-        return self.command(self.compose + list(arguments), **kwargs)
+        try:
+            return self.command(self.compose + list(arguments), **kwargs)
+        except RuntimeError as error:
+            raise RuntimeError(f"Compose {operation} failed; inspect the owned project logs") from error
 
     def record(self, message):
         self.checks.append(message)
@@ -430,17 +450,33 @@ class Qualification:
         containers = self.command(["docker", "ps", "--quiet", "--filter",
                                    f"label=com.docker.compose.project={self.project}"]).stdout.split()
         require(containers, "Offline qualification requires running project containers")
-        expected = {network["name"] for network in config["networks"].values()}
         for container in json.loads(self.command(["docker", "inspect", *containers]).stdout):
-            require((container["Config"].get("Labels") or {}).get("com.docker.compose.project") == self.project
+            labels = container["Config"].get("Labels") or {}
+            service = labels.get("com.docker.compose.service")
+            require(labels.get("com.docker.compose.project") == self.project and service in config["services"]
                     and container["HostConfig"].get("NetworkMode") not in ("host", "default", "bridge")
                     and not container["HostConfig"].get("NetworkMode", "").startswith("container:"),
                     "Offline qualification refuses a shared or foreign runtime network namespace")
             attached = container["NetworkSettings"].get("Networks") or {}
-            require(set(attached) <= expected, "Offline runtime has an unexpected network attachment")
+            expected = {config["networks"][name]["name"] for name in config["services"][service].get("networks", {})}
+            require(set(attached) == expected, "Offline runtime has an unexpected network attachment")
+            if service == "offline-relay":
+                require(container["Config"].get("Image") == "opentrack-proxy:local"
+                        and container["Config"].get("Entrypoint") == ["caddy"]
+                        and container["Config"].get("Cmd") == RELAY_COMMAND
+                        and container["Config"].get("User") == "10001:10001"
+                        and container["HostConfig"].get("ReadonlyRootfs")
+                        and container["HostConfig"].get("CapDrop") == ["ALL"]
+                        and not container["HostConfig"].get("CapAdd")
+                        and all(mount["Type"] == "tmpfs" for mount in container["Mounts"]),
+                        "Running relay must be the fixed nonroot proxy without secret or persistent mounts")
+            else:
+                require(not any((container["HostConfig"].get("PortBindings") or {}).values()),
+                        "Application services cannot publish ports in the offline fixture")
             for name, attachment in attached.items():
                 network = json.loads(self.command(["docker", "network", "inspect", attachment["NetworkID"]]).stdout)[0]
-                require(network.get("Name") == name and network.get("Internal")
+                outward = service == "offline-relay" and name == f"{self.project}_offline_ingress"
+                require(network.get("Name") == name and bool(network.get("Internal")) == (not outward)
                         and (network.get("Labels") or {}).get("com.docker.compose.project") == self.project,
                         "Offline runtime network is external or belongs to another project")
 
@@ -461,6 +497,7 @@ class Qualification:
         self.volume_info(backup, missing=True)
         bootstrap_image = self.container("initialize")["Image"]
         source_image = self.container("app")["Image"]
+        relay_image = self.container("offline-relay")["Image"]
         database_image = self.container("database")["Image"]
         self.command(["docker", "volume", "create", "--label", f"{RECOVERY_LABEL}={self.project}", backup])
         source_stopped = False
@@ -512,10 +549,11 @@ done
                     "Recovered setup credential differs")
             self.record("restored data/sequence/migration and owner/ACL/RLS/function fingerprints match; four restricted roles authenticate")
             restored.cookies, restored.http, restored.csrf = self.cookies, self.http, self.csrf
-            restored.dc("up", "--detach", "--wait", "--wait-timeout", "180", "app", timeout=240)
+            restored.dc("up", "--detach", "--wait", "--wait-timeout", "180", "offline-relay", timeout=240)
             restored.ready()
             restored.verify_offline_runtime(json.loads(restored.dc("config", "--format", "json").stdout))
             require(restored.container("app")["Image"] == source_image, "Recovery used a different application image")
+            require(restored.container("offline-relay")["Image"] == relay_image, "Recovery used a different relay image")
             preserved, _ = restored.request(issue_path)
             require(preserved["title"] == "Docker updated persistence acceptance" and preserved["priority"] == 2,
                     "Restored session or issue state differs")
@@ -550,7 +588,7 @@ done
                     self.ready()
         self.record("only the owned restore project removed; source installation and private recovery backup retained")
         return {"volumes": list(RECOVERY_VOLUMES), "backup_volume": backup,
-                "external_dispatch": "restored worker never started; all project networks internal",
+                "external_dispatch": "restored worker never started; application networks internal; fixed HTTP relay only",
                 "limitations": ["cold same-host/same-architecture snapshot, not an encrypted scheduled backup profile",
                                 "operator_output and optional HTTPS volumes are outside the normal runtime fixture",
                                 "provider encryption keys and future module data are not implemented fixture coverage",
@@ -563,14 +601,14 @@ done
         images = sorted({service["image"] for service in config["services"].values()})
         self.command(["docker", "image", "inspect", *images])
         self.verify_offline_runtime(config)
-        self.record("fresh runtime uses already obtained images, no builds/pulls and exclusively internal project networks")
+        self.record("fresh runtime uses cached images, internal application networks and a fixed loopback HTTP relay")
         version = json.loads(self.command(["docker", "version", "--format", "{{json .Server}}"]).stdout)
         engine_version = re.match(r"^(\d+)\.", version.get("Version", ""))
         require(engine_version and int(engine_version.group(1)) >= 28,
                 "The loopback-only Docker path requires Engine server version 28 or newer")
         require(version.get("Os") == "linux" and version.get("Arch") == self.expected_architecture,
                 "Docker engine OS/architecture does not match the requested native Linux qualification")
-        published = self.dc("port", "app", "8080").stdout.strip()
+        published = self.dc("port", "offline-relay", "8080").stdout.strip()
         require(published == f"127.0.0.1:{self.port}", "Smoke URL must match the project's loopback port")
         self.ready()
         html, headers = self.request("/", headers={"Accept": "text/html"})

@@ -99,9 +99,30 @@ jobs:
         run: |
           mkdir -p work/docker-smoke
           cat > work/docker-smoke/offline-compose.yaml <<'YAML'
+          services:
+            app:
+              ports: !reset []
+            offline-relay:
+              image: opentrack-proxy:local
+              entrypoint: [caddy]
+              command: [reverse-proxy, --from, 'http://:8080', --to, 'http://app:8080']
+              user: '10001:10001'
+              read_only: true
+              cap_drop: [ALL]
+              security_opt: [no-new-privileges:true]
+              tmpfs:
+                - '/data:uid=10001,gid=10001,mode=0700,size=4m'
+                - '/config:uid=10001,gid=10001,mode=0700,size=4m'
+              networks: [web, offline_ingress]
+              ports: ['127.0.0.1:${OPENTRACK_HTTP_PORT:-8080}:8080']
+              depends_on:
+                app:
+                  condition: service_healthy
+              stop_grace_period: 35s
           networks:
             web:
               internal: true
+            offline_ingress:
           YAML
           docker compose -f compose.yaml -f work/docker-smoke/offline-compose.yaml up --detach --wait --wait-timeout 180 --no-build --pull never
       - name: Execute offline HTTP, worker, persistence, cold restore and failure checks
@@ -147,11 +168,23 @@ jobs:
       - name: Show failure diagnostics
         if: ${{ failure() && needs.scope.result == 'success' && needs.scope.outputs.docker == 'true' }}
         run: OPENTRACK_DOMAIN=localhost OPENTRACK_PUBLIC_URL=https://localhost:18443 docker compose -f compose.yaml -f compose.https.yaml --profile https logs --no-color --tail 100
+      - name: Show offline fixture failure diagnostics
+        if: ${{ failure() && needs.scope.result == 'success' && needs.scope.outputs.docker == 'true' }}
+        run: |
+          if test -f work/docker-smoke/offline-compose.yaml; then
+            docker compose -f compose.yaml -f work/docker-smoke/offline-compose.yaml logs --no-color --tail 100
+          fi
       - name: Remove only this job's labelled recovery fixtures after interruption
         if: ${{ always() && needs.scope.result == 'success' && needs.scope.outputs.docker == 'true' }}
         run: |
           if test -f work/docker-smoke/offline-compose.yaml; then
             python3 scripts/docker-smoke.py --project "$COMPOSE_PROJECT_NAME" --compose-file work/docker-smoke/offline-compose.yaml --expected-architecture "${{ matrix.architecture }}" --cleanup-recovery --cleanup-backup
+          fi
+      - name: Remove this job's offline source containers and networks
+        if: ${{ always() && needs.scope.result == 'success' && needs.scope.outputs.docker == 'true' }}
+        run: |
+          if test -f work/docker-smoke/offline-compose.yaml; then
+            docker compose -f compose.yaml -f work/docker-smoke/offline-compose.yaml down --timeout 35
           fi
       - name: Remove only this job's disposable containers and volumes
         if: ${{ always() && needs.scope.result == 'success' && needs.scope.outputs.docker == 'true' }}

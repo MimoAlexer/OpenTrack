@@ -4,11 +4,11 @@
 
 ## Executable scope
 
-The Docker workflow builds the pinned images first, then starts a fresh disposable installation with `--no-build --pull never` and both application networks internal. The smoke harness verifies actual running-container attachments and Docker network `Internal` state before first-owner setup. Built JavaScript/CSS, local authentication, persisted issues/documents/attachments and the restricted worker are exercised with AI disabled. This tests installation from already obtained images, not an offline source build or hostile-network isolation.
+The Docker workflow builds the pinned images first, then starts a fresh disposable installation with `--no-build --pull never` and both application networks internal. A fixed nonroot HTTP relay uses the already-built proxy image: it alone joins one outward network and publishes the loopback port, forwards only to `app:8080`, and has no credentials or persistent mounts. The smoke harness verifies actual commands/mounts, running-container attachments and Docker network `Internal` state before first-owner setup. Built JavaScript/CSS, local authentication, persisted issues/documents/attachments and the restricted worker are exercised with AI disabled. This tests installation from already obtained images with application egress disabled, not an offline source build, a disconnected host or hostile-network isolation.
 
 After the existing persistence and credential-failure checks, the harness stops API/worker, captures a private database fingerprint, then stops and verifies every source service before copying any volume. It archives the matched database, blobs and five credential volumes into a private labelled backup volume. Archives have checksums and preserve numeric owners, permissions and file bytes. Restore writes only newly created empty volumes in the distinct owned restore project; path traversal, links, special files, unexpected owners, elevated mode bits and damaged archives are rejected.
 
-The restored database must use the original image and match table/sequence/migration, owner/ACL/RLS/function/schema and role fingerprints. The harness requires all four restricted roles to authenticate with their restored credentials. The matching application image must preserve the setup token, existing session, local login, issue, structured document and populated attachment digest. The restored worker remains stopped and actual networks remain internal. Missing/corrupt restored blobs must fail inventory verification and return an unavailable response without file bytes; each fault is repaired from the original backup.
+The restored database must use the original image and match table/sequence/migration, owner/ACL/RLS/function/schema and role fingerprints. The harness requires all four restricted roles to authenticate with their restored credentials. Matching application and relay images must preserve the setup token, existing session, local login, issue, structured document and populated attachment digest. The restored worker remains stopped and application networks remain internal. Missing/corrupt restored blobs must fail inventory verification and return an unavailable response without file bytes; each fault is repaired from the original backup.
 
 Normal cleanup removes only the exact labelled restore fixture and keeps the original private backup. The source restart is attempted even when cleanup fails. Explicit job-final cleanup can remove the labelled synthetic backup after qualification; the archive is never published as an artifact. This is a disposable qualification harness, not a production backup command.
 
@@ -18,14 +18,16 @@ After the offline checks, CI stops the source containers and removes their inter
 
 | Check | Observed result |
 | --- | --- |
-| `python scripts/test-docker-recovery.py` on Windows | 10 passed. |
-| Same boundary suite through the assigned WSL launcher | 10 passed. |
+| `python scripts/test-docker-recovery.py` on Windows | 11 passed after the relay correction. |
+| Same boundary suite through the assigned WSL launcher | 11 passed after the relay correction. |
 | Python syntax parsing | Both changed Python files passed. |
 | PostgreSQL 18.6 `EXPLAIN` of the fingerprint query | Passed against the assigned test database; this plans the query and does not execute a restore. |
 | Independent read-only implementation review | Two findings fixed and rechecked: cleanup failure must not skip source restart; offline evidence must inspect actual networks rather than only intended Compose configuration. |
 | `git diff --check` | Passed. |
 
 Boundary tests exercise foreign storage/network/port refusal, no-pull/no-build commands, archive safety/checksums, nonempty target refusal, source-volume write refusal, pinned networkless helpers, exact labelled cleanup, observed network-state refusal and restart after cleanup failure. They do not start Docker or qualify recovery behavior.
+
+The first native run, `39812491138` at `790c3590073ed3b5a860e69bf4c137bc9982a574`, failed on both architectures before HTTP acceptance, after actual internal-network validation. Docker does not publish a host port for an internal-only container ([Moby issue](https://github.com/moby/moby/issues/44986)); the revised topology keeps the application isolated and uses the fixed relay above. It explicitly starts the restored relay, covers its inherited data/config paths with bounded tmpfs mounts, checks the sole outward attachment and adds exact offline-network cleanup/diagnostics. No failed run is reported as restore acceptance. Every required check and independent review must run again on the corrected head.
 
 ## Remaining acceptance
 

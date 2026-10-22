@@ -38,9 +38,15 @@ class RecoveryBoundaries(unittest.TestCase):
             expected_architecture="amd64", compose_file=["work/docker-smoke/offline-compose.yaml"]))
         self.config = {"name": self.project,
             "volumes": {name: {"name": f"{self.project}_{name}"} for name in module.RECOVERY_VOLUMES},
-            "networks": {name: {"internal": True, "name": f"{self.project}_{name}"} for name in ("database", "web")},
+            "networks": {name: {"internal": name != "offline_ingress", "name": f"{self.project}_{name}"}
+                         for name in ("database", "web", "offline_ingress")},
             "services": {"app": {"networks": {"database": {}, "web": {}},
-                "ports": [{"host_ip": "127.0.0.1", "published": "18080", "target": 8080}]}, "database": {}}}
+                                  "ports": []}, "database": {},
+                "offline-relay": {"image": "opentrack-proxy:local", "entrypoint": ["caddy"],
+                    "command": module.RELAY_COMMAND.copy(), "user": "10001:10001", "read_only": True,
+                    "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"],
+                    "tmpfs": module.RELAY_TMPFS.copy(), "networks": {"web": {}, "offline_ingress": {}},
+                    "ports": [{"host_ip": "127.0.0.1", "published": "18080", "target": 8080}]}}}
 
     def test_compose_excludes_foreign_storage_egress_and_ports(self):
         module.validate_compose(self.config, self.project, 18080)
@@ -56,7 +62,13 @@ class RecoveryBoundaries(unittest.TestCase):
             lambda c: c["services"]["app"].update(privileged=True),
             lambda c: c["services"]["app"].update(volumes_from=["other"]),
             lambda c: c["services"]["app"].update(volumes=[{"type": "bind", "source": "/tmp"}]),
-            lambda c: c["services"]["app"]["ports"][0].update(host_ip="0.0.0.0"),
+            lambda c: c["services"]["offline-relay"]["ports"][0].update(host_ip="0.0.0.0"),
+            lambda c: c["services"]["offline-relay"].update(command=["file-server"]),
+            lambda c: c["services"]["offline-relay"].update(cap_add=["SYS_ADMIN"]),
+            lambda c: c["services"]["offline-relay"].update(volumes=[{"type":"volume","source":"api_secrets"}]),
+            lambda c: c["services"]["offline-relay"].update(tmpfs=[]),
+            lambda c: c["services"]["app"]["networks"].update(offline_ingress={}),
+            lambda c: c["services"]["app"].update(ports=[{"host_ip":"127.0.0.1","published":"18080","target":8080}]),
             lambda c: c["services"]["database"].update(ports=[5432])]
         for change in changes:
             config = copy.deepcopy(self.config)
@@ -76,7 +88,10 @@ class RecoveryBoundaries(unittest.TestCase):
             self.assertEqual(arguments[arguments.index("--pull") + 1], "never")
 
     def test_actual_network_state_must_match_internal_project_inventory(self):
-        container = {"Config": {"Labels": {"com.docker.compose.project": self.project}},
+        config = copy.deepcopy(self.config)
+        config["services"]["app"]["networks"] = {"web": {}}
+        container = {"Config": {"Labels": {"com.docker.compose.project": self.project,
+                                              "com.docker.compose.service": "app"}},
                      "HostConfig": {"NetworkMode": self.project + "_web"},
                      "NetworkSettings": {"Networks": {self.project + "_web": {"NetworkID": "network"}}}}
         network = {"Name": self.project + "_web", "Internal": True,
@@ -85,7 +100,7 @@ class RecoveryBoundaries(unittest.TestCase):
             return argparse.Namespace(stdout=json.dumps(value))
         with patch.object(self.runner, "command", side_effect=[argparse.Namespace(stdout="container"),
                 result([container]), result([network])]):
-            self.runner.verify_offline_runtime(self.config)
+            self.runner.verify_offline_runtime(config)
         for change in (lambda c, n: n.update(Internal=False),
                        lambda c, n: n["Labels"].update({"com.docker.compose.project": "foreign"}),
                        lambda c, n: c["HostConfig"].update(NetworkMode="host"),
@@ -94,6 +109,31 @@ class RecoveryBoundaries(unittest.TestCase):
             change(current, actual)
             with patch.object(self.runner, "command", side_effect=[argparse.Namespace(stdout="container"),
                     result([current]), result([actual])]), self.assertRaises(RuntimeError):
+                self.runner.verify_offline_runtime(config)
+
+    def test_actual_relay_keeps_fixed_upstream_and_no_persistent_mounts(self):
+        relay = self.config["services"]["offline-relay"]
+        container = {"Config": {"Labels": {"com.docker.compose.project": self.project,
+                                              "com.docker.compose.service": "offline-relay"},
+                                 "Image": relay["image"], "Entrypoint": ["caddy"],
+                                 "Cmd": module.RELAY_COMMAND.copy(), "User": "10001:10001"},
+                     "HostConfig": {"NetworkMode": self.project + "_web", "ReadonlyRootfs": True,
+                                    "CapDrop": ["ALL"], "CapAdd": None},
+                     "Mounts": [{"Type":"tmpfs"},{"Type":"tmpfs"}],
+                     "NetworkSettings": {"Networks": {f"{self.project}_{name}": {"NetworkID":name}
+                                                        for name in ("web","offline_ingress")}}}
+        def command(arguments, **kwargs):
+            if arguments[1] == "ps":
+                return argparse.Namespace(stdout="container")
+            if arguments[1] == "inspect":
+                return argparse.Namespace(stdout=json.dumps([container]))
+            name = arguments[-1]
+            return argparse.Namespace(stdout=json.dumps([{"Name": f"{self.project}_{name}",
+                "Internal":name != "offline_ingress", "Labels":{"com.docker.compose.project":self.project}}]))
+        with patch.object(self.runner, "command", side_effect=command):
+            self.runner.verify_offline_runtime(self.config)
+            container["Mounts"].append({"Type":"volume","Name":self.project + "_api_secrets"})
+            with self.assertRaises(RuntimeError):
                 self.runner.verify_offline_runtime(self.config)
 
     def test_source_restart_is_attempted_even_when_cleanup_fails(self):
