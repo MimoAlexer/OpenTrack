@@ -1146,12 +1146,7 @@ async fn redact_operation(
     }
     r.redacted = true;
     r.results.retain(|i| visible.contains(&i.issue_id));
-    r.state = if r.results.iter().all(|i| i.outcome == "moved") {
-        "complete"
-    } else {
-        "needs_review"
-    }
-    .into();
+    r.state = "restricted".into();
     r.etag = format!(
         "\"cycle-carry:{}:{}:{}\"",
         r.id,

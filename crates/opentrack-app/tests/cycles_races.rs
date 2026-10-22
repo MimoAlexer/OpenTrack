@@ -426,6 +426,7 @@ async fn historical_privacy(h: &Harness) {
         .await
         .unwrap();
     assert!(operation.redacted);
+    assert_eq!(operation.state, "restricted");
     assert!(operation.results.is_empty());
     assert_ne!(operation.etag, op.etag);
     let receipt = h
