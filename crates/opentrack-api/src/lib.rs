@@ -1,7 +1,7 @@
 mod account;
 mod attachments;
-mod milestones;
 mod cycles;
+mod milestones;
 mod preferences;
 mod projects;
 pub use attachments::AttachmentService;
