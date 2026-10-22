@@ -78,6 +78,7 @@ impl Transport {
             return Err(NativeError::invalid());
         }
         let long_finalize = method == Method::Post && attachment_finalize(path);
+        let large_cycle_response = crate::protocol::large_cycle_response(method, path);
         let method = reqwest::Method::from_bytes(method.as_str().as_bytes())
             .map_err(|_| NativeError::invalid())?;
         let mut request = self
@@ -131,7 +132,10 @@ impl Transport {
         // An imported legacy description can exceed the new write limit after
         // JSON escaping and its plaintext projection (up to six bytes per old
         // input byte in each copy). Keep this exception scoped to document reads.
-        let response_limit = if path.contains("/documents/") || path.ends_with("/document") {
+        let response_limit = if path.contains("/documents/")
+            || path.ends_with("/document")
+            || large_cycle_response
+        {
             4 * 1024 * 1024
         } else {
             1024 * 1024

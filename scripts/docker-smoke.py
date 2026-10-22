@@ -248,6 +248,8 @@ class Qualification:
         while self.sql(worker_query) != "t":
             require(time.monotonic() < deadline, "Restricted worker did not capture persisted events")
             time.sleep(2)
+        require(self.sql("SELECT to_regclass('public.cycles') IS NOT NULL AND EXISTS(SELECT 1 FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace WHERE e.extname='btree_gist' AND n.nspname='opentrack_extensions' AND e.extowner='opentrack_migrator'::regrole AND n.nspowner=e.extowner) AND NOT has_schema_privilege('opentrack','opentrack_extensions','USAGE,CREATE') AND NOT has_schema_privilege('opentrack_worker','opentrack_extensions','USAGE,CREATE')") == "t", "Public application schema must isolate trusted extension authority from runtime and worker")
+        self.record("public-schema worker captured events with migration-owned isolated cycle index extension")
         self.record("restricted worker captured real durable workspace events")
 
         start = time.monotonic()

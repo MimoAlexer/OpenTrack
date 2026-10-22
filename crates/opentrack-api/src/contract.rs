@@ -171,6 +171,7 @@ pub(crate) struct IssuePatch {
         crate::cycles::update,
         crate::cycles::membership,
         crate::cycles::scope,
+        crate::cycles::issues,
         crate::cycles::open,
         crate::cycles::reopen,
         crate::cycles::preview,
@@ -885,7 +886,7 @@ mod cycle_contract_tests {
                 }
             }
         }
-        assert_eq!(count, 17);
+        assert_eq!(count, 18);
         for schema in [
             "CloseCycle",
             "CycleMembership",
