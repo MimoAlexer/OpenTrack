@@ -31,6 +31,13 @@ The corrected focused run passed 12 real PostgreSQL tests: six new admission con
 
 Initial failures and corrections: four admission tests first assumed setup appended an event; setup actually leaves an empty stream. The fixture now creates a real issue, and all six admission cases pass without relaxing their assertions. Unix credential helpers initially failed on Windows because fcntl is unavailable; the Linux rerun passed. The first full test launch stopped on a CRLF in the ignored local check script; the script now uses LF. Inspection also corrected the scoped migration backfill, protected repeat-provisioning/head grants and future-checkpoint validation before this passing focused run. No failed run is reported as acceptance.
 
+## Subsequent local verification
+
+The original workspace attempt passed 98 Rust cases and intentionally ignored the built-production-assets HTTP case, then stopped at the historical schema13-to-current deletion snapshot: it expected every old event column but lacked the new storage_bytes field. With Agent 1's explicit bounded acknowledgement, the expected event rows now include the exact version1 logical charge; every pre-existing field, complete snapshot equality and subsequent rollback assertion remain. The corrected deletion test passed.
+
+The continuation selected all 29 remaining application integration targets via Cargo metadata, then ran opentrack-domain, opentrack-server and opentrack-store tests and workspace doc-tests with locked dependencies and two test threads. It passed another 118 Rust cases. Combined with the corrected deletion case, all 217 unique local Rust cases passed across these runs. The initial workspace command's failure is retained rather than reported as a green single invocation. The intentionally ignored production-assets HTTP case requires a frontend build and remains a configured CI gate. Native and container qualification are separate.
+
+The corrected test also passed strict targeted Clippy, and workspace formatting passed again. The corrected head must receive fresh configured CI and review. The superseded initial head's two workflows were canceled while this test expectation was corrected; cancellation grants no acceptance.
 ## Remaining scope
 
 The issue remains open for later consumers, broader administrative surfaces and full current-authority/retention qualification. This increment does not implement search, SSE, notifications/email, reports or physical disk monitoring. Native, browser, assistive-technology and complete-product gates remain separate.

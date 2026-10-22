@@ -98,6 +98,10 @@ async fn exercise(h: &Harness) {
     for event in expected_current["events"].as_array_mut().unwrap() {
         event["schema_version"] = json!(1);
         event["system_job_id"] = json!(null);
+        event["storage_bytes"] = json!(
+            192 + event["event_type"].as_str().unwrap().len()
+                + event["actor_kind"].as_str().unwrap().len()
+        );
     }
     assert_eq!(snapshot(h, &a, w).await, expected_current);
     let mut tx = h.context(a.user.id, w).await;
