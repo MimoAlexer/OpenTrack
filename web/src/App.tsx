@@ -151,6 +151,8 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
   const previousIssue = useRef<string | undefined>(undefined);
   const bootstrapGeneration = useRef(0);
   const [accessRevision, setAccessRevision] = useState(0);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { headingRef.current?.focus(); }, []);
   const shortcutPreference = useShortcutPreference(workspace.id, session, accessRevision);
   const [accessBlocked, setAccessBlocked] = useState(true);
   const [lastKnownEpoch, setLastKnownEpoch] = useState<string | null>(null);
@@ -234,7 +236,7 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
       <details className="workspace-menu" onKeyDown={event => { if (event.key === 'Escape' && event.currentTarget.open) { event.preventDefault(); event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); } }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false; }}>
         <summary aria-label={`Workspace menu: ${workspace.name}`}><span className="workspace-monogram" aria-hidden="true">{workspace.name[0]?.toUpperCase()}</span><span className="workspace-identity"><strong>{workspace.name}</strong><small>OpenTrack</small></span><ChevronsUpDown aria-hidden="true" /></summary>
         <div className="workspace-popover">
-          <label className="field">Switch workspace<select aria-label="Workspace" value={workspace.id} onChange={event => { event.currentTarget.closest('details')?.removeAttribute('open'); navigate(issuesUrl(event.target.value)); }}>{session.workspaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label className="field">Switch workspace<select aria-label="Workspace" value={workspace.id} onChange={event => { if (navigate(issuesUrl(event.target.value))) event.currentTarget.closest('details')?.removeAttribute('open'); else event.currentTarget.value = workspace.id; }}>{session.workspaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <button className="nav-item" onClick={event => { const menu = event.currentTarget.closest('details'); menu?.querySelector('summary')?.focus(); menu?.removeAttribute('open'); setMobileOpen(false); setCreatingWorkspace(true); }}><Plus aria-hidden="true" />Create workspace</button>
           <Link className="nav-item" href="/join">Join workspace</Link>
         </div>
@@ -247,7 +249,7 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
   const inaccessibleWorkspace = !!route.workspaceId && !session.workspaces.some(w => w.id === route.workspaceId);
   return <div className="app-shell"><a className="skip-link" href="#main-content">Skip to content</a><aside className="sidebar">{sidebar}</aside>
     {mobileOpen && <NavigationDrawer close={() => setMobileOpen(false)}>{sidebar}</NavigationDrawer>}
-    <div className="workspace-content"><header className="topbar"><button className="icon-button mobile-only" aria-label="Open navigation" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><Menu aria-hidden="true" /></button><div className="breadcrumbs"><span>{workspace.name}</span><span className="breadcrumb-divider">/</span><h1>{title}</h1></div><div className="topbar-actions">{!settings && <><button className="icon-button" aria-label={cycles ? 'Refresh cycles' : projects ? 'Refresh projects' : trash ? 'Refresh Trash' : 'Refresh issues'} onClick={() => setRefresh(n => n + 1)}><RefreshCw aria-hidden="true" /></button>{issueArea && !readOnly && <button className="button primary compact" onClick={() => setCreating(true)} disabled={!activeTeams.length}><Plus aria-hidden="true" />New issue{shortcutPreference.charactersEnabled && <kbd>C</kbd>}</button>}</>}</div></header>
+    <div className="workspace-content"><header className="topbar"><button className="icon-button mobile-only" aria-label="Open navigation" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><Menu aria-hidden="true" /></button><div className="breadcrumbs"><span>{workspace.name}</span><span className="breadcrumb-divider">/</span><h1 ref={headingRef} tabIndex={-1}>{title}</h1></div><div className="topbar-actions">{!settings && <><button className="icon-button" aria-label={cycles ? 'Refresh cycles' : projects ? 'Refresh projects' : trash ? 'Refresh Trash' : 'Refresh issues'} onClick={() => setRefresh(n => n + 1)}><RefreshCw aria-hidden="true" /></button>{issueArea && !readOnly && <button className="button primary compact" onClick={() => setCreating(true)} disabled={!activeTeams.length}><Plus aria-hidden="true" />New issue{shortcutPreference.charactersEnabled && <kbd>C</kbd>}</button>}</>}</div></header>
       <main id="main-content" className={`main-content${route.issueId || route.issueKey ? ' with-detail' : ''}`}>
         {workspaceArchived && !settings && <div className="notice">This workspace is archived. Restore it in <Link href={settingsUrl(workspace.id)}>workspace settings</Link> before making changes.</div>}
         {notice && <div className="workspace-notice" role="status">{notice}<button className="icon-button" aria-label="Dismiss message" onClick={() => setNotice('')}><X aria-hidden="true" /></button></div>}

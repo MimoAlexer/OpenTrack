@@ -230,3 +230,43 @@ it('does not carry a directory cursor or rows into another workspace', async () 
   expect(container.textContent).not.toContain('Private A');
   expect(container.textContent).toContain('Workspace B');
 });
+
+
+it.each([403, 503])('does not describe an initial team load failure as an empty directory: %s', async status => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ code: status === 403 ? 'forbidden' : 'unavailable', detail: 'Teams are unavailable.' }, status)));
+  await render(<TeamSettings workspace={workspace} session={session} changed={async () => {}} reauthenticate={() => {}} />);
+  expect(container.textContent).toContain('Teams are unavailable.');
+  expect(container.textContent).not.toContain('No active teams.');
+  expect(button('Try again')).toBeDefined();
+});
+
+it('retries invitation team discovery without losing the email draft', async () => {
+  let failed = true;
+  vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(url.includes('/teams') && failed ? json({ code: 'unavailable', detail: 'Teams could not be loaded.' }, 503) : json(page([])))));
+  await render(<InvitationSettings workspace={workspace} session={session} reauthenticate={() => {}} />);
+  await click('Create invitation');
+  const email = container.querySelector<HTMLInputElement>('input[name=email]')!;
+  await input(email, 'member@example.test');
+  expect(container.textContent).toContain('Teams could not be loaded.');
+  failed = false; await click('Try again');
+  expect(email.value).toBe('member@example.test');
+  expect(container.textContent).toContain('No teams are available.');
+});
+
+it('focuses invitation review and rejected credentials without discarding the token', async () => {
+  const fetch = vi.fn((url: string) => Promise.resolve(url.endsWith('/preview') ? json(preview) : json({ code: 'unauthenticated', detail: 'Sign in to continue.' }, 401)));
+  vi.stubGlobal('fetch', fetch);
+  await render(<JoinWorkspace session={null} authenticated={() => {}} />);
+  await input(container.querySelector('textarea')!, 'synthetic-invitation');
+  await submit(container.querySelector('form')!);
+  expect(document.activeElement?.tagName).toBe('H1');
+  const password = container.querySelector<HTMLInputElement>('input[name=password]')!;
+  await input(password, 'synthetic rejected password');
+  await submit(container.querySelector('form')!);
+  expect(document.activeElement).toBe(password);
+  expect(password.getAttribute('aria-invalid')).toBe('true');
+  expect(document.getElementById(password.getAttribute('aria-describedby')!)?.getAttribute('tabindex')).toBe('-1');
+  await click('Use a different token');
+  expect(document.activeElement).toBe(container.querySelector('textarea'));
+  expect(container.querySelector('textarea')?.value).toBe('synthetic-invitation');
+});
