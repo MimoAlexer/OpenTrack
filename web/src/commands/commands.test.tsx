@@ -155,6 +155,8 @@ it('does not dispatch a composing Enter, and exposes only available shortcuts in
   const create = command();
   await act(async () => root.render(<CommandPalette commands={[create]} close={vi.fn()} />));
   keyboard(container.querySelector('input')!, 'Enter', { isComposing: true }); expect(create.run).not.toHaveBeenCalled();
+  for (const options of [{ keyCode: 229 }, { ctrlKey: true }, { metaKey: true }, { altKey: true }, { repeat: true }]) keyboard(container.querySelector('input')!, 'Enter', options);
+  expect(create.run).not.toHaveBeenCalled();
   await act(async () => root.render(<CommandHelp commands={[create, command({ id: 'hidden', label: 'Hidden action', available: false })]} close={vi.fn()} />));
   expect(container.textContent).toContain('New issue'); expect(container.textContent).not.toContain('Hidden action'); expect(container.textContent).toContain('Save or create in a form');
 });

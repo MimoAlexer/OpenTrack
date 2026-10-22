@@ -3,21 +3,31 @@ import { ArrowUpRight, Command as CommandIcon, Search } from 'lucide-react';
 import { ErrorBanner, Modal } from '../components';
 import { activeShortcut, availableCommands, searchCommands, shortcutLabel, type Command } from './registry';
 import type { ShortcutPreference } from './useShortcutPreference';
+import { usePaletteIssues, type PaletteIssueSource } from './usePaletteIssues';
 import './commands.css';
 
-export function CommandPalette({ commands, close, charactersEnabled = true }: { commands: readonly Command[]; close: () => void; charactersEnabled?: boolean }) {
+export function CommandPalette({ commands, close, charactersEnabled = true, issueSource }: { commands: readonly Command[]; close: () => void; charactersEnabled?: boolean; issueSource?: PaletteIssueSource }) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const dispatched = useRef(false);
+  const resolving = useRef<{ scope: string } | null>(null);
+  const selectionScope = JSON.stringify([issueSource?.scope, query]);
   const id = useId();
-  const matches = searchCommands(commands, query);
+  const issues = usePaletteIssues(issueSource, query);
+  const matches: (Command & { issueId?: string })[] = [...searchCommands(commands, query), ...issues.items.map(issue => ({ id: `issue-${issue.id}`, issueId: issue.id, label: `${issue.key} · ${issue.title}`, section: query.trim() ? 'Issues' as const : 'Recent issues' as const, run: () => issueSource!.open(issue.id) }))];
   const active = matches.find(command => command.id === selected) ?? matches[0];
   const activeIndex = matches.findIndex(command => command.id === active?.id);
   useEffect(() => {
     if (active) document.getElementById(`${id}-${active.id}`)?.scrollIntoView?.({ block: 'nearest' });
   }, [active?.id, id]);
-  function choose(command: Command) {
-    if (dispatched.current || command.available === false) return;
+  async function choose(command: Command & { issueId?: string }) {
+    if (dispatched.current || resolving.current?.scope === selectionScope || command.available === false) return;
+    if (command.issueId) {
+      const pending = { scope: selectionScope }; resolving.current = pending;
+      const accessible = await issues.resolve(command.issueId);
+      if (resolving.current === pending) resolving.current = null;
+      if (!accessible) return;
+    }
     dispatched.current = true;
     close();
     // Let the modal return focus before opening another dialog or focusing a field.
@@ -26,19 +36,21 @@ export function CommandPalette({ commands, close, charactersEnabled = true }: { 
   return <Modal title="Commands" close={close}>
     <div className="command-palette">
       <label className="command-search"><Search aria-hidden="true" /><span className="sr-only">Search commands</span><input data-autofocus role="combobox" aria-label="Search commands" aria-autocomplete="list" aria-expanded="true" aria-controls={`${id}-results`} aria-activedescendant={active ? `${id}-${active.id}` : undefined} value={query} placeholder="Search actions or go to…" autoComplete="off" maxLength={120} onChange={event => { setQuery(event.target.value); setSelected(null); }} onKeyDown={event => {
-        if (event.nativeEvent.isComposing || event.repeat) return;
+        if (event.nativeEvent.isComposing || event.keyCode === 229 || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.getModifierState('AltGraph')) return;
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
           event.preventDefault();
           if (matches.length) setSelected(matches[(activeIndex + (event.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length].id);
         }
-        if (event.key === 'Enter' && active) { event.preventDefault(); choose(active); }
+        if (event.key === 'Enter' && active) { event.preventDefault(); void choose(active); }
       }} /><kbd>Esc</kbd></label>
-      <div className="command-results" id={`${id}-results`} role="listbox" aria-label="Workspace commands">
-        {matches.map(command => <div key={command.id} id={`${id}-${command.id}`} role="option" aria-selected={active?.id === command.id} className="command-option" onPointerMove={() => setSelected(command.id)} onMouseDown={event => event.preventDefault()} onClick={() => choose(command)}>
-          {command.section === 'Navigation' ? <ArrowUpRight aria-hidden="true" /> : <CommandIcon aria-hidden="true" />}<span><strong>{command.label}</strong><small>{command.section}</small></span>{activeShortcut(command, charactersEnabled) && <kbd>{shortcutLabel(command.shortcut!)}</kbd>}
+      <div className="command-results" id={`${id}-results`} role="listbox" aria-label="Workspace commands" aria-busy={issues.busy}>
+        {matches.map(command => <div key={command.id} id={`${id}-${command.id}`} role="option" aria-selected={active?.id === command.id} className="command-option" onPointerMove={() => setSelected(command.id)} onMouseDown={event => event.preventDefault()} onClick={() => { void choose(command); }}>
+          {command.section === 'Navigation' || command.issueId ? <ArrowUpRight aria-hidden="true" /> : <CommandIcon aria-hidden="true" />}<span><strong>{command.label}</strong><small>{command.section}</small></span>{activeShortcut(command, charactersEnabled) && <kbd>{shortcutLabel(command.shortcut!)}</kbd>}
         </div>)}
       </div>
-      {!matches.length && <p className="command-empty" role="status">No commands match “{query}”.</p>}
+      {issueSource && <p className="sr-only" role="status" aria-live="polite">{issues.busy ? 'Searching accessible issues…' : `${issues.items.length} ${query.trim() ? 'issue results' : 'recent issues'} in this workspace.`}</p>}
+      <ErrorBanner error={issues.error} retry={issues.retry} />
+      {!matches.length && !issues.busy && !issues.error && <p className="command-empty" role="status">No commands match “{query}”.</p>}
       <footer className="command-footer"><span><kbd>↑</kbd><kbd>↓</kbd> to navigate</span><span><kbd>Enter</kbd> to select</span></footer>
     </div>
   </Modal>;
