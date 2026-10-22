@@ -8,10 +8,18 @@ exec python3 - <<'PY'
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
 from urllib.parse import urlsplit
+sys.path.insert(0, "scripts")
+from qualification_process import run_owned
+
+def interrupted(_signal, _frame):
+    raise SystemExit("Storage qualification interrupted; no acceptance recorded")
+
+signal.signal(signal.SIGTERM, interrupted)
 
 if sys.platform != "linux":
     raise SystemExit("Storage qualification requires Linux user and mount namespaces")
@@ -32,7 +40,7 @@ executables = []
 for package, target in (("opentrack-adapters", "full_disk_qualification"),
                         ("opentrack-api", "attachment_storage_qualification")):
     try:
-        build = subprocess.run(["cargo", "test", "--locked", "-p", package, "--test", target,
+        build = run_owned(["cargo", "test", "--locked", "-p", package, "--test", target,
                                 "--no-run", "--message-format=json"], capture_output=True, text=True, timeout=600)
     except subprocess.TimeoutExpired:
         raise SystemExit("Storage qualification compilation exceeded its deadline") from None
@@ -53,7 +61,7 @@ with tempfile.TemporaryDirectory(prefix="opentrack-storage-refusal-", dir="/tmp"
             environment.pop("OPENTRACK_QUALIFICATION_PARENT_MOUNT", None)
             if marker is not None:
                 environment["OPENTRACK_QUALIFICATION_PARENT_MOUNT"] = marker
-            result = subprocess.run([executable, "--ignored", "--test-threads=1"],
+            result = run_owned([executable, "--ignored", "--test-threads=1"],
                                     env=environment, capture_output=True, timeout=20)
             if not result.returncode or b"A distinct launcher mount namespace is required" not in result.stdout + result.stderr:
                 raise SystemExit("Direct invocation did not reject the missing or unchanged namespace marker")
@@ -119,8 +127,11 @@ print("Both test executables refuse nonempty and linked roots without changing s
 '''
 environment = {**os.environ, "OPENTRACK_QUALIFICATION_PARENT_MOUNT": os.readlink("/proc/self/ns/mnt")}
 with tempfile.TemporaryDirectory(prefix="opentrack-storage-qualification-", dir="/tmp") as directory:
-    result = subprocess.run(["unshare", "--user", "--map-root-user", "--mount", "--propagation", "private",
-                             "python3", "-c", program, directory, *executables], env=environment)
+    try:
+        result = run_owned(["unshare", "--user", "--map-root-user", "--mount", "--propagation", "private",
+                            "python3", "-c", program, directory, *executables], env=environment, timeout=480)
+    except subprocess.TimeoutExpired:
+        raise SystemExit("Storage qualification exceeded its deadline") from None
     if result.returncode:
         raise SystemExit("Storage qualification failed; no acceptance recorded")
 PY

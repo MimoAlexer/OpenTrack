@@ -4,6 +4,10 @@
 
 Local execution used the assigned Ubuntu 26.04 WSL/PostgreSQL 18 runtime and private Cargo target under the shared verification lock. The production adapter/API source is unchanged in integrated `e3716adf19ab151a5fa19e26bd011ffb22978fb3`; only these qualification targets and their launcher guards were added.
 
+Independent review of the first published head found that compilation deadlines stopped only the direct Cargo process. Both launchers now use the same small Linux process-session supervisor for compilation and execution. It preserves captured compiler JSON and diagnostics, defers interruption during spawning, and waits for bounded TERM/KILL cleanup of every live owned group member before returning or raising. Parent SIGTERM and SIGINT follow the same cleanup path; unrelated processes are excluded.
+
+Four actual descendant regressions passed in 6.63 seconds: compilation timeout, parent SIGTERM, a successful leader leaving a child, and a failed leader leaving a child. Each uses an operating-system lock and verifies no live compiler/linker fixture remains when another process acquires it, while an unrelated process remains alive. The normal and failure cases also preserve captured JSON and stderr. These tests run in CI before scope classification. After this correction, both real exhaustion cases and the real ClamAV 1.5.4 API case passed again under the verification lock; final inspection found no owned scanner process or qualification temporary directory. The first head remains superseded pending fresh hosted checks and independent review of the correction.
+
 ## Actual storage exhaustion
 
 `bash scripts/qualify-attachment-storage.sh` builds outside the fixture, then creates a private user/mount namespace, namespace-owned temporary ancestry and separate 4 MiB tmpfs mounts for the adapter and API cases. The launcher requires four distinct restricted roles on one loopback `_test` database. It takes the shared verification lock when the local coordinator exists.

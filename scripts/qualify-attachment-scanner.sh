@@ -14,6 +14,8 @@ import subprocess
 import sys
 import tempfile
 from urllib.parse import urlsplit
+sys.path.insert(0, "scripts")
+from qualification_process import run_owned
 
 def fail(message):
     raise SystemExit(message)
@@ -40,7 +42,7 @@ with tempfile.TemporaryDirectory(prefix="opentrack-scanner-version-", dir="/tmp"
     if libraries is not None:
         environment["LD_LIBRARY_PATH"] = libraries
     try:
-        version = subprocess.run([str(binary), "--foreground", "--version", "--config-file", str(configuration)],
+        version = run_owned([str(binary), "--foreground", "--version", "--config-file", str(configuration)],
                                  env=environment, capture_output=True, text=True, timeout=5)
     except (OSError, subprocess.TimeoutExpired):
         fail("Cannot verify the required ClamAV 1.5+ qualification profile")
@@ -61,7 +63,7 @@ if not valid:
     fail("Scanner qualification requires four distinct restricted roles on one isolated *_test database")
 target = "attachment_scanner_qualification"
 try:
-    build = subprocess.run(["cargo", "test", "--locked", "-p", "opentrack-api", "--test", target,
+    build = run_owned(["cargo", "test", "--locked", "-p", "opentrack-api", "--test", target,
                             "--no-run", "--message-format=json"], capture_output=True, text=True, timeout=600)
 except subprocess.TimeoutExpired:
     fail("Scanner qualification compilation exceeded its deadline")
@@ -75,30 +77,11 @@ if len(executables) != 1:
     fail("Expected exactly one compiled scanner qualification executable")
 with tempfile.TemporaryDirectory(prefix="opentrack-scanner-qualification-", dir="/tmp") as directory:
     environment = {**os.environ, "OPENTRACK_TEST_CLAMD_ROOT": directory}
-    process = subprocess.Popen([executables[0], "--ignored", "--test-threads=1"],
-                               env=environment, start_new_session=True)
     try:
-        try:
-            result = process.wait(timeout=120)
-        except subprocess.TimeoutExpired:
-            fail("Scanner qualification exceeded its deadline")
-    finally:
-        # Only the new session created for this test and its foreground daemon.
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            pass
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        if process.poll() is None:
-            process.wait(timeout=5)
-    if result:
+        result = run_owned([executables[0], "--ignored", "--test-threads=1"], env=environment, timeout=120)
+    except subprocess.TimeoutExpired:
+        fail("Scanner qualification exceeded its deadline")
+    if result.returncode:
         fail("Installed scanner qualification failed; no acceptance recorded")
 print("Installed clamd clean, private-signature detection and outage/restart API qualification passed")
 print("Private fixture signatures do not qualify production signature coverage or malware detection breadth")
