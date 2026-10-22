@@ -248,6 +248,7 @@ class RecoveryBoundaries(unittest.TestCase):
             return {"Labels": {"com.docker.compose.project": self.project,
                                "com.docker.compose.volume": "blobs"}}
         with patch.object(self.runner, "volume_info", side_effect=information), patch.object(self.runner, "command") as command:
+            command.return_value = argparse.Namespace(returncode=0, stderr="")
             with self.assertRaises(RuntimeError):
                 self.runner.volume_task("restore", self.project, "blobs", self.project + "_recovery_backup", "sha256:fixture")
             command.assert_not_called()
@@ -258,6 +259,26 @@ class RecoveryBoundaries(unittest.TestCase):
             self.assertIn(f"type=volume,src={self.project}_blobs,dst=/volume,readonly", arguments)
             self.assertIn("sha256:fixture", arguments)
             compile(arguments[arguments.index("-c") + 1], "recovery-helper", "exec")
+
+    def test_helper_failure_identifies_action_and_volume_without_raw_stderr(self):
+        def information(name):
+            if name.endswith("_recovery_backup"):
+                return {"Labels": {module.RECOVERY_LABEL: self.project}}
+            return {"Labels": {"com.docker.compose.project": self.project + "-restore",
+                               "com.docker.compose.volume": "database"}}
+        with patch.object(self.runner, "volume_info", side_effect=information), \
+                patch.object(self.runner, "command", return_value=argparse.Namespace(returncode=1,
+                    stderr="untrusted diagnostic\nRecovery filesystem failure: errno=1\n")):
+            with self.assertRaisesRegex(RuntimeError, "restore for database rejected: Recovery filesystem failure: errno=1"):
+                self.runner.volume_task("restore", self.project + "-restore", "database",
+                                        self.project + "_recovery_backup", "sha256:fixture")
+        with patch.object(self.runner, "volume_info", side_effect=information), \
+                patch.object(self.runner, "command", return_value=argparse.Namespace(returncode=1,
+                    stderr="untrusted diagnostic")):
+            with self.assertRaisesRegex(RuntimeError, "helper command failed") as raised:
+                self.runner.volume_task("restore", self.project + "-restore", "database",
+                                        self.project + "_recovery_backup", "sha256:fixture")
+            self.assertNotIn("untrusted diagnostic", str(raised.exception))
 
     def test_cleanup_requires_exact_ownership_before_deletion(self):
         target = self.project + "-restore"

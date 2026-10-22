@@ -18,8 +18,8 @@ After the offline checks, CI stops the source containers and removes their inter
 
 | Check | Observed result |
 | --- | --- |
-| `python scripts/test-docker-recovery.py` on Windows | 11 passed after the relay correction. |
-| Same boundary suite through the assigned WSL launcher | 11 passed after the relay correction. |
+| `python scripts/test-docker-recovery.py` on Windows | 12 passed after the relay/API corrections. |
+| Same boundary suite through the assigned WSL launcher | 12 passed after the relay/API corrections. |
 | Python syntax parsing | Both changed Python files passed. |
 | PostgreSQL 18.6 `EXPLAIN` of the fingerprint query | Passed against the assigned test database; this plans the query and does not execute a restore. |
 | Independent read-only implementation review | Two findings fixed and rechecked: cleanup failure must not skip source restart; offline evidence must inspect actual networks rather than only intended Compose configuration. |
@@ -28,6 +28,8 @@ After the offline checks, CI stops the source containers and removes their inter
 Boundary tests exercise foreign storage/network/port refusal, no-pull/no-build commands, archive safety/checksums, nonempty target refusal, source-volume write refusal, pinned networkless helpers, exact labelled cleanup, observed network-state refusal and restart after cleanup failure. They do not start Docker or qualify recovery behavior.
 
 The first native run, `39812491138` at `790c3590073ed3b5a860e69bf4c137bc9982a574`, failed on both architectures before HTTP acceptance, after actual internal-network validation. Docker does not publish a host port for an internal-only container ([Moby issue](https://github.com/moby/moby/issues/44986)); the revised topology keeps the application isolated and uses the fixed relay above. It explicitly starts the restored relay, covers its inherited data/config paths with bounded tmpfs mounts, checks the sole outward attachment and adds exact offline-network cleanup/diagnostics. No failed run is reported as restore acceptance. Every required check and independent review must run again on the corrected head.
+
+The second native run, `39815243139` at `a42bee52cc44df8325721e5151e5b7a5bee60113`, passed the relay, real API/assets/setup/issues/files, worker capture, recreation, missing-secret recovery, stopped seven-volume archives and damaged-archive refusal on both architectures. Both then failed in the restore loop before PostgreSQL startup. The captured bootstrap build used Python package `3.11.2-6+deb12u9`; its exact Debian `tarfile` source lacks the extraction `filter` keyword. Running the original call against that source reproduced the `TypeError`. The corrected call uses the supported API while retaining structural archive validation, numeric ownership and the modern explicit fully-trusted filter where available. A nested archive/byte/ownership sandbox check passed with that exact Debian library source; it is not a container/PostgreSQL restore result. Safe helper diagnostics now identify action, volume and validation/errno category without raw command stderr. Native restore remains unqualified until fresh CI passes.
 
 ## Remaining acceptance
 

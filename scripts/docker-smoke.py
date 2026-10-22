@@ -187,7 +187,10 @@ def volume_operation(action, volume, storage_key=None):
         members = safe_members(archive)
         if action == "restore":
             require(not any(root.iterdir()), "Recovery refuses a nonempty target volume")
-            archive.extractall(root, members=members, numeric_owner=True, filter="fully_trusted")
+            options = {"numeric_owner": True}
+            if hasattr(tarfile, "fully_trusted_filter"):
+                options["filter"] = "fully_trusted"
+            archive.extractall(root, members=members, **options)
         elif action in ("missing-blob", "corrupt-blob", "repair-blob"):
             require(volume == "blobs" and re.fullmatch(r"[0-9a-f-]{36}", storage_key or ""),
                     "Blob fault must address the owned attachment fixture")
@@ -430,10 +433,10 @@ class Qualification:
         helper += "RECOVERY_VOLUMES = " + repr(RECOVERY_VOLUMES) + "\n"
         helper += "\n\n".join(inspect.getsource(function)
                                  for function in (require, safe_members, checked_archive, volume_operation))
-        helper += "\ntry:\n    volume_operation(*sys.argv[1:])\nexcept (RuntimeError, OSError, ValueError, tarfile.TarError):\n    raise SystemExit('Recovery fixture operation rejected; preserve the original backup')\n"
+        helper += "\ntry:\n    volume_operation(*sys.argv[1:])\nexcept RuntimeError as error:\n    raise SystemExit('Recovery validation rejected: ' + str(error))\nexcept OSError as error:\n    raise SystemExit('Recovery filesystem failure: errno=' + str(error.errno))\nexcept (ValueError, tarfile.TarError):\n    raise SystemExit('Recovery archive failure: invalid format')\n"
         readonly = action in ("snapshot", "verify", "reject-missing", "reject-corrupt")
         mount = f"type=volume,src={project}_{volume},dst=/volume" + (",readonly" if readonly else "")
-        return self.command(["docker", "run", "--rm", "--pull", "never", "--network", "none",
+        result = self.command(["docker", "run", "--rm", "--pull", "never", "--network", "none",
                              "--name", self.project + "-recovery-helper", "--label", f"{RECOVERY_LABEL}={self.project}",
                              "--read-only", "--user", "0:0", "--cap-drop", "ALL",
                              "--cap-add", "DAC_OVERRIDE", "--cap-add", "CHOWN", "--cap-add", "FOWNER",
@@ -441,7 +444,13 @@ class Qualification:
                              "--mount", f"type=volume,src={backup},dst=/backup",
                              "--entrypoint", "python3", image, "-c", helper, action, volume,
                              *([storage_key] if storage_key else [])], timeout=180,
-                            allowed=(0, 1) if action == "verify" else (0,))
+                            allowed=(0, 1))
+        if result.returncode and action != "verify":
+            reason = next((line for line in result.stderr.splitlines()
+                           if line.startswith(("Recovery validation rejected:", "Recovery filesystem failure:",
+                                               "Recovery archive failure:"))), "helper command failed")
+            raise RuntimeError(f"Recovery {action} for {volume} rejected: {reason}")
+        return result
 
     def database_fingerprint(self):
         return hashlib.sha256(self.sql(DATABASE_FINGERPRINT).encode()).digest()
