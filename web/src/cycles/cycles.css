@@ -26,7 +26,7 @@
   .planning-table td > button { white-space: nowrap; }
   .planning-table td input { min-width: 24px; min-height: 24px; }
   .cycle-chart { margin: 20px 0; max-width: 720px; color: var(--secondary); }
-  .cycle-chart svg { width: 100%; max-height: 220px; }
+  .cycle-chart svg { display: block; width: 100%; height: auto; aspect-ratio: 15 / 4; max-height: 220px; }
   .cycle-chart figcaption { font-size: 12px; margin-top: 8px; }
   .planning-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
   .planning-ack, .planning-group-toggle { display: flex; gap: 10px; align-items: flex-start; margin: 18px 0; font-size: 13px; }
