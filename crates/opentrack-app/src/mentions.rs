@@ -14,7 +14,7 @@ pub(crate) async fn projection(
     if ids.is_empty() {
         return Ok(vec![]);
     }
-    let row=sqlx::query("SELECT i.team_id,coalesce(c.origin_team_id,i.team_id) AS origin FROM documents d LEFT JOIN comments c ON c.workspace_id=d.workspace_id AND c.id=d.comment_id JOIN issues i ON i.workspace_id=d.workspace_id AND i.id=coalesce(d.issue_id,c.issue_id) WHERE d.workspace_id=$1 AND d.id=$2").bind(w).bind(id).fetch_one(&mut **tx).await.map_err(db_error)?;
+    let row=sqlx::query("SELECT coalesce(i.team_id,p.team_id) AS team_id,coalesce(c.origin_team_id,i.team_id,p.team_id) AS origin FROM documents d LEFT JOIN comments c ON c.workspace_id=d.workspace_id AND c.id=d.comment_id LEFT JOIN issues i ON i.workspace_id=d.workspace_id AND i.id=coalesce(d.issue_id,c.issue_id) LEFT JOIN projects p ON p.workspace_id=d.workspace_id AND p.id=d.project_id WHERE d.workspace_id=$1 AND d.id=$2").bind(w).bind(id).fetch_one(&mut **tx).await.map_err(db_error)?;
     let team: Uuid = row.try_get("team_id").map_err(db_error)?;
     let historical: Uuid = row.try_get("origin").map_err(db_error)?;
     let revision_origin = origin.unwrap_or(historical);
@@ -37,8 +37,8 @@ pub(crate) async fn scope(
     q: &MentionQuery,
 ) -> Result<(Uuid, Uuid)> {
     if let Some(doc) = q.document_id {
-        let (issue, _, comment) = documents::document_scope(tx, a, w, doc, false).await?;
-        let origin = if let Some(c) = comment {
+        let scope = documents::document_scope(tx, a, w, doc, false).await?;
+        let origin = if let Some(c) = scope.comment {
             sqlx::query_scalar(
                 "SELECT origin_team_id FROM comments WHERE workspace_id=$1 AND id=$2",
             )
@@ -48,9 +48,9 @@ pub(crate) async fn scope(
             .await
             .map_err(db_error)?
         } else {
-            issue.team_id
+            scope.team_id
         };
-        return Ok((issue.team_id, origin));
+        return Ok((scope.team_id, origin));
     }
     if let Some(issue) = q.issue_id {
         let item = documents::issue_scope(tx, a, w, issue, false).await?;

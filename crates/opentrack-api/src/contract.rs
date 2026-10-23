@@ -194,6 +194,9 @@ pub(crate) struct IssuePatch {
         crate::projects::create,
         crate::projects::detail,
         crate::projects::update,
+        crate::projects::metadata,
+        crate::projects::update_metadata,
+        crate::projects::document,
         crate::projects::progress,
         crate::projects::issues,
         crate::projects::membership,
@@ -475,6 +478,8 @@ pub fn openapi() -> Value {
                             "/api/v1/workspaces/{w}/teams/{t}/cycles/{id}",
                             "/api/v1/workspaces/{w}/teams/{t}/cycles/{id}/carry-forward/{operation}",
                             "/api/v1/workspaces/{w}/teams/{t}/projects/{id}",
+                            "/api/v1/workspaces/{w}/teams/{t}/projects/{id}/metadata",
+                            "/api/v1/workspaces/{w}/teams/{t}/projects/{id}/document",
                             "/api/v1/workspaces/{w}/teams/{t}/projects/{id}/updates/{update}",
                             "/api/v1/workspaces/{w}/teams/{t}/projects/{p}/milestones/{id}",
                             "/api/v1/workspaces/{w}/members/{u}",
@@ -490,7 +495,9 @@ pub fn openapi() -> Value {
                     || (path == "/api/v1/workspaces/{w}/issues/{id}/relations/{relation}"
                         && method == "delete")
                 {
-                    let description = if path.ends_with("/revisions/{revision}") {
+                    let description = if path == "/api/v1/workspaces/{w}/teams/{t}/projects/{id}/metadata" {
+                        "Strong validator for the complete currently authorized metadata representation, independent of the project brief. Send as If-Match on metadata changes."
+                    } else if path.ends_with("/revisions/{revision}") {
                         "Strong validator for the complete currently authorized revision representation, including reference labels. Revisions are read-only."
                     } else if method == "get"
                         && [
@@ -560,6 +567,45 @@ mod tests {
         assert_eq!(
             doc["components"]["schemas"]["UpdateUserPreferences"]["required"],
             json!(["shortcut_mode"])
+        );
+    }
+    #[test]
+    fn project_metadata_and_document_have_distinct_versioned_contracts() {
+        let doc = openapi();
+        let metadata = &doc["paths"]["/api/v1/workspaces/{w}/teams/{t}/projects/{id}/metadata"];
+        for method in ["get", "patch"] {
+            assert_eq!(
+                metadata[method]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"],
+                "#/components/schemas/ProjectSummary"
+            );
+            assert!(metadata[method]["responses"]["200"]["headers"]["ETag"].is_object());
+        }
+        assert!(
+            metadata["patch"]["parameters"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|parameter| parameter["name"] == "If-Match" && parameter["required"] == true)
+        );
+        assert_eq!(
+            metadata["patch"]["requestBody"]["content"]["application/json"]["schema"]["$ref"],
+            "#/components/schemas/UpdateProject"
+        );
+        assert!(
+            doc["components"]["schemas"]["ProjectSummary"]["properties"]
+                .get("narrative")
+                .is_none()
+        );
+        let document = &doc["paths"]["/api/v1/workspaces/{w}/teams/{t}/projects/{id}/document"];
+        assert_eq!(
+            document["get"]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"],
+            "#/components/schemas/Document"
+        );
+        assert!(document["get"]["responses"]["200"]["headers"]["ETag"].is_object());
+        assert!(document.get("patch").is_none());
+        assert_ne!(
+            metadata["get"]["operationId"],
+            document["get"]["operationId"]
         );
     }
     #[test]

@@ -8,7 +8,7 @@ import { issuesUrl, Link } from '../router';
 import { useScopedRequest } from '../settings/shared';
 import { useSearchPage } from '../taxonomy/useSearchPage';
 import type { Issue, IssuePage, Session } from '../types';
-import { projectPath, type Project, type ProjectIssue } from './types';
+import { projectMetadata, projectMetadataPath, projectPath, type FullProject, type Project, type ProjectIssue } from './types';
 import type { MilestoneOverview } from './Milestones';
 import { useProjectPage } from './useProjectData';
 
@@ -20,11 +20,11 @@ export function ProjectIssues({ project, session, refresh, readOnly, changed, de
   useEffect(() => { if (isAccessError(directory.error)) denied(directory.error); }, [directory.error]);
   async function membership(issue: { id: string }, included: boolean, milestone?: string) {
     if (busy || readOnly) return; setBusy(issue.id); setError(null);
-    try { const value = await request<Project>(`${path}/issues/${issue.id}${milestone !== undefined ? '/milestone' : ''}`, { method: 'PUT', csrf: session.csrf_token, headers: { 'If-Match': project.etag }, body: milestone !== undefined ? { milestone_id: milestone || null } : { included } }); changed(value); if (included && milestone === undefined) setAdding(false); }
+    try { const value = await request<FullProject>(`${path}/issues/${issue.id}${milestone !== undefined ? '/milestone' : ''}`, { method: 'PUT', csrf: session.csrf_token, headers: { 'If-Match': project.etag }, body: milestone !== undefined ? { milestone_id: milestone || null } : { included } }); changed(projectMetadata(value)); if (included && milestone === undefined) setAdding(false); }
     catch (error) {
       setError(error); if (isAccessError(error)) denied(error);
       if (error instanceof ApiError && error.status === 412) {
-        try { changed(await request<Project>(path)); }
+        try { changed(await request<Project>(projectMetadataPath(project.workspace_id, project.team_id, project.id))); }
         catch (readError) { setError(readError); if (isAccessError(readError)) denied(readError); }
       }
     } finally { setBusy(null); }

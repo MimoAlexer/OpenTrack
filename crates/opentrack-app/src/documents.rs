@@ -79,13 +79,21 @@ pub(crate) async fn document_row(
     id: Uuid,
     can_edit: bool,
 ) -> Result<Document> {
-    let row = sqlx::query("SELECT id,issue_id,comment_id,schema_version,body,plain_text,version::text,created_at,updated_at FROM documents WHERE workspace_id=$1 AND id=$2 AND deleted_at IS NULL").bind(w).bind(id).fetch_optional(&mut **tx).await.map_err(db_error)?.ok_or(Error::NotFound)?;
+    let row = sqlx::query("SELECT id,issue_id,comment_id,project_id,schema_version,body,plain_text,version::text,created_at,updated_at FROM documents WHERE workspace_id=$1 AND id=$2 AND deleted_at IS NULL").bind(w).bind(id).fetch_optional(&mut **tx).await.map_err(db_error)?.ok_or(Error::NotFound)?;
     let issue: Option<Uuid> = row.try_get("issue_id").map_err(db_error)?;
+    let project: Option<Uuid> = row.try_get("project_id").map_err(db_error)?;
     let schema: i32 = row.try_get("schema_version").map_err(db_error)?;
     let mut item = Document {
         id,
-        owner_type: if issue.is_some() { "issue" } else { "comment" }.into(),
-        owner_id: issue.unwrap_or(
+        owner_type: if issue.is_some() {
+            "issue"
+        } else if project.is_some() {
+            "project"
+        } else {
+            "comment"
+        }
+        .into(),
+        owner_id: issue.or(project).unwrap_or(
             row.try_get::<Option<Uuid>, _>("comment_id")
                 .map_err(db_error)?
                 .unwrap_or(Uuid::nil()),
@@ -108,19 +116,67 @@ pub(crate) async fn document_row(
     Ok(item)
 }
 /// Resolve owner at every read/write; no cached team ID can authorize a document.
+pub(crate) struct DocumentScope {
+    pub team_id: Uuid,
+    pub issue: Option<Issue>,
+    pub document: Document,
+    pub comment: Option<Comment>,
+}
 pub(crate) async fn document_scope(
     tx: &mut store::Tx,
     a: &Actor,
     w: Uuid,
     id: Uuid,
     write: bool,
-) -> Result<(Issue, Document, Option<Comment>)> {
-    let row = sqlx::query("SELECT issue_id,comment_id FROM documents WHERE workspace_id=$1 AND id=$2 AND deleted_at IS NULL").bind(w).bind(id).fetch_optional(&mut **tx).await.map_err(db_error)?.ok_or(Error::NotFound)?;
+) -> Result<DocumentScope> {
+    let row = sqlx::query("SELECT issue_id,comment_id,project_id FROM documents WHERE workspace_id=$1 AND id=$2 AND deleted_at IS NULL").bind(w).bind(id).fetch_optional(&mut **tx).await.map_err(db_error)?.ok_or(Error::NotFound)?;
+    if let Some(project) = row
+        .try_get::<Option<Uuid>, _>("project_id")
+        .map_err(db_error)?
+    {
+        let team_id: Uuid =
+            sqlx::query_scalar("SELECT team_id FROM projects WHERE workspace_id=$1 AND id=$2")
+                .bind(w)
+                .bind(project)
+                .fetch_optional(&mut **tx)
+                .await
+                .map_err(db_error)?
+                .ok_or(Error::NotFound)?;
+        projects::scope(tx, a, w, team_id, write).await?;
+        if write {
+            projects::lock(tx, w, team_id, project).await?;
+        }
+        let owner = projects::project(tx, a, w, team_id, project).await?;
+        if write && owner.archived_at.is_some() {
+            return Err(Error::Conflict(
+                "Restore the project before editing its brief".into(),
+            ));
+        }
+        if write {
+            sqlx::query("SELECT id FROM documents WHERE workspace_id=$1 AND id=$2 FOR UPDATE")
+                .bind(w)
+                .bind(id)
+                .fetch_one(&mut **tx)
+                .await
+                .map_err(db_error)?;
+        }
+        return Ok(DocumentScope {
+            team_id,
+            issue: None,
+            document: document_row(tx, a, w, id, owner.can_edit).await?,
+            comment: None,
+        });
+    }
     let comment: Option<Uuid> = row.try_get("comment_id").map_err(db_error)?;
     if let Some(comment) = comment {
         let (issue, item) = crate::comments::comment_scope(tx, a, w, comment, write).await?;
         let document = item.document.clone().ok_or(Error::NotFound)?;
-        return Ok((issue, document, Some(item)));
+        return Ok(DocumentScope {
+            team_id: issue.team_id,
+            issue: Some(issue),
+            document,
+            comment: Some(item),
+        });
     }
     let issue = issue_scope(tx, a, w, row.try_get("issue_id").map_err(db_error)?, write).await?;
     if write {
@@ -132,7 +188,26 @@ pub(crate) async fn document_scope(
             .map_err(db_error)?;
     }
     let editable = can_write(tx, a, w, &issue).await?;
-    Ok((issue, document_row(tx, a, w, id, editable).await?, None))
+    let document = document_row(tx, a, w, id, editable).await?;
+    Ok(DocumentScope {
+        team_id: issue.team_id,
+        issue: Some(issue),
+        document,
+        comment: None,
+    })
+}
+
+pub(crate) async fn create_project_document(
+    tx: &mut store::Tx,
+    a: &Actor,
+    w: Uuid,
+    project: Uuid,
+    request: &DocumentWrite,
+    plain: &str,
+) -> Result<()> {
+    graph::one(sqlx::query("INSERT INTO documents(id,workspace_id,project_id,schema_version,body,plain_text,updated_by_user_id) VALUES($1,$2,$3,$4,$5,$6,$7)")
+        .bind(Uuid::new_v4()).bind(w).bind(project).bind(request.schema_version).bind(&request.body).bind(plain).bind(a.user.id)
+        .execute(&mut **tx).await.map_err(db_error)?.rows_affected())
 }
 
 pub(crate) struct DocumentEffect<'a> {
@@ -149,6 +224,38 @@ pub(crate) async fn effects(
     issue: &Issue,
     effect: DocumentEffect<'_>,
 ) -> Result<()> {
+    let events = prepare_effects(tx, a, w, issue, effect).await?;
+    store::append_stream_events(tx, &events)
+        .await
+        .map_err(db_error)
+}
+async fn prepare_effects(
+    tx: &mut store::Tx,
+    a: &Actor,
+    w: Uuid,
+    issue: &Issue,
+    effect: DocumentEffect<'_>,
+) -> Result<Vec<store::Event<'static>>> {
+    let event_team = if effect.kind.starts_with("comment.") {
+        sqlx::query_scalar("SELECT origin_team_id FROM comments WHERE workspace_id=$1 AND id=$2")
+            .bind(w)
+            .bind(effect.target)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(db_error)?
+    } else {
+        issue.team_id
+    };
+    prepare_owner_effects(tx, a, w, issue.id, event_team, effect).await
+}
+async fn prepare_owner_effects(
+    tx: &mut store::Tx,
+    a: &Actor,
+    w: Uuid,
+    owner: Uuid,
+    event_team: Uuid,
+    effect: DocumentEffect<'_>,
+) -> Result<Vec<store::Event<'static>>> {
     let DocumentEffect {
         target,
         version,
@@ -156,16 +263,6 @@ pub(crate) async fn effects(
         reason,
         document,
     } = effect;
-    let event_team = if kind.starts_with("comment.") {
-        sqlx::query_scalar("SELECT origin_team_id FROM comments WHERE workspace_id=$1 AND id=$2")
-            .bind(w)
-            .bind(target)
-            .fetch_one(&mut **tx)
-            .await
-            .map_err(db_error)?
-    } else {
-        issue.team_id
-    };
     let mutation = Uuid::new_v4();
     graph::one(sqlx::query("INSERT INTO audit_entries(id,workspace_id,actor_id,action,target_id,metadata) VALUES($1,$2,$3,$4,$5,$6)").bind(mutation).bind(w).bind(a.user.id).bind(kind).bind(target).bind(json!({"moderation_reason":reason})).execute(&mut **tx).await.map_err(db_error)?.rows_affected())?;
     let changes = json!({"document_id":document.map(|d|d.id),"document_version":document.map(|d|&d.version),"comment_id":if kind.starts_with("comment."){Some(target)}else{None},"source":"manual"});
@@ -174,7 +271,7 @@ pub(crate) async fn effects(
         &store::Event {
             workspace: w,
             team: event_team,
-            entity: issue.id,
+            entity: owner,
             version,
             actor: a.user.id,
             kind,
@@ -208,9 +305,7 @@ pub(crate) async fn effects(
             changes: json!({}),
         });
     }
-    store::append_stream_events(tx, &events)
-        .await
-        .map_err(db_error)
+    Ok(events)
 }
 
 pub(crate) async fn save_body(
@@ -224,7 +319,94 @@ pub(crate) async fn save_body(
     graph::one(sqlx::query("UPDATE documents SET schema_version=$3,body=$4,plain_text=$5,version=version+1,updated_by_user_id=$6,updated_at=clock_timestamp() WHERE workspace_id=$1 AND id=$2 AND deleted_at IS NULL").bind(w).bind(id).bind(request.schema_version).bind(&request.body).bind(plain).bind(a.user.id).execute(&mut **tx).await.map_err(db_error)?.rows_affected())
 }
 
+// The caller has acquired source/target team locks and the owner/document locks.
+// Effects are prepared here; stream append stays last in the caller's transaction.
+pub(crate) async fn write_locked(
+    tx: &mut store::Tx,
+    a: &Actor,
+    w: Uuid,
+    scope: DocumentScope,
+    etag: &str,
+    request: &DocumentWrite,
+) -> Result<(Document, Vec<store::Event<'static>>)> {
+    let plain = request.validate()?;
+    let DocumentScope {
+        team_id,
+        issue,
+        document: current,
+        comment,
+    } = scope;
+    if !current.schema_supported {
+        return Err(Error::UnsupportedDocumentSchema);
+    }
+    if comment.is_some() && plain.trim().is_empty() && !request.has_attachments() {
+        return Err(Error::Invalid("A comment cannot be empty".into()));
+    }
+    let reason = if let Some(c) = &comment {
+        moderation_reason(
+            a,
+            c.author.id,
+            moderator(tx, a, w, team_id).await?,
+            request.moderation_reason.as_deref(),
+        )?
+    } else {
+        if request.moderation_reason.is_some() {
+            return Err(Error::Invalid(
+                "Moderation reason applies only to comments".into(),
+            ));
+        }
+        None
+    };
+    lifecycle::version(etag, &current.etag, &current)?;
+    save_body(tx, a, w, current.id, request, &plain).await?;
+    if let Some(c) = &comment {
+        graph::one(sqlx::query("UPDATE comments SET version=version+1,edited_at=clock_timestamp() WHERE workspace_id=$1 AND id=$2 AND deleted_at IS NULL").bind(w).bind(c.id).execute(&mut **tx).await.map_err(db_error)?.rows_affected())?;
+    }
+    let document = document_row(tx, a, w, current.id, true).await?;
+    let (target, version, kind) = if let Some(c) = comment {
+        (
+            c.id,
+            c.version.parse::<i64>().map_err(|_| Error::Internal)? + 1,
+            "comment.updated",
+        )
+    } else {
+        (
+            document.id,
+            document.version.parse().map_err(|_| Error::Internal)?,
+            "document.updated",
+        )
+    };
+    let effect = DocumentEffect {
+        target,
+        version,
+        kind,
+        reason: reason.as_deref(),
+        document: Some(&document),
+    };
+    let events = if let Some(issue) = issue {
+        prepare_effects(tx, a, w, &issue, effect).await?
+    } else {
+        prepare_owner_effects(tx, a, w, current.owner_id, team_id, effect).await?
+    };
+    Ok((document, events))
+}
+
 impl App {
+    pub async fn project_document(
+        &self,
+        a: &Actor,
+        w: Uuid,
+        t: Uuid,
+        project: Uuid,
+    ) -> Result<Document> {
+        let mut tx = self.scoped(a, w, false).await?;
+        let owner = projects::project(&mut tx, a, w, t, project).await?;
+        let id: Uuid = sqlx::query_scalar("SELECT id FROM documents WHERE workspace_id=$1 AND project_id=$2 AND deleted_at IS NULL")
+            .bind(w).bind(project).fetch_one(&mut *tx).await.map_err(db_error)?;
+        let document = document_row(&mut tx, a, w, id, owner.can_edit).await?;
+        tx.commit().await.map_err(db_error)?;
+        Ok(document)
+    }
     pub async fn issue_document(&self, a: &Actor, w: Uuid, issue: Uuid) -> Result<Document> {
         let mut tx = self.scoped(a, w, false).await?;
         let issue = issue_scope(&mut tx, a, w, issue, false).await?;
@@ -244,7 +426,7 @@ impl App {
     }
     pub async fn get_document(&self, a: &Actor, w: Uuid, id: Uuid) -> Result<Document> {
         let mut tx = self.scoped(a, w, false).await?;
-        let (_, document, _) = document_scope(&mut tx, a, w, id, false).await?;
+        let document = document_scope(&mut tx, a, w, id, false).await?.document;
         tx.commit().await.map_err(db_error)?;
         Ok(document)
     }
@@ -256,64 +438,14 @@ impl App {
         etag: &str,
         request: DocumentWrite,
     ) -> Result<Document> {
-        let plain = request.validate()?;
+        request.validate()?;
         let mut tx = self.scoped(a, w, false).await?;
         crate::issue_references::lock_document_targets(&mut tx, a, w, id, &request.body).await?;
-        let (issue, current, comment) = document_scope(&mut tx, a, w, id, true).await?;
-        if !current.schema_supported {
-            return Err(Error::UnsupportedDocumentSchema);
-        }
-        if comment.is_some() && plain.trim().is_empty() && !request.has_attachments() {
-            return Err(Error::Invalid("A comment cannot be empty".into()));
-        }
-        let reason = if let Some(c) = &comment {
-            moderation_reason(
-                a,
-                c.author.id,
-                moderator(&mut tx, a, w, issue.team_id).await?,
-                request.moderation_reason.as_deref(),
-            )?
-        } else {
-            if request.moderation_reason.is_some() {
-                return Err(Error::Invalid(
-                    "Moderation reason applies only to comments".into(),
-                ));
-            }
-            None
-        };
-        lifecycle::version(etag, &current.etag, &current)?;
-        save_body(&mut tx, a, w, id, &request, &plain).await?;
-        if let Some(c) = &comment {
-            graph::one(sqlx::query("UPDATE comments SET version=version+1,edited_at=clock_timestamp() WHERE workspace_id=$1 AND id=$2 AND deleted_at IS NULL").bind(w).bind(c.id).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
-        }
-        let document = document_row(&mut tx, a, w, id, true).await?;
-        let (target, version, kind) = if let Some(c) = comment {
-            (
-                c.id,
-                c.version.parse::<i64>().map_err(|_| Error::Internal)? + 1,
-                "comment.updated",
-            )
-        } else {
-            (
-                id,
-                document.version.parse().map_err(|_| Error::Internal)?,
-                "document.updated",
-            )
-        };
-        effects(
-            &mut tx,
-            a,
-            w,
-            &issue,
-            DocumentEffect {
-                target,
-                version,
-                kind,
-                reason: reason.as_deref(),
-                document: Some(&document),
-            },
-        )
-        .await?;
+        let scope = document_scope(&mut tx, a, w, id, true).await?;
+        let (document, events) = write_locked(&mut tx, a, w, scope, etag, &request).await?;
+        store::append_stream_events(&mut tx, &events)
+            .await
+            .map_err(db_error)?;
         tx.commit().await.map_err(db_error)?;
         Ok(document)
     }
@@ -338,7 +470,7 @@ impl App {
             .as_deref()
             .map(|v| self.taxonomy_cursor_decode("document-revisions-v1", &binding, v))
             .transpose()?;
-        let rows=sqlx::query("SELECT r.revision::text,r.schema_version,r.author_id,u.display_name,r.created_at,r.created_at+interval '90 days' AS expires_at FROM document_revisions r JOIN users u ON u.id=r.author_id JOIN teams t ON t.workspace_id=r.workspace_id AND t.id=r.origin_team_id WHERE r.workspace_id=$1 AND r.document_id=$2 AND r.created_at>clock_timestamp()-interval '90 days' AND ($4::bigint IS NULL OR r.revision<$4) AND (NOT t.private OR EXISTS(SELECT 1 FROM team_members m WHERE m.workspace_id=r.workspace_id AND m.team_id=t.id AND m.user_id=$3)) ORDER BY r.revision DESC LIMIT $5").bind(w).bind(id).bind(a.user.id).bind(after).bind(i64::from(query.limit.unwrap_or(25))+1).fetch_all(&mut *tx).await.map_err(db_error)?;
+        let rows=sqlx::query("SELECT r.revision::text,r.schema_version,r.author_id,u.display_name,(d.migrated_initial AND r.revision=1) AS migrated,r.created_at,r.created_at+interval '90 days' AS expires_at FROM document_revisions r JOIN documents d ON d.workspace_id=r.workspace_id AND d.id=r.document_id LEFT JOIN users u ON u.id=r.author_id JOIN teams t ON t.workspace_id=r.workspace_id AND t.id=r.origin_team_id WHERE r.workspace_id=$1 AND r.document_id=$2 AND r.created_at>clock_timestamp()-interval '90 days' AND ($4::bigint IS NULL OR r.revision<$4) AND (NOT t.private OR EXISTS(SELECT 1 FROM team_members m WHERE m.workspace_id=r.workspace_id AND m.team_id=t.id AND m.user_id=$3)) ORDER BY r.revision DESC LIMIT $5").bind(w).bind(id).bind(a.user.id).bind(after).bind(i64::from(query.limit.unwrap_or(25))+1).fetch_all(&mut *tx).await.map_err(db_error)?;
         let mut data = rows
             .iter()
             .map(revision_summary)
@@ -374,7 +506,7 @@ impl App {
     ) -> Result<DocumentRevision> {
         let mut tx = self.scoped(a, w, false).await?;
         document_scope(&mut tx, a, w, id, false).await?;
-        let row=sqlx::query("SELECT r.revision::text,r.schema_version,r.author_id,u.display_name,r.created_at,r.created_at+interval '90 days' AS expires_at,r.body,r.plain_text,r.origin_team_id FROM document_revisions r JOIN users u ON u.id=r.author_id JOIN teams t ON t.workspace_id=r.workspace_id AND t.id=r.origin_team_id WHERE r.workspace_id=$1 AND r.document_id=$2 AND r.revision=$3 AND r.created_at>clock_timestamp()-interval '90 days' AND (NOT t.private OR EXISTS(SELECT 1 FROM team_members m WHERE m.workspace_id=r.workspace_id AND m.team_id=t.id AND m.user_id=$4))").bind(w).bind(id).bind(revision).bind(a.user.id).fetch_optional(&mut *tx).await.map_err(db_error)?.ok_or(Error::NotFound)?;
+        let row=sqlx::query("SELECT r.revision::text,r.schema_version,r.author_id,u.display_name,(d.migrated_initial AND r.revision=1) AS migrated,r.created_at,r.created_at+interval '90 days' AS expires_at,r.body,r.plain_text,r.origin_team_id FROM document_revisions r JOIN documents d ON d.workspace_id=r.workspace_id AND d.id=r.document_id LEFT JOIN users u ON u.id=r.author_id JOIN teams t ON t.workspace_id=r.workspace_id AND t.id=r.origin_team_id WHERE r.workspace_id=$1 AND r.document_id=$2 AND r.revision=$3 AND r.created_at>clock_timestamp()-interval '90 days' AND (NOT t.private OR EXISTS(SELECT 1 FROM team_members m WHERE m.workspace_id=r.workspace_id AND m.team_id=t.id AND m.user_id=$4))").bind(w).bind(id).bind(revision).bind(a.user.id).fetch_optional(&mut *tx).await.map_err(db_error)?.ok_or(Error::NotFound)?;
         let mut result = DocumentRevision {
             summary: revision_summary(&row)?,
             body: row.try_get("body").map_err(db_error)?,
@@ -442,13 +574,19 @@ impl App {
     }
 }
 fn revision_summary(r: &sqlx::postgres::PgRow) -> Result<DocumentRevisionSummary> {
+    let author_id: Option<Uuid> = r.try_get("author_id").map_err(db_error)?;
     Ok(DocumentRevisionSummary {
         revision: r.try_get("revision").map_err(db_error)?,
         schema_version: r.try_get("schema_version").map_err(db_error)?,
-        author: CommentAuthor {
-            id: r.try_get("author_id").map_err(db_error)?,
-            display_name: r.try_get("display_name").map_err(db_error)?,
+        author: if let Some(id) = author_id {
+            Some(CommentAuthor {
+                id,
+                display_name: r.try_get("display_name").map_err(db_error)?,
+            })
+        } else {
+            None
         },
+        migrated: r.try_get("migrated").map_err(db_error)?,
         created_at: r.try_get("created_at").map_err(db_error)?,
         expires_at: r.try_get("expires_at").map_err(db_error)?,
     })

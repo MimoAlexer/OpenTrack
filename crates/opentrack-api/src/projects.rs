@@ -7,8 +7,9 @@ use axum::{
     routing::{get, put},
 };
 use opentrack_domain::{
-    CreateProject, CreateProjectUpdate, Error, Page, Project, ProjectIssue, ProjectMembership,
-    ProjectPageQuery, ProjectProgress, ProjectQuery, ProjectSummary, ProjectUpdate, UpdateProject,
+    CreateProject, CreateProjectUpdate, Document, Error, Page, Project, ProjectIssue,
+    ProjectMembership, ProjectPageQuery, ProjectProgress, ProjectQuery, ProjectSummary,
+    ProjectUpdate, UpdateProject,
 };
 use uuid::Uuid;
 pub(crate) fn routes() -> Router<ApiState> {
@@ -21,6 +22,14 @@ pub(crate) fn routes() -> Router<ApiState> {
         .route(
             "/workspaces/{w}/teams/{t}/projects/{id}",
             get(detail).patch(update),
+        )
+        .route(
+            "/workspaces/{w}/teams/{t}/projects/{id}/metadata",
+            get(metadata).patch(update_metadata),
+        )
+        .route(
+            "/workspaces/{w}/teams/{t}/projects/{id}/document",
+            get(document),
         )
         .route(
             "/workspaces/{w}/teams/{t}/projects/{id}/progress",
@@ -40,7 +49,15 @@ pub(crate) fn routes() -> Router<ApiState> {
         )
 }
 fn response(item: Project, status: StatusCode) -> Result<Response, ApiError> {
-    let etag = HeaderValue::from_str(&item.etag).map_err(|_| Error::Internal)?;
+    let etag = item.etag.clone();
+    tagged_response(item, &etag, status)
+}
+fn tagged_response<T: serde::Serialize>(
+    item: T,
+    etag: &str,
+    status: StatusCode,
+) -> Result<Response, ApiError> {
+    let etag = HeaderValue::from_str(etag).map_err(|_| Error::Internal)?;
     let mut out = (status, Json(item)).into_response();
     out.headers_mut().insert(header::ETAG, etag);
     Ok(out)
@@ -110,6 +127,42 @@ pub(crate) async fn update(
             .await?,
         StatusCode::OK,
     )
+}
+#[utoipa::path(get,operation_id="get_project_metadata",path="/api/v1/workspaces/{w}/teams/{t}/projects/{id}/metadata",params(("w"=Uuid,Path),("t"=Uuid,Path),("id"=Uuid,Path)),responses((status=200,body=ProjectSummary)))]
+pub(crate) async fn metadata(
+    State(s): State<ApiState>,
+    Auth(a): Auth,
+    Path((w, t, id)): Path<(Uuid, Uuid, Uuid)>,
+) -> Result<Response, ApiError> {
+    let item = s.app.get_project_metadata(&a, w, t, id).await?;
+    let etag = item.etag.clone();
+    tagged_response(item, &etag, StatusCode::OK)
+}
+#[utoipa::path(patch,operation_id="update_project_metadata",path="/api/v1/workspaces/{w}/teams/{t}/projects/{id}/metadata",params(("w"=Uuid,Path),("t"=Uuid,Path),("id"=Uuid,Path),("If-Match"=String,Header,description="Current metadata ETag; independent of the project brief")),request_body=UpdateProject,responses((status=200,body=ProjectSummary)))]
+pub(crate) async fn update_metadata(
+    State(s): State<ApiState>,
+    Auth(a): Auth,
+    Path((w, t, id)): Path<(Uuid, Uuid, Uuid)>,
+    headers: HeaderMap,
+    body: Result<Json<UpdateProject>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    csrf(&s, &headers, &a)?;
+    let item = s
+        .app
+        .update_project_metadata(&a, w, t, id, etag(&headers)?, payload(body)?)
+        .await?;
+    let etag = item.etag.clone();
+    tagged_response(item, &etag, StatusCode::OK)
+}
+#[utoipa::path(get,operation_id="project_document",path="/api/v1/workspaces/{w}/teams/{t}/projects/{id}/document",params(("w"=Uuid,Path),("t"=Uuid,Path),("id"=Uuid,Path)),responses((status=200,body=Document)))]
+pub(crate) async fn document(
+    State(s): State<ApiState>,
+    Auth(a): Auth,
+    Path((w, t, id)): Path<(Uuid, Uuid, Uuid)>,
+) -> Result<Response, ApiError> {
+    let item = s.app.project_document(&a, w, t, id).await?;
+    let etag = item.etag.clone();
+    tagged_response(item, &etag, StatusCode::OK)
 }
 #[utoipa::path(get,path="/api/v1/workspaces/{w}/teams/{t}/projects/{id}/progress",params(("w"=Uuid,Path),("t"=Uuid,Path),("id"=Uuid,Path)),responses((status=200,body=ProjectProgress)))]
 pub(crate) async fn progress(

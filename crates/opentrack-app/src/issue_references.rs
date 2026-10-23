@@ -80,8 +80,8 @@ pub(crate) async fn lock_new_targets(
     Ok(())
 }
 
-/// Obtain the owning issue without taking a team lock. Ordinary document scope
-/// rechecks author/moderator and historical comment authority after these locks.
+/// Authorize the current owner without team locks, then lock source and targets
+/// in sorted order before ordinary document scope takes entity locks.
 pub(crate) async fn lock_document_targets(
     tx: &mut store::Tx,
     a: &Actor,
@@ -92,22 +92,57 @@ pub(crate) async fn lock_document_targets(
     if document_issue_reference_ids(body).is_empty() {
         return Ok(());
     }
-    let row = sqlx::query("SELECT coalesce(d.issue_id,c.issue_id) AS issue_id,d.body FROM documents d LEFT JOIN comments c ON c.workspace_id=d.workspace_id AND c.id=d.comment_id WHERE d.workspace_id=$1 AND d.id=$2 AND d.deleted_at IS NULL")
+    let row = sqlx::query("SELECT coalesce(d.issue_id,c.issue_id) AS issue_id,d.project_id,c.origin_team_id,d.body FROM documents d LEFT JOIN comments c ON c.workspace_id=d.workspace_id AND c.id=d.comment_id WHERE d.workspace_id=$1 AND d.id=$2 AND d.deleted_at IS NULL")
         .bind(w).bind(document).fetch_optional(&mut **tx).await.map_err(db_error)?.ok_or(Error::NotFound)?;
-    let issue_id: Uuid = row.try_get("issue_id").map_err(db_error)?;
-    let source = graph::current(tx, a, w, issue_id).await?;
+    let issue_id: Option<Uuid> = row.try_get("issue_id").map_err(db_error)?;
+    let project_id: Option<Uuid> = row.try_get("project_id").map_err(db_error)?;
+    let source_team = if let Some(project) = project_id {
+        let team =
+            sqlx::query_scalar("SELECT team_id FROM projects WHERE workspace_id=$1 AND id=$2")
+                .bind(w)
+                .bind(project)
+                .fetch_optional(&mut **tx)
+                .await
+                .map_err(db_error)?
+                .ok_or(Error::NotFound)?;
+        crate::projects::scope(tx, a, w, team, false).await?;
+        team
+    } else {
+        graph::current(tx, a, w, issue_id.ok_or(Error::NotFound)?)
+            .await?
+            .team_id
+    };
+    if let Some(origin) = row
+        .try_get::<Option<Uuid>, _>("origin_team_id")
+        .map_err(db_error)?
+        && !store::visible_team(tx, w, origin, a.user.id, false)
+            .await
+            .map_err(db_error)?
+    {
+        return Err(Error::NotFound);
+    }
     lock_new_targets(
         tx,
         a,
         w,
-        source.team_id,
+        source_team,
         body,
         &row.try_get::<Value, _>("body").map_err(db_error)?,
     )
     .await?;
-    if graph::current(tx, a, w, issue_id).await?.team_id != source.team_id {
+    let current_team = if let Some(project) = project_id {
+        let team = sqlx::query_scalar("SELECT p.team_id FROM documents d JOIN projects p ON p.workspace_id=d.workspace_id AND p.id=d.project_id WHERE d.workspace_id=$1 AND d.id=$2 AND d.project_id=$3 AND d.deleted_at IS NULL")
+            .bind(w).bind(document).bind(project).fetch_optional(&mut **tx).await.map_err(db_error)?.ok_or(Error::NotFound)?;
+        crate::projects::scope(tx, a, w, team, false).await?;
+        team
+    } else {
+        graph::current(tx, a, w, issue_id.ok_or(Error::NotFound)?)
+            .await?
+            .team_id
+    };
+    if current_team != source_team {
         return Err(Error::Conflict(
-            "The source issue moved. Reload before saving".into(),
+            "The document source changed. Reload before saving".into(),
         ));
     }
     Ok(())

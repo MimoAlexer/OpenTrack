@@ -765,8 +765,32 @@ async fn real_postgres_attachment_0016_upgrade_preserves_documents() {
         let (a, w, t) = setup(&copy).await;
         let issue = issue(&copy, &a, w, t, json!({"description":"Preserved document"})).await;
         let before = serde_json::to_value(&issue).unwrap();
-        let document = copy.app.issue_document(&a, w, issue.id).await.unwrap();
+        // Current document readers require 0026; retain the actual 0016 row first.
+        let mut tx = copy.context(a.user.id, w).await;
+        let stored: Value = sqlx::query_scalar(
+            "SELECT to_jsonb(d) FROM documents d WHERE workspace_id=$1 AND issue_id=$2",
+        )
+        .bind(w)
+        .bind(issue.id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+        let mut document: Document = req(json!({
+            "id":stored["id"],"owner_type":"issue","owner_id":issue.id,
+            "schema_version":stored["schema_version"],"schema_supported":true,
+            "body":stored["body"],"plain_text":stored["plain_text"],
+            "version":stored["version"].as_i64().unwrap().to_string(),"etag":"",
+            "created_at":stored["created_at"],"updated_at":stored["updated_at"],
+            "can_edit":true,"mentions":[],"issue_references":[]
+        }));
+        document.refresh_etag();
         store::MIGRATOR.run(&copy.owner).await.unwrap();
+        let mut tx = copy.context(a.user.id, w).await;
+        let upgraded: Value = sqlx::query_scalar("SELECT to_jsonb(d)-'project_id'-'migrated_initial' FROM documents d WHERE workspace_id=$1 AND issue_id=$2")
+            .bind(w).bind(issue.id).fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(upgraded, stored);
+        tx.commit().await.unwrap();
         assert_eq!(
             serde_json::to_value(copy.app.get_issue(&a, w, issue.id).await.unwrap()).unwrap(),
             before

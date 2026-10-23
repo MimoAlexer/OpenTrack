@@ -2,7 +2,6 @@
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EMPTY_BODY } from '../documents/model';
 import { Milestones, type Milestone, type MilestoneOverview } from '../projects/Milestones';
 import { ProjectIssues } from '../projects/ProjectIssues';
 import type { Project } from '../projects/types';
@@ -17,7 +16,7 @@ import type { CloseReport, Cycle, Snapshot } from './types';
 const team: Team = { id: 'team', name: 'Example Team', key: 'EXA', private: false, archived_at: null };
 const session: Session = { audience: 'web', user: { id: 'owner', email: 'owner@example.test', display_name: 'Example Owner' }, csrf_token: 'csrf', workspaces: [{ id: 'workspace', name: 'Example Workspace', slug: 'example', role: 'owner' }] };
 const data: Bootstrap = { auth_epoch: '1', teams: [team], issues: [], members: [session.user], statuses: [] };
-const project: Project = { id: 'project', workspace_id: 'workspace', team_id: 'team', name: 'Example project', summary: '', narrative: { body: EMPTY_BODY, plain_text: '', schema_supported: true, schema_version: 1 }, state: 'planned', health: 'on_track', lead_id: null, lead: null, start_date: null, target_date: null, version: '1', etag: '"project:1"', created_at: '2026-10-22T10:00:00Z', updated_at: '2026-10-22T10:00:00Z', archived_at: null, can_edit: true, can_manage: true };
+const project: Project = { id: 'project', workspace_id: 'workspace', team_id: 'team', name: 'Example project', summary: '', state: 'planned', health: 'on_track', lead_id: null, lead: null, start_date: null, target_date: null, version: '1', etag: '"project:1"', created_at: '2026-10-22T10:00:00Z', updated_at: '2026-10-22T10:00:00Z', archived_at: null, can_edit: true, can_manage: true };
 const milestone: Milestone = { id: 'first', workspace_id: 'workspace', team_id: 'team', project_id: 'project', title: 'First outcome', target_date: null, rank: '1', state: 'planned', completed_at: null, version: '1', etag: '"milestone:1"', can_manage: true, can_assign: true, created_at: project.created_at, updated_at: project.updated_at };
 const progress = { completed: 0, eligible: 0, canceled: 0, open: 0, total: 0, unscoped: true, as_of: project.created_at };
 const cycle: Cycle = { id: 'cycle', workspace_id: 'workspace', team_id: 'team', name: 'Spring interval', start_date: '2026-03-28', end_date_exclusive: '2026-03-31', timezone: 'Europe/Berlin', starts_at: '2026-03-27T23:00:00Z', ends_at: '2026-03-30T22:00:00Z', state: 'active', version: '1', etag: '"cycle:1"', closed_at: null, latest_report_id: null, created_at: project.created_at, updated_at: project.updated_at, can_plan: true, can_manage: true };
@@ -48,7 +47,8 @@ describe('milestone planning', () => {
   });
   it('assigns and clears milestone through the authoritative project version', async () => {
     const issue = { id: 'issue', key: 'EXA-1', title: 'First issue', status_name: 'Ready', status_category: 'unstarted', milestone_id: null };
-    const fetch = vi.fn((_url: string, options: RequestInit) => Promise.resolve(json(options.method === 'PUT' ? project : page([issue])))); vi.stubGlobal('fetch', fetch);
+    const full = { ...project, etag: '"project-full:1"', metadata_etag: project.etag, narrative_version: '1', narrative: { schema_version: 1, schema_supported: true, body: { type: 'doc', content: [{ type: 'paragraph' }] }, plain_text: '' } };
+    const fetch = vi.fn((_url: string, options: RequestInit) => Promise.resolve(json(options.method === 'PUT' ? full : page([issue])))); vi.stubGlobal('fetch', fetch);
     const changed = vi.fn(); await render(<ProjectIssues project={project} session={session} refresh={0} readOnly={false} changed={changed} denied={() => {}} milestones={[{ milestone, progress }]}/>); await input('[aria-label="Milestone for EXA-1"]', 'first');
     const [url, write] = fetch.mock.calls.find(([, options]) => options.method === 'PUT')!; expect(url).toContain('/issues/issue/milestone'); expect(new Headers(write.headers).get('If-Match')).toBe(project.etag); expect(JSON.parse(write.body as string)).toEqual({ milestone_id: 'first' }); expect(changed).toHaveBeenCalledWith(project);
   });

@@ -337,7 +337,8 @@ fn project_route(method: Method, path: &[&str]) -> bool {
     use Method::*;
     match path {
         [] => matches!(method, Get | Patch),
-        ["progress" | "issues"] => method == Get,
+        ["metadata"] => matches!(method, Get | Patch),
+        ["progress" | "issues" | "document"] => method == Get,
         ["issues", issue] => id(issue) && method == Put,
         ["issues", issue, "milestone"] => id(issue) && method == Put,
         ["milestones"] => matches!(method, Get | Post),
@@ -367,6 +368,11 @@ mod tests {
         for (suffix, allowed) in [
             (String::new(), vec![Method::Get, Method::Post]),
             (format!("/{PROJECT}"), vec![Method::Get, Method::Patch]),
+            (
+                format!("/{PROJECT}/metadata"),
+                vec![Method::Get, Method::Patch],
+            ),
+            (format!("/{PROJECT}/document"), vec![Method::Get]),
             (format!("/{PROJECT}/progress"), vec![Method::Get]),
             (format!("/{PROJECT}/issues"), vec![Method::Get]),
             (
@@ -428,6 +434,13 @@ mod tests {
             format!("{base}/{PROJECT}/archive"),
             format!("{base}/{PROJECT}/restore"),
             format!("{base}/{PROJECT}/delete"),
+            format!("{base}/{PROJECT}/metadata/"),
+            format!("{base}/{PROJECT}/metadata/extra"),
+            format!("{base}/{PROJECT}/metadata/document"),
+            format!("{base}/{PROJECT}/document/"),
+            format!("{base}/{PROJECT}/document/revisions"),
+            format!("{base}/{PROJECT}/document/attachments"),
+            format!("{base}/{PROJECT}/documents"),
             format!("{base}/{PROJECT}/milestones/order/extra"),
             format!("{base}/{PROJECT}/progress/refresh"),
             format!("{base}/{PROJECT}/issues/{PROJECT_ISSUE}/"),
@@ -448,6 +461,8 @@ mod tests {
                 format!("/api/v1/workspaces/{invalid}/teams/{PROJECT_TEAM}/projects"),
                 format!("/api/v1/workspaces/{PROJECT_WORKSPACE}/teams/{invalid}/projects"),
                 format!("{base}/{invalid}"),
+                format!("{base}/{invalid}/metadata"),
+                format!("{base}/{invalid}/document"),
                 format!("{base}/{invalid}/progress"),
                 format!("{base}/{invalid}/updates"),
                 format!("{base}/{PROJECT}/issues/{invalid}"),
@@ -491,6 +506,17 @@ mod tests {
             serde_json::from_slice::<Value>(&checked.body.unwrap()).unwrap(),
             serde_json::json!({"included":true})
         );
+        let mut metadata = request(Method::Patch, &format!("{base}/{PROJECT}/metadata"));
+        metadata
+            .headers
+            .insert("If-Match".into(), "\"project-metadata:1\"".into());
+        metadata.body = Some(serde_json::json!({"summary":"Reviewed metadata"}));
+        let checked = metadata.check().unwrap();
+        assert_eq!(checked.headers["if-match"], "\"project-metadata:1\"");
+        assert_eq!(
+            serde_json::from_slice::<Value>(&checked.body.unwrap()).unwrap(),
+            serde_json::json!({"summary":"Reviewed metadata"})
+        );
         let mut update = request(Method::Post, &format!("{base}/{PROJECT}/updates"));
         update
             .headers
@@ -516,6 +542,7 @@ mod tests {
         for (method, path, limit) in [
             (Method::Post, base.clone(), 1024 * 1024),
             (Method::Patch, format!("{base}/{PROJECT}"), 1024 * 1024),
+            (Method::Patch, format!("{base}/{PROJECT}/metadata"), 65536),
             (Method::Post, format!("{base}/{PROJECT}/updates"), 65536),
             (
                 Method::Put,
@@ -545,6 +572,8 @@ mod tests {
         for path in [
             base.clone(),
             format!("{base}/{PROJECT}"),
+            format!("{base}/{PROJECT}/metadata"),
+            format!("{base}/{PROJECT}/document"),
             format!("{base}/{PROJECT}/progress"),
             format!("{base}/{PROJECT}/issues"),
             format!("{base}/{PROJECT}/updates"),

@@ -1,0 +1,53 @@
+{
+  "registry_count": 16,
+  "recent_workflow_jobs": [
+    {
+      "state": "succeeded",
+      "attempts": 1,
+      "created_at": "2026-10-22T19:22:41.385603+00:00",
+      "error_code": null,
+      "queue_seconds": 19.84305,
+      "effect_seconds": 0.012397
+    },
+    {
+      "state": "succeeded",
+      "attempts": 1,
+      "created_at": "2026-10-22T19:20:45.985851+00:00",
+      "error_code": null,
+      "queue_seconds": 15.200309,
+      "effect_seconds": 0.01392
+    },
+    {
+      "state": "succeeded",
+      "attempts": 1,
+      "created_at": "2026-10-22T19:18:07.148848+00:00",
+      "error_code": null,
+      "queue_seconds": 35.583598,
+      "effect_seconds": 0.01449
+    },
+    {
+      "state": "succeeded",
+      "attempts": 1,
+      "created_at": "2026-10-22T19:15:35.483154+00:00",
+      "error_code": null,
+      "queue_seconds": 1.925251,
+      "effect_seconds": 0.007868
+    },
+    {
+      "state": "succeeded",
+      "attempts": 1,
+      "created_at": "2026-10-22T19:15:22.835409+00:00",
+      "error_code": null,
+      "queue_seconds": 0.334345,
+      "effect_seconds": 0.00741
+    },
+    {
+      "state": "succeeded",
+      "attempts": 1,
+      "created_at": "2026-10-22T19:14:50.694843+00:00",
+      "error_code": null,
+      "queue_seconds": 16.148162,
+      "effect_seconds": 0.016275
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import { DocumentPortability } from './DocumentPortability';
 import { StructuredEditor } from './Editor';
 import { DocumentView } from './DocumentView';
 import { DocumentConflict } from './DocumentConflict';
+import { DocumentHistory } from './DocumentHistory';
 import { canonicalBody, isAccessError, sameBody, type RichBody } from './model';
 import type { StructuredDocument } from './types';
 import { ReferenceProvider } from '../documents/ReferenceProvider';
@@ -23,10 +24,17 @@ function readable(record: StructuredDocument): { body: RichBody | null; notice: 
   try { return { body: canonicalBody(record.body, true), notice: '' }; }
   catch (error) { return { body: null, notice: `${error instanceof Error ? error.message : 'This format is not supported.'} Its text is shown read-only.` }; }
 }
-export function IssueDocument({ workspaceId, issueId, bodyVersion, session, readOnly, paused = false, stateChanged, saved }: {
-  workspaceId: string; issueId: string; bodyVersion: string; session: Session; readOnly: boolean; paused?: boolean;
-  stateChanged: (state: DocumentDraftState) => void; saved: (document: StructuredDocument) => void | Promise<void>;
-}) {
+type OwnedDocumentProps = {
+  workspaceId: string; documentPath: string; refreshVersion: string; label: string; session: Session; readOnly: boolean; paused?: boolean;
+  stateChanged: (state: DocumentDraftState) => void; saved?: (document: StructuredDocument) => void | Promise<void>; onDenied?: (error: unknown) => void; history?: boolean;
+};
+export function IssueDocument({ issueId, bodyVersion, ...props }: Omit<OwnedDocumentProps, 'documentPath' | 'refreshVersion' | 'label' | 'onDenied' | 'history'> & { issueId: string; bodyVersion: string }) {
+  return <OwnedDocument {...props} documentPath={`/workspaces/${props.workspaceId}/issues/${issueId}/document`} refreshVersion={bodyVersion} label="Description" />;
+}
+export function OwnedDocument(props: OwnedDocumentProps) {
+  return <OwnedDocumentEditor key={`${props.workspaceId}:${props.documentPath}`} {...props} />;
+}
+function OwnedDocumentEditor({ workspaceId, documentPath, refreshVersion, label, session, readOnly, paused = false, stateChanged, saved, onDenied, history = false }: OwnedDocumentProps) {
   const request = useScopedRequest(); const scope = useSessionScope(session);
   const [uploads, setUploads] = useState<AttachmentDraftState | null>(null);
   const [mentionProjection, setMentionProjection] = useState<{ scope: string; references: MentionReference[]; issues: IssueReference[] }>({ scope: '', references: [], issues: [] });
@@ -38,13 +46,13 @@ export function IssueDocument({ workspaceId, issueId, bodyVersion, session, read
   const attempt = useRef<{ body: RichBody; etag: string } | null>(null); const flight = useRef(false);
   const alive = useRef(true); useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const current = useRef({ base, draft, latest, denied, composing, uncertain, review, readOnly, session, permitted, paused }); current.current = { base, draft, latest, denied, composing, uncertain, review, readOnly, session, permitted, paused };
-  const callbacks = useRef({ stateChanged, saved }); callbacks.current = { stateChanged, saved };
+  const callbacks = useRef({ stateChanged, saved, onDenied }); callbacks.current = { stateChanged, saved, onDenied };
   const parsed = base ? readable(base) : null;
   const dirty = !!draft && !!parsed?.body && !sameBody(draft, parsed.body);
   useUnsavedChanges(dirty || uncertain || busy || !!uploads?.pending);
   useEffect(() => {
     const abort = new AbortController(); setLoading(true);
-    request<StructuredDocument>(`/workspaces/${workspaceId}/issues/${issueId}/document`, { signal: abort.signal }).then(record => {
+    request<StructuredDocument>(documentPath, { signal: abort.signal }).then(record => {
       if (abort.signal.aborted) return;
       const now = current.current; const body = readable(record).body; const oldBody = now.base ? readable(now.base).body : null;
       // A refresh begun before a save must never roll its body or projection back.
@@ -55,13 +63,13 @@ export function IssueDocument({ workspaceId, issueId, bodyVersion, session, read
       else if (record.etag !== now.base.etag && (!body || !now.draft || !sameBody(body, now.draft))) setLatest(record);
     }).catch(error => { if (!abort.signal.aborted) { setError(error); if (isAccessError(error)) setDenied(true); } }).finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
-  }, [workspaceId, issueId, bodyVersion, scope, retry]);
+  }, [documentPath, refreshVersion, scope, retry]);
   async function accept(record: StructuredDocument, submitted: RichBody) {
     setMentionProjection({ scope, references: record.mentions ?? [], issues: record.issue_references ?? [] });
     const now = current.current; const next = now.draft && sameBody(now.draft, submitted) ? readable(record).body : now.draft;
     current.current = { ...now, base: record, draft: next, latest: null, uncertain: false, review: false };
     setBase(record); setDraft(next); setLatest(null); setError(null); setUncertain(false); setReview(false); setSavedOnce(true); attempt.current = null;
-    await callbacks.current.saved(record);
+    await callbacks.current.saved?.(record);
   }
   async function save(): Promise<boolean> {
     const now = current.current; const before = now.base ? readable(now.base).body : null;
@@ -101,15 +109,18 @@ export function IssueDocument({ workspaceId, issueId, bodyVersion, session, read
     if (!dirty || busy || composing || latest || uncertain || review || readOnly || paused || !base?.can_edit || !permitted || denied) return;
     const timer = window.setTimeout(() => { void save(); }, 750); return () => clearTimeout(timer);
   }, [dirty, draft, busy, composing, latest, uncertain, review, readOnly, paused, base?.can_edit, permitted, denied]);
-  if (denied) return <section className="issue-document"><ErrorBanner error={error} retry={() => setRetry(n => n + 1)} /><p className="document-notice">The description is hidden because access could not be confirmed.</p></section>;
+  useEffect(() => { if (denied && isAccessError(error)) callbacks.current.onDenied?.(error); }, [denied, error]);
+  if (denied) return <section className="issue-document"><ErrorBanner error={error} retry={() => setRetry(n => n + 1)} /><p className="document-notice">The {label.toLowerCase()} is hidden because access could not be confirmed.</p></section>;
   const latestBody = latest ? readable(latest).body : null;
-  return <ReferenceProvider workspaceId={workspaceId} session={session} target={base ? { document_id: base.id } : { issue_id: issueId }} references={mentionProjection.references} issueReferences={mentionProjection.issues} projectionScope={mentionProjection.scope}><section className="issue-document" aria-label="Description">
-    <div className="document-section-title"><h2>Description</h2><span className="document-save-status" role="status" aria-live="polite">{busy ? <><LoaderCircle className="spinner" aria-hidden="true" />Saving…</> : uncertain ? 'Save not confirmed' : dirty ? review || latest ? 'Review before saving' : composing ? 'Editing…' : 'Unsaved' : savedOnce ? <><Check aria-hidden="true" />Saved</> : ''}</span></div>
+  const content = <section className="issue-document" aria-label={label}>
+    {base && history && <DocumentHistory workspaceId={workspaceId} documentId={base.id} session={session} refreshVersion={base.version} onDenied={onDenied}/>}
+    <div className="document-section-title"><h2>{label}</h2><span className="document-save-status" role="status" aria-live="polite">{busy ? <><LoaderCircle className="spinner" aria-hidden="true" />Saving…</> : uncertain ? 'Save not confirmed' : dirty ? review || latest ? 'Review before saving' : composing ? 'Editing…' : 'Unsaved' : savedOnce ? <><Check aria-hidden="true" />Saved</> : ''}</span></div>
     <ErrorBanner error={error} retry={!uncertain ? () => setRetry(n => n + 1) : undefined} />
     {uncertain && <p className="document-notice" role="status">The response was interrupted. Your draft is still here. <button type="button" className="quiet" disabled={busy} onClick={reconcile}>Check save result</button></p>}
     {latestBody && draft && <DocumentConflict latest={latestBody} local={draft} choose={(body, needsReview) => { setBase(latest); setDraft(body); setLatest(null); setReview(needsReview); setError(null); }} />}
     {latest && !latestBody && <p className="document-notice">The latest saved version uses unsupported formatting. Your draft is preserved; saving is paused.</p>}
-    {!base ? loading ? <p role="status" className="document-loading">Loading description…</p> : null : !draft ? <div className="document-fallback"><p className="notice">{parsed?.notice}</p><pre>{base.plain_text}</pre></div> : readOnly || !base.can_edit || !permitted ? <><DocumentView body={draft} fallback={base.plain_text} /><DocumentPortability value={draft} /></> : <StructuredEditor value={draft} onChange={setDraft} label="Description" attachmentTarget={{ document_id: base.id }} attachmentsChanged={setUploads} onCompositionChange={setComposing} onSave={() => { void save(); }} />}
+    {!base ? loading ? <p role="status" className="document-loading">Loading {label.toLowerCase()}…</p> : null : !draft ? <div className="document-fallback"><p className="notice">{parsed?.notice}</p><pre>{base.plain_text}</pre></div> : readOnly || !base.can_edit || !permitted ? <><DocumentView body={draft} fallback={base.plain_text} /><DocumentPortability value={draft} /></> : <StructuredEditor value={draft} onChange={setDraft} label={label} attachmentTarget={{ document_id: base.id }} attachmentsChanged={setUploads} onCompositionChange={setComposing} onSave={() => { void save(); }} />}
     {base && draft && !readOnly && base.can_edit && permitted && <div className="document-state"><span>Type / for blocks · @ for people · # for issues · Ctrl / ⌘ Enter to save</span><div className="button-row" style={{ visibility: dirty || review || error ? 'visible' : 'hidden' }}><button type="button" className="quiet" disabled={!dirty || busy || uncertain || !!uploads?.pending} onClick={discard}>Discard text</button><button type="button" className="button compact" disabled={!dirty || busy || paused || composing || !!latest || uncertain} onClick={() => { void save(); }}>Save text now</button></div></div>}
-  </section></ReferenceProvider>;
+  </section>;
+  return base ? <ReferenceProvider workspaceId={workspaceId} session={session} target={{ document_id: base.id }} references={mentionProjection.references} issueReferences={mentionProjection.issues} projectionScope={mentionProjection.scope}>{content}</ReferenceProvider> : content;
 }

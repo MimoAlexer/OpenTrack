@@ -101,6 +101,8 @@ test('light workflow settings persist defaults and order, then a saved replaceme
   expect(createdResponse.request().postDataJSON()).not.toHaveProperty('status_id');
   const created = await createdResponse.json() as Issue;
   expect(created).toMatchObject({ team_id: currentTeam.id, status_id: source.id, title });
+  await expect(page).toHaveURL(value => value.pathname === `/w/${saved.workspace}/issues/${created.id}`);
+  await expect(page.getByRole('textbox', { name: 'Issue title', exact: true })).toHaveValue(title);
   await page.reload();
   await expect(page.getByRole('textbox', { name: 'Issue title', exact: true })).toHaveValue(title);
   expect((await saved.issue(created.id)).status_id).toBe(source.id);

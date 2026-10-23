@@ -229,7 +229,7 @@ impl App {
             tx.commit().await.map_err(db_error)?;
             return Ok(old);
         }
-        lifecycle::version(etag, &project.etag, &project)?;
+        projects::version(etag, &project)?;
         let (count,rank):(i64,i64)=sqlx::query_as("SELECT count(*),coalesce(max(rank),0)+1 FROM milestones WHERE workspace_id=$1 AND project_id=$2").bind(w).bind(p).fetch_one(&mut *tx).await.map_err(db_error)?;
         if count >= 500 {
             return Err(Error::Conflict(
@@ -337,7 +337,7 @@ impl App {
         }
         let mut tx = self.scoped(a, w, false).await?;
         let project = project_scope(&mut tx, a, w, t, p, true, true).await?;
-        lifecycle::version(etag, &project.etag, &project)?;
+        projects::version(etag, &project)?;
         let ids: Vec<Uuid> = sqlx::query_scalar(
             "SELECT id FROM milestones WHERE workspace_id=$1 AND project_id=$2 ORDER BY rank,id",
         )
@@ -389,7 +389,7 @@ impl App {
     ) -> Result<Project> {
         let mut tx = self.scoped(a, w, false).await?;
         let project = project_scope(&mut tx, a, w, t, p, true, false).await?;
-        lifecycle::version(etag, &project.etag, &project)?;
+        projects::version(etag, &project)?;
         if let Some(id) = req.milestone_id {
             get(&mut tx, a, &project, id).await.map_err(|e| {
                 if matches!(e, Error::NotFound) {

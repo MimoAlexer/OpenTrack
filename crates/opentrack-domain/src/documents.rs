@@ -474,7 +474,9 @@ impl Comment {
 pub struct DocumentRevisionSummary {
     pub revision: String,
     pub schema_version: i32,
-    pub author: CommentAuthor,
+    #[schema(required = true)]
+    pub author: Option<CommentAuthor>,
+    pub migrated: bool,
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
 }

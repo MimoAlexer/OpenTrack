@@ -99,8 +99,12 @@ async fn scope(tx: &mut store::Tx, a: &Actor, w: Uuid, id: Uuid, write: bool) ->
         if linked.is_none() && uploader != a.user.id {
             return Err(Error::NotFound);
         }
-        let (issue, document, comment) =
-            documents::document_scope(tx, a, w, document, write).await?;
+        let documents::DocumentScope {
+            team_id,
+            document,
+            comment,
+            ..
+        } = documents::document_scope(tx, a, w, document, write).await?;
         if linked.is_some() {
             let retained:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM document_attachment_revisions ar JOIN document_revisions r ON r.workspace_id=ar.workspace_id AND r.document_id=ar.document_id AND r.revision=ar.revision JOIN teams t ON t.workspace_id=r.workspace_id AND t.id=r.origin_team_id WHERE ar.workspace_id=$1 AND ar.document_id=$2 AND ar.attachment_id=$3 AND (ar.revision=$4 OR (r.created_at>clock_timestamp()-interval '90 days' AND (NOT t.private OR EXISTS(SELECT 1 FROM team_members tm WHERE tm.workspace_id=$1 AND tm.team_id=t.id AND tm.user_id=$5)))))").bind(w).bind(document.id).bind(id).bind(document.version.parse::<i64>().map_err(|_|Error::Internal)?).bind(a.user.id).fetch_one(&mut **tx).await.map_err(db_error)?;
             if !retained {
@@ -120,7 +124,7 @@ async fn scope(tx: &mut store::Tx, a: &Actor, w: Uuid, id: Uuid, write: bool) ->
             .await
             .map_err(db_error)?
         } else {
-            issue.team_id
+            team_id
         };
         (document.can_edit, event_team, comment)
     } else {
@@ -273,12 +277,11 @@ impl App {
         .await
         .map_err(db_error)?;
         let team = if let Some(document) = request.document_id {
-            let (issue, document, _) =
-                documents::document_scope(&mut tx, a, w, document, true).await?;
-            if !document.can_edit {
+            let scope = documents::document_scope(&mut tx, a, w, document, true).await?;
+            if !scope.document.can_edit {
                 return Err(Error::Forbidden);
             }
-            issue.team_id
+            scope.team_id
         } else {
             let team = request.team_id.ok_or(Error::Internal)?;
             if !store::visible_team(&mut tx, w, team, a.user.id, true)
