@@ -1,0 +1,28 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "light workflow settings persist defaults and order, then a saved replacement survives reload and restores its source identity",
+      "status": "passed",
+      "duration_ms": 19782
+    },
+    {
+      "browser": "firefox",
+      "check": "light workflow settings persist defaults and order, then a saved replacement survives reload and restores its source identity",
+      "status": "passed",
+      "duration_ms": 5209
+    },
+    {
+      "browser": "webkit",
+      "check": "light workflow settings persist defaults and order, then a saved replacement survives reload and restores its source identity",
+      "status": "passed",
+      "duration_ms": 6545
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}
