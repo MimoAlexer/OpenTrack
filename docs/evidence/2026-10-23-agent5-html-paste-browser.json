@@ -1,0 +1,96 @@
+{
+  "final_run_source_revision": "67e8d23590936d3dc99db88aed05b0e8e6e9ad0d",
+  "final_production_build_revision": "590725e9e6332f6fe06b20dd870eed55a1e63ab2",
+  "final_production_inputs_unchanged": true,
+  "test_file": "web/e2e/document-paste.browser.ts",
+  "test_sha256": "32d941b4db5ad2366a3fa9e4ac89d8308a44ae1b9ffdf29c324ee5a508de6d0b",
+  "published_test_sha256": "bf03e6c7923378d1b8cf30cc946bf5dd037d37c1f593c478d7555f9af19e9547",
+  "publication_change": "Removed one final blank line from the executed test artifact; executable statements unchanged.",
+  "final_environment": {
+    "browser_runner_node": "22.22.1",
+    "frontend_build_node": "24.14.1",
+    "playwright": "1.64.1",
+    "server_sha256": "1ffad244c49f0f05a5da25be3a8f0799a6b1a534a3c30d8303d7b1b384ec92d9",
+    "frontend_assets_manifest_sha256": "164220c150aea4c1b596124f6937855e7ecff8d8d2682fa4f52d23dac8550505"
+  },
+  "earlier_attempts_provenance": "Preserved fixture observations; final build identities are not retroactive provenance for earlier runs.",
+  "initial_editor_matrix": [
+    {
+      "browser": "chromium",
+      "status": "passed",
+      "duration_ms": 6263
+    },
+    {
+      "browser": "firefox",
+      "status": "failed",
+      "duration_ms": 1236
+    },
+    {
+      "browser": "webkit",
+      "status": "passed",
+      "duration_ms": 5912
+    }
+  ],
+  "firefox_constructor_diagnostic": {
+    "status": "fixture_failed_before_dispatch",
+    "standalone_html": true,
+    "same_transfer": false,
+    "event_html": false
+  },
+  "corrected_firefox_target": [
+    {
+      "browser": "firefox",
+      "status": "passed",
+      "duration_ms": 8053
+    }
+  ],
+  "corrected_editor_matrix": [
+    {
+      "browser": "chromium",
+      "status": "passed",
+      "duration_ms": 5631
+    },
+    {
+      "browser": "firefox",
+      "status": "passed",
+      "duration_ms": 8034
+    },
+    {
+      "browser": "webkit",
+      "status": "passed",
+      "duration_ms": 6501
+    }
+  ],
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "status": "passed",
+      "duration_ms": 8534
+    },
+    {
+      "browser": "firefox",
+      "status": "passed",
+      "duration_ms": 10867
+    },
+    {
+      "browser": "webkit",
+      "status": "passed",
+      "duration_ms": 9793
+    }
+  ],
+  "coverage": [
+    "three HTML payload cases per engine",
+    "editable parser and exact saved API body",
+    "reload",
+    "actual issue archive and read-only DocumentView",
+    "actual restore with unchanged safe body",
+    "DOM and execution/request/dialog/popup probes"
+  ],
+  "limitations": [
+    "Synthetic cancelable ClipboardEvent with explicit DataTransfer; not trusted OS clipboard delivery.",
+    "No physical IME, zoom, assistive technology, native-webview or full M04 qualification.",
+    "No standalone CSP-enforcement assertion or general security-proof claim."
+  ],
+  "artifacts": "No auth state, credentials, raw errors, screenshots, request headers, bodies or private paths included."
+}
