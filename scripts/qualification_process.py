@@ -14,30 +14,45 @@ def _stat(pid):
         return None
 
 
-def _live_group(group, started):
-    leader = _stat(group)
+def _live_session(session, started):
+    leader = _stat(session)
     if started is not None and leader is not None and leader[19] != started:
-        return False
+        return {}
+    members = {}
     for entry in Path("/proc").iterdir():
         if entry.name.isdigit():
             state = _stat(entry.name)
-            if state and state[2:4] == [str(group), str(group)] and state[0] not in {"Z", "X"}:
-                return True
-    return False
+            if state and state[3] == str(session) and state[0] not in {"Z", "X"}:
+                members[int(entry.name)] = state[19]
+    return members
+
+
+def _signal_members(session, members, operation):
+    for pid, started in members.items():
+        try:
+            descriptor = os.pidfd_open(pid)
+        except ProcessLookupError:
+            continue
+        try:
+            current = _stat(pid)
+            if current and current[3] == str(session) and current[19] == started:
+                signal.pidfd_send_signal(descriptor, operation)
+        except ProcessLookupError:
+            pass
+        finally:
+            os.close(descriptor)
 
 
 def _stop(process, started):
     for operation, grace in [(signal.SIGTERM, 1), (signal.SIGKILL, 3)]:
-        if _live_group(process.pid, started):
-            try:
-                os.killpg(process.pid, operation)
-            except ProcessLookupError:
-                pass
+        _signal_members(process.pid, _live_session(process.pid, started), operation)
         deadline = time.monotonic() + grace
-        while _live_group(process.pid, started) and time.monotonic() < deadline:
+        while (members := _live_session(process.pid, started)) and time.monotonic() < deadline:
             process.poll()
+            if operation == signal.SIGKILL:
+                _signal_members(process.pid, members, operation)
             time.sleep(0.01)
-    if _live_group(process.pid, started):
+    if _live_session(process.pid, started):
         raise SystemExit("Owned qualification processes did not stop; no acceptance recorded")
     try:
         process.wait(timeout=3)

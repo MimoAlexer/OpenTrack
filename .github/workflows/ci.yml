@@ -105,8 +105,8 @@ jobs:
         if: ${{ needs.scope.outputs.verify == 'true' }}
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends clamav-daemon util-linux
-          dpkg-query --show clamav-daemon util-linux
+          sudo apt-get install --yes --no-install-recommends clamav-daemon util-linux apparmor
+          dpkg-query --show clamav-daemon util-linux apparmor
       - name: Isolated database identities
         if: ${{ needs.scope.outputs.verify == 'true' }}
         env:
@@ -123,7 +123,26 @@ jobs:
         env:
           OPENTRACK_TEST_CLAMD_BIN: /usr/sbin/clamd
         run: |
-          bash scripts/qualify-attachment-storage.sh
+          test "$(id -u)" -ne 0
+          namespace_tools=$(mktemp -d "$RUNNER_TEMP/opentrack-storage-userns.XXXXXX")
+          profile="$namespace_tools/userns.apparmor"
+          profile_loaded=0
+          cleanup() {
+            result=$?
+            trap - EXIT
+            if [ "$profile_loaded" = 1 ]; then
+              sudo apparmor_parser --remove "$profile" || result=1
+            fi
+            rm -rf -- "$namespace_tools" || result=1
+            exit "$result"
+          }
+          trap cleanup EXIT
+          sudo install --mode=0755 "$(command -v unshare)" "$namespace_tools/unshare"
+          cmp --silent "$(command -v unshare)" "$namespace_tools/unshare"
+          printf 'abi <abi/4.0>,\n"%s" flags=(unconfined) {\n  userns,\n}\n' "$namespace_tools/unshare" > "$profile"
+          sudo apparmor_parser --replace "$profile"
+          profile_loaded=1
+          PATH="$namespace_tools:$PATH" bash scripts/qualify-attachment-storage.sh
           bash scripts/qualify-attachment-scanner.sh
       - name: Report workspace disk usage
         if: ${{ always() && needs.scope.result == 'success' && needs.scope.outputs.verify == 'true' }}
