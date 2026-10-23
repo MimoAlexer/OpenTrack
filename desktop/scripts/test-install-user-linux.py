@@ -141,6 +141,22 @@ class PrivateUserInstall(unittest.TestCase):
             self.launcher.chmod(mode)
         self.assertEqual(self.snapshot(), before)
 
+    def test_unsearchable_launcher_parent_refuses_before_changing_files(self):
+        if os.getuid() == 0:
+            self.skipTest("Read-denial control requires a non-root test user")
+        self.launcher.parent.mkdir(parents=True)
+        self.launcher.write_bytes(b"unmanaged launcher\n")
+        self.icon.parent.mkdir(parents=True)
+        self.icon.write_bytes(b"preserve existing icon")
+        before = self.snapshot()
+        mode = stat.S_IMODE(self.launcher.parent.stat().st_mode)
+        self.launcher.parent.chmod(0)
+        try:
+            self.assertNotEqual(self.run_install("--binary", self.selected).returncode, 0)
+        finally:
+            self.launcher.parent.chmod(mode)
+        self.assertEqual(self.snapshot(), before)
+
     def test_invalid_explicit_source_does_not_fall_back_or_disclose_paths(self):
         alias = self.root / "linked-artifact"
         alias.symlink_to(self.selected)

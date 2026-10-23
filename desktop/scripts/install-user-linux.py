@@ -37,10 +37,19 @@ destination = data / "opentrack/bin/opentrack-desktop"
 icon_destination = data / "icons/hicolor/256x256/apps/app.opentrack.desktop.png"
 launcher = data / "applications/app.opentrack.desktop.desktop"
 try:
-    if launcher.exists() and b"X-OpenTrack-Managed=true" not in launcher.read_bytes():
+    try:
+        existing_launcher = launcher.read_bytes()
+    except FileNotFoundError:
+        existing_launcher = None
+    if existing_launcher is not None and b"X-OpenTrack-Managed=true" not in existing_launcher:
         raise SystemExit("An unmanaged OpenTrack launcher exists; it was not replaced.")
-    if destination.exists() and not launcher.exists():
-        raise SystemExit("An unmanaged OpenTrack executable exists; it was not replaced.")
+    if existing_launcher is None:
+        try:
+            destination.stat()
+        except FileNotFoundError:
+            pass
+        else:
+            raise SystemExit("An unmanaged OpenTrack executable exists; it was not replaced.")
 except OSError:
     raise SystemExit("Existing user installation could not be inspected.") from None
 

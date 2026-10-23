@@ -5,17 +5,21 @@
   "provenance": {
     "compile_source_commit": "590725e9e6332f6fe06b20dd870eed55a1e63ab2",
     "snapshot_files": {
-      "tracked_desktop": 170,
+      "tracked_desktop": 169,
+      "root_toolchain": 1,
       "frontend_assets": 9
     },
     "native_artifact_sha256": "6d66dcfad60410ae21abfe61210fe19af73c6a120a7e9fbe19279304076e6112",
     "native_artifact_bytes": 28498816,
     "installed_window_URI_proposal_sha256": "0cfda0e3129a60c9c94c281c944a1d58f6cf0791e1a0b300820499d336743d4c",
     "integrated_installer_requalification_required": true,
-    "historical_installer_only_update_sha256": "fbf42484ec0b8dff13698725399095a27e8c6f0e4542308fa852aa4662d26bf7",
-    "final_installer_sha256": "f22e244058a5866cfe31f382e923af542dfeae5e9812178ea7150771eef15314",
+    "final_installer_sha256": "006182c0b63296a69f4149ac23048eb613916168e5c9a8d7eed5130e4ed08046",
     "final_recheck_tracked_and_proposal_installer_bytes_equal": true,
-    "installer_qualification_before_integration": true
+    "installer_qualification_before_integration": true,
+    "historical_installer_only_update_sha256s": [
+      "fbf42484ec0b8dff13698725399095a27e8c6f0e4542308fa852aa4662d26bf7",
+      "f22e244058a5866cfe31f382e923af542dfeae5e9812178ea7150771eef15314"
+    ]
   },
   "tools": {
     "locked_native_packages": {
@@ -158,6 +162,11 @@
       "class": "installer error privacy",
       "failure": "integrator reproduced old launcher inspection traceback/private-path disclosure without writes",
       "correction": "inspection OSError guards; final nominal managed update passed; error-control tests remain separate integrator evidence"
+    },
+    {
+      "class": "installer preflight failure atomicity",
+      "failure": "Integrator reproduced f22 inaccessible applications parent hiding an unmanaged launcher; binary/icon could change before launcher refusal on Python3.14.4.",
+      "correction": "006 launcher read and orphan stat treat only FileNotFound as absence; other inspection OSErrors refuse before copies. Integrator12 structural controls pass; final genuine nominal update passes separately."
     }
   ],
   "isolation_cleanup": {
@@ -166,13 +175,13 @@
     "private_user_mount_PID_Xvfb_DBus_XDG": true,
     "WebKit_sandbox_disable_or_source_bypass": false,
     "global_package_service_profile_association_mutation": false,
-    "API_or_system_browser_started_by_native_qualification": false,
     "remaining_owned_processes": 0,
     "helper_and_tmp_mounts_removed": true,
     "host_mount_namespace_unchanged": true,
     "owned_verification_operations_exited": true,
     "prior_failures_backups_receipts_retained": true,
-    "screenshots_private_not_included": true
+    "screenshots_private_not_included": true,
+    "API_or_system_browser_started_during_recorded_install_vault_checks": false
   },
   "not_claimed": [
     "live credential restart durability",
@@ -189,5 +198,6 @@
   "failure_privacy_boundary": {
     "older_Python_runtime_failure_or_acceptance_claim": false,
     "installer_only_nominal_recheck_does_not_reexecute_failure_controls": true
-  }
+  },
+  "rollup_scope": "Recorded compile/disconnected window/install/dispatch/vault checks only; later private canary and API-readiness evidence are separate."
 }
