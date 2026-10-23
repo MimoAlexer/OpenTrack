@@ -1,0 +1,28 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "template preview materializes titles and requires cancel, merge or replace before durable creation",
+      "status": "passed",
+      "duration_ms": 2128
+    },
+    {
+      "browser": "firefox",
+      "check": "template preview materializes titles and requires cancel, merge or replace before durable creation",
+      "status": "passed",
+      "duration_ms": 4632
+    },
+    {
+      "browser": "webkit",
+      "check": "template preview materializes titles and requires cancel, merge or replace before durable creation",
+      "status": "passed",
+      "duration_ms": 2951
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}
