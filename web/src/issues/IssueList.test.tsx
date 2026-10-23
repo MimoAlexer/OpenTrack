@@ -18,6 +18,245 @@ beforeEach(() => { vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true); container = 
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 async function render(refresh = 0, params = new URLSearchParams(), account = session, workspaceId = 'w') { await act(async () => root.render(<IssueList workspaceId={workspaceId} data={data} session={account} params={params} selectedId="i" refresh={refresh} create={() => {}} searchRef={createRef()} />)); }
 
+const boardParams = () => new URLSearchParams('team_id=t&layout=board&display_version=1');
+const workflow = () => json({ team_id: 't', version: '1', can_manage: true, statuses: [status] });
+const privateStatus = { ...status, name: 'Private review stage' };
+const privateData: Bootstrap = { ...data, teams: [{ ...data.teams[0], name: 'Private board team', private: true }], statuses: [privateStatus] };
+const privateWorkflow = () => json({ team_id: 't', version: '1', can_manage: true, statuses: [privateStatus] });
+async function renderPrivateBoard(refresh = 0, params = boardParams()) { await act(async () => root.render(<IssueList workspaceId="w" data={privateData} session={session} params={params} selectedId="i" refresh={refresh} create={() => {}} searchRef={createRef()} />)); }
+function concealedPrivateBoard() {
+  expect(container.textContent).not.toContain('Private board team');
+  expect(container.textContent).not.toContain('Private review stage');
+  expect(container.querySelector('[aria-label="Board team"]')).toBeNull();
+  expect(container.querySelector('option[value="t"], option[value="s"]')).toBeNull();
+  expect(container.querySelector('#row-i')).toBeNull();
+}
+
+it.each([[403, 'refresh'], [404, 'refresh'], [403, 'retry'], [404, 'retry']] as const)('conceals denied private board metadata after %s during %s', async (statusCode, action) => {
+  let denied = false; let holding = false; let holdWorkflow = false; let reads = 0; let workflowReads = 0;
+  let finish!: (response: Response) => void; let finishWorkflow!: (response: Response) => void;
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) {
+      workflowReads += 1;
+      return holdWorkflow ? new Promise<Response>(resolve => { finishWorkflow = resolve; }) : Promise.resolve(privateWorkflow());
+    }
+    reads += 1;
+    if (holding) return new Promise<Response>(resolve => { finish = resolve; });
+    return Promise.resolve(denied ? json({ code: 'not_available', detail: 'Board access changed.' }, statusCode) : page());
+  }));
+  await renderPrivateBoard();
+  expect(container.textContent).toContain('Private board team');
+  denied = true; await renderPrivateBoard(1); concealedPrivateBoard();
+  holding = true;
+  if (action === 'refresh') {
+    await renderPrivateBoard(2); concealedPrivateBoard(); expect(reads).toBe(2);
+  }
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Try again')!.click());
+  concealedPrivateBoard(); expect(reads).toBe(3);
+  denied = false; holding = false; holdWorkflow = true;
+  await act(async () => finish(page()));
+  concealedPrivateBoard(); expect(workflowReads).toBe(2);
+  holdWorkflow = false;
+  await act(async () => finishWorkflow(privateWorkflow()));
+  expect(container.textContent).toContain('Private board team');
+  expect(container.textContent).toContain('Private review stage');
+  expect(container.querySelector('#row-i')).not.toBeNull();
+});
+
+it.each(['404', 'network', 'wrong team'] as const)('does not restore a denied board from an empty list when fresh workflow proof fails with %s', async failure => {
+  let reads = 0; let workflowReads = 0;
+  let finish!: (response: Response) => void; let reject!: (error: Error) => void;
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) {
+      workflowReads += 1;
+      return workflowReads === 1 ? Promise.resolve(privateWorkflow()) : new Promise<Response>((resolve, fail) => { finish = resolve; reject = fail; });
+    }
+    reads += 1;
+    return Promise.resolve(reads === 1 ? page() : reads === 2 ? json({ code: 'not_found', detail: 'Board unavailable.' }, 404) : page([]));
+  }));
+  await renderPrivateBoard();
+  await renderPrivateBoard(1); concealedPrivateBoard();
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Try again')!.click());
+  expect(reads).toBe(3); expect(workflowReads).toBe(2); concealedPrivateBoard();
+  await act(async () => {
+    if (failure === 'network') reject(new TypeError('Offline'));
+    else finish(failure === '404' ? json({ code: 'not_found', detail: 'Board unavailable.' }, 404)
+      : json({ team_id: 'another-team', version: '1', can_manage: true, statuses: [] }));
+  });
+  concealedPrivateBoard();
+  const retry = [...container.querySelectorAll('button')].find(button => button.textContent === 'Try again');
+  expect(retry).toBeDefined(); expect(retry?.disabled).toBe(false);
+  expect(reads).toBe(3);
+});
+
+it('retains denial for the same team, principal and epoch across filter changes and back until explicit retry', async () => {
+  let denied = false; let reads = 0;
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return Promise.resolve(privateWorkflow());
+    reads += 1;
+    return Promise.resolve(denied ? json({ code: 'forbidden', detail: 'Board unavailable.' }, 403) : page());
+  }));
+  await renderPrivateBoard();
+  denied = true; await renderPrivateBoard(1); concealedPrivateBoard();
+  const changed = boardParams(); changed.set('q', 'changed query'); changed.set('sort', 'priority');
+  await renderPrivateBoard(1, changed); concealedPrivateBoard();
+  await renderPrivateBoard(1, boardParams()); concealedPrivateBoard();
+  expect(reads).toBe(2);
+  denied = false;
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Try again')!.click());
+  expect(reads).toBe(3);
+  expect(container.textContent).toContain('Private board team');
+  expect(container.textContent).toContain('Private review stage');
+  expect(container.querySelector('#row-i')).not.toBeNull();
+});
+
+it('fences a superseded workflow proof and page until the latest refresh receives its own proof', async () => {
+  let reads = 0; let workflowReads = 0;
+  let finishOldProof!: (response: Response) => void; let finishLatestPage!: (response: Response) => void; let finishLatestProof!: (response: Response) => void;
+  const old = { ...issue, title: 'Superseded reviewed page' }; const latest = { ...issue, title: 'Current reviewed page' };
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) {
+      workflowReads += 1;
+      if (workflowReads === 2) return new Promise<Response>(resolve => { finishOldProof = resolve; });
+      if (workflowReads === 3) return new Promise<Response>(resolve => { finishLatestProof = resolve; });
+      return Promise.resolve(privateWorkflow());
+    }
+    reads += 1;
+    if (reads === 2) return Promise.resolve(json({ code: 'not_found', detail: 'Board unavailable.' }, 404));
+    if (reads === 3) return Promise.resolve(page([old]));
+    if (reads === 4) return new Promise<Response>(resolve => { finishLatestPage = resolve; });
+    return Promise.resolve(page());
+  }));
+  await renderPrivateBoard(); await renderPrivateBoard(1); concealedPrivateBoard();
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Try again')!.click());
+  expect(workflowReads).toBe(2); concealedPrivateBoard();
+  await renderPrivateBoard(2); expect(reads).toBe(4); concealedPrivateBoard();
+  await act(async () => finishOldProof(privateWorkflow()));
+  concealedPrivateBoard(); expect(container.textContent).not.toContain(old.title);
+  await act(async () => finishLatestPage(page([latest])));
+  expect(workflowReads).toBe(3); concealedPrivateBoard();
+  await act(async () => finishLatestProof(privateWorkflow()));
+  expect(container.textContent).toContain(latest.title);
+  expect(container.textContent).not.toContain(old.title);
+  expect(container.textContent).toContain('Private board team');
+});
+
+it('requires an explicit team and rejects unsupported board display versions without broadening the query', async () => {
+  const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+  await render(0, new URLSearchParams('layout=board&display_version=1'));
+  expect(container.textContent).toContain('Choose a team for this board.');
+  expect(fetch).not.toHaveBeenCalled();
+  await render(0, new URLSearchParams('team_id=t&layout=board&display_version=2&q=retained'));
+  expect(container.textContent).toContain('These display settings are unavailable.');
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it('refetches a real first page when switching from an appended list to a bounded board and replaces subsequent pages', async () => {
+  const second = { ...issue, id: 'second', key: 'ENG-2', title: 'Second page issue' };
+  const calls: URLSearchParams[] = [];
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return Promise.resolve(workflow());
+    const params = new URLSearchParams(url.split('?')[1]); calls.push(params);
+    return Promise.resolve(params.has('cursor') ? json({ data: [second], next_cursor: null, has_more: false }) : json({ data: [issue], next_cursor: 'second-page', has_more: true }));
+  }));
+  await render(0, new URLSearchParams('team_id=t'));
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Load more issues')!.click());
+  expect(container.querySelectorAll('a.issue-row')).toHaveLength(2);
+  await render(0, boardParams());
+  expect(container.querySelectorAll('a.issue-row')).toHaveLength(1);
+  expect(container.querySelector('#row-i')).not.toBeNull();
+  expect(container.querySelector('#row-second')).toBeNull();
+  expect(calls.at(-1)?.has('cursor')).toBe(false);
+  expect(calls.every(params => !params.has('layout') && !params.has('display_version') && params.get('limit') === '50')).toBe(true);
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Next board page')!.click());
+  expect(container.querySelectorAll('a.issue-row')).toHaveLength(1);
+  expect(container.querySelector('#row-i')).toBeNull();
+  expect(container.querySelector('#row-second')).not.toBeNull();
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Previous board page')!.click());
+  expect(container.querySelector('#row-i')).not.toBeNull();
+  expect(container.querySelector('#row-second')).toBeNull();
+});
+
+it('resets a board cursor on filter changes and hides the previous page until the new authorized scope arrives', async () => {
+  let finish!: (response: Response) => void;
+  const queries: URLSearchParams[] = [];
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return Promise.resolve(workflow());
+    const params = new URLSearchParams(url.split('?')[1]); queries.push(params);
+    if (params.get('q') === 'changed') return new Promise<Response>(resolve => { finish = resolve; });
+    return Promise.resolve(json({ data: [issue], next_cursor: 'next-page', has_more: true }));
+  }));
+  await render(0, boardParams());
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Next board page')!.click());
+  expect(queries.at(-1)?.get('cursor')).toBe('next-page');
+  const changed = boardParams(); changed.set('q', 'changed');
+  await render(0, changed);
+  expect(queries.at(-1)?.has('cursor')).toBe(false);
+  expect(container.querySelector('#row-i')).toBeNull();
+  expect(container.textContent).not.toContain(issue.title);
+  await act(async () => finish(page([])));
+  expect(container.querySelector('#row-i')).toBeNull();
+});
+
+it('removes board cards and cached team names after a permission failure', async () => {
+  let denied = false;
+  vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(url.includes('/workflow') ? workflow() : denied ? json({ code: 'forbidden', detail: 'Access changed.' }, 403) : page())));
+  await render(0, boardParams());
+  expect(container.querySelector('#row-i')).not.toBeNull();
+  denied = true; await render(1, boardParams());
+  expect(container.textContent).toContain('Board unavailable.');
+  expect(container.querySelector('#row-i')).toBeNull();
+  expect(container.textContent).not.toContain('Engineering');
+  expect(container.textContent).not.toContain(issue.title);
+});
+
+it('fences a late listing response after independent workflow revocation until an explicit retry', async () => {
+  let finish!: (response: Response) => void;
+  let denyWorkflow = false; let listReads = 0;
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return Promise.resolve(denyWorkflow ? json({ code: 'not_found', detail: 'Board unavailable.' }, 404) : workflow());
+    listReads += 1;
+    return listReads === 1 ? Promise.resolve(page()) : new Promise<Response>(resolve => { finish = resolve; });
+  }));
+  await render(0, boardParams());
+  expect(container.querySelector('#row-i')).not.toBeNull();
+  await render(1, boardParams());
+  denyWorkflow = true;
+  await act(async () => window.dispatchEvent(new Event('focus')));
+  expect(container.querySelector('#row-i')).toBeNull();
+  expect(container.textContent).not.toContain('Engineering');
+  await act(async () => finish(page()));
+  expect(container.querySelector('#row-i')).toBeNull();
+  expect(container.textContent).not.toContain(issue.title);
+  await render(2, boardParams());
+  expect(listReads).toBe(2);
+  expect(container.querySelector('#row-i')).toBeNull();
+  denyWorkflow = false;
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Try again')!.click());
+  expect(listReads).toBe(3);
+  expect(container.querySelector('#row-i')).toBeNull();
+  expect(container.querySelector('[aria-label="Board team"]')).toBeNull();
+  expect(container.textContent).not.toContain('Engineering');
+  expect(container.textContent).not.toContain('Ready');
+  await act(async () => finish(page()));
+  expect(container.querySelector('#row-i')).not.toBeNull();
+});
+
+it('keeps the activated board page control focused through pending and completed page replacement', async () => {
+  let finish!: (response: Response) => void;
+  vi.stubGlobal('fetch', vi.fn((url: string) => url.includes('/workflow') ? Promise.resolve(workflow()) : url.includes('cursor=') ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(json({ data: [issue], next_cursor: 'next-page', has_more: true }))));
+  await render(0, boardParams());
+  const next = [...container.querySelectorAll('button')].find(button => button.textContent === 'Next board page')!;
+  next.focus();
+  await act(async () => next.click());
+  expect(next.isConnected).toBe(true);
+  expect(document.activeElement).toBe(next);
+  expect(next.getAttribute('aria-disabled')).toBe('true');
+  await act(async () => finish(page([])));
+  expect([...container.querySelectorAll('button')].find(button => button.textContent === 'Next board page')).toBe(next);
+  expect(document.activeElement).toBe(next);
+});
+
 it('keeps the same row and scroll container mounted while a same-scope refresh is pending', async () => {
   let finish!: (response: Response) => void;
   vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(page()).mockImplementationOnce(() => new Promise<Response>(resolve => { finish = resolve; })));

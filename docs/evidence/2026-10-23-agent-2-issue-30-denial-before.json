@@ -1,0 +1,30 @@
+{
+  "status": "failed",
+  "production_head": "725e856c6193f2ccb15b0c1768a9361119a6725b",
+  "checks": [
+    {
+      "check": "conceals denied private board metadata after 403 during refresh",
+      "status": "failed",
+      "failure": "cached private team metadata was rendered while access remained unconfirmed"
+    },
+    {
+      "check": "conceals denied private board metadata after 404 during refresh",
+      "status": "failed",
+      "failure": "cached private team metadata was rendered while access remained unconfirmed"
+    },
+    {
+      "check": "conceals denied private board metadata after 403 during retry",
+      "status": "failed",
+      "failure": "cached private team metadata was rendered while access remained unconfirmed"
+    },
+    {
+      "check": "conceals denied private board metadata after 404 during retry",
+      "status": "failed",
+      "failure": "cached private team metadata was rendered while access remained unconfirmed"
+    }
+  ],
+  "limitations": [
+    "Deterministic component tests use controlled transport responses; these are not standalone server authorization tests."
+  ],
+  "artifacts": "Raw paths, stack traces, response data and DOM dumps are excluded."
+}

@@ -1,5 +1,43 @@
 @layer reset, theme, components, responsive;
 
+@layer components {
+  .issue-display-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 12px 24px; border-bottom: 1px solid var(--line); }
+  .issue-display-controls label { display: flex; align-items: center; gap: 8px; color: var(--secondary); font-size: 13px; white-space: nowrap; min-width: 0; }
+  .issue-display-controls select { min-height: 36px; max-width: 100%; min-width: 0; }
+  .issue-board-shell { min-width: 0; padding: 0 24px 16px; }
+  .issue-board-controls, .board-pagination { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding-block: 12px; }
+  .issue-board-controls select { min-width: 120px; min-height: 36px; max-width: 100%; }
+  .issue-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); gap: 12px; align-items: start; overflow-x: auto; padding: 4px; }
+  .issue-board-column { min-width: 0; min-height: 180px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--side); }
+  .issue-board-column.is-drop-target { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--accent-bg); }
+  .issue-board-column-heading { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: center; gap: 4px 8px; margin: 0 0 12px; font-size: 14px; }
+  .issue-board-column-heading > span:last-child { grid-column: 2; color: var(--secondary); font-size: 12px; font-weight: 400; }
+  .issue-board-card { margin-block: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); overflow-wrap: anywhere; }
+  .issue-board-card.is-lifted { outline: 2px solid var(--accent); box-shadow: 0 4px 12px color-mix(in srgb, var(--text) 12%, transparent); }
+  .issue-board-card.is-moving { opacity: .75; }
+  .issue-board-card .issue-row { flex-wrap: wrap; gap: 8px; padding: 12px; border: 0; border-radius: 6px 6px 0 0; }
+  .issue-board-card .issue-row .issue-title { flex-basis: 100%; font-size: 14px; }
+  .issue-board-card-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px 8px; }
+  .issue-board-card-actions button { min-height: 36px; }
+  .issue-board-drag { touch-action: none; cursor: grab; min-width: 36px; }
+  .issue-board-drag:active { cursor: grabbing; }
+  .issue-board-empty, .issue-board-announcement { color: var(--secondary); font-size: 13px; line-height: 1.5; }
+  .issue-board-empty { padding-block: 12px; }
+  .issue-board-announcement { min-height: 20px; padding-block: 8px; }
+  .issue-board-move { display: grid; gap: 16px; }
+  .issue-board-move-status { padding: 12px; border-radius: 6px; background: var(--side); line-height: 1.6; }
+  .board-pagination { justify-content: space-between; padding: 12px 24px 20px; color: var(--secondary); font-size: 12px; }
+}
+
+@layer responsive {
+  @media (max-width: 767px) {
+    .issue-display-controls, .board-pagination { padding-inline: 16px; }
+    .issue-board-shell { padding-inline: 12px; }
+    .issue-board-card-actions button { min-height: 44px; }
+    .issue-board-drag { min-width: 44px; }
+  }
+}
+
 @layer reset {
   * { box-sizing: border-box; }
   body { margin: 0; }

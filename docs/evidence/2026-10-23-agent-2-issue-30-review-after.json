@@ -1,0 +1,28 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "a real stale board move preserves its intent and requires review before applying the newest ETag",
+      "status": "passed",
+      "duration_ms": 2136
+    },
+    {
+      "browser": "firefox",
+      "check": "a real stale board move preserves its intent and requires review before applying the newest ETag",
+      "status": "passed",
+      "duration_ms": 2775
+    },
+    {
+      "browser": "webkit",
+      "check": "a real stale board move preserves its intent and requires review before applying the newest ETag",
+      "status": "passed",
+      "duration_ms": 2017
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}

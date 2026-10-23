@@ -1,0 +1,56 @@
+{
+  "status": "failed",
+  "scope": "Full 144-case working-tree matrix after main36ec6a3 synchronization, board denial correction and acknowledged template-test correction.",
+  "worker_poll_interval_ms": 2000,
+  "total": 144,
+  "passed": 141,
+  "failed": 3,
+  "browsers": [
+    {
+      "browser": "chromium",
+      "total": 48,
+      "passed": 47,
+      "failed": 1
+    },
+    {
+      "browser": "firefox",
+      "total": 48,
+      "passed": 47,
+      "failed": 1
+    },
+    {
+      "browser": "webkit",
+      "total": 48,
+      "passed": 47,
+      "failed": 1
+    }
+  ],
+  "failures": [
+    {
+      "browser": "chromium",
+      "check": "light workflow settings persist defaults and order, then a saved replacement survives reload and restores its source identity",
+      "status": "failed",
+      "duration_ms": 33316,
+      "failure": "workflow-taxonomy.browser.ts:126"
+    },
+    {
+      "browser": "firefox",
+      "check": "light workflow settings persist defaults and order, then a saved replacement survives reload and restores its source identity",
+      "status": "failed",
+      "duration_ms": 35536,
+      "failure": "workflow-taxonomy.browser.ts:126"
+    },
+    {
+      "browser": "webkit",
+      "check": "light workflow settings persist defaults and order, then a saved replacement survives reload and restores its source identity",
+      "status": "failed",
+      "duration_ms": 35772,
+      "failure": "workflow-taxonomy.browser.ts:126"
+    }
+  ],
+  "limitations": [
+    "PostgreSQL/API browser checks do not qualify native GUI, physical input, assistive technology or performance.",
+    "Failure source location alone does not establish inner job state or scheduler cause."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}
