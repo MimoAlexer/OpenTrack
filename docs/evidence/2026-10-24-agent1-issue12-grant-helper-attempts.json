@@ -1,0 +1,79 @@
+{
+  "format_version": 1,
+  "attempts": [
+    {
+      "probe": "actual_worker_url_parallel_and_cancellation",
+      "run_id": "6fe558456d4443fd85defea07a7eff15",
+      "source_sha256": "c84c6f23e868e83402eba095329fecf8a118b49a14982ae91efc4d01fe77ed40",
+      "support_sha256": "44b7986216467793fbb2181a0c8d42091b39c8009341706888fb421ed427b699",
+      "cargo_exit_code": 101,
+      "temporary_target_removed": true,
+      "tracked_helper_unchanged": true,
+      "failure": "diagnostic_receipt_path_not_found",
+      "diagnostic_categories": {
+        "advisory_wait": false,
+        "relation_gate": false,
+        "cleanup": false,
+        "cancel_cleanup": false,
+        "pool_timeout": false
+      },
+      "elapsed_seconds": 12.181,
+      "failure_detail": "Cargo test cwd differed from wrapper cwd; final receipt write used a relative path."
+    },
+    {
+      "probe": "actual_worker_url_parallel_and_cancellation",
+      "run_id": "d1a5a829d93345cfb81ef5c6d0100bae",
+      "source_sha256": "c84c6f23e868e83402eba095329fecf8a118b49a14982ae91efc4d01fe77ed40",
+      "support_sha256": "44b7986216467793fbb2181a0c8d42091b39c8009341706888fb421ed427b699",
+      "cargo_exit_code": 0,
+      "temporary_target_removed": true,
+      "tracked_helper_unchanged": true,
+      "actual_helper_checks": {
+        "actual_harness_schemas_distinct": true,
+        "actual_helpers_waiting_on_shared_advisory": 2,
+        "actual_restricted_workers_connected": 2,
+        "both_owned_schemas_cleaned": true,
+        "cancellation_inside_grant_relation_wait_observed": true,
+        "cancelled_backend_and_locks_released_after_gate_unlock": true,
+        "cancelled_backend_released_before_gate_unlock": false,
+        "cancelled_helper_owned_advisory": true,
+        "cancelled_task_observed": true,
+        "database_acl_unchanged": true,
+        "subsequent_helper_and_restricted_worker_succeeded": true,
+        "worker_credentials_rejected_by_app": 2
+      },
+      "elapsed_seconds": 5.241
+    },
+    {
+      "probe": "actual_worker_url_parallel_waiting_and_held_cancellation",
+      "run_id": "1f0e177a3133424580c654947a8c03dc",
+      "source_sha256": "b0fdc185f77aea9e9b0356fd30c551e8b02137249e98f4260d284a609a0ed784",
+      "support_sha256": "44b7986216467793fbb2181a0c8d42091b39c8009341706888fb421ed427b699",
+      "cargo_exit_code": 0,
+      "temporary_target_removed": true,
+      "tracked_helper_unchanged": true,
+      "actual_helper_checks": {
+        "actual_harness_schemas_distinct": true,
+        "actual_helpers_waiting_on_shared_advisory": 2,
+        "actual_restricted_workers_connected": 2,
+        "advisory_key_reacquired_after_waiting_cancellation": true,
+        "both_owned_schemas_cleaned": true,
+        "cancellation_inside_grant_relation_wait_observed": true,
+        "cancelled_backend_and_locks_released_after_gate_unlock": true,
+        "cancelled_backend_released_before_gate_unlock": false,
+        "cancelled_helper_owned_advisory": true,
+        "cancelled_task_observed": true,
+        "database_acl_unchanged": true,
+        "subsequent_helper_and_restricted_worker_succeeded": true,
+        "waiting_cancel_backend_and_locks_released_after_holder_unlock": true,
+        "waiting_cancel_backend_released_before_holder_unlock": false,
+        "waiting_cancel_fresh_helper_and_restricted_worker_succeeded": true,
+        "waiting_helper_advisory_wait_observed": true,
+        "waiting_helper_did_not_own_key": true,
+        "waiting_helper_task_cancelled": true,
+        "worker_credentials_rejected_by_app": 2
+      },
+      "elapsed_seconds": 6.283
+    }
+  ]
+}
