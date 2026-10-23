@@ -1,0 +1,64 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "workspace-menu creation seeds a usable team and default, then an issue survives reload",
+      "status": "passed",
+      "duration_ms": 1632
+    },
+    {
+      "browser": "chromium",
+      "check": "a committed workspace survives a failed session refresh and retries opening without another create",
+      "status": "passed",
+      "duration_ms": 1511
+    },
+    {
+      "browser": "chromium",
+      "check": "declining navigation after workspace creation keeps the original issue draft until it is explicitly saved",
+      "status": "passed",
+      "duration_ms": 1606
+    },
+    {
+      "browser": "firefox",
+      "check": "workspace-menu creation seeds a usable team and default, then an issue survives reload",
+      "status": "passed",
+      "duration_ms": 3410
+    },
+    {
+      "browser": "firefox",
+      "check": "a committed workspace survives a failed session refresh and retries opening without another create",
+      "status": "passed",
+      "duration_ms": 2353
+    },
+    {
+      "browser": "firefox",
+      "check": "declining navigation after workspace creation keeps the original issue draft until it is explicitly saved",
+      "status": "passed",
+      "duration_ms": 2656
+    },
+    {
+      "browser": "webkit",
+      "check": "workspace-menu creation seeds a usable team and default, then an issue survives reload",
+      "status": "passed",
+      "duration_ms": 2172
+    },
+    {
+      "browser": "webkit",
+      "check": "a committed workspace survives a failed session refresh and retries opening without another create",
+      "status": "passed",
+      "duration_ms": 2320
+    },
+    {
+      "browser": "webkit",
+      "check": "declining navigation after workspace creation keeps the original issue draft until it is explicitly saved",
+      "status": "passed",
+      "duration_ms": 2165
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}
