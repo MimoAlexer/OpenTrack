@@ -18,6 +18,121 @@ beforeEach(() => { vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true); container = 
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 async function render(refresh = 0, params = new URLSearchParams(), account = session, workspaceId = 'w') { await act(async () => root.render(<IssueList workspaceId={workspaceId} data={data} session={account} params={params} selectedId="i" refresh={refresh} create={() => {}} searchRef={createRef()} />)); }
 
+const boardParams = () => new URLSearchParams('team_id=t&layout=board&display_version=1');
+const workflow = () => json({ team_id: 't', version: '1', can_manage: true, statuses: [status] });
+
+it('requires an explicit team and rejects unsupported board display versions without broadening the query', async () => {
+  const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+  await render(0, new URLSearchParams('layout=board&display_version=1'));
+  expect(container.textContent).toContain('Choose a team for this board.');
+  expect(fetch).not.toHaveBeenCalled();
+  await render(0, new URLSearchParams('team_id=t&layout=board&display_version=2&q=retained'));
+  expect(container.textContent).toContain('These display settings are unavailable.');
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it('refetches a real first page when switching from an appended list to a bounded board and replaces subsequent pages', async () => {
+  const second = { ...issue, id: 'second', key: 'ENG-2', title: 'Second page issue' };
+  const calls: URLSearchParams[] = [];
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return Promise.resolve(workflow());
+    const params = new URLSearchParams(url.split('?')[1]); calls.push(params);
+    return Promise.resolve(params.has('cursor') ? json({ data: [second], next_cursor: null, has_more: false }) : json({ data: [issue], next_cursor: 'second-page', has_more: true }));
+  }));
+  await render(0, new URLSearchParams('team_id=t'));
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Load more issues')!.click());
+  expect(container.querySelectorAll('a.issue-row')).toHaveLength(2);
+  await render(0, boardParams());
+  expect(container.querySelectorAll('a.issue-row')).toHaveLength(1);
+  expect(container.querySelector('#row-i')).not.toBeNull();
+  expect(container.querySelector('#row-second')).toBeNull();
+  expect(calls.at(-1)?.has('cursor')).toBe(false);
+  expect(calls.every(params => !params.has('layout') && !params.has('display_version') && params.get('limit') === '50')).toBe(true);
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Next board page')!.click());
+  expect(container.querySelectorAll('a.issue-row')).toHaveLength(1);
+  expect(container.querySelector('#row-i')).toBeNull();
+  expect(container.querySelector('#row-second')).not.toBeNull();
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Previous board page')!.click());
+  expect(container.querySelector('#row-i')).not.toBeNull();
+  expect(container.querySelector('#row-second')).toBeNull();
+});
+
+it('resets a board cursor on filter changes and hides the previous page until the new authorized scope arrives', async () => {
+  let finish!: (response: Response) => void;
+  const queries: URLSearchParams[] = [];
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return Promise.resolve(workflow());
+    const params = new URLSearchParams(url.split('?')[1]); queries.push(params);
+    if (params.get('q') === 'changed') return new Promise<Response>(resolve => { finish = resolve; });
+    return Promise.resolve(json({ data: [issue], next_cursor: 'next-page', has_more: true }));
+  }));
+  await render(0, boardParams());
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Next board page')!.click());
+  expect(queries.at(-1)?.get('cursor')).toBe('next-page');
+  const changed = boardParams(); changed.set('q', 'changed');
+  await render(0, changed);
+  expect(queries.at(-1)?.has('cursor')).toBe(false);
+  expect(container.querySelector('#row-i')).toBeNull();
+  expect(container.textContent).not.toContain(issue.title);
+  await act(async () => finish(page([])));
+  expect(container.querySelector('#row-i')).toBeNull();
+});
+
+it('removes board cards and cached team names after a permission failure', async () => {
+  let denied = false;
+  vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(url.includes('/workflow') ? workflow() : denied ? json({ code: 'forbidden', detail: 'Access changed.' }, 403) : page())));
+  await render(0, boardParams());
+  expect(container.querySelector('#row-i')).not.toBeNull();
+  denied = true; await render(1, boardParams());
+  expect(container.textContent).toContain('Board unavailable.');
+  expect(container.querySelector('#row-i')).toBeNull();
+  expect(container.textContent).not.toContain('Engineering');
+  expect(container.textContent).not.toContain(issue.title);
+});
+
+it('fences a late listing response after independent workflow revocation until an explicit retry', async () => {
+  let finish!: (response: Response) => void;
+  let denyWorkflow = false; let listReads = 0;
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return Promise.resolve(denyWorkflow ? json({ code: 'not_found', detail: 'Board unavailable.' }, 404) : workflow());
+    listReads += 1;
+    return listReads === 1 ? Promise.resolve(page()) : new Promise<Response>(resolve => { finish = resolve; });
+  }));
+  await render(0, boardParams());
+  expect(container.querySelector('#row-i')).not.toBeNull();
+  await render(1, boardParams());
+  denyWorkflow = true;
+  await act(async () => window.dispatchEvent(new Event('focus')));
+  expect(container.querySelector('#row-i')).toBeNull();
+  expect(container.textContent).not.toContain('Engineering');
+  await act(async () => finish(page()));
+  expect(container.querySelector('#row-i')).toBeNull();
+  expect(container.textContent).not.toContain(issue.title);
+  await render(2, boardParams());
+  expect(listReads).toBe(2);
+  expect(container.querySelector('#row-i')).toBeNull();
+  denyWorkflow = false;
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Try again')!.click());
+  expect(listReads).toBe(3);
+  await act(async () => finish(page()));
+  expect(container.querySelector('#row-i')).not.toBeNull();
+});
+
+it('keeps the activated board page control focused through pending and completed page replacement', async () => {
+  let finish!: (response: Response) => void;
+  vi.stubGlobal('fetch', vi.fn((url: string) => url.includes('/workflow') ? Promise.resolve(workflow()) : url.includes('cursor=') ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(json({ data: [issue], next_cursor: 'next-page', has_more: true }))));
+  await render(0, boardParams());
+  const next = [...container.querySelectorAll('button')].find(button => button.textContent === 'Next board page')!;
+  next.focus();
+  await act(async () => next.click());
+  expect(next.isConnected).toBe(true);
+  expect(document.activeElement).toBe(next);
+  expect(next.getAttribute('aria-disabled')).toBe('true');
+  await act(async () => finish(page([])));
+  expect([...container.querySelectorAll('button')].find(button => button.textContent === 'Next board page')).toBe(next);
+  expect(document.activeElement).toBe(next);
+});
+
 it('keeps the same row and scroll container mounted while a same-scope refresh is pending', async () => {
   let finish!: (response: Response) => void;
   vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(page()).mockImplementationOnce(() => new Promise<Response>(resolve => { finish = resolve; })));
