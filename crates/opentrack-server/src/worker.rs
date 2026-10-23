@@ -1,11 +1,63 @@
 use crate::config::{Cli, Settings};
 use opentrack_app::worker::{Worker, WorkerOptions, WorkerTick};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+#[derive(Default)]
+struct JobDiscovery {
+    credits: u8,
+    not_before: Option<Instant>,
+}
+impl JobDiscovery {
+    fn begin(&mut self, now: Instant) -> bool {
+        if let Some(deadline) = self.not_before {
+            if now < deadline {
+                return false;
+            }
+            self.not_before = None;
+            self.credits = 0;
+        }
+        self.credits += 1;
+        true
+    }
+
+    fn finish(
+        &mut self,
+        now: Instant,
+        poll_interval: Duration,
+        result: &opentrack_domain::Result<WorkerTick>,
+    ) -> bool {
+        match result {
+            Ok(
+                WorkerTick::Progress
+                | WorkerTick::Completed
+                | WorkerTick::Blocked
+                | WorkerTick::Retry,
+            ) => {
+                self.credits = 0;
+                self.not_before = None;
+                true
+            }
+            Ok(WorkerTick::Idle | WorkerTick::Scanning | WorkerTick::LostLease) | Err(_) => {
+                if matches!(result, Ok(WorkerTick::Idle)) || self.credits >= 4 {
+                    self.not_before = Some(now + poll_interval);
+                }
+                matches!(result, Ok(WorkerTick::Scanning)) && self.not_before.is_none()
+            }
+        }
+    }
+
+    fn idle_wait(&self, now: Instant, poll_interval: Duration) -> Duration {
+        self.not_before.map_or(poll_interval, |deadline| {
+            deadline.saturating_duration_since(now).min(poll_interval)
+        })
+    }
+}
 
 #[derive(Default)]
 struct Cursors {
     capture: Option<uuid::Uuid>,
     job: Option<uuid::Uuid>,
+    job_discovery: JobDiscovery,
     retention: Option<uuid::Uuid>,
     document_retention: Option<uuid::Uuid>,
     attachment_gc: Option<uuid::Uuid>,
@@ -38,6 +90,7 @@ async fn poll_stage(
     cursors: &mut Cursors,
     stage: Stage,
     blobs: &opentrack_adapters::local_blob::LocalBlobStore,
+    poll_interval: Duration,
 ) -> opentrack_domain::Result<bool> {
     match stage {
         Stage::AttachmentGc => {
@@ -79,7 +132,16 @@ async fn poll_stage(
             .is_some_and(|(_, result)| {
                 result.processed > 0 || result.captured > 0 || result.backfilled
             })),
-        Stage::Job => Ok(worker.tick(&mut cursors.job).await? != WorkerTick::Idle),
+        Stage::Job => {
+            if !cursors.job_discovery.begin(Instant::now()) {
+                return Ok(false);
+            }
+            let result = worker.tick(&mut cursors.job).await;
+            let active = cursors
+                .job_discovery
+                .finish(Instant::now(), poll_interval, &result);
+            result.map(|_| active)
+        }
         Stage::Retention => Ok(worker
             .retain_next(&mut cursors.retention, 100)
             .await?
@@ -116,6 +178,7 @@ pub async fn run(cli: &Cli, cfg: &Settings) -> Result<(), String> {
         );
     }
     let blobs = crate::storage::open(cfg).await?;
+    let poll_interval = Duration::from_millis(cfg.worker.poll_interval_ms);
     let mut cursors = Cursors::default();
     if cli.once {
         let result = tokio::time::timeout(Duration::from_secs(30), async {
@@ -126,7 +189,7 @@ pub async fn run(cli: &Cli, cfg: &Settings) -> Result<(), String> {
                 Stage::DocumentRetention,
                 Stage::AttachmentGc,
             ] {
-                poll_stage(&worker, &mut cursors, stage, &blobs).await?;
+                poll_stage(&worker, &mut cursors, stage, &blobs, poll_interval).await?;
             }
             opentrack_domain::Result::Ok(())
         })
@@ -153,7 +216,7 @@ pub async fn run(cli: &Cli, cfg: &Settings) -> Result<(), String> {
             let started = std::sync::atomic::AtomicBool::new(false);
             let poll = async {
                 started.store(true, std::sync::atomic::Ordering::Relaxed);
-                poll_stage(&worker, &mut cursors, stage, &blobs).await
+                poll_stage(&worker, &mut cursors, stage, &blobs, poll_interval).await
             };
             tokio::pin!(poll);
             tokio::select! {
@@ -183,16 +246,23 @@ pub async fn run(cli: &Cli, cfg: &Settings) -> Result<(), String> {
         stage = stage.next();
         if end_of_round {
             if !round_active {
-                let idle_started = std::time::Instant::now();
-                tracing::debug!(
-                    poll_interval_ms = cfg.worker.poll_interval_ms,
-                    "Worker idle wait started"
-                );
-                tokio::select! { _=&mut shutdown=>break, _=tokio::time::sleep(Duration::from_millis(cfg.worker.poll_interval_ms))=>{} }
-                tracing::debug!(
-                    elapsed_ms = idle_started.elapsed().as_secs_f64() * 1000.0,
-                    "Worker idle wait completed"
-                );
+                let idle_for = cursors
+                    .job_discovery
+                    .idle_wait(Instant::now(), poll_interval);
+                if idle_for.is_zero() {
+                    tokio::task::yield_now().await;
+                } else {
+                    let idle_started = std::time::Instant::now();
+                    tracing::debug!(
+                        poll_interval_ms = cfg.worker.poll_interval_ms,
+                        "Worker idle wait started"
+                    );
+                    tokio::select! { _=&mut shutdown=>break, _=tokio::time::sleep(idle_for)=>{} }
+                    tracing::debug!(
+                        elapsed_ms = idle_started.elapsed().as_secs_f64() * 1000.0,
+                        "Worker idle wait completed"
+                    );
+                }
             } else {
                 tokio::task::yield_now().await;
             }
@@ -202,4 +272,109 @@ pub async fn run(cli: &Cli, cfg: &Settings) -> Result<(), String> {
     worker.pool.close().await;
     tracing::info!("Worker stopped; uncaptured events and unfinished leases remain recoverable");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn four_no_claim_pages_pause_until_the_job_deadline() {
+        let now = Instant::now();
+        let poll = Duration::from_secs(2);
+        let mut discovery = JobDiscovery::default();
+        for page in 0..4 {
+            assert!(discovery.begin(now));
+            assert_eq!(
+                discovery.finish(now, poll, &Ok(WorkerTick::Scanning)),
+                page < 3
+            );
+        }
+        assert!(!discovery.begin(now + poll - Duration::from_nanos(1)));
+        assert_eq!(discovery.idle_wait(now + poll / 2, poll), poll / 2);
+        assert!(discovery.begin(now + poll));
+        assert!(discovery.finish(now + poll, poll, &Ok(WorkerTick::Scanning)));
+    }
+
+    #[test]
+    fn errors_and_lost_leases_cannot_refund_discovery_credit() {
+        let now = Instant::now();
+        let poll = Duration::from_secs(2);
+        let mut discovery = JobDiscovery::default();
+        for result in [
+            Err(opentrack_domain::Error::Unavailable),
+            Ok(WorkerTick::LostLease),
+            Err(opentrack_domain::Error::Internal),
+            Ok(WorkerTick::Scanning),
+        ] {
+            assert!(discovery.begin(now));
+            assert!(!discovery.finish(now, poll, &result));
+        }
+        assert!(!discovery.begin(now));
+        assert!(!discovery.begin(now + poll / 2));
+        assert!(discovery.begin(now + poll));
+    }
+
+    #[test]
+    fn handled_claims_restore_the_next_full_burst() {
+        let now = Instant::now();
+        let poll = Duration::from_secs(2);
+        for outcome in [
+            WorkerTick::Progress,
+            WorkerTick::Completed,
+            WorkerTick::Blocked,
+            WorkerTick::Retry,
+        ] {
+            let mut discovery = JobDiscovery::default();
+            for _ in 0..3 {
+                assert!(discovery.begin(now));
+                assert!(discovery.finish(now, poll, &Ok(WorkerTick::Scanning)));
+            }
+            assert!(discovery.begin(now));
+            assert!(discovery.finish(now, poll, &Ok(outcome)));
+            for page in 0..4 {
+                assert!(discovery.begin(now));
+                assert_eq!(
+                    discovery.finish(now, poll, &Ok(WorkerTick::Scanning)),
+                    page < 3
+                );
+            }
+            assert!(!discovery.begin(now));
+        }
+    }
+
+    #[test]
+    fn slow_fourth_call_still_receives_a_full_cooldown_after_completion() {
+        let start = Instant::now();
+        let poll = Duration::from_secs(2);
+        let mut discovery = JobDiscovery::default();
+        for _ in 0..3 {
+            assert!(discovery.begin(start));
+            assert!(discovery.finish(start, poll, &Ok(WorkerTick::Scanning)));
+        }
+        assert!(discovery.begin(start));
+        let completed = start + poll * 3;
+        assert!(!discovery.finish(completed, poll, &Err(opentrack_domain::Error::Unavailable)));
+        assert!(!discovery.begin(completed + poll - Duration::from_nanos(1)));
+        assert!(discovery.begin(completed + poll));
+    }
+
+    #[test]
+    fn exhausted_wrap_rearms_cooldown_and_bounds_the_outer_idle_wait() {
+        let now = Instant::now();
+        let poll = Duration::from_secs(2);
+        let mut discovery = JobDiscovery::default();
+        for _ in 0..4 {
+            assert!(discovery.begin(now));
+            discovery.finish(now, poll, &Ok(WorkerTick::Scanning));
+        }
+        assert!(discovery.begin(now + poll));
+        assert!(!discovery.finish(now + poll, poll, &Ok(WorkerTick::Idle)));
+        assert!(!discovery.begin(now + poll + Duration::from_nanos(1)));
+        assert_eq!(discovery.idle_wait(now + poll, poll), poll);
+        let short_wait = Duration::from_millis(10);
+        assert_eq!(discovery.idle_wait(now + poll, short_wait), short_wait);
+        assert!(discovery.idle_wait(now + poll * 2, poll).is_zero());
+        assert!(discovery.begin(now + poll * 2));
+    }
 }
