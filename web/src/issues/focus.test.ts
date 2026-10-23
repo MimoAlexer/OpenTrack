@@ -27,3 +27,21 @@ describe('closed issue focus recovery', () => {
     expect(document.activeElement).toBe(input);
   });
 });
+
+it.each(['next', 'previous', 'heading'] as const)('uses the nearest surviving %s after the originating row disappears', destination => {
+  document.body.innerHTML = '<h1 tabindex="-1">Issues</h1><div class="issue-groups"><a id="row-before" class="issue-row" href="#before">Before</a><a id="row-issue" class="issue-row" href="#issue">Issue</a><a id="row-after" class="issue-row" href="#after">After</a></div><button id="close">Close issue</button>';
+  const heading = document.querySelector('h1')!;
+  const close = document.getElementById('close')!; close.focus(); close.remove();
+  restoreIssueRowFocus('issue', ['row-before', 'row-issue', 'row-after'], heading);
+  document.getElementById('row-issue')!.remove();
+  if (destination !== 'next') document.getElementById('row-after')!.remove();
+  if (destination === 'heading') document.getElementById('row-before')!.remove();
+  flush();
+  expect(document.activeElement).toBe(destination === 'heading' ? heading : document.getElementById(destination === 'next' ? 'row-after' : 'row-before'));
+});
+
+it('chooses the nearest original neighbor when several earlier rows have disappeared', () => {
+  document.body.innerHTML = '<div class="issue-groups"><a id="row-before" class="issue-row" href="#before">Before</a><a id="row-far" class="issue-row" href="#far">Far after</a></div>';
+  restoreIssueRowFocus('issue', ['row-gone', 'row-before', 'row-issue', 'row-after-gone', 'row-far']); flush();
+  expect(document.activeElement).toBe(document.getElementById('row-before'));
+});

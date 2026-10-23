@@ -106,3 +106,51 @@ test('private-team revocation removes a real recent issue title and excludes it 
     expect(results.status()).toBe(200); expect((await results.json() as { data: Issue[] }).data).toEqual([]);
   } finally { await member.dispose(); }
 });
+
+
+test('issue-list arrows cross saved rows and delayed archive refreshes preserve return focus', async ({ page, saved }) => {
+  const prefix = `List keyboard ${randomUUID()}`;
+  const issues: Issue[] = [];
+  for (const suffix of ['First', 'Middle', 'Last']) issues.push(await saved.create(`${prefix} ${suffix}`));
+  await page.goto(`/w/${saved.workspace}/issues?q=${encodeURIComponent(prefix)}`);
+  const rows = page.locator('.issue-groups a.issue-row');
+  await expect(rows).toHaveCount(3);
+  const rowIds = await rows.evaluateAll(elements => elements.map(element => element.id));
+  await rows.first().focus();
+  await page.keyboard.press('End'); await expect(page.locator(`#${rowIds[2]}`)).toBeFocused();
+  await page.keyboard.press('ArrowDown'); await expect(page.locator(`#${rowIds[2]}`)).toBeFocused();
+  await page.keyboard.press('Home'); await expect(page.locator(`#${rowIds[0]}`)).toBeFocused();
+  await page.keyboard.press('ArrowUp'); await expect(page.locator(`#${rowIds[0]}`)).toBeFocused();
+  await page.keyboard.press('Tab'); await expect(page.locator(`#${rowIds[1]}`)).toBeFocused();
+  await page.keyboard.press('ArrowDown'); await expect(page.locator(`#${rowIds[2]}`)).toBeFocused();
+  await page.keyboard.press('ArrowUp'); await expect(page.locator(`#${rowIds[1]}`)).toBeFocused();
+  const listRoute = (url: URL) => url.pathname === `${saved.path}/issues`;
+  let pending: { loaded: () => void; gate: Promise<void> } | undefined;
+  let release = () => {};
+  await page.route(listRoute, async route => {
+    const held = pending;
+    if (!held || route.request().method() !== 'GET') { await route.continue(); return; }
+    const response = await route.fetch(); held.loaded(); await held.gate;
+    await route.fulfill({ response });
+  });
+  try {
+    for (const [index, neighbor] of [[1, 2], [2, 0], [0, null]] as const) {
+      const issue = issues.find(item => `row-${item.id}` === rowIds[index])!;
+      await page.keyboard.press('Enter');
+      await expect(page.getByRole('textbox', { name: 'Issue title', exact: true })).toHaveValue(issue.title);
+      let loaded!: () => void;
+      const received = new Promise<void>(resolve => { loaded = resolve; });
+      pending = { loaded, gate: new Promise<void>(resolve => { release = resolve; }) };
+      await tabTo(page, page.getByRole('button', { name: 'Archive', exact: true })); await page.keyboard.press('Enter');
+      await received;
+      await expect(page.locator(`#${rowIds[index]}`)).toBeVisible();
+      await tabTo(page, page.getByRole('button', { name: 'Close issue', exact: true })); await page.keyboard.press('Enter');
+      await expect(page.locator(`#${rowIds[index]}`)).toBeFocused();
+      pending = undefined; release();
+      await expect(page.locator(`#${rowIds[index]}`)).toHaveCount(0);
+      await expect.poll(async () => !!(await saved.issue(issue.id)).archived_at).toBe(true);
+      if (neighbor === null) await expect(page.getByRole('heading', { name: 'All issues', exact: true })).toBeFocused();
+      else await expect(page.locator(`#${rowIds[neighbor]}`)).toBeFocused();
+    }
+  } finally { release(); await page.unroute(listRoute); }
+});
