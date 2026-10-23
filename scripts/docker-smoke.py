@@ -506,67 +506,138 @@ class Qualification:
                         and (network.get("Labels") or {}).get("com.docker.compose.project") == self.project,
                         "Offline runtime network is external or belongs to another project")
 
+    def seed_private_issue(self, base, team, key, content, title="Private cold restore fixture"):
+        digest = hashlib.sha256(content).hexdigest()
+        file, headers = self.request(base + "/attachments", "POST",
+            {"team_id": team, "original_name": "private-cold-restore.txt",
+             "size_bytes": len(content), "sha256": digest, "mime_hint": "text/plain"},
+            headers={"Idempotency-Key": key + "-file"}, expected=(201,))
+        attachment = base + "/attachments/" + file["id"]
+        self.request(attachment + "/content", "PUT", raw=content,
+            headers={"If-Match": headers["ETag"], "Content-Type": "application/octet-stream"})
+        body = {"type": "doc", "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": title}]},
+            {"type": "attachment", "attrs": {"id": file["id"]}},
+        ]}
+        issue, _ = self.request(base + "/issues", "POST",
+            {"team_id": team, "title": title,
+             "document": {"schema_version": 1, "body": body}},
+            headers={"Idempotency-Key": key + "-issue"}, expected=(201,))
+        issue_path = base + "/issues/" + issue["id"]
+        document, _ = self.request(issue_path + "/document")
+        return {"team": team, "title": title, "issue": issue_path,
+                "document": base + "/documents/" + document["id"],
+                "attachment": attachment, "body": body, "digest": digest,
+                "markers": (team, issue["id"], document["id"], file["id"], digest,
+                            title, "private-cold-restore.txt", content.decode().strip())}
+
     def seed_private_recovery(self, reader, base):
         team, _ = self.request(base + "/teams", "POST",
             {"name": "Private restore team", "key": "RCV", "private": True},
             headers={"Idempotency-Key": "docker-private-team"}, expected=(201,))
+        move_teams = []
+        for name, key in (("Private move source", "MVA"), ("Private move destination", "MVB")):
+            item, _ = self.request(base + "/teams", "POST", {"name": name, "key": key, "private": True},
+                headers={"Idempotency-Key": "docker-private-team-" + key.lower()}, expected=(201,))
+            move_teams.append(item["id"])
         invitation, _ = self.request(base + "/invitations", "POST",
-            {"email": "restore-reader@example.test", "role": "viewer", "team_ids": [team["id"]]},
+            {"email": "restore-reader@example.test", "role": "viewer", "team_ids": [team["id"], move_teams[0]]},
             headers={"Idempotency-Key": "docker-private-reader"}, expected=(201,))
         session, _ = reader.request("/api/v1/invitations/accept", "POST",
             {"token": invitation["token"], "display_name": "Example Reader",
              "password": secrets.token_urlsafe(36) + "A1!"})
         reader.csrf = session["csrf_token"]
-        content = b"private-recovery-byte-marker-40192\n"
-        digest = hashlib.sha256(content).hexdigest()
-        file, headers = self.request(base + "/attachments", "POST",
-            {"team_id": team["id"], "original_name": "private-cold-restore.txt",
-             "size_bytes": len(content), "sha256": digest, "mime_hint": "text/plain"},
-            headers={"Idempotency-Key": "docker-private-file"}, expected=(201,))
-        attachment = base + "/attachments/" + file["id"]
-        self.request(attachment + "/content", "PUT", raw=content,
-            headers={"If-Match": headers["ETag"], "Content-Type": "application/octet-stream"})
-        body = {"type": "doc", "content": [
-            {"type": "paragraph", "content": [{"type": "text", "text": "Private cold restore fixture"}]},
-            {"type": "attachment", "attrs": {"id": file["id"]}},
-        ]}
-        issue, _ = self.request(base + "/issues", "POST",
-            {"team_id": team["id"], "title": "Private cold restore fixture",
-             "document": {"schema_version": 1, "body": body}},
-            headers={"Idempotency-Key": "docker-private-issue"}, expected=(201,))
-        issue_path = base + "/issues/" + issue["id"]
-        document, _ = self.request(issue_path + "/document")
-        fixture = {"reader": reader, "reader_id": session["user"]["id"],
-                   "workspace": base.rsplit("/", 1)[1], "team": team["id"],
-                   "issue": issue_path, "document": base + "/documents/" + document["id"],
-                   "attachment": attachment, "body": body, "digest": digest,
-                   "markers": (team["id"], issue["id"], document["id"], file["id"], digest,
-                               "Private cold restore fixture", "private-cold-restore.txt", content.decode().strip())}
-        fixture["etag"] = reader.check_private_reads(fixture)
+        fixture = self.seed_private_issue(base, team["id"], "docker-private",
+                                          b"private-recovery-byte-marker-40192\n")
+        fixture.update(reader=reader, reader_id=session["user"]["id"], workspace=base.rsplit("/", 1)[1])
+        fixture["validators"] = reader.check_private_reads(fixture)
         fixture["cookies"] = tuple((c.name, c.value, c.domain, c.path) for c in reader.cookies)
         require(fixture["cookies"], "Private reader did not receive an independent session")
+        fixture["move"] = self.seed_private_move(reader, base, *move_teams)
         membership = base + "/teams/" + team["id"] + "/members/" + fixture["reader_id"]
         _, headers = self.request(membership)
         self.request(membership, "DELETE", headers={"If-Match": headers["ETag"]}, expected=(204,))
         self.record("synthetic private-team viewer reads saved resources before team membership removal")
         return fixture
 
+    def seed_private_move(self, reader, base, source, destination):
+        control_body = {"type": "doc", "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "Unchanged private-A restore control"}]},
+        ]}
+        control, _ = self.request(base + "/issues", "POST",
+            {"team_id": source, "title": "Unchanged private-A restore control",
+             "document": {"schema_version": 1, "body": control_body}},
+            headers={"Idempotency-Key": "docker-private-move-control"}, expected=(201,))
+        control_path = base + "/issues/" + control["id"]
+        control_document, _ = self.request(control_path + "/document")
+        fixture = self.seed_private_issue(base, source, "docker-private-move",
+            b"private-move-recovery-byte-marker-65018\n", title="Moved private cold restore fixture")
+        fixture.update(reader=reader, source_team=source, control=control_path, control_body=control_body,
+                       control_document=control_document["id"])
+        fixture["validators"] = reader.check_private_reads(fixture)
+        preview, _ = self.request(fixture["issue"] + "/move-preview?destination_team_id=" + destination)
+        require(preview["issue_id"] == fixture["issue"].rsplit("/", 1)[1]
+                and preview["source_team_id"] == source and preview["destination"]["id"] == destination
+                and preview["destination"]["private"] and preview["destination"]["can_move_issue"]
+                and preview["audience_change"] == "between_private_teams" and preview["blockers"] == [],
+                "Private move preview must match the saved issue and both private teams without blockers")
+        moved, _ = self.request(fixture["issue"] + "/move", "POST",
+            {"destination_team_id": destination, "status_id": preview["destination_default_status_id"],
+             "assignee_id": None, "label_ids": [], "preview_token": preview["preview_token"]},
+            headers={"If-Match": preview["issue_etag"], "Idempotency-Key": "docker-private-move"})
+        require(moved["id"] == preview["issue_id"] and moved["team_id"] == destination,
+                "Private move must persist the same saved issue in the expected destination")
+        fixture["team"] = destination
+        fixture["markers"] += (destination,)
+        self.record("synthetic reader reads saved private-A issue, documents and file before the actual move to private B")
+        return fixture
+
     def check_private_reads(self, fixture):
-        issue, _ = self.request(fixture["issue"])
-        document, _ = self.request(fixture["issue"] + "/document")
-        direct, _ = self.request(fixture["document"])
+        issue, issue_headers = self.request(fixture["issue"])
+        document, document_headers = self.request(fixture["issue"] + "/document")
+        direct, direct_headers = self.request(fixture["document"])
         metadata, headers = self.request(fixture["attachment"])
         content, _ = self.request(fixture["attachment"] + "/content")
         require(issue["id"] == fixture["issue"].rsplit("/", 1)[1]
-                and issue["team_id"] == fixture["team"] and issue["title"] == "Private cold restore fixture"
+                and issue["team_id"] == fixture["team"] and issue["title"] == fixture["title"]
                 and document["id"] == direct["id"] == fixture["document"].rsplit("/", 1)[1]
                 and document["body"] == direct["body"] == fixture["body"]
                 and metadata["id"] == fixture["attachment"].rsplit("/", 1)[1]
                 and metadata["sha256"] == fixture["digest"]
                 and hashlib.sha256(content).hexdigest() == fixture["digest"],
                 "Authorized private issue, document or attachment control differs")
-        require(bool(headers.get("ETag")), "Private attachment control has no saved validator")
-        return headers["ETag"]
+        validators = {fixture["issue"]: issue_headers.get("ETag"),
+                      fixture["issue"] + "/document": document_headers.get("ETag"),
+                      fixture["document"]: direct_headers.get("ETag"),
+                      fixture["attachment"]: headers.get("ETag"),
+                      fixture["attachment"] + "/content": headers.get("ETag")}
+        require(all(validators.values()), "Private resource control has no saved validator")
+        return validators
+
+    def check_private_denials(self, fixture):
+        paths = (fixture["issue"], fixture["issue"] + "/document", fixture["document"],
+                 fixture["attachment"], fixture["attachment"] + "/content")
+        for path in paths:
+            variants = ({}, {"If-None-Match": fixture["validators"][path]}, {"If-None-Match": "*"})
+            if path.startswith(fixture["attachment"]):
+                variants += ({"Range": "bytes=0-15", "If-None-Match": fixture["validators"][path]},)
+            for fields in variants:
+                problem, headers = self.request(path, headers=fields, expected=(404,))
+                require_concealed(problem, headers)
+                require(not any(marker in str(headers) for marker in fixture["markers"]),
+                        "Private resource denial disclosed fixture metadata")
+
+    def check_private_move(self, fixture):
+        reader = fixture["reader"]
+        control, _ = reader.request(fixture["control"])
+        document, _ = reader.request(fixture["control"] + "/document")
+        require(control["id"] == fixture["control"].rsplit("/", 1)[1]
+                and control["team_id"] == fixture["source_team"]
+                and control["title"] == "Unchanged private-A restore control"
+                and document["id"] == fixture["control_document"] and document["body"] == fixture["control_body"],
+                "The same reader must retain unchanged private-A issue and document access after the move")
+        self.check_private_reads(fixture)
+        reader.check_private_denials(fixture)
 
     def check_private_revocation(self, fixture, issue_path, attachment, body, digest):
         reader = fixture["reader"]
@@ -581,16 +652,8 @@ class Qualification:
                 and hashlib.sha256(content).hexdigest() == digest,
                 "Revoked private-team reader lost the public content control")
         self.check_private_reads(fixture)
-        paths = (fixture["issue"], fixture["issue"] + "/document", fixture["document"],
-                 fixture["attachment"], fixture["attachment"] + "/content")
-        for path in paths:
-            variants = ({}, {"Range": "bytes=0-15", "If-None-Match": fixture["etag"]},
-                        {"If-None-Match": "*"}) if path.startswith(fixture["attachment"]) else ({},)
-            for fields in variants:
-                problem, headers = reader.request(path, headers=fields, expected=(404,))
-                require_concealed(problem, headers)
-                require(not any(marker in str(headers) for marker in fixture["markers"]),
-                        "Private resource denial disclosed fixture metadata")
+        reader.check_private_denials(fixture)
+        self.check_private_move(fixture["move"])
         require(tuple((c.name, c.value, c.domain, c.path) for c in reader.cookies) == fixture["cookies"],
                 "Revocation checks must reuse the original reader session without replacement")
 
@@ -622,6 +685,7 @@ class Qualification:
             private = self.seed_private_recovery(reader, issue_path.rsplit("/issues/", 1)[0])
             self.check_private_revocation(private, issue_path, attachment, body, digest)
             self.record("live revoked private-team reader keeps public access; saved private URLs conceal content and metadata")
+            self.record("live private-A grant and unchanged control survive the move to private B; saved moved URLs conceal content and metadata")
             source_stopped = True
             self.dc("stop", "--timeout", "35", "app", "worker", timeout=70)
             fingerprint = self.database_fingerprint()
@@ -687,6 +751,7 @@ done
             self.record("isolated offline restore preserves setup token, session, login, issue, document and populated attachment")
             restored.check_private_revocation(private, issue_path, attachment, body, digest)
             self.record("cold restore preserves the same reader session and current private-team denial with authorized owner and public controls")
+            self.record("cold restore preserves the same reader and private-A control while moved private-B issue, documents and file remain concealed")
             for action in ("missing-blob", "corrupt-blob"):
                 restored.dc("stop", "--timeout", "35", "app", timeout=55)
                 self.volume_task(action, restored.project, "blobs", backup, bootstrap_image, storage_key)
