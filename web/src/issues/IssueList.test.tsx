@@ -20,6 +20,126 @@ async function render(refresh = 0, params = new URLSearchParams(), account = ses
 
 const boardParams = () => new URLSearchParams('team_id=t&layout=board&display_version=1');
 const workflow = () => json({ team_id: 't', version: '1', can_manage: true, statuses: [status] });
+const privateStatus = { ...status, name: 'Private review stage' };
+const privateData: Bootstrap = { ...data, teams: [{ ...data.teams[0], name: 'Private board team', private: true }], statuses: [privateStatus] };
+const privateWorkflow = () => json({ team_id: 't', version: '1', can_manage: true, statuses: [privateStatus] });
+async function renderPrivateBoard(refresh = 0, params = boardParams()) { await act(async () => root.render(<IssueList workspaceId="w" data={privateData} session={session} params={params} selectedId="i" refresh={refresh} create={() => {}} searchRef={createRef()} />)); }
+function concealedPrivateBoard() {
+  expect(container.textContent).not.toContain('Private board team');
+  expect(container.textContent).not.toContain('Private review stage');
+  expect(container.querySelector('[aria-label="Board team"]')).toBeNull();
+  expect(container.querySelector('option[value="t"], option[value="s"]')).toBeNull();
+  expect(container.querySelector('#row-i')).toBeNull();
+}
+
+it.each([[403, 'refresh'], [404, 'refresh'], [403, 'retry'], [404, 'retry']] as const)('conceals denied private board metadata after %s during %s', async (statusCode, action) => {
+  let denied = false; let holding = false; let holdWorkflow = false; let reads = 0; let workflowReads = 0;
+  let finish!: (response: Response) => void; let finishWorkflow!: (response: Response) => void;
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) {
+      workflowReads += 1;
+      return holdWorkflow ? new Promise<Response>(resolve => { finishWorkflow = resolve; }) : Promise.resolve(privateWorkflow());
+    }
+    reads += 1;
+    if (holding) return new Promise<Response>(resolve => { finish = resolve; });
+    return Promise.resolve(denied ? json({ code: 'not_available', detail: 'Board access changed.' }, statusCode) : page());
+  }));
+  await renderPrivateBoard();
+  expect(container.textContent).toContain('Private board team');
+  denied = true; await renderPrivateBoard(1); concealedPrivateBoard();
+  holding = true;
+  if (action === 'refresh') {
+    await renderPrivateBoard(2); concealedPrivateBoard(); expect(reads).toBe(2);
+  }
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Try again')!.click());
+  concealedPrivateBoard(); expect(reads).toBe(3);
+  denied = false; holding = false; holdWorkflow = true;
+  await act(async () => finish(page()));
+  concealedPrivateBoard(); expect(workflowReads).toBe(2);
+  holdWorkflow = false;
+  await act(async () => finishWorkflow(privateWorkflow()));
+  expect(container.textContent).toContain('Private board team');
+  expect(container.textContent).toContain('Private review stage');
+  expect(container.querySelector('#row-i')).not.toBeNull();
+});
+
+it.each(['404', 'network', 'wrong team'] as const)('does not restore a denied board from an empty list when fresh workflow proof fails with %s', async failure => {
+  let reads = 0; let workflowReads = 0;
+  let finish!: (response: Response) => void; let reject!: (error: Error) => void;
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) {
+      workflowReads += 1;
+      return workflowReads === 1 ? Promise.resolve(privateWorkflow()) : new Promise<Response>((resolve, fail) => { finish = resolve; reject = fail; });
+    }
+    reads += 1;
+    return Promise.resolve(reads === 1 ? page() : reads === 2 ? json({ code: 'not_found', detail: 'Board unavailable.' }, 404) : page([]));
+  }));
+  await renderPrivateBoard();
+  await renderPrivateBoard(1); concealedPrivateBoard();
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Try again')!.click());
+  expect(reads).toBe(3); expect(workflowReads).toBe(2); concealedPrivateBoard();
+  await act(async () => {
+    if (failure === 'network') reject(new TypeError('Offline'));
+    else finish(failure === '404' ? json({ code: 'not_found', detail: 'Board unavailable.' }, 404)
+      : json({ team_id: 'another-team', version: '1', can_manage: true, statuses: [] }));
+  });
+  concealedPrivateBoard();
+  const retry = [...container.querySelectorAll('button')].find(button => button.textContent === 'Try again');
+  expect(retry).toBeDefined(); expect(retry?.disabled).toBe(false);
+  expect(reads).toBe(3);
+});
+
+it('retains denial for the same team, principal and epoch across filter changes and back until explicit retry', async () => {
+  let denied = false; let reads = 0;
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return Promise.resolve(privateWorkflow());
+    reads += 1;
+    return Promise.resolve(denied ? json({ code: 'forbidden', detail: 'Board unavailable.' }, 403) : page());
+  }));
+  await renderPrivateBoard();
+  denied = true; await renderPrivateBoard(1); concealedPrivateBoard();
+  const changed = boardParams(); changed.set('q', 'changed query'); changed.set('sort', 'priority');
+  await renderPrivateBoard(1, changed); concealedPrivateBoard();
+  await renderPrivateBoard(1, boardParams()); concealedPrivateBoard();
+  expect(reads).toBe(2);
+  denied = false;
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Try again')!.click());
+  expect(reads).toBe(3);
+  expect(container.textContent).toContain('Private board team');
+  expect(container.textContent).toContain('Private review stage');
+  expect(container.querySelector('#row-i')).not.toBeNull();
+});
+
+it('fences a superseded workflow proof and page until the latest refresh receives its own proof', async () => {
+  let reads = 0; let workflowReads = 0;
+  let finishOldProof!: (response: Response) => void; let finishLatestPage!: (response: Response) => void; let finishLatestProof!: (response: Response) => void;
+  const old = { ...issue, title: 'Superseded reviewed page' }; const latest = { ...issue, title: 'Current reviewed page' };
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) {
+      workflowReads += 1;
+      if (workflowReads === 2) return new Promise<Response>(resolve => { finishOldProof = resolve; });
+      if (workflowReads === 3) return new Promise<Response>(resolve => { finishLatestProof = resolve; });
+      return Promise.resolve(privateWorkflow());
+    }
+    reads += 1;
+    if (reads === 2) return Promise.resolve(json({ code: 'not_found', detail: 'Board unavailable.' }, 404));
+    if (reads === 3) return Promise.resolve(page([old]));
+    if (reads === 4) return new Promise<Response>(resolve => { finishLatestPage = resolve; });
+    return Promise.resolve(page());
+  }));
+  await renderPrivateBoard(); await renderPrivateBoard(1); concealedPrivateBoard();
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Try again')!.click());
+  expect(workflowReads).toBe(2); concealedPrivateBoard();
+  await renderPrivateBoard(2); expect(reads).toBe(4); concealedPrivateBoard();
+  await act(async () => finishOldProof(privateWorkflow()));
+  concealedPrivateBoard(); expect(container.textContent).not.toContain(old.title);
+  await act(async () => finishLatestPage(page([latest])));
+  expect(workflowReads).toBe(3); concealedPrivateBoard();
+  await act(async () => finishLatestProof(privateWorkflow()));
+  expect(container.textContent).toContain(latest.title);
+  expect(container.textContent).not.toContain(old.title);
+  expect(container.textContent).toContain('Private board team');
+});
 
 it('requires an explicit team and rejects unsupported board display versions without broadening the query', async () => {
   const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
@@ -114,6 +234,10 @@ it('fences a late listing response after independent workflow revocation until a
   denyWorkflow = false;
   await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Try again')!.click());
   expect(listReads).toBe(3);
+  expect(container.querySelector('#row-i')).toBeNull();
+  expect(container.querySelector('[aria-label="Board team"]')).toBeNull();
+  expect(container.textContent).not.toContain('Engineering');
+  expect(container.textContent).not.toContain('Ready');
   await act(async () => finish(page()));
   expect(container.querySelector('#row-i')).not.toBeNull();
 });

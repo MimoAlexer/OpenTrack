@@ -28,11 +28,12 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
   const [query, setQuery] = useState(params.get('q') ?? '');
   const sequence = useRef(0);
   const activeRead = useRef<AbortController | null>(null);
-  const deniedBoard = useRef<{ scope: string; error: unknown } | null>(null);
+  const deniedBoard = useRef<{ scope: string; error: unknown; retrying: boolean } | null>(null);
   const listRef = useRef<HTMLElement>(null);
   const pendingFocus = useRef<{ scope: string; authority: string; page: IssuePage; load: number; signal: AbortSignal; row: HTMLAnchorElement; rowIds: string[] } | null>(null);
   const composing = useRef(false);
   const teamId = params.get('team_id') ?? '';
+  const accessScope = JSON.stringify([historyScope, teamId]);
   const layout = params.get('layout') ?? 'list';
   const board = layout === 'board';
   const displayValid = ['list', 'board'].includes(layout) && (!params.has('display_version') || params.get('display_version') === '1');
@@ -74,9 +75,12 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
   }
   function clearFilters() { const next = new URLSearchParams(params); ['q', 'status_id', 'priority', 'label_ids', 'label_mode'].forEach(key => next.delete(key)); navigate(issuesUrl(workspaceId, next)); }
   function setLayout(value: string) { const next = new URLSearchParams(params); next.set('layout', value); next.set('display_version', '1'); navigate(issuesUrl(workspaceId, next)); }
-  function retryPage() { deniedBoard.current = null; setRetry(value => value + 1); }
+  function retryPage() {
+    if (deniedBoard.current?.scope === accessScope) deniedBoard.current = { ...deniedBoard.current, retrying: true };
+    setRetry(value => value + 1);
+  }
   function denyBoard(denial: unknown) {
-    deniedBoard.current = { scope: listingScope, error: denial }; sequence.current += 1;
+    deniedBoard.current = { scope: accessScope, error: denial, retrying: false }; sequence.current += 1;
     activeRead.current?.abort(); activeRead.current = null; pendingFocus.current = null;
     setResult(null); setMoreBusy(false); setLoading({ scope: resultScope, busy: false, error: denial });
   }
@@ -91,10 +95,20 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
     const abort = new AbortController(); const load = ++sequence.current;
     activeRead.current = abort;
     const cleanup = () => { abort.abort(); if (activeRead.current === abort) activeRead.current = null; };
-    if (!displayValid || board && !boardTeam || board && deniedBoard.current?.scope === listingScope) { setResult(null); setLoading({ scope: resultScope, busy: false, error: board && deniedBoard.current?.scope === listingScope ? deniedBoard.current.error : null }); return cleanup; }
+    const denial = board && deniedBoard.current?.scope === accessScope ? deniedBoard.current : null;
+    if (!displayValid || board && !boardTeam || denial && !denial.retrying) { setResult(null); setLoading({ scope: resultScope, busy: false, error: denial?.error ?? null }); return cleanup; }
     setLoading({ scope: resultScope, busy: true, error: null }); setMoreBusy(false);
-    request<IssuePage>(`/workspaces/${workspaceId}/issues?${queryKey}`, { signal: abort.signal }).then(page => {
+    async function loadPage() {
+      const page = await request<IssuePage>(`/workspaces/${workspaceId}/issues?${queryKey}`, { signal: abort.signal });
+      if (denial && !abort.signal.aborted) {
+        const workflow = await request<Workflow>(`/workspaces/${workspaceId}/teams/${teamId}/workflow`, { signal: abort.signal });
+        if (workflow.team_id !== teamId) throw new Error('Board access could not be confirmed.');
+      }
+      return page;
+    }
+    loadPage().then(page => {
       if (abort.signal.aborted || load !== sequence.current || currentFocusScope.current.scope !== resultScope || currentFocusScope.current.authority !== historyScope) return;
+      if (denial && deniedBoard.current === denial) deniedBoard.current = null;
       const focused = document.activeElement;
       const group = focused instanceof HTMLAnchorElement && focused.classList.contains('issue-row') && listRef.current?.contains(focused) ? focused.closest('.issue-groups') : null;
       const rowIds = group ? [...group.querySelectorAll<HTMLAnchorElement>('a.issue-row')].map(row => row.id) : [];
@@ -104,7 +118,11 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
       if (abort.signal.aborted || load !== sequence.current || currentFocusScope.current.scope !== resultScope || currentFocusScope.current.authority !== historyScope) return;
       // Retain a previously authorized snapshot only for a transient failure in
       // this exact scope. Permission failures must immediately remove its rows.
-      if (error instanceof ApiError && [401, 403, 404].includes(error.status)) setResult(null);
+      if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
+        if (board) { denyBoard(error); return; }
+        setResult(null);
+      }
+      if (denial && deniedBoard.current === denial) deniedBoard.current = { ...denial, error, retrying: false };
       setLoading({ scope: resultScope, busy: false, error });
     });
     return cleanup;
@@ -160,7 +178,7 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
     event.preventDefault(); rows[next]?.focus();
   }
   if (!displayValid) return <section className="issue-list empty-state"><h2>These display settings are unavailable.</h2><p>Choose a supported layout to keep using the current filters.</p><button type="button" className="button" onClick={() => setLayout('list')}>Use list layout</button></section>;
-  if (board && error instanceof ApiError && [401, 403, 404].includes(error.status)) return <section className="issue-list empty-state"><h2>Board unavailable.</h2><ErrorBanner error={error} retry={retryPage} /><button type="button" className="button" onClick={() => { const next = new URLSearchParams(params); next.delete('team_id'); next.delete('status_id'); next.set('layout', 'list'); navigate(issuesUrl(workspaceId, next)); }}>Open all issues</button></section>;
+  if (board && deniedBoard.current?.scope === accessScope) return <section className="issue-list empty-state" aria-busy={busy}><h2>Board unavailable.</h2>{busy ? <Loading label="Checking board access…" /> : <ErrorBanner error={deniedBoard.current.error} retry={retryPage} />}<button type="button" className="button" onClick={() => { const next = new URLSearchParams(params); next.delete('team_id'); next.delete('status_id'); next.set('layout', 'list'); navigate(issuesUrl(workspaceId, next)); }}>Open all issues</button></section>;
   return <section ref={listRef} className={`issue-list${board ? ' board-list' : ''}`} aria-label="Issue list" aria-busy={busy}>
     <div className="issue-display-controls"><label className="list-sort">Display<select aria-label="Issue layout" value={layout} onChange={event => setLayout(event.target.value)}><option value="list">List</option><option value="board">Board</option></select></label>{board && <label className="list-sort">Board team<select aria-label="Board team" value={teamId} onChange={event => setFilter('team_id', event.target.value)}><option value="">Choose a team</option>{data.teams.filter(team => archived || !team.archived_at || team.id === teamId).map(team => <option key={team.id} value={team.id}>{team.name}{team.archived_at ? ' · Archived' : ''}</option>)}</select></label>}</div>
     <div className="list-toolbar"><label className="search-field"><Search aria-hidden="true" /><input ref={searchRef} type="search" aria-label="Search issues by title or key" placeholder="Search issues…" value={query} onChange={e => setQuery(e.target.value)} maxLength={200} />{charactersEnabled && <kbd>/</kbd>}</label><details className="filter-menu"><summary className="button compact"><ListFilter aria-hidden="true" />Filters{filterCount + Number(archived) > 0 && <span className="count-badge">{filterCount + Number(archived)}</span>}</summary><div className="filter-popover">{!!filterCount && <button type="button" className="quiet" onClick={clearFilters}>Clear filters</button>}<label className="field">Show<select value={archived ? 'true' : ''} onChange={e => setFilter('archived', e.target.value)}><option value="">Active issues</option><option value="true">Archived issues</option></select></label><label className="field">Team<select value={teamId} onChange={e => setFilter('team_id', e.target.value)}><option value="">All teams</option>{data.teams.filter(team => archived || !team.archived_at).map(team => <option key={team.id} value={team.id}>{team.name}{team.archived_at ? ' · Archived' : ''}</option>)}</select></label><label className="field">Status<select value={params.get('status_id') ?? ''} onChange={e => setFilter('status_id', e.target.value)}><option value="">All statuses</option>{statuses.map(status => <option key={status.id} value={status.id}>{!teamId ? `${data.teams.find(t => t.id === status.team_id)?.key} · ` : ''}{status.name}</option>)}</select></label><label className="field">Priority<select value={params.get('priority') ?? ''} onChange={e => setFilter('priority', e.target.value)}><option value="">Any priority</option>{priorities.map((name, i) => <option value={i} key={i}>{name}</option>)}</select></label><LabelPicker filter workspaceId={workspaceId} teamId={teamId || undefined} session={session} value={labelIds} teams={data.teams} change={ids => setFilter('label_ids', ids.join(','))} />{!!labelIds.length && <label className="field">Match labels<select value={params.get('label_mode') ?? 'any'} onChange={event => setFilter('label_mode', event.target.value)}><option value="any">Any selected label</option><option value="all">All selected labels</option></select></label>}</div></details></div>

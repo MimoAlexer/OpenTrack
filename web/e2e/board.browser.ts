@@ -250,7 +250,10 @@ test('private-team membership revocation conceals board cards and rejects the pe
     email: `board-member-${randomUUID()}@example.test`, role: 'member', team_ids: [team.id],
   }, { 'Idempotency-Key': randomUUID() });
   const member = await playwright.request.newContext({ baseURL: saved.origin, extraHTTPHeaders: { Origin: saved.origin }, storageState: { cookies: [], origins: [] } });
-  let release = () => {};
+  const endpoint = `${saved.origin}${saved.path}/issues/${issues[0].id}`;
+  const accessEndpoint = `${saved.origin}${saved.path}/access`;
+  const listRoute = (url: URL) => url.pathname === `${saved.path}/issues` && url.searchParams.get('team_id') === team.id;
+  let release = () => {}; let releaseAccess = () => {}; let releaseRetry = () => {};
   try {
     const accepted = await member.post('/api/v1/invitations/accept', { data: {
       token: issued.token, display_name: 'Example Board Member', password: process.env.OPENTRACK_BROWSER_PASSWORD,
@@ -260,10 +263,14 @@ test('private-team membership revocation conceals board cards and rejects the pe
     await page.context().clearCookies(); await page.context().addCookies((await member.storageState()).cookies);
     await open(page, saved); await expect(page.locator(`#row-${issues[0].id}`)).toBeVisible();
     await chooseMove(page, issues[0], target.id);
+    const accessGate = new Promise<void>(resolve => { releaseAccess = resolve; });
+    await page.route(accessEndpoint, async route => {
+      if (route.request().method() === 'GET') await accessGate;
+      await route.continue();
+    });
     let arrived!: () => void;
     const received = new Promise<void>(resolve => { arrived = resolve; });
     const gate = new Promise<void>(resolve => { release = resolve; });
-    const endpoint = `${saved.origin}${saved.path}/issues/${issues[0].id}`;
     await page.route(endpoint, async route => {
       if (route.request().method() === 'PATCH') { arrived(); await gate; }
       await route.continue();
@@ -283,10 +290,38 @@ test('private-team membership revocation conceals board cards and rejects the pe
     await expect(page.getByText(issues[0].title, { exact: true })).toHaveCount(0);
     expect((await member.get(`${saved.path}/issues/${issues[0].id}`)).status()).toBe(404);
     expect(await saved.issue(issues[0].id)).toEqual(issues[0]);
+    let retryArrived!: () => void; let retryHeld = false;
+    const retryReceived = new Promise<void>(resolve => { retryArrived = resolve; });
+    const retryGate = new Promise<void>(resolve => { releaseRetry = resolve; });
+    await page.route(listRoute, async route => {
+      if (route.request().method() === 'GET' && !retryHeld) { retryHeld = true; retryArrived(); await retryGate; }
+      await route.continue();
+    });
+    const list = page.locator('.issue-list');
+    await list.getByRole('button', { name: 'Try again', exact: true }).click();
+    await retryReceived;
+    await expect(list.getByRole('combobox', { name: 'Board team', exact: true })).toHaveCount(0);
+    await expect(list.locator(`option[value="${team.id}"], option[value="${target.id}"]`)).toHaveCount(0);
+    await expect(list).not.toContainText(team.name);
+    const retryResponse = page.waitForResponse(response => response.request().method() === 'GET' && listRoute(new URL(response.url())));
+    const workflowResponse = page.waitForResponse(response => response.request().method() === 'GET'
+      && new URL(response.url()).pathname === `${saved.path}/teams/${team.id}/workflow`);
+    releaseRetry();
+    const retried = await retryResponse; expect(retried.status()).toBe(200);
+    expect((await retried.json() as IssuePage).data).toEqual([]);
+    expect((await workflowResponse).status()).toBe(404);
+    await expect(list.getByRole('combobox', { name: 'Board team', exact: true })).toHaveCount(0);
+    await expect(list.locator(`option[value="${team.id}"], option[value="${target.id}"]`)).toHaveCount(0);
+    await expect(list).not.toContainText(team.name);
+    releaseAccess(); await page.unroute(accessEndpoint);
     await page.reload();
     await expect(page.locator(`#row-${issues[0].id}`)).toHaveCount(0);
     await expect(page.getByText(issues[0].title, { exact: true })).toHaveCount(0);
-  } finally { release(); await member.dispose(); }
+  } finally {
+    release(); releaseAccess(); releaseRetry();
+    await page.unroute(endpoint); await page.unroute(accessEndpoint); await page.unroute(listRoute);
+    await member.dispose();
+  }
 });
 
 test('an archived drop target preserves intent until an explicit active replacement is reviewed and saved', async ({ page, saved: owner }) => {
