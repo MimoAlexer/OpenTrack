@@ -270,10 +270,23 @@ impl Harness {
                 &format!("'{}'", worker.username().replace('\'', "''")),
             )
             .replace(":'worker_schema'", &format!("'{}'", self.schema));
+        let script = script
+            .trim()
+            .strip_prefix("BEGIN;")
+            .expect("Worker grant script must begin a transaction")
+            .strip_suffix("COMMIT;")
+            .expect("Worker grant script must commit its transaction");
+        let mut tx = store::begin(&self.owner).await.unwrap();
+        // Isolated schemas still update the same database CONNECT grant catalog row.
+        sqlx::query("SELECT pg_advisory_xact_lock(1869636978,1)")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
         sqlx::raw_sql(AssertSqlSafe(script))
-            .execute(&self.owner)
+            .execute(&mut *tx)
             .await
             .expect("Grant reviewed worker capabilities");
+        tx.commit().await.unwrap();
         scoped_url(worker, &self.schema).to_string()
     }
 
