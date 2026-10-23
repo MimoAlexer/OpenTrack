@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Recovery boundary tests; no Docker, database or application is started."""
 import argparse
+from contextlib import redirect_stdout
 import copy
 import hashlib
 import importlib.util
@@ -145,6 +146,118 @@ class RecoveryBoundaries(unittest.TestCase):
             headers = {key: value for key, value in self.problem_headers.items() if key != field}
             with self.subTest(missing=field), self.assertRaises(RuntimeError):
                 module.require_concealed(self.problem, headers)
+
+    def test_private_move_validates_preview_and_preserves_saved_resources(self):
+        base, source, destination = "/api/v1/workspaces/fixture", "private-a", "private-b"
+        issue, document, attachment = (base + "/issues/moved-id", base + "/documents/moved-document",
+                                       base + "/attachments/file-id")
+        preview = {"issue_id": "moved-id", "source_team_id": source,
+            "destination": {"id": destination, "private": True, "can_move_issue": True},
+            "audience_change": "between_private_teams", "blockers": [],
+            "destination_default_status_id": "preview-status", "preview_token": "actual-preview-token",
+            "issue_etag": '"actual-preview-etag:7"'}
+        invalid = [dict(preview, issue_id="other-issue"), dict(preview, source_team_id="other-team"),
+            dict(preview, destination={**preview["destination"], "id": "other-team"}),
+            dict(preview, destination={**preview["destination"], "private": False}),
+            dict(preview, destination={**preview["destination"], "can_move_issue": False}),
+            dict(preview, audience_change="private_to_public"), dict(preview, blockers=["unresolved"])]
+        for candidate in [preview, *invalid]:
+            state = {}
+            reader = module.Qualification(argparse.Namespace(project=self.project, url=self.runner.url,
+                output=str(self.runner.output), expected_architecture="amd64", compose_file=self.runner.compose_files))
+            def owner_request(path, method="GET", body=None, **kwargs):
+                if path == base + "/issues" and method == "POST":
+                    identity = "moved-id" if "control" in state else "control-id"
+                    state["control" if identity == "control-id" else "issue"] = copy.deepcopy(body)
+                    return {"id": identity}, {}
+                if path == base + "/issues/control-id/document":
+                    return {"id": "control-document"}, {}
+                if path == base + "/attachments" and method == "POST":
+                    state["file"] = copy.deepcopy(body)
+                    return {"id": "file-id"}, {"ETag": '"reservation:1"'}
+                if path == attachment + "/content" and method == "PUT":
+                    state["bytes"] = kwargs["raw"]
+                    return {}, {}
+                if path == issue + "/document":
+                    return {"id": "moved-document"}, {}
+                if path == issue + "/move-preview?destination_team_id=" + destination:
+                    return copy.deepcopy(candidate), {}
+                if path == issue + "/move" and method == "POST":
+                    return {"id": "moved-id", "team_id": destination}, {}
+                raise AssertionError("Unexpected fixture request")
+            def reader_request(path, **kwargs):
+                if path == issue:
+                    return {"id": "moved-id", "team_id": source, "title": state["issue"]["title"]}, {"ETag": '"saved-issue:4"'}
+                if path in (issue + "/document", document):
+                    return {"id": "moved-document", "body": state["issue"]["document"]["body"]}, {"ETag": '"saved-document:2"'}
+                if path == attachment:
+                    return {"id": "file-id", "sha256": state["file"]["sha256"]}, {"ETag": '"saved-file:3"'}
+                if path == attachment + "/content":
+                    return state["bytes"], {}
+                raise AssertionError("Unexpected reader request")
+            with self.subTest(preview=candidate), redirect_stdout(io.StringIO()), \
+                    patch.object(self.runner, "request", side_effect=owner_request) as owner, \
+                    patch.object(reader, "request", side_effect=reader_request):
+                if candidate != preview:
+                    with self.assertRaisesRegex(RuntimeError, "Private move preview must match"):
+                        self.runner.seed_private_move(reader, base, source, destination)
+                    self.assertFalse(any(call.args[:2] == (issue + "/move", "POST")
+                                         for call in owner.call_args_list))
+                    continue
+                fixture = self.runner.seed_private_move(reader, base, source, destination)
+                moves = [call for call in owner.call_args_list if call.args[:2] == (issue + "/move", "POST")]
+                self.assertEqual(len(moves), 1)
+                self.assertEqual(moves[0].args[2], {"destination_team_id": destination,
+                    "status_id": preview["destination_default_status_id"], "assignee_id": None,
+                    "label_ids": [], "preview_token": preview["preview_token"]})
+                self.assertEqual(moves[0].kwargs["headers"], {"If-Match": preview["issue_etag"],
+                                                          "Idempotency-Key": "docker-private-move"})
+                self.assertEqual((fixture["issue"], fixture["document"], fixture["attachment"]),
+                                 (issue, document, attachment))
+                self.assertEqual(fixture["validators"], {issue: '"saved-issue:4"',
+                    issue + "/document": '"saved-document:2"', document: '"saved-document:2"',
+                    attachment: '"saved-file:3"', attachment + "/content": '"saved-file:3"'})
+                self.assertEqual(fixture["team"], destination)
+                self.assertEqual(fixture["source_team"], source)
+
+    def test_private_move_rejects_changed_source_control_before_owner_or_denial_reads(self):
+        reader = module.Qualification(argparse.Namespace(project=self.project, url=self.runner.url,
+            output=str(self.runner.output), expected_architecture="amd64", compose_file=self.runner.compose_files))
+        control = {"id": "control-id", "team_id": "private-a", "title": "Unchanged private-A restore control"}
+        document = {"id": "control-document", "body": {"type": "doc", "content": []}}
+        fixture = {"reader": reader, "control": "/issues/control-id", "source_team": "private-a",
+                   "control_document": document["id"], "control_body": document["body"]}
+        changed = [(dict(control, id="other-issue"), document),
+            (dict(control, team_id="private-b"), document), (dict(control, title="Changed control"), document),
+            (control, dict(document, id="other-document")),
+            (control, dict(document, body={"type": "doc", "content": [{"type": "paragraph"}]}))]
+        for issue_reply, document_reply in changed:
+            with self.subTest(issue=issue_reply, document=document_reply), \
+                    patch.object(reader, "request", side_effect=[(issue_reply, {}), (document_reply, {})]) as reads, \
+                    patch.object(self.runner, "request", side_effect=AssertionError("Owner read preceded control validation")) as owner:
+                with self.assertRaisesRegex(RuntimeError, "reader must retain unchanged private-A"):
+                    self.runner.check_private_move(fixture)
+                self.assertEqual([call.args[0] for call in reads.call_args_list],
+                                 [fixture["control"], fixture["control"] + "/document"])
+                owner.assert_not_called()
+
+    def test_private_denials_bind_conditional_requests_to_every_saved_resource(self):
+        fixture = {"issue": "/issues/saved-issue", "document": "/documents/saved-document",
+                   "attachment": "/attachments/saved-file", "markers": ("private-byte-marker",)}
+        paths = (fixture["issue"], fixture["issue"] + "/document", fixture["document"],
+                 fixture["attachment"], fixture["attachment"] + "/content")
+        fixture["validators"] = {path: f'"saved-validator:{index}"' for index, path in enumerate(paths)}
+        with patch.object(self.runner, "request", return_value=(self.problem, self.problem_headers)) as reads:
+            self.runner.check_private_denials(fixture)
+        for path in paths:
+            calls = [call for call in reads.call_args_list if call.args == (path,)]
+            self.assertTrue(all(call.kwargs["expected"] == (404,) for call in calls))
+            fields = [call.kwargs["headers"] for call in calls]
+            self.assertIn({}, fields)
+            self.assertIn({"If-None-Match": fixture["validators"][path]}, fields)
+            self.assertIn({"If-None-Match": "*"}, fields)
+            if path.startswith(fixture["attachment"]):
+                self.assertIn({"Range": "bytes=0-15", "If-None-Match": fixture["validators"][path]}, fields)
 
     def test_actual_network_state_must_match_internal_project_inventory(self):
         config = copy.deepcopy(self.config)
