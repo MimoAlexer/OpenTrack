@@ -74,7 +74,7 @@ The historical Phase 0 review records documentation-only checks. Current evidenc
 
 Current assignment-cleanup and event recovery qualification: [18 October consumer evidence](evidence/2026-10-18-assignment-consumer.md), [deployed admission controls](evidence/2026-10-22-agent-3-admission-runtime.md) and [integrated qualification](evidence/2026-10-23-agent5-integrated-qualification.md). Later consumers, default-dispatch investigation, broader administration and the complete product remain unfinished.
 
-Current documents/files and interaction qualification: [document editing](evidence/2026-10-18-document-editing.md) and [attachments and stability](evidence/2026-10-18-attachments.md). These records distinguish browser workflows, native core/package evidence and outstanding release gates.
+Current documents/files and interaction qualification: [document editing](evidence/2026-10-18-document-editing.md), [browser HTML paste and read-only rendering](evidence/2026-10-23-agent5-html-paste.md) and [attachments and stability](evidence/2026-10-18-attachments.md). These records distinguish browser workflows, native core/package evidence and outstanding release gates.
 
 Current team-template and nested-dialog qualification: [templates and interaction follow-up](evidence/2026-10-18-templates.md). Project defaults and broader workflow templates remain open.
 
