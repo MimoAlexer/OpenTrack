@@ -2,6 +2,8 @@
 """Boundary and cleanup regressions; no Docker, database or HTTP acceptance."""
 import importlib.util
 from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
@@ -22,6 +24,12 @@ def require(condition, message):
 
 
 class SourceBoundaries(unittest.TestCase):
+    def test_smoke_cli_loads_in_isolated_python(self):
+        result = subprocess.run([sys.executable, "-I", str(Path(__file__).with_name("docker-smoke.py")), "--help"],
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, "Isolated smoke CLI import failed")
+        self.assertIn("--cleanup-recovery", result.stdout)
+
     def assert_rejected_without_runtime_access(self, *, project="opentrack-smoke-boundary",
                                                url="http://127.0.0.1:18081", base=BASE,
                                                issue_path=ISSUE):
