@@ -1,8 +1,8 @@
 # OpenTrack blueprint map
 
-Latest accepted checkpoint: [22 October started-batch record](evidence/2026-10-22-started-batch.md). It links the accepted foundation, identity, keyboard and planning increments and their remaining qualification gates. The user subsequently resumed complete-product execution through five assigned lanes; [the implementation plan](IMPLEMENTATION_PLAN.md) and [requirements ledger](REQUIREMENTS_STATUS.md) govern current scope and evidence.
+Latest integrated qualification: [23 October server, admission and recovery evidence](evidence/2026-10-23-agent5-integrated-qualification.md), including real exhaustion/scanner checks and both native container architectures on schema `0026`. The [22 October started-batch record](evidence/2026-10-22-started-batch.md) retains earlier accepted increments. The user requests continued assigned work until further instructions; [the implementation plan](IMPLEMENTATION_PLAN.md) and [requirements ledger](REQUIREMENTS_STATUS.md) govern scope and incomplete gates.
 
-Planning implementation: the [Projects guide](PROJECTS.md), [milestone model](MILESTONES.md) and [cycle guide](CYCLES.md) cover briefs, outcomes, linked issues, local intervals, scope history and explicit close/carry-forward. The current source requires migrations through 0025. Timelines, boards, automatic recurrence and richer project documents remain unfinished.
+Planning implementation: the [Projects guide](PROJECTS.md), [milestone model](MILESTONES.md) and [cycle guide](CYCLES.md) cover independent rich briefs/revisions, outcomes, linked issues, local intervals, scope history and explicit close/carry-forward. The current source requires migrations through 0026. Timelines, boards, automatic recurrence and broader planning acceptance remain unfinished.
 
 Historical checkpoint: [18 October 2026 project handoff](PROJECT_HANDOFF_2026-10-18.md), including implemented behavior, executed checks and the remaining roadmap. The user resumed complete-product implementation on 20 October 2026; see [the active handoff](../HANDOFF.md). The [GitHub project guide](GITHUB_PROJECT.md) links the project, all 21 milestones and 112 task issues.
 
@@ -72,7 +72,7 @@ When documents overlap, the owner below governs the contract. A feature-specific
 
 The historical Phase 0 review records documentation-only checks. Current evidence belongs in the requirements ledger and linked run records. Accessibility requires real UI checks; provider entitlement, runner isolation, migrations and restore require runtime evidence. Approved scope does not imply those gates have passed.
 
-Current assignment-cleanup and event recovery qualification: [18 October consumer evidence](evidence/2026-10-18-assignment-consumer.md). Broader consumer operations and the complete-product goal remain unfinished.
+Current assignment-cleanup and event recovery qualification: [18 October consumer evidence](evidence/2026-10-18-assignment-consumer.md), [deployed admission controls](evidence/2026-10-22-agent-3-admission-runtime.md) and [integrated qualification](evidence/2026-10-23-agent5-integrated-qualification.md). Later consumers, default-dispatch investigation, broader administration and the complete product remain unfinished.
 
 Current documents/files and interaction qualification: [document editing](evidence/2026-10-18-document-editing.md) and [attachments and stability](evidence/2026-10-18-attachments.md). These records distinguish browser workflows, native core/package evidence and outstanding release gates.
 
