@@ -8,6 +8,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import shlex
 import stat
 import tarfile
 import tempfile
@@ -111,6 +112,7 @@ class RecoveryBoundaries(unittest.TestCase):
                 module.validate_compose(config, self.project, 18080)
 
     def test_recreation_and_helpers_never_pull_or_build(self):
+        self.assertNotIn("--profile", self.runner.compose)
         with patch.object(self.runner, "command") as command:
             self.runner.dc("up", "--detach", "database")
             arguments = command.call_args.args[0]
@@ -144,6 +146,55 @@ class RecoveryBoundaries(unittest.TestCase):
             change(current)
             with self.subTest(change=change), self.assertRaises(RuntimeError):
                 module.validate_operator_output_profile(current)
+
+    def test_workflow_teardown_selects_profiles_for_every_populated_optional_volume(self):
+        populated = set(module.OPTIONAL_RECOVERY_VOLUMES) & self.operator_config["volumes"].keys()
+        required = {profile for service in self.operator_config["services"].values()
+                    if any(mount.get("source") in populated for mount in service.get("volumes", []))
+                    for profile in service.get("profiles", [])}
+        self.assertTrue(required)
+        lines = (Path(__file__).resolve().parents[1] / ".github/workflows/docker.yml").read_text(encoding="utf-8").splitlines()
+        step = next(index for index, line in enumerate(lines)
+                    if line.strip() == "- name: Remove only this job's disposable containers and volumes")
+        command = next(line.split("run:", 1)[1].strip() for line in lines[step + 1:] if line.lstrip().startswith("run:"))
+        project = next(line.split(":", 1)[1].strip() for line in lines if line.strip().startswith("COMPOSE_PROJECT_NAME:"))
+        run_id, architecture = self.project.removeprefix("opentrack-smoke-").rsplit("-", 1)
+        def values(arguments, flag):
+            selected = set()
+            for index, token in enumerate(arguments):
+                if token == flag:
+                    selected.add(arguments[index + 1])
+                elif token.startswith(flag + "="):
+                    selected.add(token.partition("=")[2])
+            return selected
+        def check(tokens):
+            docker = tokens.index("docker")
+            assignments = dict(token.split("=", 1) for token in tokens[:docker])
+            arguments = tokens[docker:]
+            self.assertEqual(arguments[:2], ["docker", "compose"])
+            self.assertEqual(arguments.count("down"), 1)
+            down = arguments.index("down")
+            profiles = values(arguments[:down], "--profile")
+            self.assertTrue((required | {"https"}) <= profiles, "Teardown omitted a populated optional fixture profile")
+            self.assertEqual(values(arguments[:down], "-f"), {"compose.yaml", "compose.https.yaml"})
+            self.assertTrue({"--volumes", "--remove-orphans"} <= set(arguments[down + 1:]))
+            self.assertEqual(values(arguments[down + 1:], "--timeout"), {"35"})
+            projects = values(arguments[:down], "--project-name") | values(arguments[:down], "-p")
+            self.assertLessEqual(len(projects), 1)
+            selected = next(iter(projects), assignments.get("COMPOSE_PROJECT_NAME", project))
+            selected = selected.replace("${{ github.run_id }}", run_id).replace("${{ matrix.architecture }}", architecture)
+            self.assertEqual(module.validate_project(selected), self.project)
+        tokens = shlex.split(command)
+        check(tokens)
+        without_optional = tokens.copy()
+        for index in reversed(range(len(without_optional))):
+            token = without_optional[index]
+            if token == "--profile" and index + 1 < len(without_optional) and without_optional[index + 1] in required:
+                del without_optional[index:index + 2]
+            elif token.startswith("--profile=") and token.partition("=")[2] in required:
+                del without_optional[index]
+        with self.assertRaisesRegex(AssertionError, "populated optional fixture profile"):
+            check(without_optional)
 
     def test_optional_output_refuses_unsafe_private_metadata_without_reading_bearer_bytes(self):
         directory = {"st_mode": stat.S_IFDIR | 0o700, "st_uid": 10001, "st_gid": 10001}
@@ -565,6 +616,7 @@ class RecoveryBoundaries(unittest.TestCase):
         starts = []
         readers = []
         operations = []
+        config_reads = []
         failure = "snapshot"
         def seed(runner, reader, base):
             reader.cookies.set_cookie(module.http.cookiejar.Cookie(version=0, name="opentrack_session",
@@ -573,9 +625,13 @@ class RecoveryBoundaries(unittest.TestCase):
                 secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={}))
             readers.append(reader)
             return {}
+        def seed_output(base):
+            self.assertEqual(config_reads, [(self.project, True), (self.project + "-restore", True)])
         def dc(runner, *arguments, **kwargs):
-            if arguments[0] == "config":
-                config = copy.deepcopy(self.operator_config)
+            selected = arguments[:3] == ("--profile", "operator", "config")
+            if arguments[0] == "config" or selected:
+                config_reads.append((runner.project, selected))
+                config = copy.deepcopy(self.operator_config if selected else self.config)
                 config["name"] = runner.project
                 for name, volume in config["volumes"].items():
                     volume["name"] = f"{runner.project}_{name}"
@@ -583,6 +639,7 @@ class RecoveryBoundaries(unittest.TestCase):
                     network["name"] = f"{runner.project}_{name}"
                 return argparse.Namespace(stdout=json.dumps(config))
             if arguments[0] == "up":
+                self.assertNotIn("--profile", arguments)
                 starts.append(runner.project)
             if arguments[0] == "run" and "operator-output-init" in arguments:
                 self.assertIn("--no-deps", arguments)
@@ -607,7 +664,7 @@ class RecoveryBoundaries(unittest.TestCase):
         with patch.object(module.Qualification, "dc", new=dc), \
                 patch.object(module.Qualification, "seed_private_recovery", new=seed), \
                 patch.object(module.Qualification, "check_private_revocation"), \
-                patch.object(self.runner, "seed_operator_output"), \
+                patch.object(self.runner, "seed_operator_output", side_effect=seed_output) as output_seed, \
                 patch.object(self.runner, "operator_output_container", return_value=None), \
                 patch.object(self.runner, "cleanup_operator_output") as output_cleanup, \
                 patch.object(self.runner, "record"), \
@@ -626,12 +683,15 @@ class RecoveryBoundaries(unittest.TestCase):
                 starts.clear()
                 readers.clear()
                 operations.clear()
+                config_reads.clear()
                 ready.reset_mock()
                 output_cleanup.reset_mock()
+                output_seed.reset_mock()
                 with self.subTest(failure=failure), self.assertRaisesRegex(RuntimeError, "cleanup failure") as raised:
                     self.runner.cold_recovery("fixture@example.test", "fixture", "/issues/fixture",
                                               "/attachments/" + identifier, {}, "fixture")
                 self.assertEqual(str(raised.exception.__context__), reason)
+                output_seed.assert_called_once()
                 self.assertEqual(starts, [self.project])
                 ready.assert_called_once()
                 self.assertEqual(len(readers), 1)
@@ -813,38 +873,50 @@ class RecoveryBoundaries(unittest.TestCase):
     def test_cleanup_requires_exact_ownership_before_deletion(self):
         target = self.project + "-restore"
         config = copy.deepcopy(self.config)
-        config["name"] = target
-        for name, volume in config["volumes"].items():
-            volume["name"] = f"{target}_{name}"
-        for name, network in config["networks"].items():
-            network["name"] = f"{target}_{name}"
+        selected_config = copy.deepcopy(self.operator_config)
+        for model in (config, selected_config):
+            model["name"] = target
+            for name, volume in model["volumes"].items():
+                volume["name"] = f"{target}_{name}"
+            for name, network in model["networks"].items():
+                network["name"] = f"{target}_{name}"
         import json
         def result(value="", code=0):
             return argparse.Namespace(stdout=value, returncode=code)
+        profile_config = ["--profile", "operator", "config", "--format", "json"]
+        def execute(arguments, **kwargs):
+            if arguments[-3:] == ["config", "--format", "json"]:
+                return result(json.dumps(selected_config if arguments[-5:] == profile_config else config))
+            return next(responses)
         owned_backup = json.dumps([{"Name": self.project + "_recovery_backup",
                                     "Labels": {module.RECOVERY_LABEL: self.project}}])
         foreign_volume = json.dumps([{"Name": target + "_blobs", "Labels": {}}])
-        responses = [result(json.dumps(config)), result(owned_backup), result(target + "_blobs\n"), result(foreign_volume)]
+        responses = iter([result(owned_backup), result(target + "_blobs\n"), result(foreign_volume)])
         with patch.object(self.runner, "cleanup_operator_output") as oneoffs, \
-                patch.object(module.Qualification, "command", side_effect=responses) as command:
+                patch.object(module.Qualification, "command", side_effect=execute) as command:
             with self.assertRaises(RuntimeError):
                 self.runner.cleanup_recovery(remove_backup=True)
             self.assertFalse(any("rm" in call.args[0] or "down" in call.args[0] for call in command.call_args_list))
+            self.assertEqual(command.call_args_list[0].args[0][-5:], profile_config)
             self.assertEqual(oneoffs.call_count, 2)
+            oneoffs.assert_any_call()
             oneoffs.assert_any_call(initializer=True)
-        owned_volume = json.dumps([{"Name": target + "_blobs", "Labels": {
-            module.RECOVERY_LABEL: self.project, "com.docker.compose.project": target,
-            "com.docker.compose.volume": "blobs"}}])
-        responses = [result(json.dumps(config)), result(owned_backup), result(target + "_blobs\n"), result(owned_volume),
-                     result(), result(), result(code=1), result(), result()]
-        with patch.object(self.runner, "cleanup_operator_output") as oneoffs, \
-                patch.object(module.Qualification, "command", side_effect=responses) as command:
-            self.runner.cleanup_recovery(remove_backup=True)
-            deletions = [call.args[0] for call in command.call_args_list if "rm" in call.args[0]]
-            self.assertEqual(deletions, [["docker", "volume", "rm", target + "_blobs"],
-                                        ["docker", "volume", "rm", self.project + "_recovery_backup"]])
-            self.assertEqual(oneoffs.call_count, 2)
-            oneoffs.assert_any_call(initializer=True)
+        for volume in ("blobs", "operator_output"):
+            owned_volume = json.dumps([{"Name": target + "_" + volume, "Labels": {
+                module.RECOVERY_LABEL: self.project, "com.docker.compose.project": target,
+                "com.docker.compose.volume": volume}}])
+            responses = iter([result(owned_backup), result(target + "_" + volume + "\n"), result(owned_volume),
+                              result(), result(), result(code=1), result(), result()])
+            with self.subTest(volume=volume), patch.object(self.runner, "cleanup_operator_output") as oneoffs, \
+                    patch.object(module.Qualification, "command", side_effect=execute) as command:
+                self.runner.cleanup_recovery(remove_backup=True)
+                deletions = [call.args[0] for call in command.call_args_list if "rm" in call.args[0]]
+                self.assertEqual(deletions, [["docker", "volume", "rm", target + "_" + volume],
+                                            ["docker", "volume", "rm", self.project + "_recovery_backup"]])
+                self.assertEqual(command.call_args_list[0].args[0][-5:], profile_config)
+                self.assertEqual(oneoffs.call_count, 2)
+                oneoffs.assert_any_call()
+                oneoffs.assert_any_call(initializer=True)
 
 
 if __name__ == "__main__":

@@ -433,7 +433,7 @@ class Qualification:
         restored = Qualification(argparse.Namespace(project=target, url=self.url,
                                  output=str(self.output), expected_architecture=self.expected_architecture,
                                  compose_file=self.compose_files))
-        config = json.loads(restored.dc("config", "--format", "json").stdout)
+        config = json.loads(restored.dc("--profile", "operator", "config", "--format", "json").stdout)
         validate_compose(config, target, self.port)
         backup = self.project + "_recovery_backup"
         information = self.volume_info(backup, optional=True)
@@ -793,14 +793,14 @@ class Qualification:
                 "Revocation checks must reuse the original reader session without replacement")
 
     def cold_recovery(self, account, password, issue_path, attachment, body, digest):
-        config = json.loads(self.dc("config", "--format", "json").stdout)
+        config = json.loads(self.dc("--profile", "operator", "config", "--format", "json").stdout)
         validate_compose(config, self.project, self.port)
         validate_operator_output_profile(config)
         selected_volumes = RECOVERY_VOLUMES + OPTIONAL_RECOVERY_VOLUMES
         restored = Qualification(argparse.Namespace(project=self.project + "-restore", url=self.url,
                                  output=str(self.output), expected_architecture=self.expected_architecture,
                                  compose_file=self.compose_files))
-        restored_config = json.loads(restored.dc("config", "--format", "json").stdout)
+        restored_config = json.loads(restored.dc("--profile", "operator", "config", "--format", "json").stdout)
         validate_compose(restored_config, restored.project, self.port)
         validate_operator_output_profile(restored_config)
         for kind in ("container", "volume", "network"):
