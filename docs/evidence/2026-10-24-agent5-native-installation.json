@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-24",
+  "scope": "bounded Linux private qualification; no release or whole-product acceptance",
+  "provenance": {
+    "compile_source_commit": "590725e9e6332f6fe06b20dd870eed55a1e63ab2",
+    "snapshot_files": {
+      "tracked_desktop": 170,
+      "frontend_assets": 9
+    },
+    "native_artifact_sha256": "6d66dcfad60410ae21abfe61210fe19af73c6a120a7e9fbe19279304076e6112",
+    "native_artifact_bytes": 28498816,
+    "installed_window_URI_proposal_sha256": "0cfda0e3129a60c9c94c281c944a1d58f6cf0791e1a0b300820499d336743d4c",
+    "integrated_installer_requalification_required": true,
+    "historical_installer_only_update_sha256": "fbf42484ec0b8dff13698725399095a27e8c6f0e4542308fa852aa4662d26bf7",
+    "final_installer_sha256": "f22e244058a5866cfe31f382e923af542dfeae5e9812178ea7150771eef15314",
+    "final_recheck_tracked_and_proposal_installer_bytes_equal": true,
+    "installer_qualification_before_integration": true
+  },
+  "tools": {
+    "locked_native_packages": {
+      "tauri": "2.12.4",
+      "wry": "0.57.0",
+      "zbus-secret-service-keyring-store": "1.0.1"
+    },
+    "tauri_driver": {
+      "version": "2.1.0",
+      "CLI_version_flag_supported": false
+    },
+    "matched_WebKit_runtime_versions": {
+      "libjavascriptcoregtk-4.1-0": "2.52.6-0ubuntu0.26.04.1",
+      "xdg-dbus-proxy": "0.1.7-1",
+      "libwebkit2gtk-4.1-0": "2.52.6-0ubuntu0.26.04.1",
+      "webkitgtk-webdriver": "2.52.6-0ubuntu0.26.04.1"
+    },
+    "gnome_keyring": {
+      "version": "50.0-1",
+      "distribution_debug_build": true,
+      "mock_provider_used": false
+    },
+    "desktop_file_utils": "0.28-1build1",
+    "xdg_utils": "1.2.1-2ubuntu2",
+    "GTK": "3.24.52-0ubuntu1",
+    "GIO": "2.88.0-1ubuntu0.1",
+    "Xvfb": "2:21.1.22-1ubuntu1.3",
+    "DBus": "1.16.2-2ubuntu4"
+  },
+  "executed": {
+    "release_compile": {
+      "locked": true,
+      "jobs": 1,
+      "exit": 0,
+      "unchanged_snapshot_inputs": true,
+      "normal_Tauri_ACL_generation": true,
+      "schema_bytes": 133515,
+      "no_RPATH_RUNPATH": true,
+      "loader_exit": 0,
+      "missing_libraries": []
+    },
+    "disconnected_window": {
+      "real_W3C_native_windows": 1,
+      "reported_capabilities": {
+        "browserName": "wry",
+        "browserVersion": "0.57",
+        "platformName": "linux"
+      },
+      "connection_DOM_rendered": true,
+      "native_IPC_denied_unconfirmed_loopback_HTTP": true,
+      "native_IPC_denied_remote_HTTP": true,
+      "server_unselected": true
+    },
+    "private_install_dispatch": {
+      "real_binary_icon_launcher_installed": true,
+      "real_validator_cache_and_handler_queries_passed": true,
+      "installed_W3C_DOM_and_consent_passed": true,
+      "settled_connection_frame_independently_reviewed": true,
+      "real_gtk_launch_desktop_ID_started_installed_ELF": true,
+      "real_GIO_URI_dispatch_reused_installed_instance": true,
+      "received_link_banner_reviewed_server_still_unselected": true,
+      "binary_icon_launcher_modes": [
+        "0755",
+        "0644",
+        "0644"
+      ]
+    },
+    "production_SystemVault": {
+      "unmodified_existing_probe": true,
+      "probe_sha256": "ccbd43848e68c909485877ccc971eee86d3e3371c40598e98918320f614f6b9c",
+      "real_private_Secret_Service_activation_unlock": true,
+      "write_read_delete_then_absence_passed_twice": true,
+      "independent_collection_empty_after_delete": true,
+      "empty_collection_persisted_then_reloaded_locked": true,
+      "same_password_bootstrap_unlocked_empty_collection": true,
+      "live_entry_kept_across_restart": false
+    },
+    "final_installer_only_update": {
+      "runs": 1,
+      "status": "passed",
+      "retained_private_profile": true,
+      "real_validator_cache_handler_queries": true,
+      "three_managed_files_atomically_replaced": true,
+      "files": {
+        "binary": {
+          "sha256": "6d66dcfad60410ae21abfe61210fe19af73c6a120a7e9fbe19279304076e6112",
+          "bytes": 28498816,
+          "mode": "0o755",
+          "owned_by_runtime_uid": true
+        },
+        "icon": {
+          "sha256": "bc5b8feed8b5dcde9e4f206f9543237b14c9c5716400b4192e84ead80a68276d",
+          "bytes": 7446,
+          "mode": "0o644",
+          "owned_by_runtime_uid": true
+        },
+        "launcher": {
+          "sha256": "c33177b41bb2c61d8ae702d472292cdd71081e2fc82377e26b1163f9d2fdc9b5",
+          "bytes": 387,
+          "mode": "0o644",
+          "owned_by_runtime_uid": true
+        }
+      },
+      "three_hashes_equal_prior_installation": true,
+      "app_rebuild_W3C_dispatch_browser_API_repeated": false
+    }
+  },
+  "failures_and_corrections": [
+    {
+      "class": "filesystem build environment",
+      "failure": "EPERM on generated schema copy chmod in Windows-backed checkout",
+      "correction": "unchanged checksum-verified Linux-owned source/assets snapshot; normal ACL generation; original failure/backups retained"
+    },
+    {
+      "class": "harness assertion",
+      "failure": "strict heading comparison included terminal newline",
+      "correction": "trimmed text comparison; original failed receipt retained"
+    },
+    {
+      "class": "private runtime data lookup",
+      "failure": "isolated XDG hid GTK schemas and PNG codec metadata",
+      "correction": "supported read-only schema directory and unchanged actual codec metadata; no global install"
+    },
+    {
+      "class": "capture timing",
+      "failure": "early compositor frame blank",
+      "correction": "excluded blank frame; actual DOM/title, fonts and fresh layout wait before reviewed frames"
+    },
+    {
+      "class": "Secret Service setup",
+      "failure": "startup-order assumptions and overlong Unix socket",
+      "correction": "source-verified login bootstrap then D-Bus start; short namespace-local socket"
+    },
+    {
+      "class": "private lifecycle harness",
+      "failure": "provider stop observed adopted zombie",
+      "correction": "continuous owned PID1 orphan reaping; strict disappearance assertion retained; full corrected probe passed"
+    },
+    {
+      "class": "installer error privacy",
+      "failure": "integrator reproduced old launcher inspection traceback/private-path disclosure without writes",
+      "correction": "inspection OSError guards; final nominal managed update passed; error-control tests remain separate integrator evidence"
+    }
+  ],
+  "isolation_cleanup": {
+    "same_nonzero_UID": true,
+    "app_worker_CapEff_zero": true,
+    "private_user_mount_PID_Xvfb_DBus_XDG": true,
+    "WebKit_sandbox_disable_or_source_bypass": false,
+    "global_package_service_profile_association_mutation": false,
+    "API_or_system_browser_started_by_native_qualification": false,
+    "remaining_owned_processes": 0,
+    "helper_and_tmp_mounts_removed": true,
+    "host_mount_namespace_unchanged": true,
+    "owned_verification_operations_exited": true,
+    "prior_failures_backups_receipts_retained": true,
+    "screenshots_private_not_included": true
+  },
+  "not_claimed": [
+    "live credential restart durability",
+    "installed real-browser approval/PKCE callback or native revocation",
+    "shared native issue/document golden workflow",
+    "full F36/product acceptance",
+    "physical input/IME/assistive technology/menu",
+    "host PAM/login keyring lifecycle",
+    "Windows/macOS runtime",
+    "signing/invalid-signature/interrupted-update/public distribution",
+    "cold-launch/footprint performance",
+    "Q09 release-support decision"
+  ],
+  "failure_privacy_boundary": {
+    "older_Python_runtime_failure_or_acceptance_claim": false,
+    "installer_only_nominal_recheck_does_not_reexecute_failure_controls": true
+  }
+}
