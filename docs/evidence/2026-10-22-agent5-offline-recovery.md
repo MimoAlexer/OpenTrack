@@ -1,6 +1,6 @@
 # Offline installation and cold recovery qualification harness
 
-22 October 2026. Issue #7 / F29-A1; related recovery gates remain open. Source: the Agent 5 working tree following integrated main `d01fb0c010bef0c12739bcc332074f1a4dbc999f` (schema 0025). This record describes the implemented harness and executed local boundary checks. **Actual Docker recovery acceptance is pending configured AMD64/ARM64 CI.** Docker is unavailable in this local Windows/WSL environment.
+22 October 2026. Issue #7 / F29-A1; related recovery gates remain open. The bounded cached-image/cold-recovery profile passed configured AMD64/ARM64 CI at `6e3cba24a82bf5ba579251f774a4765c876542a3` and merged through PR #140 as `e3716adf19ab151a5fa19e26bd011ffb22978fb3` (schema 0025). Earlier failures and corrections remain below. Docker is unavailable in the local Windows/WSL environment.
 
 ## Executable scope
 
@@ -35,8 +35,12 @@ The third native run, `39823554025` at `8bc7fc3527dd40df1b9eaf87d6ca2c7db36c43f2
 
 The fourth native run, `39825104310` at `4da857e5995f4cf3f9442dc9c18293ce4730c36d`, completed the full offline/cold-restore path, both missing/corrupt blob refusals and repairs, exact restore cleanup and source restart on both architectures. The later HTTPS step failed its existing-running-container preflight because the workflow had removed the offline source containers/networks without recreating the normal core first. The corrected transition starts the normal core from the retained volumes with no build or pull, then runs the unchanged HTTPS preflight and qualification. No HTTPS/browser pass or complete required-check success is inferred from the offline receipt. The superseded implementation run at `8bc7` was canceled after correction; it does not provide new-head acceptance.
 
-## Remaining acceptance
+## Accepted bounded execution
 
-Run both configured native-architecture jobs on the exact reviewed head and retain failures/corrections before recording acceptance. The previous head completed the bounded offline and cold-recovery checks; the corrected transition and later HTTPS/browser stages still require a complete passing run of the new head.
+Run `39826561848` passed the complete offline/cold-recovery and independent HTTPS paths on both native architectures. ARM64 job `119991348269` passed; AMD64's first job `119991348360` reached the 45-minute limit while Ubuntu browser dependencies were still downloading, before browser acceptance started. Only that canceled job was rerun at the unchanged head. Job `120015699783` then passed in 11m10s, including 90/90 real browser cases (30 each in Chromium, Firefox and WebKit) and labelled cleanup. No assertion, configured check or timeout was weakened. The download log establishes slow continuing transfers, not an upstream outage diagnosis.
+
+Implementation run `39826561845` passed `verify` and `native-contracts`. Coordinator and independent source/privacy reviews found no remaining actionable finding; the exact reviewed head, effective main diff and empty review-conversation inventory were checked before the neutral merge under the integration lock. These receipts qualify this bounded fixture, not every later module or platform.
+
+## Remaining acceptance
 
 Private-team denial after restore, optional HTTPS/operator-output contents, actual provider encryption keys and future modules, encrypted scheduled backups, prior-release/failed-migration and different-host restore remain outside this fixture. F29-A1, GQ08, M08 recovery and the complete product are not marked complete by local unit tests or this harness implementation.

@@ -2,7 +2,7 @@
 
 Latest accepted checkpoint: [22 October started-batch record](evidence/2026-10-22-started-batch.md). It links the accepted foundation, identity, keyboard and planning increments and their remaining qualification gates. The user subsequently resumed complete-product execution through five assigned lanes; [the implementation plan](IMPLEMENTATION_PLAN.md) and [requirements ledger](REQUIREMENTS_STATUS.md) govern current scope and evidence.
 
-Planning implementation: the [Projects guide](PROJECTS.md), [milestone model](MILESTONES.md) and [cycle guide](CYCLES.md) cover briefs, outcomes, linked issues, local intervals, scope history and explicit close/carry-forward. The current source requires migrations through 0024. Timelines, boards, automatic recurrence and richer project documents remain unfinished.
+Planning implementation: the [Projects guide](PROJECTS.md), [milestone model](MILESTONES.md) and [cycle guide](CYCLES.md) cover briefs, outcomes, linked issues, local intervals, scope history and explicit close/carry-forward. The current source requires migrations through 0025. Timelines, boards, automatic recurrence and richer project documents remain unfinished.
 
 Historical checkpoint: [18 October 2026 project handoff](PROJECT_HANDOFF_2026-10-18.md), including implemented behavior, executed checks and the remaining roadmap. The user resumed complete-product implementation on 20 October 2026; see [the active handoff](../HANDOFF.md). The [GitHub project guide](GITHUB_PROJECT.md) links the project, all 21 milestones and 112 task issues.
 
