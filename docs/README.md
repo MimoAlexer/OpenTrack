@@ -76,6 +76,8 @@ Current assignment-cleanup and event recovery qualification: [18 October consume
 
 Current documents/files and interaction qualification: [document editing](evidence/2026-10-18-document-editing.md), [browser HTML paste and read-only rendering](evidence/2026-10-23-agent5-html-paste.md) and [attachments and stability](evidence/2026-10-18-attachments.md). These records distinguish browser workflows, native core/package evidence and outstanding release gates.
 
+Current native installation qualification: [isolated Linux installation and runtime](evidence/2026-10-24-agent5-native-installation.md) records actual installed-window, URI and vault checks, alongside the remaining authenticated golden-flow, physical/assistive, platform and signing gates.
+
 Current team-template and nested-dialog qualification: [templates and interaction follow-up](evidence/2026-10-18-templates.md). Project defaults and broader workflow templates remain open.
 
 Current user-mention and personal-subscription qualification: [mentions and discussion stability](evidence/2026-10-18-mentions.md). Durable private sources are implemented; notification and inbox delivery remain open.

@@ -1,0 +1,438 @@
+{
+  "scope": "Local corrective evidence; current hosted qualification is tracked in PR154.",
+  "integrated_main": "36ec6a336551968cb5acde61ba2234f1e67d7777",
+  "local_verification_head": "4318a1d6ea1385e47d062301f20baa3b8e769ec7",
+  "candidate_source_sha256": {
+    "crates/opentrack-app/src/worker.rs": "bc09372e6fe1040accde330fb775b18c38a5232a8b105b97607293aa68218ffc",
+    "crates/opentrack-app/tests/support/mod.rs": "44b7986216467793fbb2181a0c8d42091b39c8009341706888fb421ed427b699",
+    "crates/opentrack-app/tests/worker_discovery_contract.rs": "fe500a5842a1c6ff8220dc5cddc548b0244017470dcd3a73d3895245728cdeab",
+    "crates/opentrack-server/src/worker.rs": "28deb166971e9d682c16ba0c64717b99d5fb00568db4fcb0c63a572871a764a1",
+    "crates/opentrack-server/tests/worker_daemon_contract.rs": "e7cbc55c29612de3b0c4431c96d1420a90905cfead30576eab28240ac02ff6e9"
+  },
+  "policy": {
+    "maximum_no_claim_or_error_job_calls_per_burst": 4,
+    "maximum_candidates_per_job_call": 20,
+    "configured_cooldown_ms": 2000,
+    "scope": "Job discovery only; successful handled claims reset credit, other stages do not.",
+    "empty_reset_cooldown": "Preserved even immediately after a budget cooldown.",
+    "lost_lease": "Consumes credit and is inactive; otherwise idle rounds may back off earlier."
+  },
+  "controlled_backlog": {
+    "registered_workspaces": 34,
+    "target_rank": 0,
+    "older_normally_captured_intents": 7,
+    "assigned_teams": 3,
+    "original_baseline_source_base": "590725e9e6332f6fe06b20dd870eed55a1e63ab2",
+    "original_baseline_worker_source_sha256": "ab46ebe494adfad991f206d1afa6c0e5b55d10bf993d1b8c2fe5533b9d53d2f5",
+    "baseline": {
+      "queue_ms": 43055.087,
+      "attempt_ms": 23.592,
+      "post_return_observed_ms": 43107.403475,
+      "completed_within_30_seconds": false,
+      "exact_effect": true,
+      "retained_assignment_receipts": 7,
+      "owned_worker_clean_exit": true,
+      "stage_counts": {
+        "AttachmentGc": 30,
+        "Capture": 30,
+        "DocumentRetention": 30,
+        "Job": 30,
+        "Retention": 30
+      },
+      "completed_idle_count": 21
+    },
+    "candidate": {
+      "queue_ms": 14896.923,
+      "attempt_ms": 20.54,
+      "post_return_observed_ms": 14939.478767,
+      "completed_within_30_seconds": true,
+      "exact_effect": true,
+      "retained_assignment_receipts": 7,
+      "owned_worker_clean_exit": true,
+      "stage_counts": {
+        "AttachmentGc": 30,
+        "Capture": 31,
+        "DocumentRetention": 30,
+        "Job": 30,
+        "Retention": 30
+      },
+      "completed_idle_count": 7
+    },
+    "criterion": "Completion observed within 30 seconds after command return, including daemon startup. The 75-second bound controls eventual observation only.",
+    "original_baseline_dirty_change": "Diagnostic-only worker timing fields; scheduling unchanged.",
+    "fixture_sha256": "1c14f1dc2191475535b686b2d2b91020484faac076f9f467f2cf64a372c52be7",
+    "driver_sha256": "8da917755ed5327b7b031f26540e69b6a498fd747d474d2a0da0a0089dca27b5"
+  },
+  "resource_pair": {
+    "baseline": {
+      "queue_ms": 43190.705,
+      "attempt_ms": 21.791,
+      "post_return_observed_ms": 43213.086574,
+      "completed_within_30_seconds": false,
+      "exact_effect": true,
+      "retained_assignment_receipts": 7,
+      "owned_worker_clean_exit": true,
+      "stage_counts": {
+        "AttachmentGc": 29,
+        "Capture": 30,
+        "DocumentRetention": 29,
+        "Job": 29,
+        "Retention": 29
+      },
+      "completed_idle_count": 21,
+      "resources": {
+        "cpu_boundary": "Linux RUSAGE_CHILDREN user/system delta immediately before owned spawn to after its known reap in a fresh single-test process; includes any descendants reaped by that worker, which this core fixture does not spawn.",
+        "measurement_overhead": "No selector-counter hooks. Original INFO plus targeted worker DEBUG and all diagnostic assertions remain enabled; this includes diagnostic overhead and is not pure production-INFO CPU cost or a global CPU/SLO claim.",
+        "peak_rss_kib": 78344,
+        "rss_boundary": "Linux ru_maxrss is a child peak high-water value in KiB, not an RSS delta or current RSS; zero prior child high-water and exactly one fixture child are required.",
+        "single_owned_child_verified": true,
+        "system_cpu_ms": 192.395,
+        "total_cpu_ms": 607.969,
+        "user_cpu_ms": 415.574,
+        "wall_boundary": "Monotonic time immediately before spawn through the post-reap resource sample; includes startup, workload polling, replay and graceful shutdown, excluding setup and Cargo build.",
+        "wall_ms": 43181.235514
+      }
+    },
+    "candidate": {
+      "queue_ms": 14918.728,
+      "attempt_ms": 32.686,
+      "post_return_observed_ms": 14952.762698,
+      "completed_within_30_seconds": true,
+      "exact_effect": true,
+      "retained_assignment_receipts": 7,
+      "owned_worker_clean_exit": true,
+      "stage_counts": {
+        "AttachmentGc": 29,
+        "Capture": 30,
+        "DocumentRetention": 29,
+        "Job": 29,
+        "Retention": 29
+      },
+      "completed_idle_count": 7,
+      "resources": {
+        "cpu_boundary": "Linux RUSAGE_CHILDREN user/system delta immediately before owned spawn to after its known reap in a fresh single-test process; includes any descendants reaped by that worker, which this core fixture does not spawn.",
+        "measurement_overhead": "No selector-counter hooks. Original INFO plus targeted worker DEBUG and all diagnostic assertions remain enabled; this includes diagnostic overhead and is not pure production-INFO CPU cost or a global CPU/SLO claim.",
+        "peak_rss_kib": 78196,
+        "rss_boundary": "Linux ru_maxrss is a child peak high-water value in KiB, not an RSS delta or current RSS; zero prior child high-water and exactly one fixture child are required.",
+        "single_owned_child_verified": true,
+        "system_cpu_ms": 147.627,
+        "total_cpu_ms": 573.638,
+        "user_cpu_ms": 426.011,
+        "wall_boundary": "Monotonic time immediately before spawn through the post-reap resource sample; includes startup, workload polling, replay and graceful shutdown, excluding setup and Cargo build.",
+        "wall_ms": 14921.925141
+      }
+    }
+  },
+  "resource_fixture_sha256": "1b6a43f5e932080eb76ca0a01fa38684d73a258b8f5416053a17de2216acc786",
+  "resource_driver_sha256": "4cf197b78890953fa5ee08b2fb969a5ffc61e0ddcc2d844420face69a33c81ef",
+  "resource_candidate_post_run_worker_sha256": "4ccb63b478051701d180599af546a8e0bfbdea66e5d384b33566d8a297e436e4",
+  "resource_baseline_worker_digest": "Not captured during that run; exact source bytes and Cargo output were retained.",
+  "selector_and_lifecycle_contracts": [
+    {
+      "case": "once_discovery",
+      "boundary": "One real --once pass on an empty registry; no worker configuration override or second traversal.",
+      "clean_exit": true,
+      "job_selector_calls": 1,
+      "maintenance_selector_calls": 4,
+      "selector_limits": [
+        1,
+        20,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "case": "inflight_discovery_shutdown",
+      "boundary": "Owner-only measurement trigger held the actual Job selector. SIGTERM was acknowledged before releasing the parent transaction; no later stage selector began.",
+      "clean_exit": true,
+      "owned_lock_wait_observed": true,
+      "selector_limits": [
+        1,
+        20
+      ],
+      "shutdown_request_observed_before_release": true
+    },
+    {
+      "case": "empty_discovery",
+      "stages": {
+        "AttachmentGc": {
+          "completed_calls": 2,
+          "failed": 0,
+          "selector_calls": 2,
+          "worked": 0
+        },
+        "Capture": {
+          "completed_calls": 3,
+          "failed": 0,
+          "selector_calls": 3,
+          "worked": 0
+        },
+        "DocumentRetention": {
+          "completed_calls": 2,
+          "failed": 0,
+          "selector_calls": 3,
+          "worked": 0
+        },
+        "Job": {
+          "completed_calls": 3,
+          "failed": 0,
+          "selector_calls": 3,
+          "worked": 0
+        },
+        "Retention": {
+          "completed_calls": 3,
+          "failed": 0,
+          "selector_calls": 3,
+          "worked": 0
+        }
+      },
+      "actual_profile": {
+        "lease_seconds": 60,
+        "max_connections": 5,
+        "poll_interval_ms": 2000
+      },
+      "job_selector_calls": 3,
+      "job_gaps_ms": [
+        2007.273,
+        2006.018
+      ],
+      "db_wall_clock_tolerance_us": 100000
+    },
+    {
+      "case": "fourth_page_boundary",
+      "stages": {
+        "AttachmentGc": {
+          "completed_calls": 5,
+          "failed": 0,
+          "selector_calls": 5,
+          "worked": 0
+        },
+        "Capture": {
+          "completed_calls": 6,
+          "failed": 0,
+          "selector_calls": 6,
+          "worked": 0
+        },
+        "DocumentRetention": {
+          "completed_calls": 5,
+          "failed": 0,
+          "selector_calls": 5,
+          "worked": 0
+        },
+        "Job": {
+          "completed_calls": 5,
+          "failed": 0,
+          "selector_calls": 6,
+          "worked": 3
+        },
+        "Retention": {
+          "completed_calls": 5,
+          "failed": 0,
+          "selector_calls": 5,
+          "worked": 0
+        }
+      },
+      "actual_profile": {
+        "lease_seconds": 60,
+        "max_connections": 5,
+        "poll_interval_ms": 2000
+      },
+      "job_selector_calls": 6,
+      "job_gaps_ms": [
+        48.772,
+        41.09,
+        39.602,
+        2029.238,
+        2007.614
+      ],
+      "db_wall_clock_tolerance_us": 100000,
+      "registered_scopes": 79
+    },
+    {
+      "case": "busy_error_discovery",
+      "stages": {
+        "AttachmentGc": {
+          "completed_calls": 85,
+          "failed": 0,
+          "selector_calls": 85,
+          "worked": 0
+        },
+        "Capture": {
+          "completed_calls": 86,
+          "failed": 2,
+          "selector_calls": 86,
+          "worked": 81
+        },
+        "DocumentRetention": {
+          "completed_calls": 85,
+          "failed": 0,
+          "selector_calls": 85,
+          "worked": 0
+        },
+        "Job": {
+          "completed_calls": 86,
+          "failed": 0,
+          "selector_calls": 8,
+          "worked": 6
+        },
+        "Retention": {
+          "completed_calls": 85,
+          "failed": 0,
+          "selector_calls": 86,
+          "worked": 0
+        }
+      },
+      "actual_profile": {
+        "lease_seconds": 60,
+        "max_connections": 5,
+        "poll_interval_ms": 2000
+      },
+      "job_selector_calls": 8,
+      "job_gaps_ms": [
+        54.585,
+        78.161,
+        50.759,
+        2030.634,
+        47.65,
+        2010.409,
+        58.628
+      ],
+      "db_wall_clock_tolerance_us": 100000
+    },
+    {
+      "case": "fourth_page_boundary",
+      "stages": {
+        "AttachmentGc": {
+          "completed_calls": 5,
+          "failed": 0,
+          "selector_calls": 5,
+          "worked": 0
+        },
+        "Capture": {
+          "completed_calls": 6,
+          "failed": 0,
+          "selector_calls": 6,
+          "worked": 0
+        },
+        "DocumentRetention": {
+          "completed_calls": 5,
+          "failed": 0,
+          "selector_calls": 5,
+          "worked": 0
+        },
+        "Job": {
+          "completed_calls": 5,
+          "failed": 0,
+          "selector_calls": 6,
+          "worked": 3
+        },
+        "Retention": {
+          "completed_calls": 5,
+          "failed": 0,
+          "selector_calls": 5,
+          "worked": 0
+        }
+      },
+      "actual_profile": {
+        "lease_seconds": 60,
+        "max_connections": 5,
+        "poll_interval_ms": 2000
+      },
+      "job_selector_calls": 6,
+      "job_gaps_ms": [
+        53.464,
+        45.105,
+        49.022,
+        2043.49,
+        2010.897
+      ],
+      "db_wall_clock_tolerance_us": 100000,
+      "registered_scopes": 80
+    },
+    {
+      "case": "finite_registry_arrivals",
+      "stages": {
+        "AttachmentGc": {
+          "completed_calls": 15,
+          "failed": 0,
+          "selector_calls": 15,
+          "worked": 0
+        },
+        "Capture": {
+          "completed_calls": 16,
+          "failed": 0,
+          "selector_calls": 16,
+          "worked": 0
+        },
+        "DocumentRetention": {
+          "completed_calls": 15,
+          "failed": 0,
+          "selector_calls": 15,
+          "worked": 0
+        },
+        "Job": {
+          "completed_calls": 15,
+          "failed": 0,
+          "selector_calls": 16,
+          "worked": 11
+        },
+        "Retention": {
+          "completed_calls": 15,
+          "failed": 0,
+          "selector_calls": 15,
+          "worked": 0
+        }
+      },
+      "actual_profile": {
+        "lease_seconds": 60,
+        "max_connections": 5,
+        "poll_interval_ms": 2000
+      },
+      "job_selector_calls": 16,
+      "job_gaps_ms": [
+        54.073,
+        38.971,
+        39.725,
+        2031.306,
+        46.622,
+        35.827,
+        41.323,
+        2035.685,
+        55.556,
+        40.795,
+        36.08,
+        2031.292,
+        42.608,
+        2012.106,
+        42.036
+      ],
+      "db_wall_clock_tolerance_us": 100000
+    }
+  ],
+  "local_test_results": [
+    "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 31 filtered out; finished in 0.01s",
+    "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.43s",
+    "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.81s",
+    "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 18.55s"
+  ],
+  "local_fmt": "passed",
+  "local_clippy": "cargo clippy --locked -p opentrack-app -p opentrack-server --all-targets -- -D warnings passed",
+  "historical_hosted_head": {
+    "head": "d29472fee666354d4944daa933e0d0ad1dced1ea",
+    "verify": "XX000 tuple concurrently updated in shared worker_url GRANT CONNECT before admission-upgrade assertion; unchanged Agent1 helper dependency imported.",
+    "amd64": "112/114. Firefox and WebKit workflow cases failed at workflow-taxonomy.browser.ts:126 after 32.774/32.996 seconds. Safe receipts omit the inner error, observed job state and stage/attempt timeline.",
+    "native_and_arm64": "Passed. ARM64 executed 30 core/recovery checks and five HTTPS checks.",
+    "qualification": "These failed-head results do not qualify the corrective head."
+  },
+  "limits": [
+    "One local development-profile CPU pair with targeted DEBUG overhead, excluding PostgreSQL/Cargo/parent-fixture CPU; not reference-load or p95 qualification.",
+    "Linux child lifetime peak RSS is not current or idle RSS.",
+    "Successful selector counters do not count failed statements whose inserts roll back, candidate transaction statements, or total SQL.",
+    "Database wall-clock gaps allow 100ms uncertainty; monotonic cooldown logic is tested separately.",
+    "Error/LostLease credit and slow-call/later-stage deadline boundaries use pure policy tests; no actual lease loss was injected in these daemon cases.",
+    "In-flight shutdown case drains a selector, not a fenced business effect or the hard timeout path.",
+    "Finite synthetic registry arrivals preserve existing domain rows/checkpoints/leases but do not prove normal creation performance or service under endless ahead growth.",
+    "No migration, default-profile, claim-order, authority or retry policy change; broader issue19/M05/M06/product gates remain open."
+  ]
+}
