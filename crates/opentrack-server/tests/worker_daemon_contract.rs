@@ -145,7 +145,7 @@ async fn daemon_continues_healthy_workspace_work_after_capture_error() {
             .env_clear().env("OPENTRACK_ENVIRONMENT", "test")
             .env("OPENTRACK_WORKER_DATABASE_URL", &worker_url)
             .env("OPENTRACK__WORKER__MAX_CONNECTIONS", "1")
-            .env("OPENTRACK__STORAGE__LOCAL_ROOT", &blobs).env("RUST_LOG", "warn")
+            .env("OPENTRACK__STORAGE__LOCAL_ROOT", &blobs).env("RUST_LOG", "warn,opentrack_server::worker=debug")
             .current_dir(&directory.0).args(["worker", "--worker-poll-interval-ms", "100"])
             .stdin(Stdio::null()).stdout(log.try_clone().unwrap()).stderr(log)
             .spawn().expect("Start the owned restricted worker"));
@@ -155,10 +155,19 @@ async fn daemon_continues_healthy_workspace_work_after_capture_error() {
             assert!(fs::metadata(&log_path).unwrap().len() <= 65536, "Worker output exceeded its bound");
             let current = state(h, user, healthy).await;
             let output = fs::read_to_string(&log_path).unwrap();
-            let stage_failed = output.lines().filter_map(|line| serde_json::from_str::<Value>(line).ok())
-                .any(|entry| entry["level"] == "WARN" && entry["target"] == "opentrack_server::worker"
-                    && entry["fields"]["message"] == "Worker stage failed; durable state remains recoverable");
-            if stage_failed && current["checkpoint"]["last_seq"] == healthy_event.1
+            let mut stage_failed = false;
+            let mut worked_job = false;
+            let mut completed_idle = false;
+            for entry in output.lines().filter_map(|line| serde_json::from_str::<Value>(line).ok()) {
+                if entry["target"] != "opentrack_server::worker" { continue; }
+                let fields = &entry["fields"];
+                stage_failed |= entry["level"] == "WARN"
+                    && fields["message"] == "Worker stage failed; durable state remains recoverable";
+                worked_job |= entry["level"] == "DEBUG" && fields["message"] == "Worker stage completed"
+                    && fields["stage"] == "Job" && fields["worked"] == true;
+                completed_idle |= entry["level"] == "DEBUG" && fields["message"] == "Worker idle wait completed";
+            }
+            if stage_failed && worked_job && completed_idle && current["checkpoint"]["last_seq"] == healthy_event.1
                 && current["floor"] == healthy_event.1 && current["bytes"] == 0
                 && current["jobs"].as_array().unwrap().len() == 2
                 && current["jobs"].as_array().unwrap().iter().all(|job| job["state"] == "succeeded") {
@@ -195,6 +204,65 @@ async fn daemon_continues_healthy_workspace_work_after_capture_error() {
         }
         assert!(!output.contains(directory.0.to_str().unwrap()), "Worker output exposed its private directory");
         assert!(!output.contains(&poisoned.to_string()), "Stage error exposed its workspace");
+        let stages = ["Capture", "Job", "Retention", "DocumentRetention", "AttachmentGc"];
+        let mut seen_stages = [false; 5];
+        let mut startup = false;
+        let mut failed_capture = false;
+        let mut worked_job = false;
+        let mut idle_pending = false;
+        let mut completed_idle = false;
+        for entry in output.lines().filter_map(|line| serde_json::from_str::<Value>(line).ok()) {
+            if entry["target"] != "opentrack_server::worker" {
+                continue;
+            }
+            let Some(fields) = entry["fields"].as_object() else { continue };
+            let Some(message) = fields.get("message").and_then(Value::as_str) else { continue };
+            let (allowed, level): (&[&str], &str) = match message {
+                "Worker started with isolated database authority" =>
+                    (&["message", "poll_interval_ms", "max_connections", "lease_seconds"], "INFO"),
+                "Worker stage completed" =>
+                    (&["message", "stage", "elapsed_ms", "worked", "failed"], "DEBUG"),
+                "Worker idle wait started" => (&["message", "poll_interval_ms"], "DEBUG"),
+                "Worker idle wait completed" => (&["message", "elapsed_ms"], "DEBUG"),
+                _ => continue,
+            };
+            assert!(fields.len() == allowed.len() && fields.keys().all(|key| allowed.contains(&key.as_str())),
+                    "Worker diagnostic payload contains missing or unexpected fields");
+            assert!(entry["level"] == level, "Worker diagnostic used an unexpected log level");
+            if let Some(duration) = fields.get("elapsed_ms") {
+                assert!(duration.as_f64().is_some_and(|value| value.is_finite() && value >= 0.0),
+                        "Worker diagnostic duration must be finite and nonnegative");
+            }
+            match message {
+                "Worker started with isolated database authority" => {
+                    assert!(fields["poll_interval_ms"] == 100 && fields["max_connections"] == 1
+                            && fields["lease_seconds"] == 60, "Startup diagnostics must match the actual worker profile");
+                    startup = true;
+                }
+                "Worker stage completed" => {
+                    let stage = fields["stage"].as_str().expect("Worker stage must be a string");
+                    let index = stages.iter().position(|expected| *expected == stage).expect("Unknown worker stage");
+                    seen_stages[index] = true;
+                    let worked = fields["worked"].as_bool().expect("Worked diagnostic must be a boolean");
+                    let failed = fields["failed"].as_bool().expect("Failed diagnostic must be a boolean");
+                    failed_capture |= stage == "Capture" && failed;
+                    worked_job |= stage == "Job" && worked;
+                }
+                "Worker idle wait started" => {
+                    assert!(fields["poll_interval_ms"] == 100, "Idle diagnostic must match the actual interval");
+                    assert!(!idle_pending, "Idle diagnostics must alternate start and completion");
+                    idle_pending = true;
+                }
+                "Worker idle wait completed" => {
+                    assert!(idle_pending, "Completed idle diagnostic requires an actual preceding wait");
+                    idle_pending = false;
+                    completed_idle = true;
+                }
+                _ => unreachable!(),
+            }
+        }
+        assert!(startup && seen_stages.into_iter().all(|seen| seen) && failed_capture && worked_job && completed_idle,
+                "Actual worker diagnostics must cover startup, all stages, capture failure, job progress and completed idle");
 
         // The PID belongs to this unreaped child and cannot have been reused.
         assert_eq!(unsafe { libc::kill(daemon.0.id() as libc::pid_t, libc::SIGTERM) }, 0);

@@ -11,7 +11,7 @@ struct Cursors {
     attachment_gc: Option<uuid::Uuid>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum Stage {
     Capture,
     Job,
@@ -137,12 +137,18 @@ pub async fn run(cli: &Cli, cfg: &Settings) -> Result<(), String> {
         tracing::info!("Worker completed one bounded event, job and retention poll");
         return Ok(());
     }
-    tracing::info!("Worker started with isolated database authority");
+    tracing::info!(
+        poll_interval_ms = cfg.worker.poll_interval_ms,
+        max_connections = cfg.worker.max_connections,
+        lease_seconds = cfg.worker.lease_seconds,
+        "Worker started with isolated database authority"
+    );
     let shutdown = crate::shutdown();
     tokio::pin!(shutdown);
     let mut stage = Stage::Capture;
     let mut round_active = false;
     loop {
+        let stage_started = std::time::Instant::now();
         let result = {
             let started = std::sync::atomic::AtomicBool::new(false);
             let poll = async {
@@ -162,6 +168,13 @@ pub async fn run(cli: &Cli, cfg: &Settings) -> Result<(), String> {
                 result = &mut poll => result,
             }
         };
+        tracing::debug!(
+            stage = ?stage,
+            elapsed_ms = stage_started.elapsed().as_secs_f64() * 1000.0,
+            worked = matches!(&result, Ok(true)),
+            failed = result.is_err(),
+            "Worker stage completed"
+        );
         match result {
             Ok(active) => round_active |= active,
             Err(_) => tracing::warn!("Worker stage failed; durable state remains recoverable"),
@@ -170,7 +183,16 @@ pub async fn run(cli: &Cli, cfg: &Settings) -> Result<(), String> {
         stage = stage.next();
         if end_of_round {
             if !round_active {
+                let idle_started = std::time::Instant::now();
+                tracing::debug!(
+                    poll_interval_ms = cfg.worker.poll_interval_ms,
+                    "Worker idle wait started"
+                );
                 tokio::select! { _=&mut shutdown=>break, _=tokio::time::sleep(Duration::from_millis(cfg.worker.poll_interval_ms))=>{} }
+                tracing::debug!(
+                    elapsed_ms = idle_started.elapsed().as_secs_f64() * 1000.0,
+                    "Worker idle wait completed"
+                );
             } else {
                 tokio::task::yield_now().await;
             }
