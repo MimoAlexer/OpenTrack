@@ -9,6 +9,7 @@ import argparse
 import hashlib
 import http.cookiejar
 from html.parser import HTMLParser
+import importlib.util
 import inspect
 import json
 import os
@@ -858,6 +859,10 @@ done
         self.record("public-schema worker captured events with migration-owned isolated cycle index extension")
         self.record("restricted worker captured real durable workspace events")
 
+        event_spec = importlib.util.spec_from_file_location("event_admission_runtime", Path(__file__).with_name("event_admission_runtime.py"))
+        event_admission = importlib.util.module_from_spec(event_spec)
+        event_spec.loader.exec_module(event_admission)
+        event_admission.qualify(self, base, issue_path, require)
         start = time.monotonic()
         self.dc("stop", "--timeout", "35", "app", "worker", timeout=55)
         elapsed = time.monotonic() - start

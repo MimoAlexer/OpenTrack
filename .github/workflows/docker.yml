@@ -31,6 +31,8 @@ jobs:
         run: python3 scripts/test-browser-acceptance.py
       - name: Test cold recovery archive and resource boundaries without starting services
         run: python3 scripts/test-docker-recovery.py
+      - name: Test event admission runtime boundaries without starting services
+        run: python3 scripts/test-event-admission-runtime.py
       - name: Determine Docker scope
         id: scope
         run: python3 scripts/ci-scope.py
