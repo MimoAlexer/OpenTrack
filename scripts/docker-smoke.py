@@ -21,6 +21,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from event_admission_runtime import qualify as qualify_event_admission
 
 
 RECOVERY_VOLUMES = ("database", "blobs", "database_secrets", "api_secrets",
@@ -857,6 +858,7 @@ done
         require(self.sql("SELECT to_regclass('public.cycles') IS NOT NULL AND EXISTS(SELECT 1 FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace WHERE e.extname='btree_gist' AND n.nspname='opentrack_extensions' AND e.extowner='opentrack_migrator'::regrole AND n.nspowner=e.extowner) AND NOT has_schema_privilege('opentrack','opentrack_extensions','USAGE,CREATE') AND NOT has_schema_privilege('opentrack_worker','opentrack_extensions','USAGE,CREATE')") == "t", "Public application schema must isolate trusted extension authority from runtime and worker")
         self.record("public-schema worker captured events with migration-owned isolated cycle index extension")
         self.record("restricted worker captured real durable workspace events")
+        qualify_event_admission(self, base, issue_path, require)
 
         start = time.monotonic()
         self.dc("stop", "--timeout", "35", "app", "worker", timeout=55)
