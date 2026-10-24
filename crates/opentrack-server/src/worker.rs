@@ -2,10 +2,13 @@ use crate::config::{Cli, Settings};
 use opentrack_app::worker::{Worker, WorkerOptions, WorkerTick};
 use std::time::{Duration, Instant};
 
+const JOB_QUANTUM: u8 = 4;
+
 #[derive(Default)]
 struct JobDiscovery {
     credits: u8,
     not_before: Option<Instant>,
+    repeat_remaining: u8,
 }
 impl JobDiscovery {
     fn begin(&mut self, now: Instant) -> bool {
@@ -20,11 +23,21 @@ impl JobDiscovery {
         true
     }
 
+    fn repeat_workspace(&mut self, workspace: Option<uuid::Uuid>) -> Option<uuid::Uuid> {
+        if self.repeat_remaining == 0 || workspace.is_none() {
+            self.repeat_remaining = 0;
+            return None;
+        }
+        self.repeat_remaining -= 1;
+        workspace
+    }
+
     fn finish(
         &mut self,
         now: Instant,
         poll_interval: Duration,
         result: &opentrack_domain::Result<WorkerTick>,
+        repeated: bool,
     ) -> bool {
         match result {
             Ok(
@@ -35,9 +48,13 @@ impl JobDiscovery {
             ) => {
                 self.credits = 0;
                 self.not_before = None;
+                if !repeated {
+                    self.repeat_remaining = JOB_QUANTUM - 1;
+                }
                 true
             }
             Ok(WorkerTick::Idle | WorkerTick::Scanning | WorkerTick::LostLease) | Err(_) => {
+                self.repeat_remaining = 0;
                 if matches!(result, Ok(WorkerTick::Idle)) || self.credits >= 4 {
                     self.not_before = Some(now + poll_interval);
                 }
@@ -136,10 +153,21 @@ async fn poll_stage(
             if !cursors.job_discovery.begin(Instant::now()) {
                 return Ok(false);
             }
-            let result = worker.tick(&mut cursors.job).await;
-            let active = cursors
-                .job_discovery
-                .finish(Instant::now(), poll_interval, &result);
+            let repeated = cursors.job_discovery.repeat_workspace(cursors.job);
+            let result = match repeated {
+                Some(workspace) => match worker.claim(workspace).await {
+                    Ok(Some(claim)) => worker.run_claim(&claim).await,
+                    Ok(None) => Ok(WorkerTick::Scanning),
+                    Err(error) => Err(error),
+                },
+                None => worker.tick(&mut cursors.job).await,
+            };
+            let active = cursors.job_discovery.finish(
+                Instant::now(),
+                poll_interval,
+                &result,
+                repeated.is_some(),
+            );
             result.map(|_| active)
         }
         Stage::Retention => Ok(worker
@@ -279,6 +307,68 @@ mod tests {
     use super::*;
 
     #[test]
+    fn repeated_handled_batches_never_refill_the_workspace_quantum() {
+        let now = Instant::now();
+        let poll = Duration::from_secs(2);
+        let workspace = Some(uuid::Uuid::new_v4());
+        for outcome in [
+            WorkerTick::Progress,
+            WorkerTick::Completed,
+            WorkerTick::Blocked,
+            WorkerTick::Retry,
+        ] {
+            let mut discovery = JobDiscovery::default();
+            let result = Ok(outcome);
+            assert!(discovery.begin(now));
+            assert!(discovery.finish(now, poll, &result, false));
+            for _ in 0..3 {
+                assert!(discovery.begin(now));
+                assert_eq!(discovery.repeat_workspace(workspace), workspace);
+                assert!(discovery.finish(now, poll, &result, true));
+            }
+            assert_eq!(discovery.repeat_workspace(workspace), None);
+        }
+    }
+
+    #[test]
+    fn unhandled_repeat_clears_the_quantum_without_refunding_discovery_credit() {
+        let now = Instant::now();
+        let poll = Duration::from_secs(2);
+        let workspace = Some(uuid::Uuid::new_v4());
+        for result in [
+            Ok(WorkerTick::Scanning),
+            Ok(WorkerTick::Idle),
+            Ok(WorkerTick::LostLease),
+            Err(opentrack_domain::Error::Unavailable),
+            Err(opentrack_domain::Error::Internal),
+        ] {
+            let mut discovery = JobDiscovery::default();
+            assert!(discovery.begin(now));
+            assert!(discovery.finish(now, poll, &Ok(WorkerTick::Progress), false));
+            assert!(discovery.begin(now));
+            assert_eq!(discovery.repeat_workspace(workspace), workspace);
+            discovery.finish(now, poll, &result, true);
+            assert_eq!(discovery.repeat_workspace(workspace), None);
+            assert_eq!(discovery.credits, 1);
+        }
+    }
+
+    #[test]
+    fn missing_workspace_clears_the_unused_quantum() {
+        let now = Instant::now();
+        let mut discovery = JobDiscovery::default();
+        assert!(discovery.begin(now));
+        assert!(discovery.finish(
+            now,
+            Duration::from_secs(2),
+            &Ok(WorkerTick::Progress),
+            false
+        ));
+        assert_eq!(discovery.repeat_workspace(None), None);
+        assert_eq!(discovery.repeat_workspace(Some(uuid::Uuid::new_v4())), None);
+    }
+
+    #[test]
     fn four_no_claim_pages_pause_until_the_job_deadline() {
         let now = Instant::now();
         let poll = Duration::from_secs(2);
@@ -286,14 +376,14 @@ mod tests {
         for page in 0..4 {
             assert!(discovery.begin(now));
             assert_eq!(
-                discovery.finish(now, poll, &Ok(WorkerTick::Scanning)),
+                discovery.finish(now, poll, &Ok(WorkerTick::Scanning), false),
                 page < 3
             );
         }
         assert!(!discovery.begin(now + poll - Duration::from_nanos(1)));
         assert_eq!(discovery.idle_wait(now + poll / 2, poll), poll / 2);
         assert!(discovery.begin(now + poll));
-        assert!(discovery.finish(now + poll, poll, &Ok(WorkerTick::Scanning)));
+        assert!(discovery.finish(now + poll, poll, &Ok(WorkerTick::Scanning), false));
     }
 
     #[test]
@@ -308,7 +398,7 @@ mod tests {
             Ok(WorkerTick::Scanning),
         ] {
             assert!(discovery.begin(now));
-            assert!(!discovery.finish(now, poll, &result));
+            assert!(!discovery.finish(now, poll, &result, false));
         }
         assert!(!discovery.begin(now));
         assert!(!discovery.begin(now + poll / 2));
@@ -328,14 +418,14 @@ mod tests {
             let mut discovery = JobDiscovery::default();
             for _ in 0..3 {
                 assert!(discovery.begin(now));
-                assert!(discovery.finish(now, poll, &Ok(WorkerTick::Scanning)));
+                assert!(discovery.finish(now, poll, &Ok(WorkerTick::Scanning), false));
             }
             assert!(discovery.begin(now));
-            assert!(discovery.finish(now, poll, &Ok(outcome)));
+            assert!(discovery.finish(now, poll, &Ok(outcome), false));
             for page in 0..4 {
                 assert!(discovery.begin(now));
                 assert_eq!(
-                    discovery.finish(now, poll, &Ok(WorkerTick::Scanning)),
+                    discovery.finish(now, poll, &Ok(WorkerTick::Scanning), false),
                     page < 3
                 );
             }
@@ -350,11 +440,16 @@ mod tests {
         let mut discovery = JobDiscovery::default();
         for _ in 0..3 {
             assert!(discovery.begin(start));
-            assert!(discovery.finish(start, poll, &Ok(WorkerTick::Scanning)));
+            assert!(discovery.finish(start, poll, &Ok(WorkerTick::Scanning), false));
         }
         assert!(discovery.begin(start));
         let completed = start + poll * 3;
-        assert!(!discovery.finish(completed, poll, &Err(opentrack_domain::Error::Unavailable)));
+        assert!(!discovery.finish(
+            completed,
+            poll,
+            &Err(opentrack_domain::Error::Unavailable),
+            false
+        ));
         assert!(!discovery.begin(completed + poll - Duration::from_nanos(1)));
         assert!(discovery.begin(completed + poll));
     }
@@ -366,10 +461,10 @@ mod tests {
         let mut discovery = JobDiscovery::default();
         for _ in 0..4 {
             assert!(discovery.begin(now));
-            discovery.finish(now, poll, &Ok(WorkerTick::Scanning));
+            discovery.finish(now, poll, &Ok(WorkerTick::Scanning), false);
         }
         assert!(discovery.begin(now + poll));
-        assert!(!discovery.finish(now + poll, poll, &Ok(WorkerTick::Idle)));
+        assert!(!discovery.finish(now + poll, poll, &Ok(WorkerTick::Idle), false));
         assert!(!discovery.begin(now + poll + Duration::from_nanos(1)));
         assert_eq!(discovery.idle_wait(now + poll, poll), poll);
         let short_wait = Duration::from_millis(10);

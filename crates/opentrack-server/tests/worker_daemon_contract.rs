@@ -1268,3 +1268,397 @@ async fn dense_backlog_reaches_minimum_uuid_workspace_within_thirty_seconds() {
 async fn dense_backlog_reaches_maximum_uuid_workspace_within_thirty_seconds() {
     dense_assignment_backlog(93).await;
 }
+
+type QuantumClaim = (Uuid, Uuid, i64, i64);
+
+async fn quantum_trace(h: &Harness, url: &str) {
+    let schema: String = sqlx::query_scalar("SELECT current_schema()")
+        .fetch_one(&h.owner)
+        .await
+        .unwrap();
+    let schema = schema.replace('"', "\"\"");
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+        "CREATE TABLE test_quantum_claims(
+           ordinal bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+           workspace_id uuid NOT NULL,job_id uuid NOT NULL,fence bigint NOT NULL,
+           selector_ordinal bigint NOT NULL);
+         REVOKE ALL ON test_quantum_claims FROM PUBLIC;
+         REVOKE ALL ON SEQUENCE test_quantum_claims_ordinal_seq FROM PUBLIC;
+         CREATE FUNCTION test_quantum_trace() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+         SET search_path=pg_catalog,\"{schema}\",pg_temp AS $$ BEGIN
+           INSERT INTO test_quantum_claims(workspace_id,job_id,fence,selector_ordinal)
+           VALUES(NEW.workspace_id,NEW.id,NEW.lease_token,
+             (SELECT coalesce(max(id),0) FROM test_worker_selector_calls));
+           RETURN NEW;
+         END $$;
+         REVOKE ALL ON FUNCTION test_quantum_trace() FROM PUBLIC;
+         CREATE TRIGGER test_quantum_trace AFTER UPDATE OF state,lease_token ON jobs
+         FOR EACH ROW WHEN(NEW.state='running' AND
+           (OLD.state<>'running' OR NEW.lease_token>OLD.lease_token))
+         EXECUTE FUNCTION test_quantum_trace();"
+    )))
+    .execute(&h.owner)
+    .await
+    .unwrap();
+    let runtime: String = sqlx::query_scalar("SELECT current_user")
+        .fetch_one(&h.app.pool)
+        .await
+        .unwrap();
+    let parsed = url::Url::parse(url).unwrap();
+    for role in [runtime.as_str(), parsed.username()] {
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "REVOKE ALL ON test_quantum_claims FROM \"{role}\";
+             REVOKE ALL ON SEQUENCE test_quantum_claims_ordinal_seq FROM \"{role}\";
+             REVOKE ALL ON FUNCTION test_quantum_trace() FROM \"{role}\";",
+            role = role.replace('"', "\"\"")
+        )))
+        .execute(&h.owner)
+        .await
+        .unwrap();
+        let private: bool = sqlx::query_scalar(
+            "SELECT NOT has_table_privilege($1,'test_quantum_claims','SELECT,INSERT,UPDATE,DELETE')
+             AND NOT has_sequence_privilege($1,'test_quantum_claims_ordinal_seq','USAGE,SELECT,UPDATE')
+             AND NOT has_function_privilege($1,'test_quantum_trace()','EXECUTE')"
+        ).bind(role).fetch_one(&h.owner).await.unwrap();
+        assert!(
+            private,
+            "Only the isolated owner may read/write claim observations"
+        );
+    }
+}
+
+async fn quantum_claims(h: &Harness) -> Vec<QuantumClaim> {
+    sqlx::query_as("SELECT workspace_id,job_id,fence,selector_ordinal FROM test_quantum_claims ORDER BY ordinal")
+        .fetch_all(&h.owner).await.unwrap()
+}
+
+async fn quantum_prepare(
+    h: &Harness,
+    actor: &opentrack_domain::Actor,
+    w: Uuid,
+    url: &str,
+) -> Vec<opentrack_domain::Issue> {
+    let mut teams = vec![h.app.bootstrap(actor, w).await.unwrap().teams[0].id];
+    for (key, name) in [("QA", "Quantum team A"), ("QB", "Quantum team B")] {
+        teams.push(
+            h.app
+                .create_team(
+                    actor,
+                    w,
+                    &Uuid::new_v4().to_string(),
+                    serde_json::from_value(json!({"name":name,"key":key,"private":false})).unwrap(),
+                )
+                .await
+                .unwrap()
+                .id,
+        );
+    }
+    let mut issues = Vec::new();
+    for team in teams {
+        issues.push(
+            h.app
+                .create_issue(
+                    actor,
+                    w,
+                    &Uuid::new_v4().to_string(),
+                    serde_json::from_value(
+                        json!({"team_id":team,"title":"Quantum owner-assigned control",
+                "assignee_id":actor.user.id}),
+                    )
+                    .unwrap(),
+                )
+                .await
+                .unwrap(),
+        );
+    }
+    let worker = Worker::connect(url, WorkerOptions::default())
+        .await
+        .unwrap();
+    worker.capture(w).await.unwrap();
+    let mut drained = false;
+    for _ in 0..64 {
+        let Some(claim) = worker.claim(w).await.unwrap() else {
+            drained = true;
+            break;
+        };
+        assert!(matches!(
+            worker.run_claim(&claim).await.unwrap(),
+            WorkerTick::Progress | WorkerTick::Completed
+        ));
+    }
+    assert!(
+        drained,
+        "Bounded fixture setup must finish before measured work is queued"
+    );
+    assert_eq!(worker.capture(w).await.unwrap().processed, 0);
+    worker.pool.close().await;
+    issues
+}
+
+async fn quantum_access(
+    h: &Harness,
+    actor: &opentrack_domain::Actor,
+    w: Uuid,
+    issues: &[opentrack_domain::Issue],
+    url: &str,
+) -> (Vec<Uuid>, String) {
+    for index in 0..8 {
+        let team = issues[1 + index % 2].team_id;
+        let detail = h.app.get_team(actor, w, team).await.unwrap();
+        h.app
+            .update_team(
+                actor,
+                w,
+                team,
+                &detail.etag(),
+                serde_json::from_value(json!({"private":!detail.private})).unwrap(),
+            )
+            .await
+            .unwrap();
+    }
+    let epoch = h.app.bootstrap(actor, w).await.unwrap().auth_epoch;
+    let worker = Worker::connect(url, WorkerOptions::default())
+        .await
+        .unwrap();
+    let capture = worker.capture(w).await.unwrap();
+    assert_eq!(
+        (
+            capture.processed,
+            capture.captured,
+            capture.backfilled,
+            capture.dead_lettered
+        ),
+        (8, 8, false, false)
+    );
+    let mut tx = h.context(actor.user.id, w).await;
+    let older: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM jobs WHERE workspace_id=$1 AND kind='assignment.reconcile'
+         AND state='queued' AND attempt_count=0 AND available_at<=clock_timestamp() ORDER BY available_at,id"
+    ).bind(w).fetch_all(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(older.len(), 8);
+    worker.pool.close().await;
+    (older, epoch)
+}
+
+async fn quantum_fences(
+    h: &Harness,
+    actor: &opentrack_domain::Actor,
+    w: Uuid,
+    ids: &[Uuid],
+    issues: &[opentrack_domain::Issue],
+    replacement: Option<&opentrack_domain::WorkflowReplacement>,
+    epoch: &str,
+) {
+    let mut tx = h.context(actor.user.id, w).await;
+    let exact: (i64, bool) = sqlx::query_as(
+        "SELECT count(*),coalesce(bool_and(j.attempt_count=1 AND j.retry_count=0 AND j.error_code IS NULL
+         AND j.lease_token>0 AND j.lease_owner IS NULL AND j.lease_expires_at IS NULL
+         AND j.state IN('queued','succeeded')
+         AND (SELECT count(*)=1 AND bool_and(a.lease_token=j.lease_token AND
+           ((j.state='queued' AND a.ended_at IS NULL AND a.outcome IS NULL)
+            OR (j.state='succeeded' AND a.ended_at IS NOT NULL AND a.outcome='succeeded')))
+           FROM job_attempts a WHERE a.workspace_id=j.workspace_id AND a.job_id=j.id)
+         AND (j.kind<>'assignment.reconcile' OR EXISTS(SELECT 1 FROM assignment_reconciliations r
+           WHERE r.workspace_id=j.workspace_id AND r.id=j.id AND r.scanned_count>0 AND r.cleared_count=0))),false)
+         FROM jobs j WHERE j.workspace_id=$1 AND j.id=ANY($2)"
+    ).bind(w).bind(ids).fetch_one(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(exact, (ids.len() as i64, true));
+    assert_eq!(h.app.bootstrap(actor, w).await.unwrap().auth_epoch, epoch);
+    for (index, old) in issues.iter().enumerate() {
+        let saved = h.app.get_issue(actor, w, old.id).await.unwrap();
+        assert_eq!(saved.assignee_id, Some(actor.user.id));
+        assert_eq!(
+            saved.version.parse::<u64>().unwrap(),
+            old.version.parse::<u64>().unwrap() + u64::from(index == 0 && replacement.is_some())
+        );
+    }
+    if let Some(job) = replacement {
+        discovery_completed(h, actor, w, &issues[0], job).await;
+        let mut tx = h.context(actor.user.id, w).await;
+        let history: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM workspace_events WHERE workspace_id=$1 AND entity_id=$2
+              AND mutation_id=$3 AND event_type='issue.updated' AND actor_id=$4 AND actor_kind='account'),
+             (SELECT count(*) FROM activity_entries WHERE workspace_id=$1 AND entity_id=$2
+              AND changes->>'job_id'=$3::text AND changes->>'source'='workflow_replacement')"
+        ).bind(w).bind(issues[0].id).bind(job.id).bind(actor.user.id).fetch_one(&mut *tx).await.unwrap();
+        tx.commit().await.unwrap();
+        assert_eq!(history, (1, 1));
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn four_claim_quantum_preserves_two_workspace_fifo_fairness_and_stage_rotation() {
+    let h = Harness::with_connections(6).await;
+    let runner = h.clone();
+    let result = tokio::spawn(async move {
+        let h = &runner;
+        let directory = PrivateDirectory::new();
+        let (actor, scopes, url) = discovery_fixture(h, 94).await;
+        let a = scopes[0]; let b = scopes[93];
+        let issues_a = quantum_prepare(h, &actor, a, &url).await;
+        let issues_b = quantum_prepare(h, &actor, b, &url).await;
+        let original = measure_discovery(h, &url).await;
+        quantum_trace(h, &url).await;
+        let (older_a, epoch_a) = quantum_access(h, &actor, a, &issues_a, &url).await;
+        let (older_b, epoch_b) = quantum_access(h, &actor, b, &issues_b, &url).await;
+        let job_a = discovery_enqueue(h, &actor, a, &issues_a[0]).await;
+        let accepted = Instant::now();
+        let job_b = discovery_enqueue(h, &actor, b, &issues_b[0]).await;
+        let (mut daemon, path) = start_discovery_worker(&directory, &url);
+        loop {
+            assert!(daemon.0.try_wait().unwrap().is_none());
+            if discovery_job(h, &actor, a, &job_a).await.0 == "succeeded"
+                && discovery_job(h, &actor, b, &job_b).await.0 == "succeeded" { break; }
+            assert!(accepted.elapsed() < Duration::from_secs(30), "Both FIFO commands retain the unchanged 30-second gate");
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        assert!(accepted.elapsed() < Duration::from_secs(30));
+        stop_discovery_worker(&mut daemon).await;
+        let claims = quantum_claims(h).await;
+        assert!(claims.len() >= 18);
+        assert!(claims[..4].iter().all(|c| c.0 == a));
+        assert!(claims[4..8].iter().all(|c| c.0 == b), "Four claims must advance to the other busy workspace");
+        for pair in claims[..4].windows(2) {
+            assert_eq!(pair[1].3 - pair[0].3, 4, "Each cached effect follows all four maintenance selectors");
+        }
+        let mut prior = None; let mut consecutive = 0;
+        for claim in &claims {
+            assert!(claim.0 == a || claim.0 == b); assert!(claim.2 > 0);
+            consecutive = if prior == Some(claim.0) { consecutive + 1 } else { 1 };
+            assert!(consecutive <= 4, "A still-busy peer cannot be bypassed by an unbounded local drain");
+            prior = Some(claim.0);
+        }
+        for (w, older, job) in [(a,&older_a,&job_a),(b,&older_b,&job_b)] {
+            let expected: Vec<_> = older.iter().copied().chain([job.id]).collect();
+            let actual: Vec<_> = claims.iter().filter(|c| c.0 == w).take(9).map(|c| c.1).collect();
+            assert_eq!(actual, expected, "Current available_at/id FIFO must survive the local quantum");
+            let mut tx = h.context(actor.user.id, w).await;
+            let pending: i64 = sqlx::query_scalar("SELECT count(*) FROM jobs WHERE workspace_id=$1 AND id=ANY($2) AND state='queued'")
+                .bind(w).bind(older).fetch_one(&mut *tx).await.unwrap();
+            tx.commit().await.unwrap();
+            assert!(pending > 0, "Both workspaces must still be busy throughout the observed trace");
+        }
+        let output = discovery_output(&path, &directory, &url);
+        let expected = ["Capture","Job","Retention","DocumentRetention","AttachmentGc"];
+        let stages: Vec<_> = output.lines().filter_map(|line| serde_json::from_str::<Value>(line).ok())
+            .filter(|v| v["target"] == "opentrack_server::worker" && v["fields"]["message"] == "Worker stage completed")
+            .map(|v| v["fields"]["stage"].as_str().unwrap().to_owned()).collect();
+        for (index, stage) in stages.iter().enumerate() { assert_eq!(stage, expected[index % 5]); }
+        let receipt = discovery_receipt(&output, &discovery_calls(h).await);
+        quantum_fences(h, &actor, a, &older_a.iter().copied().chain([job_a.id]).collect::<Vec<_>>(), &issues_a, Some(&job_a), &epoch_a).await;
+        quantum_fences(h, &actor, b, &older_b.iter().copied().chain([job_b.id]).collect::<Vec<_>>(), &issues_b, Some(&job_b), &epoch_b).await;
+        restore_discovery(h, &original).await;
+        println!("{}", json!({"four_claim_quantum":{"registered_scopes":94,"busy_scopes":2,
+            "older_intents_per_scope":8,"claimed_batches":claims.len(),"maximum_consecutive_claims":4,
+            "both_commands_completed_within_30_seconds":true,"default_profile":receipt["profile"],
+            "boundary":"Owner-only committed claim trace; one effect per five-stage round; retained state and general p95 are separate."}}));
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn populated_once_leaves_the_remaining_claim_quantum_unused() {
+    let h = Harness::new().await;
+    let runner = h.clone();
+    let result = tokio::spawn(async move {
+        let h = &runner; let directory = PrivateDirectory::new();
+        let (actor, scopes, url) = discovery_fixture(h, 1).await; let w = scopes[0];
+        let issues = quantum_prepare(h, &actor, w, &url).await;
+        let original = measure_discovery(h, &url).await; quantum_trace(h, &url).await;
+        let (older, epoch) = quantum_access(h, &actor, w, &issues, &url).await;
+        let job = discovery_enqueue(h, &actor, w, &issues[0]).await;
+        let (mut daemon, path) = start_discovery_lifecycle_worker(&directory, &url, true);
+        await_discovery_exit(&mut daemon, Instant::now() + Duration::from_secs(35)).await;
+        let claims = quantum_claims(h).await;
+        assert_eq!(claims.len(), 1); assert_eq!(claims[0].1, older[0]);
+        assert_eq!(discovery_job(h, &actor, w, &job).await, ("queued".into(),0));
+        let mut tx = h.context(actor.user.id, w).await;
+        let untouched: i64 = sqlx::query_scalar("SELECT count(*) FROM jobs WHERE workspace_id=$1 AND id=ANY($2) AND state='queued' AND attempt_count=0")
+            .bind(w).bind(&older[1..]).fetch_one(&mut *tx).await.unwrap();
+        tx.commit().await.unwrap(); assert_eq!(untouched,7);
+        quantum_fences(h, &actor, w, &older[..1], &issues, None, &epoch).await;
+        let calls = discovery_calls(h).await;
+        assert_eq!(calls.iter().map(|c| c.3).collect::<Vec<_>>(), vec![1,20,1,1,1]);
+        discovery_output(&path, &directory, &url);
+        restore_discovery(h, &original).await;
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn shutdown_drains_only_the_second_cached_effect_and_starts_no_later_stage() {
+    let h = Harness::with_connections(6).await;
+    let runner = h.clone();
+    let result = tokio::spawn(async move {
+        let h = &runner; let directory = PrivateDirectory::new();
+        let (actor, scopes, url) = discovery_fixture(h, 94).await; let w = scopes[0];
+        let issues = quantum_prepare(h, &actor, w, &url).await;
+        let original = measure_discovery(h, &url).await; quantum_trace(h, &url).await;
+        let (older, epoch) = quantum_access(h, &actor, w, &issues, &url).await;
+        let job = discovery_enqueue(h, &actor, w, &issues[0]).await;
+        let second = older[1]; let key = Uuid::new_v4().as_u128() as i64;
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "CREATE FUNCTION test_quantum_gate() RETURNS trigger LANGUAGE plpgsql AS $$
+             BEGIN PERFORM pg_catalog.pg_advisory_xact_lock('{key}'::bigint); RETURN NEW; END $$;
+             REVOKE ALL ON FUNCTION test_quantum_gate() FROM PUBLIC;
+             CREATE TRIGGER test_quantum_gate BEFORE UPDATE ON assignment_reconciliations
+             FOR EACH ROW WHEN(NEW.id='{second}'::uuid) EXECUTE FUNCTION test_quantum_gate();"
+        ))).execute(&h.owner).await.unwrap();
+        let mut gate = opentrack_store::begin(&h.owner).await.unwrap();
+        let parent_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *gate).await.unwrap();
+        sqlx::query("SELECT pg_advisory_xact_lock($1)").bind(key).execute(&mut *gate).await.unwrap();
+        let marker = format!("quantum-shutdown-{}", Uuid::new_v4().simple());
+        let mut tagged = url::Url::parse(&url).unwrap(); tagged.query_pairs_mut().append_pair("application_name", &marker);
+        let (mut daemon, path) = start_discovery_lifecycle_worker(&directory, tagged.as_str(), false);
+        let waiting_sql = "SELECT EXISTS(SELECT 1 FROM pg_stat_activity a WHERE a.datname=current_database()
+            AND a.application_name=$1 AND $2=ANY(pg_blocking_pids(a.pid)) AND EXISTS(SELECT 1 FROM pg_locks l
+            WHERE l.pid=a.pid AND l.locktype='advisory' AND NOT l.granted))";
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            assert!(daemon.0.try_wait().unwrap().is_none());
+            let waiting: bool = sqlx::query_scalar(waiting_sql).bind(&marker).bind(parent_pid).fetch_one(&h.owner).await.unwrap();
+            if waiting { break; }
+            assert!(Instant::now() < deadline, "Witness the exact owned worker effect wait before signalling");
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        let claims = quantum_claims(h).await;
+        assert_eq!(claims.iter().map(|c| c.1).collect::<Vec<_>>(), older[..2]);
+        let before = discovery_calls(h).await;
+        assert_eq!(before.iter().map(|c| c.3).collect::<Vec<_>>(), vec![1,20,1,1,1,1],
+            "The second claim must be cached and follow the preceding maintenance stages");
+        // This PID belongs to the unreaped owned child whose exact database wait was witnessed.
+        assert_eq!(unsafe { libc::kill(daemon.0.id() as libc::pid_t, libc::SIGTERM) }, 0);
+        let acknowledged = Instant::now() + Duration::from_millis(500);
+        loop {
+            assert!(daemon.0.try_wait().unwrap().is_none());
+            let output = discovery_output(&path, &directory, tagged.as_str());
+            if output.lines().filter_map(|line| serde_json::from_str::<Value>(line).ok())
+                .any(|v| v["target"] == "opentrack_server" && v["fields"]["message"] == "Graceful shutdown requested") { break; }
+            assert!(Instant::now() < acknowledged, "Acknowledge shutdown while the unmodified effect deadline remains live");
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        let still_waiting: bool = sqlx::query_scalar(waiting_sql).bind(&marker).bind(parent_pid).fetch_one(&h.owner).await.unwrap();
+        assert!(still_waiting, "The gate must remain live until after shutdown acknowledgement");
+        assert_eq!(quantum_claims(h).await.len(), 2);
+        gate.commit().await.unwrap();
+        await_discovery_exit(&mut daemon, Instant::now() + Duration::from_secs(35)).await;
+        assert_eq!(quantum_claims(h).await.len(), 2, "No third claim may start after shutdown");
+        assert_eq!(discovery_calls(h).await, before, "No later maintenance or discovery stage may start");
+        assert_eq!(discovery_job(h, &actor, w, &job).await, ("queued".into(),0));
+        quantum_fences(h, &actor, w, &older[..2], &issues, None, &epoch).await;
+        discovery_output(&path, &directory, tagged.as_str());
+        restore_discovery(h, &original).await;
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
