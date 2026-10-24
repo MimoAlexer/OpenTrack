@@ -23,7 +23,7 @@ const workflow = () => json({ team_id: 't', version: '1', can_manage: true, stat
 const privateStatus = { ...status, name: 'Private review stage' };
 const privateData: Bootstrap = { ...data, teams: [{ ...data.teams[0], name: 'Private board team', private: true }], statuses: [privateStatus] };
 const privateWorkflow = () => json({ team_id: 't', version: '1', can_manage: true, statuses: [privateStatus] });
-async function renderPrivateBoard(refresh = 0, params = boardParams(), teamAccessLost?: (team: string) => void) { await act(async () => root.render(<IssueList workspaceId="w" data={privateData} session={session} params={params} selectedId="i" refresh={refresh} create={() => {}} searchRef={createRef()} teamAccessLost={teamAccessLost} />)); }
+async function renderPrivateBoard(refresh = 0, params = boardParams(), teamAccessLost?: (team: string) => boolean) { await act(async () => root.render(<IssueList workspaceId="w" data={privateData} session={session} params={params} selectedId="i" refresh={refresh} create={() => {}} searchRef={createRef()} teamAccessLost={teamAccessLost} />)); }
 function concealedPrivateBoard() {
   expect(container.textContent).not.toContain('Private board team');
   expect(container.textContent).not.toContain('Private review stage');
@@ -143,7 +143,7 @@ it('fences a superseded workflow proof and page until the latest refresh receive
 
 it.each([403, 404])('notifies only after fresh known-team workflow proof returns %s', async status => {
   let reads = 0; let workflows = 0; let finish!: (response: Response) => void;
-  const lost = vi.fn();
+  const lost = vi.fn(() => true);
   vi.stubGlobal('fetch', vi.fn((url: string) => {
     if (url.includes('/workflow')) return ++workflows === 1 ? Promise.resolve(privateWorkflow()) : new Promise<Response>(resolve => { finish = resolve; });
     return Promise.resolve(++reads === 1 ? page() : json({ code: 'not_found', detail: 'Issue unavailable.' }, 404));
@@ -156,7 +156,7 @@ it.each([403, 404])('notifies only after fresh known-team workflow proof returns
 
 it.each(['authorized', 'unauthenticated', 'network', 'wrong team'] as const)('does not report an ambiguous resource denial as team loss when proof is %s', async outcome => {
   let reads = 0; let workflows = 0;
-  const lost = vi.fn();
+  const lost = vi.fn(() => true);
   vi.stubGlobal('fetch', vi.fn((url: string) => {
     if (url.includes('/workflow')) {
       if (++workflows === 1 || outcome === 'authorized') return Promise.resolve(privateWorkflow());
@@ -170,7 +170,7 @@ it.each(['authorized', 'unauthenticated', 'network', 'wrong team'] as const)('do
 });
 
 it('does not classify an authorized empty page as team loss', async () => {
-  const lost = vi.fn();
+  const lost = vi.fn(() => true);
   vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(url.includes('/workflow') ? privateWorkflow() : page([]))));
   await renderPrivateBoard(0, boardParams(), lost);
   expect(lost).not.toHaveBeenCalled(); expect(container.textContent).toContain('No issues on this page');
@@ -191,7 +191,7 @@ it('retains the originating callback when a same-scope proof outlives a callback
 
 it.each(['principal', 'workspace', 'team', 'filter', 'epoch', 'URL', 'unmount'] as const)('ignores team proof after a changed %s', async change => {
   let reads = 0; let workflows = 0; let finish!: (response: Response) => void;
-  const lost = vi.fn(); const previous = { url: `${location.pathname}${location.search}`, state: history.state };
+  const lost = vi.fn(() => true); const previous = { url: `${location.pathname}${location.search}`, state: history.state };
   vi.stubGlobal('fetch', vi.fn((url: string) => {
     if (url.includes('/workflow')) return ++workflows === 2 ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(privateWorkflow());
     return Promise.resolve(++reads === 2 ? json({ code: 'not_found' }, 404) : page([]));
@@ -211,20 +211,21 @@ it.each(['principal', 'workspace', 'team', 'filter', 'epoch', 'URL', 'unmount'] 
   } finally { history.replaceState(previous.state, '', previous.url); }
 });
 
-it.each([false, true])('keeps exit concealed until authority proof, including a missing parent callback (%s)', async callback => {
+it.each(['missing', 'rejected', 'accepted'] as const)('keeps exit concealed until current parent acceptance (%s)', async callback => {
   let reads = 0; let workflows = 0; let finish!: (response: Response) => void;
-  const lost = vi.fn(); const previous = { url: `${location.pathname}${location.search}`, state: history.state };
+  const hasCallback = callback !== 'missing'; const accepted = callback === 'accepted';
+  const lost = vi.fn(() => accepted); const previous = { url: `${location.pathname}${location.search}`, state: history.state };
   history.replaceState({ otIndex: 0 }, '', '/w/w/issues?team_id=t&status_id=s&layout=board&display_version=1&q=review&priority=2&sort=priority');
   vi.stubGlobal('fetch', vi.fn((url: string) => {
     if (url.includes('/workflow')) {
       workflows += 1;
-      return workflows === (callback ? 3 : 2) ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(privateWorkflow());
+      return workflows === (hasCallback ? 3 : 2) ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(privateWorkflow());
     }
     return Promise.resolve(++reads === 1 ? page() : json({ code: 'not_found' }, 404));
   }));
   function Routed({ refresh }: { refresh: number }) {
     const route = parseRoute(useLocation());
-    return <IssueList workspaceId="w" data={privateData} session={session} params={route.search} refresh={refresh} create={() => {}} searchRef={createRef()} teamAccessLost={callback ? lost : undefined}/>;
+    return <IssueList workspaceId="w" data={privateData} session={session} params={route.search} refresh={refresh} create={() => {}} searchRef={createRef()} teamAccessLost={hasCallback ? lost : undefined}/>;
   }
   try {
     await act(async () => root.render(<Routed refresh={0}/>)); await act(async () => root.render(<Routed refresh={1}/>));
@@ -236,8 +237,8 @@ it.each([false, true])('keeps exit concealed until authority proof, including a 
     concealedPrivateBoard();
     const query = new URLSearchParams(location.search);
     expect(query.get('q')).toBe('review'); expect(query.get('priority')).toBe('2'); expect(query.get('sort')).toBe('priority');
-    expect(query.get('team_id')).toBe(callback ? null : 't'); expect(query.get('layout')).toBe(callback ? 'list' : 'board');
-    expect(lost).toHaveBeenCalledTimes(callback ? 1 : 0);
+    expect(query.get('team_id')).toBe(accepted ? null : 't'); expect(query.get('layout')).toBe(accepted ? 'list' : 'board');
+    expect(lost).toHaveBeenCalledTimes(hasCallback ? 1 : 0);
     expect(reads).toBe(2);
   } finally { history.replaceState(previous.state, '', previous.url); }
 });
@@ -246,7 +247,7 @@ it('does not invalidate team authority when a moved issue was deleted but its te
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
   const target = { ...privateStatus, id: 'started', name: 'Started', is_default: false };
-  const lost = vi.fn(); let workflows = 0;
+  const lost = vi.fn(() => true); let workflows = 0;
   const fetch = vi.fn((url: string, options: RequestInit) => {
     if (url.includes('/workflow')) { workflows += 1; return Promise.resolve(json({ team_id: 't', version: '1', can_manage: true, statuses: [privateStatus, target] })); }
     return Promise.resolve(options.method === 'PATCH' ? json({ code: 'not_found', detail: 'Issue deleted.' }, 404) : page());
@@ -293,7 +294,7 @@ it('retains the original denied team and reports only its fresh recovery proofs 
   const otherTeam = { ...privateData.teams[0], id: 'other-team', key: 'OTHER', name: 'Other team', private: false };
   const otherStatus = { ...status, id: 'other-status', team_id: otherTeam.id };
   const bootstrap = { ...privateData, teams: [...privateData.teams, otherTeam], statuses: [...privateData.statuses, otherStatus] };
-  let reads = 0; let workflows = 0; const proofPaths: string[] = []; const lost = vi.fn();
+  let reads = 0; let workflows = 0; const proofPaths: string[] = []; const lost = vi.fn(() => true);
   vi.stubGlobal('fetch', vi.fn((url: string) => {
     if (url.includes('/workflow')) {
       proofPaths.push(url);
@@ -325,7 +326,7 @@ it.each([['Try again', 403], ['Try again', 404], ['Open all issues', 403], ['Ope
   const control = { ...issue, id: 'public-control', key: 'OTHER-1', team_id: otherTeam.id, status_id: otherStatus.id, title: 'Accessible control work', priority: 2 };
   let reads = 0; let workflows = 0;
   let finishOld: (response: Response) => void = () => {}; let finishCurrent: (response: Response) => void = () => {};
-  const obsoleteLost = vi.fn(); const lost = vi.fn(); const proofPaths: string[] = []; const issueQueries: URLSearchParams[] = [];
+  const obsoleteLost = vi.fn(() => true); const lost = vi.fn(() => true); const proofPaths: string[] = []; const issueQueries: URLSearchParams[] = [];
   const fetch = vi.fn((url: string, _options: RequestInit) => {
     if (url.endsWith('/workflow')) {
       proofPaths.push(url); workflows += 1;
@@ -418,7 +419,7 @@ it.each([403, 404])('processes current-team %s after detail changes during both 
   const previous = { url: `${location.pathname}${location.search}`, state: history.state };
   history.replaceState({ otIndex: 0 }, '', '/w/w/issues?team_id=t&layout=board&display_version=1');
   let reads = 0; let workflows = 0; let finishPage!: (response: Response) => void; let finishProof!: (response: Response) => void;
-  const lost = vi.fn();
+  const lost = vi.fn(() => true);
   vi.stubGlobal('fetch', vi.fn((url: string) => {
     if (url.includes('/workflow')) return ++workflows === 1 ? Promise.resolve(privateWorkflow()) : new Promise<Response>(resolve => { finishProof = resolve; });
     return ++reads === 1 ? Promise.resolve(page()) : new Promise<Response>(resolve => { finishPage = resolve; });
@@ -443,7 +444,7 @@ it.each([200, 404])('does not replay an obsolete exit intent after detail naviga
   const previous = { url: `${location.pathname}${location.search}`, state: history.state };
   const query = '?team_id=t&layout=board&display_version=1';
   history.replaceState({ otIndex: 0 }, '', `/w/w/issues${query}`);
-  let reads = 0; let workflows = 0; let finish!: (response: Response) => void; const lost = vi.fn();
+  let reads = 0; let workflows = 0; let finish!: (response: Response) => void; const lost = vi.fn(() => true);
   vi.stubGlobal('fetch', vi.fn((url: string) => {
     if (url.includes('/workflow')) return ++workflows === 3 ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(privateWorkflow());
     return Promise.resolve(++reads === 1 ? page() : json({ code: 'not_found' }, 404));

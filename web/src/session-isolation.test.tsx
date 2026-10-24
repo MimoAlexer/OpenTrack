@@ -92,7 +92,7 @@ describe('tenant and session UI boundaries', () => {
   it('destroys cached issue editors immediately when access changes, before the new bootstrap', async () => {
     let epoch = '1'; let completeBootstrap!: (response: Response) => void;
     const fetch = vi.fn((url: string) => {
-      if (url.endsWith('/access')) return Promise.resolve(json({ auth_epoch: epoch, role: 'viewer', archived: false }));
+      if (url.endsWith('/access')) return Promise.resolve(json({ auth_epoch: epoch, role: 'owner', archived: false }));
       if (epoch === '2' && url.endsWith('/a/bootstrap')) return new Promise<Response>(resolve => { completeBootstrap = resolve; });
       return transport(url);
     });

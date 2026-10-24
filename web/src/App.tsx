@@ -7,7 +7,7 @@ import { NativeConsent } from './auth/NativeConsent';
 import { nativeRequestId } from './auth/native-callback';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { CalendarRange, ChevronsUpDown, CircleUserRound, FolderKanban, Hash, HelpCircle, ListChecks, LockKeyhole, LogOut, Menu, Monitor, Moon, Plus, RefreshCw, Search, Settings, Sun, Trash2, X } from 'lucide-react';
-import { advanceSessionGeneration, ApiError, request } from './api';
+import { advanceSessionGeneration, currentSessionGeneration, ApiError, request } from './api';
 import { AccountSecurity } from './account/AccountSecurity';
 import { AuthScreen } from './auth/AuthScreen';
 import { RecoveryScreen } from './auth/RecoveryScreen';
@@ -133,6 +133,7 @@ function WorkspaceApp({ session, theme, setTheme, signedOut, authenticated }: { 
 function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authenticated }: { workspace: Workspace; session: Session; theme: Theme; setTheme: (theme: Theme) => void; signedOut: () => void; authenticated: (session: Session) => void }) {
   const desktop = useDesktop(); const nativeConfirm = useNativeConfirmation(true);
   const sessionScope = useSessionScope(session);
+  const sessionGeneration = currentSessionGeneration();
   const request = useScopedRequest();
   const location = useLocation(); const route = parseRoute(location);
   const [data, setData] = useState<Bootstrap | null>(null);
@@ -150,6 +151,10 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
   const searchRef = useRef<HTMLInputElement>(null);
   const previousIssue = useRef<{ id: string; rowIds: string[] } | undefined>(undefined);
   const bootstrapGeneration = useRef(0);
+  const bootstrapScope = useRef({ key: sessionScope, generation: sessionGeneration });
+  const authorityGeneration = bootstrapGeneration.current;
+  const authorityScope = useRef({ key: sessionScope, active: true }); authorityScope.current.key = sessionScope;
+  useEffect(() => { authorityScope.current.active = true; return () => { authorityScope.current.active = false; }; }, []);
   const [accessRevision, setAccessRevision] = useState(0);
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => { headingRef.current?.focus(); }, []);
@@ -165,21 +170,42 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
   const mine = route.search.get('view') === 'mine';
   const cycles = route.area === 'cycles'; const projects = route.area === 'projects'; const settings = route.area === 'settings'; const trash = route.area === 'trash'; const issueArea = route.area === 'issues';
   const title = cycles ? 'Cycles' : projects ? 'Projects' : settings ? 'Settings' : trash ? 'Trash' : team ? team.name : mine ? 'My work' : 'All issues';
-  useWorkspaceAccess(workspace.id, sessionScope, lastKnownEpoch, async revoked => {
-    // Destroy every scoped editor before refreshing authority, including forms in settings.
-    bootstrapGeneration.current += 1; setData(null); setAccessBlocked(true); setAccessRevision(value => value + 1);
-    setCreating(false); setCreatingWorkspace(false); setReauth(false); setPalette(false); setShortcuts(false); setNotice('');
-    try { authenticated(await request<Session>('/auth/session')); if (!revoked) setRetry(value => value + 1); }
-    catch (error) { setError(error); }
-  });
+  function authorityCurrent(generation: number) {
+    return authorityScope.current.active && authorityScope.current.key === sessionScope && currentSessionGeneration() === sessionGeneration && generation === bootstrapGeneration.current;
+  }
+  async function refreshAuthority(revoked: boolean, expectedGeneration = bootstrapGeneration.current) {
+    if (!authorityCurrent(expectedGeneration)) return;
+    const generation = ++bootstrapGeneration.current;
+    setData(null); setAccessBlocked(true); setAccessRevision(value => value + 1); setError(null);
+    setCreating(false); setCreatingWorkspace(false); setReauth(false); setPalette(false); setShortcuts(false); setMobileOpen(false); setNotice('');
+    try {
+      const updatedSession = await request<Session>('/auth/session');
+      if (!authorityCurrent(generation)) return;
+      authenticated(updatedSession);
+      if (!revoked && updatedSession.user.id === session.user.id && updatedSession.workspaces.some(item => item.id === workspace.id)) setRetry(value => value + 1);
+    } catch (error) {
+      if (authorityCurrent(generation)) setError(error);
+    }
+  }
+  function teamAccessLost(teamId: string): boolean {
+    if (accessBlocked || !data?.teams.some(item => item.id === teamId) || !authorityCurrent(authorityGeneration)) return false;
+    void refreshAuthority(false, authorityGeneration);
+    return true;
+  }
+  useWorkspaceAccess(workspace.id, sessionScope, lastKnownEpoch, refreshAuthority);
   useEffect(() => {
     if (!route.workspaceId || !route.valid) navigate(issuesUrl(workspace.id), true);
   }, [route.workspaceId, route.valid, workspace.id]);
   useEffect(() => {
+    bootstrapScope.current = { key: sessionScope, generation: sessionGeneration };
     const abort = new AbortController(); const generation = ++bootstrapGeneration.current; setData(null); setAccessBlocked(true); setError(null); setNotice(''); setCreating(false); setPalette(false); setShortcuts(false);
-    Promise.all([request<Bootstrap>(`/workspaces/${workspace.id}/bootstrap`, { signal: abort.signal }), request<{ archived: boolean; auth_epoch: string }>(`/workspaces/${workspace.id}/access`, { signal: abort.signal })]).then(([result, access]) => { if (!abort.signal.aborted && generation === bootstrapGeneration.current) { if (result.auth_epoch !== access.auth_epoch) { setRetry(value => value + 1); return; } setData(result); setLastKnownEpoch(result.auth_epoch); setWorkspaceArchived(access.archived); setAccessBlocked(false); } }).catch(error => { if (!abort.signal.aborted && generation === bootstrapGeneration.current) setError(error); });
+    Promise.all([request<Bootstrap>(`/workspaces/${workspace.id}/bootstrap`, { signal: abort.signal }), request<{ role: string; archived: boolean; auth_epoch: string }>(`/workspaces/${workspace.id}/access`, { signal: abort.signal })]).then(([result, access]) => { if (!abort.signal.aborted && authorityScope.current.key === sessionScope && currentSessionGeneration() === sessionGeneration && generation === bootstrapGeneration.current) { if (result.auth_epoch !== access.auth_epoch) { setRetry(value => value + 1); return; } if (access.role !== workspace.role) { void refreshAuthority(false, generation); return; } setData(result); setLastKnownEpoch(result.auth_epoch); setWorkspaceArchived(access.archived); setAccessBlocked(false); } }).catch(error => { if (!abort.signal.aborted && authorityScope.current.key === sessionScope && currentSessionGeneration() === sessionGeneration && generation === bootstrapGeneration.current) setError(error); });
     return () => abort.abort();
   }, [workspace.id, retry]);
+  useEffect(() => {
+    if ((bootstrapScope.current.key !== sessionScope || bootstrapScope.current.generation !== sessionGeneration) && accessBlocked) setRetry(value => value + 1);
+    bootstrapScope.current = { key: sessionScope, generation: sessionGeneration };
+  }, [sessionScope, sessionGeneration]);
   useEffect(() => { document.title = `${title} · ${workspace.name} · OpenTrack`; }, [title, workspace.name]);
   useEffect(() => {
     setMobileOpen(false);
@@ -255,8 +281,8 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
       <main id="main-content" className={`main-content${route.issueId || route.issueKey ? ' with-detail' : ''}`}>
         {workspaceArchived && !settings && <div className="notice">This workspace is archived. Restore it in <Link href={settingsUrl(workspace.id)}>workspace settings</Link> before making changes.</div>}
         {notice && <div className="workspace-notice" role="status">{notice}<button className="icon-button" aria-label="Dismiss message" onClick={() => setNotice('')}><X aria-hidden="true" /></button></div>}
-        <ErrorBanner error={error} retry={() => setRetry(n => n + 1)} />
-        {inaccessibleWorkspace ? <div className="empty-state"><h2>Workspace unavailable.</h2><p>This workspace may have been removed, or you may no longer have access.</p><Link className="button" href={issuesUrl(workspace.id)}>Open {workspace.name}</Link></div> : accessBlocked ? <Loading label="Refreshing workspace access…" /> : settings ? <SettingsScreen workspaceArchived={workspaceArchived} key={accessRevision} workspace={workspace} session={session} section={route.settingsSection} changed={settingsChanged} workflowChanged={workflowChanged} authenticated={authenticated} /> : !data ? !error && <Loading /> : cycles ? <Cycles key={accessRevision} workspaceId={workspace.id} session={session} data={data} cycleId={route.cycleId} params={route.search} refresh={refresh} readOnly={readOnly}/> : projects ? <Projects key={accessRevision} workspaceId={workspace.id} session={session} data={data} projectId={route.projectId} params={route.search} refresh={refresh} readOnly={readOnly}/> : trash ? <Trash workspaceId={workspace.id} data={data} session={session} params={route.search} selectedId={route.deletedIssueId} refresh={refresh} restored={issue => { update(issue); setNotice(`${issue.key} restored. Its connections remain detached.`); }} workflowChanged={workflowChanged} /> : !data.teams.length ? <div className="empty-state"><h2>No teams are available.</h2><p>Ask a workspace owner to add you to a team.</p></div> : <div className="issue-workspace"><IssueList charactersEnabled={shortcutPreference.charactersEnabled} workspaceArchived={workspaceArchived} key={workspace.id} workspaceId={workspace.id} data={data} session={session} params={route.search} selectedId={route.issueId} refresh={refresh} create={() => setCreating(true)} searchRef={searchRef} headingRef={headingRef} updated={update} workflowChanged={workflowChanged} />{route.issueKey && <IssueKeyResolver key={`${workspace.id}:${route.issueKey}`} workspaceId={workspace.id} issueKey={route.issueKey} search={route.search} />}{route.issueId && <IssueEditor workspaceArchived={workspaceArchived} key={`${workspace.id}:${route.issueId}`} workspaceId={workspace.id} issueId={route.issueId} data={data} session={session} close={() => navigate(issuesUrl(workspace.id, route.search))} updated={update} deleted={deleted} workflowChanged={workflowChanged} />}</div>}
+        <ErrorBanner error={error} retry={() => { if (accessBlocked) void refreshAuthority(false); else setRetry(n => n + 1); }} />
+        {inaccessibleWorkspace ? <div className="empty-state"><h2>Workspace unavailable.</h2><p>This workspace may have been removed, or you may no longer have access.</p><Link className="button" href={issuesUrl(workspace.id)}>Open {workspace.name}</Link></div> : accessBlocked ? <Loading label="Refreshing workspace access…" /> : settings ? <SettingsScreen workspaceArchived={workspaceArchived} key={accessRevision} workspace={workspace} session={session} section={route.settingsSection} changed={settingsChanged} workflowChanged={workflowChanged} authenticated={authenticated} /> : !data ? !error && <Loading /> : cycles ? <Cycles key={accessRevision} workspaceId={workspace.id} session={session} data={data} cycleId={route.cycleId} params={route.search} refresh={refresh} readOnly={readOnly}/> : projects ? <Projects key={accessRevision} workspaceId={workspace.id} session={session} data={data} projectId={route.projectId} params={route.search} refresh={refresh} readOnly={readOnly}/> : trash ? <Trash workspaceId={workspace.id} data={data} session={session} params={route.search} selectedId={route.deletedIssueId} refresh={refresh} restored={issue => { update(issue); setNotice(`${issue.key} restored. Its connections remain detached.`); }} workflowChanged={workflowChanged} /> : !data.teams.length ? <div className="empty-state"><h2>No teams are available.</h2><p>Ask a workspace owner to add you to a team.</p></div> : <div className="issue-workspace"><IssueList charactersEnabled={shortcutPreference.charactersEnabled} workspaceArchived={workspaceArchived} key={workspace.id} workspaceId={workspace.id} data={data} session={session} params={route.search} selectedId={route.issueId} refresh={refresh} create={() => setCreating(true)} searchRef={searchRef} headingRef={headingRef} updated={update} workflowChanged={workflowChanged} teamAccessLost={teamAccessLost} />{route.issueKey && <IssueKeyResolver key={`${workspace.id}:${route.issueKey}`} workspaceId={workspace.id} issueKey={route.issueKey} search={route.search} />}{route.issueId && <IssueEditor workspaceArchived={workspaceArchived} key={`${workspace.id}:${route.issueId}`} workspaceId={workspace.id} issueId={route.issueId} data={data} session={session} close={() => navigate(issuesUrl(workspace.id, route.search))} updated={update} deleted={deleted} workflowChanged={workflowChanged} />}</div>}
       </main>
     </div>
     {creating && data && <CreateIssue workspaceId={workspace.id} data={data} session={session} initialTeam={team?.id} close={() => setCreating(false)} created={created} workflowChanged={workflowChanged} />}

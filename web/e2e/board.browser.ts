@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Locator, Page } from '@playwright/test';
+import type { Locator, Page, Request as BrowserRequest, Response as BrowserResponse, Route } from '@playwright/test';
 import { test, expect, SavedWorkspace } from './fixtures';
 import type { Bootstrap, Issue, IssuePage, Session, Status } from '../src/types';
 import type { InvitationIssued, TeamDetail, TeamMember } from '../src/settings/types';
@@ -244,85 +244,285 @@ test('a lost board response is reconciled by reading the committed move without 
   } finally { await page.unroute(endpoint); }
 });
 
-test('private-team membership revocation conceals board cards and rejects the pending move', async ({ page, saved: owner, playwright }) => {
-  const { saved, team, issues, target } = await fixture(owner, 1, true);
-  const issued = await owner.request<InvitationIssued>('/invitations', 'POST', {
-    email: `board-member-${randomUUID()}@example.test`, role: 'member', team_ids: [team.id],
-  }, { 'Idempotency-Key': randomUUID() });
-  const member = await playwright.request.newContext({ baseURL: saved.origin, extraHTTPHeaders: { Origin: saved.origin }, storageState: { cookies: [], origins: [] } });
-  const endpoint = `${saved.origin}${saved.path}/issues/${issues[0].id}`;
-  const accessEndpoint = `${saved.origin}${saved.path}/access`;
-  const listRoute = (url: URL) => url.pathname === `${saved.path}/issues` && url.searchParams.get('team_id') === team.id;
-  let release = () => {}; let releaseAccess = () => {}; let releaseRetry = () => {};
-  try {
-    const accepted = await member.post('/api/v1/invitations/accept', { data: {
-      token: issued.token, display_name: 'Example Board Member', password: process.env.OPENTRACK_BROWSER_PASSWORD,
-    } });
-    expect(accepted.status()).toBe(200);
-    const session = await accepted.json() as Session;
-    await page.context().clearCookies(); await page.context().addCookies((await member.storageState()).cookies);
-    await open(page, saved); await expect(page.locator(`#row-${issues[0].id}`)).toBeVisible();
-    await chooseMove(page, issues[0], target.id);
-    const accessGate = new Promise<void>(resolve => { releaseAccess = resolve; });
-    await page.route(accessEndpoint, async route => {
-      if (route.request().method() === 'GET') await accessGate;
-      await route.continue();
-    });
-    let arrived!: () => void;
-    const received = new Promise<void>(resolve => { arrived = resolve; });
-    const gate = new Promise<void>(resolve => { release = resolve; });
-    await page.route(endpoint, async route => {
-      if (route.request().method() === 'PATCH') { arrived(); await gate; }
-      await route.continue();
-    });
-    const rejected = patchResponse(page, saved, issues[0]);
-    await moveDialog(page, issues[0]).getByRole('button', { name: `Move ${issues[0].key}`, exact: true }).click();
-    await received;
-    const membership = await owner.request<TeamMember>(`/teams/${team.id}/members/${session.user.id}`);
-    const removed = await owner.http.delete(`${owner.path}/teams/${team.id}/members/${session.user.id}`, { headers: {
-      Origin: owner.origin, 'X-CSRF-Token': owner.session.csrf_token,
-      'If-Match': `"team-member:${team.id}:${session.user.id}:${membership.version}"`,
-    } });
-    expect(removed.status()).toBe(204);
-    release();
-    expect((await rejected).status()).toBe(404);
-    await expect(page.locator(`#row-${issues[0].id}`)).toHaveCount(0);
-    await expect(page.getByText(issues[0].title, { exact: true })).toHaveCount(0);
-    expect((await member.get(`${saved.path}/issues/${issues[0].id}`)).status()).toBe(404);
-    expect(await saved.issue(issues[0].id)).toEqual(issues[0]);
-    let retryArrived!: () => void; let retryHeld = false;
-    const retryReceived = new Promise<void>(resolve => { retryArrived = resolve; });
-    const retryGate = new Promise<void>(resolve => { releaseRetry = resolve; });
-    await page.route(listRoute, async route => {
-      if (route.request().method() === 'GET' && !retryHeld) { retryHeld = true; retryArrived(); await retryGate; }
-      await route.continue();
-    });
-    const list = page.locator('.issue-list');
-    await list.getByRole('button', { name: 'Try again', exact: true }).click();
-    await retryReceived;
-    await expect(list.getByRole('combobox', { name: 'Board team', exact: true })).toHaveCount(0);
-    await expect(list.locator(`option[value="${team.id}"], option[value="${target.id}"]`)).toHaveCount(0);
-    await expect(list).not.toContainText(team.name);
-    const retryResponse = page.waitForResponse(response => response.request().method() === 'GET' && listRoute(new URL(response.url())));
-    const workflowResponse = page.waitForResponse(response => response.request().method() === 'GET'
-      && new URL(response.url()).pathname === `${saved.path}/teams/${team.id}/workflow`);
-    releaseRetry();
-    const retried = await retryResponse; expect(retried.status()).toBe(200);
-    expect((await retried.json() as IssuePage).data).toEqual([]);
-    expect((await workflowResponse).status()).toBe(404);
-    await expect(list.getByRole('combobox', { name: 'Board team', exact: true })).toHaveCount(0);
-    await expect(list.locator(`option[value="${team.id}"], option[value="${target.id}"]`)).toHaveCount(0);
-    await expect(list).not.toContainText(team.name);
-    releaseAccess(); await page.unroute(accessEndpoint);
-    await page.reload();
-    await expect(page.locator(`#row-${issues[0].id}`)).toHaveCount(0);
-    await expect(page.getByText(issues[0].title, { exact: true })).toHaveCount(0);
-  } finally {
-    release(); releaseAccess(); releaseRetry();
-    await page.unroute(endpoint); await page.unroute(accessEndpoint); await page.unroute(listRoute);
-    await member.dispose();
-  }
-});
+for (const recovery of ['automatic', 'Try again', 'Open all issues'] as const) {
+  test('connected private board authority: ' + recovery + ' reconstructs the parent before public recovery', async ({ page, saved: owner, playwright }) => {
+    const { saved, team, issues, target: originalTarget } = await fixture(owner, 1, true);
+    const control = await fixture(owner, 1);
+    const query = 'Board authority ' + randomUUID();
+    const issue = await saved.patch(issues[0], { title: query + ' private' });
+    const publicIssue = await control.saved.patch(control.issues[0], { title: query + ' public' });
+    const filters = { q: query, priority: '2', sort: 'priority' };
+    const workflow = await saved.request<Workflow>('/teams/' + team.id + '/workflow');
+    const renamed = await saved.request<Workflow>('/teams/' + team.id + '/statuses/' + originalTarget.id, 'PATCH', {
+      name: 'Private board stage ' + randomUUID(),
+    }, { 'If-Match': '"workflow:' + team.id + ':' + workflow.version + ':true"' });
+    const target = renamed.statuses.find(status => status.id === originalTarget.id)!;
+    const issued = await owner.request<InvitationIssued>('/invitations', 'POST', {
+      email: 'board-authority-' + randomUUID() + '@example.test', role: 'member', team_ids: [team.id],
+    }, { 'Idempotency-Key': randomUUID() });
+    const member = await playwright.request.newContext({ baseURL: saved.origin, extraHTTPHeaders: { Origin: saved.origin }, storageState: { cookies: [], origins: [] } });
+    const endpoint = saved.origin + saved.path + '/issues/' + issue.id;
+    const workflowEndpoint = saved.origin + saved.path + '/teams/' + team.id + '/workflow';
+    const sessionEndpoint = saved.origin + '/api/v1/auth/session';
+    const bootstrapEndpoint = saved.origin + saved.path + '/bootstrap';
+    const accessEndpoint = saved.origin + saved.path + '/access';
+    const listRoute = (address: URL) => address.origin === saved.origin && address.pathname === saved.path + '/issues';
+    function deferred<T>() {
+      let resolve!: (value: T) => void;
+      const promise = new Promise<T>(done => { resolve = done; });
+      return { promise, resolve };
+    }
+    const finish = deferred<void>(), moveGate = deferred<void>(), proofGate = deferred<void>();
+    const sessionGate = deferred<void>(), bootstrapGate = deferred<void>(), accessGate = deferred<void>(), recoveryGate = deferred<void>(), retryGate = deferred<void>();
+    const moveSeen = deferred<BrowserRequest>(), pollSeen = deferred<BrowserRequest>(), workflowPollSeen = deferred<BrowserRequest>();
+    const firstProofSeen = deferred<BrowserRequest>(), proofSeen = deferred<BrowserRequest>();
+    const sessionSeen = deferred<BrowserRequest>(), bootstrapSeen = deferred<BrowserRequest>(), accessSeen = deferred<BrowserRequest>();
+    const recoverySeen = deferred<BrowserRequest>(), retrySeen = deferred<BrowserRequest>();
+    const moves: BrowserRequest[] = [], proofs: BrowserRequest[] = [], sessions: BrowserRequest[] = [];
+    const bootstraps: BrowserRequest[] = [], accesses: BrowserRequest[] = [], earlyPair: BrowserRequest[] = [], recoveryReads: BrowserRequest[] = [], earlyRecoveryReads: BrowserRequest[] = [], retryReads: BrowserRequest[] = [];
+    let backgroundPoll: BrowserRequest | undefined, backgroundResponded = false, proofResponded = false, sessionResponded = false, accessResponded = false, recoveryResponded = false, recoveryArmed = false, retryArmed = false, retryResponded = false, closing = false;
+    let earlySessions = 0;
+    async function forward(route: Route, gate: Promise<void>) {
+      await gate;
+      if (closing) await route.abort('failed').catch(() => {});
+      else await route.continue();
+    }
+    const observe = (response: BrowserResponse) => {
+      if (response.request() === backgroundPoll) backgroundResponded = true;
+      if (response.request() === proofs[recovery === 'automatic' ? 0 : 1] && response.status() === 404) proofResponded = true;
+      if (response.request() === sessions[0] && response.status() === 200) sessionResponded = true;
+      if (response.request() === accesses[0] && response.status() === 200) accessResponded = true;
+      if (response.request() === recoveryReads[0]) recoveryResponded = true;
+      if (response.request() === retryReads[0]) retryResponded = true;
+    };
+    async function responseOf(request: BrowserRequest, status: number) {
+      const response = await request.response();
+      expect(response !== null).toBe(true);
+      expect(response!.request() === request).toBe(true);
+      expect(response!.status()).toBe(status);
+      return response!;
+    }
+    const concealed = async () => {
+      for (const value of [team.name, team.key, target.name, issue.title]) await expect(page.locator('body')).not.toContainText(value);
+      await expect(page.locator('option[value="' + team.id + '"], option[value="' + target.id + '"], option[value="' + issue.status_id + '"]')).toHaveCount(0);
+      await expect(page.locator('#row-' + issue.id)).toHaveCount(0);
+      await expect(page).not.toHaveTitle(new RegExp(team.name));
+    };
+    page.on('response', observe);
+    try {
+      const accepted = await member.post('/api/v1/invitations/accept', { data: {
+        token: issued.token, display_name: 'Example Board Member', password: process.env.OPENTRACK_BROWSER_PASSWORD,
+      } });
+      expect(accepted.status()).toBe(200);
+      const session = await accepted.json() as Session;
+      const grantedResponse = await member.get(bootstrapEndpoint); expect(grantedResponse.status()).toBe(200);
+      const granted = await grantedResponse.json() as Bootstrap;
+      expect(granted.teams.some(value => value.id === team.id)).toBe(true);
+      expect(granted.teams.some(value => value.id === control.team.id)).toBe(true);
+      expect((await member.get(saved.path + '/issues/' + publicIssue.id)).status()).toBe(200);
+      await page.context().clearCookies(); await page.context().addCookies((await member.storageState()).cookies);
+      await open(page, saved, { ...filters, status_id: issue.status_id });
+      expect(new URL(page.url()).searchParams.get('status_id')).toBe(issue.status_id);
+      await expect(page.locator('#row-' + issue.id)).toBeVisible();
+      await expect(page.locator('body')).toContainText(team.name);
+      await chooseMove(page, issue, target.id);
+      await expect(moveDialog(page, issue)).toContainText(target.name);
+      await expect(moveDialog(page, issue).getByRole('button', { name: 'Move ' + issue.key, exact: true })).toBeEnabled();
+
+      await page.route(accessEndpoint, async route => {
+        if (route.request().method() !== 'GET') { await route.continue(); return; }
+        if (!backgroundPoll) {
+          backgroundPoll = route.request(); pollSeen.resolve(backgroundPoll);
+          await finish.promise; await route.abort('failed').catch(() => {}); return;
+        }
+        if (!sessionResponded) earlyPair.push(route.request());
+        accesses.push(route.request()); accessSeen.resolve(route.request());
+        await forward(route, accessGate.promise);
+      });
+      await page.route(workflowEndpoint, async route => {
+        if (route.request().method() !== 'GET') { await route.continue(); return; }
+        if (route.request().headers()['if-none-match']) {
+          workflowPollSeen.resolve(route.request());
+          await finish.promise; await route.abort('failed').catch(() => {}); return;
+        }
+        proofs.push(route.request()); firstProofSeen.resolve(route.request());
+        if (recovery !== 'automatic' && proofs.length === 1) { await route.abort('failed'); return; }
+        proofSeen.resolve(route.request()); await forward(route, proofGate.promise);
+      });
+      await page.route(sessionEndpoint, async route => {
+        if (route.request().method() !== 'GET') { await route.continue(); return; }
+        if (!proofResponded) earlySessions += 1;
+        sessions.push(route.request()); sessionSeen.resolve(route.request());
+        await forward(route, sessionGate.promise);
+      });
+      await page.route(bootstrapEndpoint, async route => {
+        if (route.request().method() !== 'GET') { await route.continue(); return; }
+        if (!sessionResponded) earlyPair.push(route.request());
+        bootstraps.push(route.request()); bootstrapSeen.resolve(route.request());
+        await forward(route, bootstrapGate.promise);
+      });
+      await page.route(listRoute, async route => {
+        const request = route.request(), address = new URL(request.url());
+        if (retryArmed && request.method() === 'GET' && address.searchParams.get('team_id') === team.id) {
+          retryReads.push(request); retrySeen.resolve(request);
+          await forward(route, retryGate.promise); return;
+        }
+        const expectedTeam = recovery === 'Open all issues' ? null : control.team.id;
+        if (request.method() === 'GET' && address.searchParams.get('team_id') === expectedTeam
+            && Object.entries(filters).every(([key, value]) => address.searchParams.get(key) === value)) {
+          if (!recoveryArmed || !accessResponded) earlyRecoveryReads.push(request);
+          recoveryReads.push(request); recoverySeen.resolve(request);
+          await forward(route, recoveryGate.promise); return;
+        }
+        await route.continue();
+      });
+      await page.route(endpoint, async route => {
+        if (route.request().method() !== 'PATCH') { await route.continue(); return; }
+        moves.push(route.request()); moveSeen.resolve(route.request()); await forward(route, moveGate.promise);
+      });
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      const heldPoll = await pollSeen.promise;
+      const heldWorkflowPoll = await workflowPollSeen.promise;
+      expect(heldWorkflowPoll.headers()['if-none-match'] !== undefined).toBe(true);
+      await moveDialog(page, issue).getByRole('button', { name: 'Move ' + issue.key, exact: true }).click();
+      const move = await moveSeen.promise;
+      expect(move.headers()['if-match'] === issue.etag).toBe(true);
+      expect(move.postDataJSON()).toEqual({ status_id: target.id });
+      const membership = await owner.request<TeamMember>('/teams/' + team.id + '/members/' + session.user.id);
+      const removed = await owner.http.delete(owner.path + '/teams/' + team.id + '/members/' + session.user.id, { headers: {
+        Origin: owner.origin, 'X-CSRF-Token': owner.session.csrf_token,
+        'If-Match': '"team-member:' + team.id + ':' + session.user.id + ':' + membership.version + '"',
+      } });
+      expect(removed.status()).toBe(204);
+      moveGate.resolve(); await responseOf(move, 404);
+      const firstProof = await firstProofSeen.promise;
+      expect(firstProof.headers()['if-none-match']).toBeUndefined();
+      let retryRead: Promise<BrowserRequest> | undefined;
+      if (recovery !== 'automatic') {
+        expect(await firstProof.response()).toBeNull();
+        expect(firstProof.failure() !== null).toBe(true);
+        const list = page.locator('.issue-list');
+        await expect(list.getByRole('heading', { name: 'Board unavailable.', exact: true })).toBeVisible();
+        await expect(list.getByRole('button', { name: 'Try again', exact: true })).toBeEnabled();
+        await expect(list.getByRole('button', { name: 'Open all issues', exact: true })).toHaveAttribute('aria-disabled', 'false');
+        await expect(list).not.toContainText(team.name);
+        expect(sessions.length + bootstraps.length + accesses.length).toBe(0);
+        if (recovery === 'Try again') { retryRead = retrySeen.promise; retryArmed = true; }
+        await list.getByRole('button', { name: recovery, exact: true }).click();
+        if (retryRead) {
+          const heldRetry = await retryRead, retryQuery = new URL(heldRetry.url()).searchParams;
+          expect(retryReads.length).toBe(1); expect(retryResponded).toBe(false); expect(heldRetry.failure()).toBeNull();
+          for (const [key, value] of [...Object.entries(filters), ['team_id', team.id], ['status_id', issue.status_id], ['limit', '50']]) expect(retryQuery.get(key)).toBe(value);
+          await expect(list).toHaveAttribute('aria-busy', 'true');
+          await expect(list.getByRole('combobox', { name: 'Board team', exact: true })).toHaveCount(0);
+          await expect(list.locator('option[value="' + team.id + '"], option[value="' + target.id + '"], option[value="' + issue.status_id + '"]')).toHaveCount(0);
+          await expect(list).not.toContainText(team.name);
+          await expect(page.locator('#row-' + issue.id)).toHaveCount(0);
+          await expect(page.getByText(issue.title, { exact: true })).toHaveCount(0);
+          expect(sessions.length + bootstraps.length + accesses.length).toBe(0); expect(proofs.length).toBe(1);
+          retryGate.resolve();
+          expect((await (await responseOf(heldRetry, 200)).json() as IssuePage).data).toEqual([]);
+          expect(retryResponded).toBe(true);
+        }
+      }
+      const proof = await proofSeen.promise;
+      expect(proof.url() === workflowEndpoint).toBe(true);
+      expect(proof.headers()['if-none-match']).toBeUndefined();
+      expect(sessions.length + bootstraps.length + accesses.length).toBe(0);
+      const pendingBoard = page.locator('.issue-list');
+      await expect(pendingBoard).toHaveAttribute('aria-busy', 'true');
+      await expect(pendingBoard.getByRole('combobox', { name: 'Board team', exact: true })).toHaveCount(0);
+      await expect(pendingBoard.locator('option[value="' + team.id + '"], option[value="' + target.id + '"], option[value="' + issue.status_id + '"]')).toHaveCount(0);
+      await expect(pendingBoard).not.toContainText(team.name);
+      proofGate.resolve(); await responseOf(proof, 404);
+      await concealed();
+      expect((await member.get(saved.path + '/issues/' + issue.id)).status()).toBe(404);
+      await expect(page.getByRole('dialog', { name: 'Move ' + issue.key, exact: true })).toHaveCount(0);
+      await expect(page.locator('#row-' + publicIssue.id)).toHaveCount(0);
+      expect(earlyRecoveryReads.length).toBe(0); expect(recoveryReads.length).toBe(0);
+      expect(backgroundResponded).toBe(false); expect(heldPoll.failure()).toBeNull();
+
+      const canonicalSessionRequest = await sessionSeen.promise;
+      expect(earlySessions).toBe(0);
+      expect(sessions.length).toBe(1); expect(bootstraps.length + accesses.length).toBe(0);
+      expect(earlyRecoveryReads.length).toBe(0); expect(recoveryReads.length).toBe(0);
+      sessionGate.resolve();
+      const refreshedSession = await (await responseOf(canonicalSessionRequest, 200)).json() as Session;
+      expect(refreshedSession.user.id === session.user.id).toBe(true);
+      expect(refreshedSession.csrf_token === session.csrf_token).toBe(true);
+      expect(refreshedSession.workspaces.find(value => value.id === saved.workspace)?.role).toBe('member');
+      const acceptedBootstrapRequest = await bootstrapSeen.promise;
+      const acceptedAccessRequest = await accessSeen.promise;
+      expect(earlyPair.length).toBe(0);
+      expect(bootstraps.length).toBe(1); expect(accesses.length).toBe(1);
+      bootstrapGate.resolve();
+      const refreshed = await (await responseOf(acceptedBootstrapRequest, 200)).json() as Bootstrap;
+      expect(refreshed.auth_epoch === granted.auth_epoch).toBe(false);
+      expect(refreshed.teams.some(value => value.id === team.id)).toBe(false);
+      expect(refreshed.statuses.some(value => value.team_id === team.id)).toBe(false);
+      expect(refreshed.teams.some(value => value.id === control.team.id)).toBe(true);
+      await concealed();
+      await expect(page.locator('#row-' + publicIssue.id)).toHaveCount(0);
+      expect(earlyRecoveryReads.length).toBe(0); expect(recoveryReads.length).toBe(0);
+      recoveryArmed = true;
+      accessGate.resolve();
+      const access = await (await responseOf(acceptedAccessRequest, 200)).json() as { auth_epoch: string; role: string; archived: boolean };
+      expect(access.auth_epoch === refreshed.auth_epoch).toBe(true);
+      expect(access.role).toBe('member'); expect(access.archived).toBe(false);
+      if (retryRead) expect((await (await responseOf(await retryRead, 200)).json() as IssuePage).data.length).toBe(0);
+      for (const [key, value] of Object.entries(filters)) expect(new URL(page.url()).searchParams.get(key)).toBe(value);
+      if (recovery === 'Open all issues') {
+        await expect(page).toHaveURL(address => !address.searchParams.has('team_id') && !address.searchParams.has('status_id')
+          && (address.searchParams.get('layout') ?? 'list') === 'list');
+      } else {
+        expect(new URL(page.url()).searchParams.get('team_id')).toBe(team.id);
+        expect(new URL(page.url()).searchParams.get('layout')).toBe('board');
+        expect(new URL(page.url()).searchParams.get('status_id')).toBe(issue.status_id);
+        await expect(page.getByRole('heading', { name: 'Team unavailable.', exact: true })).toBeVisible();
+        await page.getByRole('combobox', { name: 'Board team', exact: true }).selectOption(control.team.id);
+      }
+      const recoveredRequest = await recoverySeen.promise;
+      expect(new URL(page.url()).searchParams.has('status_id')).toBe(false);
+      const receivedQuery = new URL(recoveredRequest.url()).searchParams;
+      for (const [key, value] of Object.entries(filters)) expect(receivedQuery.get(key)).toBe(value);
+      expect(receivedQuery.get('team_id') === (recovery === 'Open all issues' ? null : control.team.id)).toBe(true);
+      expect(receivedQuery.get('limit')).toBe('50');
+      expect(['status_id', 'layout', 'display_version'].some(key => receivedQuery.has(key))).toBe(false);
+      expect(earlyRecoveryReads.length).toBe(0); expect(recoveryReads.length).toBe(1);
+      expect(recoveredRequest.failure()).toBeNull(); expect(recoveryResponded).toBe(false);
+      await expect(page.locator('.issue-list')).toHaveAttribute('aria-busy', 'true');
+      await expect(page.locator('#row-' + publicIssue.id)).toHaveCount(0);
+      await concealed();
+      recoveryGate.resolve();
+      const recovered = await (await responseOf(recoveredRequest, 200)).json() as IssuePage;
+      expect(recoveryResponded).toBe(true);
+      expect(recovered.data.some(value => value.id === publicIssue.id)).toBe(true);
+      expect(recovered.data.some(value => value.id === issue.id)).toBe(false);
+      await expect(page.locator('#row-' + publicIssue.id)).toBeVisible();
+      await concealed();
+      expect(recoveryReads.length).toBe(1);
+      expect(retryReads.length).toBe(recovery === 'Try again' ? 1 : 0);
+      expect(sessions.length).toBe(1); expect(bootstraps.length).toBe(1); expect(accesses.length).toBe(1);
+      expect(proofs.length).toBe(recovery === 'automatic' ? 1 : 2);
+      expect(backgroundResponded).toBe(false); expect(heldPoll.failure()).toBeNull();
+      expect(moves.length).toBe(1);
+      expect(await saved.issue(issue.id)).toEqual(issue);
+    } finally {
+      closing = true; finish.resolve(); moveGate.resolve(); proofGate.resolve();
+      sessionGate.resolve(); bootstrapGate.resolve(); accessGate.resolve(); recoveryGate.resolve(); retryGate.resolve();
+      page.off('response', observe);
+      await page.unroute(endpoint); await page.unroute(workflowEndpoint); await page.unroute(sessionEndpoint);
+      await page.unroute(bootstrapEndpoint); await page.unroute(accessEndpoint); await page.unroute(listRoute);
+      await member.dispose();
+    }
+    if (recovery === 'Try again') {
+      await page.goto(url(saved, { ...filters, status_id: issue.status_id }));
+      await page.reload();
+      await expect(page.getByRole('heading', { name: 'Team unavailable.', exact: true })).toBeVisible();
+      await concealed();
+    }
+  });
+}
 
 test('an archived drop target preserves intent until an explicit active replacement is reviewed and saved', async ({ page, saved: owner }) => {
   const { saved, issues, statuses, target } = await fixture(owner, 1);

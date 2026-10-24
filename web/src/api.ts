@@ -29,6 +29,7 @@ let sessionGeneration = 0;
 const publicAuthenticationEndpoints = new Set(['/auth/login', '/auth/recovery/complete', '/setup', '/setup/status', '/invitations/preview']);
 // A response from an earlier login must not expire a newer session.
 export function advanceSessionGeneration(): void { sessionGeneration += 1; }
+export function currentSessionGeneration(): number { return sessionGeneration; }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const generation = sessionGeneration;

@@ -7,7 +7,7 @@ import { Avatar, ErrorBanner, Loading, StatusMark } from '../components';
 import { formatDate } from '../issue-model';
 import { restoreIssueRowFocus } from './focus';
 import { IssueBoard } from './IssueBoard';
-import { issuesUrl, Link, navigate, parseRoute } from '../router';
+import { issuesUrl, Link, navigate, navigateConfirmed, parseRoute } from '../router';
 import { categoryOrder, priorities, type Bootstrap, type Issue, type IssuePage, type Session, type Status } from '../types';
 import type { Workflow } from '../workflows/types';
 
@@ -15,7 +15,7 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
   charactersEnabled?: boolean; workspaceArchived?: boolean; workspaceId: string; data: Bootstrap; session: Session; params: URLSearchParams; selectedId?: string;
   refresh: number; create: () => void; searchRef: React.RefObject<HTMLInputElement | null>; headingRef?: React.RefObject<HTMLHeadingElement | null>;
   updated?: (issue: Issue) => void; workflowChanged?: (workflow: Workflow) => void;
-  teamAccessLost?: (teamId: string) => void;
+  teamAccessLost?: (teamId: string) => boolean;
 }) {
   const sessionScope = useSessionScope(session);
   const historyScope = `${workspaceId}:${sessionScope}:${data.auth_epoch}`;
@@ -98,8 +98,8 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
       if (workflow.team_id !== team) throw new Error('Board access could not be confirmed.');
     } catch (error) {
       if (read.current() && deniedBoard.current?.authority === historyScope && deniedBoard.current.team === team && data.teams.some(item => item.id === team) && error instanceof ApiError && [403, 404].includes(error.status)) {
-        read.notify?.(team);
-        if (exit && read.notify && read.currentIntent()) navigate(exit);
+        const accepted = read.notify?.(team) === true;
+        if (exit && accepted && read.currentIntent()) navigateConfirmed(exit);
       }
       throw error;
     }
