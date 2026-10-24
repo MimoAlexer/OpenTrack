@@ -1,0 +1,231 @@
+{
+  "date": "2026-10-24",
+  "base_main": "947bca40cd13ae205a670d07755b8a6616dca9f6",
+  "scope": "Ordinary browser transport plus browser-produced actual payload relayed through real commit/response-loss/UI recovery; no product implementation change.",
+  "baseline_runs": [
+    {
+      "phase": "original_relay",
+      "source_head": "cbcfa10c292871fb9280f3dfef351333284a6824",
+      "candidate_sha256": "220821c34476cce5b0a04ae6d6dec0b2984b407a66898fcc356b8cee83bb689e",
+      "binary_sha256": "af1c435313cd169f6530be7c5a5b8cbcd93091b6bce61630e125506d8eaade51",
+      "frontend_sha256": "d9d1ff6bc2a8734573076d8f308ccc2876afc95d584ad12e8c3f417c837cb80c",
+      "cases": [
+        {
+          "browser": "chromium",
+          "status": "passed"
+        },
+        {
+          "browser": "firefox",
+          "status": "passed"
+        },
+        {
+          "browser": "webkit",
+          "status": "failed"
+        }
+      ],
+      "passed": 2,
+      "failed": 1,
+      "browser_exit": 1,
+      "worker_profile": {
+        "poll_interval_ms": 2000,
+        "max_connections": 5,
+        "lease_seconds": 60
+      },
+      "running_executables_match": true,
+      "served_frontend_and_core_profile_match": true,
+      "observations": [],
+      "cleanup_failures": [],
+      "all_children_reaped": true,
+      "browser_namespace_zero": true,
+      "source_and_runtime_unchanged": true,
+      "exact_temporary_target_removed": true,
+      "fixture_database_and_artifacts_retained": true
+    },
+    {
+      "phase": "observed_relay",
+      "source_head": "947bca40cd13ae205a670d07755b8a6616dca9f6",
+      "candidate_sha256": "3348340bacac78d174d0ec980f286f4072e7fbca67b1c9216ffc1d791744f56d",
+      "binary_sha256": "af1c435313cd169f6530be7c5a5b8cbcd93091b6bce61630e125506d8eaade51",
+      "frontend_sha256": "d9d1ff6bc2a8734573076d8f308ccc2876afc95d584ad12e8c3f417c837cb80c",
+      "cases": [
+        {
+          "browser": "chromium",
+          "status": "passed"
+        },
+        {
+          "browser": "firefox",
+          "status": "passed"
+        },
+        {
+          "browser": "webkit",
+          "status": "failed"
+        }
+      ],
+      "passed": 2,
+      "failed": 1,
+      "browser_exit": 1,
+      "worker_profile": {
+        "poll_interval_ms": 2000,
+        "max_connections": 5,
+        "lease_seconds": 60
+      },
+      "running_executables_match": true,
+      "served_frontend_and_core_profile_match": true,
+      "observations": [
+        {
+          "phase": "before_fetch",
+          "browser": "chromium",
+          "body_present": true,
+          "body_bytes": 45,
+          "body_sha256": "1745bb83d70ac25b483c521dcc7386601ed84be786c1002de41e9da7a423bb48",
+          "content_length": null,
+          "content_type": "application/octet-stream",
+          "if_match_present": true
+        },
+        {
+          "phase": "after_fetch",
+          "browser": "chromium",
+          "status": 200,
+          "problem": null
+        },
+        {
+          "phase": "before_fetch",
+          "browser": "firefox",
+          "body_present": true,
+          "body_bytes": 45,
+          "body_sha256": "1745bb83d70ac25b483c521dcc7386601ed84be786c1002de41e9da7a423bb48",
+          "content_length": "45",
+          "content_type": "application/octet-stream",
+          "if_match_present": true
+        },
+        {
+          "phase": "after_fetch",
+          "browser": "firefox",
+          "status": 200,
+          "problem": null
+        },
+        {
+          "phase": "before_fetch",
+          "browser": "webkit",
+          "body_present": false,
+          "body_bytes": null,
+          "body_sha256": null,
+          "content_length": null,
+          "content_type": "application/octet-stream",
+          "if_match_present": true
+        },
+        {
+          "phase": "after_fetch",
+          "browser": "webkit",
+          "status": 422,
+          "problem": {
+            "code": "validation_failed",
+            "detail": "This file exceeds the configured upload size limit"
+          }
+        }
+      ],
+      "cleanup_failures": [],
+      "all_children_reaped": true,
+      "browser_namespace_zero": true,
+      "source_and_runtime_unchanged": true,
+      "exact_temporary_target_removed": true,
+      "fixture_database_and_artifacts_retained": true
+    }
+  ],
+  "corrected": {
+    "candidate_sha256": "e07f72cdfbb03aaff92919c255f1feced77f75825a2a93f87d933f8b057df121",
+    "binary_sha256": "af1c435313cd169f6530be7c5a5b8cbcd93091b6bce61630e125506d8eaade51",
+    "frontend_sha256": "d9d1ff6bc2a8734573076d8f308ccc2876afc95d584ad12e8c3f417c837cb80c",
+    "source_files": 1017,
+    "source_fingerprint": "3085988352b6e5c02c1172b39222b5b7bbddf5fb99dd7fb1dc186491c5b99360",
+    "cases": [
+      {
+        "browser": "chromium",
+        "case": "ordinary browser attachment upload commits its real file bytes and permits an authorized exact download",
+        "status": "passed"
+      },
+      {
+        "browser": "chromium",
+        "case": "a lost committed upload response keeps its pending draft and retries the same ready attachment without resending bytes",
+        "status": "passed"
+      },
+      {
+        "browser": "firefox",
+        "case": "ordinary browser attachment upload commits its real file bytes and permits an authorized exact download",
+        "status": "passed"
+      },
+      {
+        "browser": "firefox",
+        "case": "a lost committed upload response keeps its pending draft and retries the same ready attachment without resending bytes",
+        "status": "passed"
+      },
+      {
+        "browser": "webkit",
+        "case": "ordinary browser attachment upload commits its real file bytes and permits an authorized exact download",
+        "status": "passed"
+      },
+      {
+        "browser": "webkit",
+        "case": "a lost committed upload response keeps its pending draft and retries the same ready attachment without resending bytes",
+        "status": "passed"
+      }
+    ],
+    "passed": 6,
+    "failed": 0,
+    "worker_profile": {
+      "poll_interval_ms": 2000,
+      "max_connections": 5,
+      "lease_seconds": 60
+    },
+    "running_executables_match": true,
+    "served_frontend_and_core_profile_match": true,
+    "all_children_exit0_reaped": true,
+    "browser_namespace_zero": true,
+    "cleanup_failures": [],
+    "source_and_runtime_unchanged": true,
+    "private_run_modes_verified": true,
+    "exact_temporary_source_cleanup_verified": true,
+    "fixture_database_and_artifacts_retained": true
+  },
+  "compiler": {
+    "exit_code": 0,
+    "elapsed_seconds": 0.421,
+    "candidate_sha256": "e07f72cdfbb03aaff92919c255f1feced77f75825a2a93f87d933f8b057df121",
+    "compiler_platform": "Windows",
+    "node_version": "v24.14.1",
+    "typescript_version": "7.0.2",
+    "owned_compiler_reaped": true
+  },
+  "complete_matrix_discovery": {
+    "total": 165,
+    "per_engine": {
+      "chromium": 55,
+      "firefox": 55,
+      "webkit": 55
+    },
+    "selection_order_sha256": "0f3a9b0cad83be87a1e58272502096f04ec1046486b8fa550efe688b842df076",
+    "listing_only": true
+  },
+  "source_sha256": {
+    "web/e2e/attachment-recovery.browser.ts": "e07f72cdfbb03aaff92919c255f1feced77f75825a2a93f87d933f8b057df121",
+    "web/src/attachments/browser.ts": "a89a2c5a729cbbd7544265c89d310c8f0c5b4a31598f7c473aa62180dbbf2bd6",
+    "web/src/attachments/useUploads.ts": "6f79ebf15d74fd0b3c48441fa8dfd486c82da3d69f0f8d0a317b6d8c40b00b45"
+  },
+  "payload": {
+    "size_bytes": 45,
+    "sha256": "1745bb83d70ac25b483c521dcc7386601ed84be786c1002de41e9da7a423bb48"
+  },
+  "preserved_preflight_attempts": [
+    "First isolated migration environment omitted the required explicit public URL and refused before migration; its new fixture was retained.",
+    "Linux TypeScript lacked its optional platform package; the already installed Windows7.0.2 compiler/Node24.14.1 passed without installation or dependency change.",
+    "First API artifact probe omitted the required HTML Accept header and stopped before Node; owned API/worker exited0 and the fixture was retained. The probe was corrected before a new fixture."
+  ],
+  "migration_or_rollback_impact": "No production implementation, migration, role-grant or format changes; test/evidence-only increment needs no data rollback.",
+  "limits": [
+    "The fault case forwards only measured original XHR.send bytes, never substituted fixture bytes. The same relay is used for every engine.",
+    "The ordinary case has no upload-specific interception, XHR instrumentation or payload relay. The fault case does not qualify browser-native wire serialization during injected loss.",
+    "All original60-second case/10-second expectation-action/zero-retry settings and default worker2000ms/five connections/60-second lease remain.",
+    "Complete165 discovery is not an executed165 pass; fresh exact-head CI/final review remain required before integration.",
+    "Physical file pickers, native app/assistive input, scanner outages and whole-product acceptance are not established by these six cases."
+  ]
+}
