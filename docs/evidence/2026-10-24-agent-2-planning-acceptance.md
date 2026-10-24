@@ -1,0 +1,14 @@
+# Additional Projects and milestone acceptance
+
+Executed 24 October 2026 against the real isolated API/PostgreSQL runtime, backend from qualified main `39c363d8` and frontend at local `5a878c5`. Two temporary owned browser-test additions passed application/browser type checks and listed exactly six cases. Chromium, Firefox and WebKit each passed both journeys: [6/6 receipt](2026-10-24-agent-2-planning-acceptance.json). Source, executable and frontend hashes stayed unchanged throughout the run. The worker startup record reported 2000 ms, five connections and a 60-second lease; dispatch performance remains unqualified.
+
+| Journey | Observed result |
+| --- | --- |
+| Independent brief through archive/restore | A dirty and held in-flight brief save disabled archive. The real HTTP200 save advanced only the document version. UI archive/restore sent only their archive flags with current metadata validators, advancing metadata once each while preserving the stored brief and contextual project fields. Archived reload removed editing controls; a direct same-owner brief write returned HTTP409 without mutation. Linked issue facts, project scope and the authored update snapshot stayed unchanged. After restoration a real UI save advanced the same document once, leaving metadata unchanged. |
+| Milestone live scope to zero | Five assigned sources produced 1 completed / 2 eligible, with canceled work excluded and archived/deleted sources absent. Archiving the open source and deleting the completed source changed the actual refreshed overview to canceled-only 0/0. Archiving the canceled source produced empty 0/0, preserved across reload. Both zero states omitted percentages/progress bars; exact visible source IDs and overview/detail counts agreed. Rendered calculation timestamps matched actual responses, and manual Planned state stayed unchanged. |
+
+The original 20 October archive/restore qualification predates independent project documents. The existing planning qualification already covers a never-populated, manually completed milestone. These new checks exercise the later document/metadata boundary and a live denominator becoming zero. They add no production behavior or migration.
+
+Both temporary test files were restored byte-for-byte after the owned API/worker cleanup and browser lease ended. Their reviewed patches and hashes are preserved for later focused regression publication. This run does not establish permanent checked-in coverage or qualify a later changed head.
+
+Issue #31's F14-A3 checkbox was synchronized with the canonical ledger and its existing accepted API/three-engine empty-scope evidence; the issue remains open. Project lifecycle, broader board/list/ACL parity, reporting lag/replay, manual rank, inherited physical/native/assistive and recovery gates remain open. The separate private-board exit hold and conditional parent integration are unchanged.

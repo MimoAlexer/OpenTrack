@@ -1,0 +1,92 @@
+{
+  "format_version": 1,
+  "scope": "Additional existing Projects/milestone connected acceptance; two temporary owned test additions, no production change.",
+  "source_head": "5a878c513fb3613aa235c236874bdebac5e286e3",
+  "server_sha256": "4ccb63b478051701d180599af546a8e0bfbdea66e5d384b33566d8a297e436e4",
+  "frontend_tree_sha256": "9b848bb4d4cbcf8da22c760552c05358627fdb2b345878292c63f1f23049a5d7",
+  "test_source_sha256": {
+    "web/e2e/projects.browser.ts": "128863b676d1ad0ee5d5f6e5fac4c27a15ba6210949015247186c58746b4ad7a",
+    "web/e2e/planning.browser.ts": "bba4b7dd8a5ad3a9411b82a529699b0d7b1948c71afc592fa4f97f5c40e34ada"
+  },
+  "retained_test_patch_sha256": {
+    "web/e2e/projects.browser.ts": "b011e1eb486a90a90bd5d05364bc9a70e2ed3562adc377510531534a98508aa1",
+    "web/e2e/planning.browser.ts": "5818eefc445e6626c320186d0c52d72f73bd86936cd3bb32b469fba260155745"
+  },
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "milestone live scope reaches canceled-only and empty without inventing completion",
+      "status": "passed",
+      "duration_ms": 2621
+    },
+    {
+      "browser": "chromium",
+      "check": "project archive guards an independent brief through pending save, read-only rejection and restore",
+      "status": "passed",
+      "duration_ms": 3079
+    },
+    {
+      "browser": "firefox",
+      "check": "milestone live scope reaches canceled-only and empty without inventing completion",
+      "status": "passed",
+      "duration_ms": 4231
+    },
+    {
+      "browser": "firefox",
+      "check": "project archive guards an independent brief through pending save, read-only rejection and restore",
+      "status": "passed",
+      "duration_ms": 4107
+    },
+    {
+      "browser": "webkit",
+      "check": "milestone live scope reaches canceled-only and empty without inventing completion",
+      "status": "passed",
+      "duration_ms": 3398
+    },
+    {
+      "browser": "webkit",
+      "check": "project archive guards an independent brief through pending save, read-only rejection and restore",
+      "status": "passed",
+      "duration_ms": 3673
+    }
+  ],
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "per_engine": 2,
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "typecheck": "pass",
+    "listed_cases": 6,
+    "command_exit_code": 0,
+    "inputs_unchanged": true,
+    "test_files_restored_exactly": true
+  },
+  "playwright_version": "1.64.1",
+  "worker_startup_settings": [
+    {
+      "poll_interval_ms": 2000,
+      "max_connections": 5,
+      "lease_seconds": 60
+    }
+  ],
+  "observed": [
+    "Independent project brief: dirty/in-flight save blocks archive; canonical saved content/version persist.",
+    "UI archive and restore each send only the archive flag with the current metadata validator, advance metadata once and retain brief identity/version/body.",
+    "Archived UI is read-only; a real same-owner brief mutation returns409 without changing durable state. Linked issue, scope and authored update remain unchanged.",
+    "Restored brief accepts a real explicit save with one body-version increment and unchanged metadata.",
+    "Milestone starts at1completed/2eligible with canceled exclusion; real scope changes and Refresh projects produce canceled-only0/0, then empty0/0 and persisted reload.",
+    "Milestone overview and detail progress agree; rendered calculation timestamps match actual overview responses. Visible source IDs match exact permitted scope; Planned state remains unchanged."
+  ],
+  "limits": [
+    "Six selected checks, not a complete browser matrix or whole-product acceptance.",
+    "Temporary E2E additions were restored; permanent regression promotion and later integrated-head qualification remain separate work.",
+    "No App/API parent hunk, migration-helper or schema change/import.",
+    "No new private-reader revocation, physical input, assistive technology, native GUI or transfer/recovery evidence.",
+    "No reporting-consumer lag/replay or worker dispatch diagnosis; earlier retained default workflow failures remain open.",
+    "The known155 private-board exit hold and qualified152 dependency remain unresolved."
+  ]
+}
