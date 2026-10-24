@@ -223,7 +223,7 @@
   "migration_or_rollback_impact": "No production implementation, migration, role-grant or format changes; test/evidence-only increment needs no data rollback.",
   "limits": [
     "The fault case forwards only measured original XHR.send bytes, never substituted fixture bytes. The same relay is used for every engine.",
-    "The ordinary case uses uninstrumented/unrouted browser upload. The fault case does not qualify browser-native wire serialization during injected loss.",
+    "The ordinary case has no upload-specific interception, XHR instrumentation or payload relay. The fault case does not qualify browser-native wire serialization during injected loss.",
     "All original60-second case/10-second expectation-action/zero-retry settings and default worker2000ms/five connections/60-second lease remain.",
     "Complete165 discovery is not an executed165 pass; fresh exact-head CI/final review remain required before integration.",
     "Physical file pickers, native app/assistive input, scanner outages and whole-product acceptance are not established by these six cases."

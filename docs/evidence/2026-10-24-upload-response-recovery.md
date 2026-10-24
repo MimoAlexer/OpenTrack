@@ -4,8 +4,9 @@
 on one new isolated current-schema fixture: six passes, zero failures. Production
 implementation, migrations, deployment grant files and file formats are unchanged.
 
-The ordinary case uses the browser's own uninstrumented upload of the selected
-45-byte file. It requires HTTP200/ready metadata, a saved document reference and
+The ordinary case uses the browser's own upload of the selected45-byte file,
+without upload-specific interception, XHR instrumentation or payload relay.
+It requires HTTP200/ready metadata, a saved document reference and
 an authorized download with exact bytes and SHA-256.
 
 The fault case measures the actual Blob/File passed to the original synchronous
