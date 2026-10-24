@@ -16,6 +16,8 @@ import os
 from pathlib import Path
 import re
 import secrets
+import signal
+import stat
 import subprocess
 import tarfile
 import time
@@ -26,6 +28,7 @@ import urllib.request
 
 RECOVERY_VOLUMES = ("database", "blobs", "database_secrets", "api_secrets",
                     "migration_secrets", "worker_secrets", "operator_secrets")
+OPTIONAL_RECOVERY_VOLUMES = ("operator_output",)
 RECOVERY_LABEL = "org.opentrack.qualification.recovery"
 RELAY_COMMAND = ["reverse-proxy", "--from", "http://:8080", "--to", "http://app:8080"]
 RELAY_TMPFS = ["/data:uid=10001,gid=10001,mode=0700,size=4m",
@@ -61,7 +64,7 @@ def validate_project(project):
 def validate_compose(config, project, port):
     require(config.get("name") == validate_project(project), "Compose resolved a different project")
     volumes = config.get("volumes", {})
-    require(set(RECOVERY_VOLUMES) <= set(volumes) <= set(RECOVERY_VOLUMES) | {"operator_output"},
+    require(set(RECOVERY_VOLUMES) <= set(volumes) <= set(RECOVERY_VOLUMES + OPTIONAL_RECOVERY_VOLUMES),
             "Recovery requires exactly the normal installation volume inventory")
     for name, volume in volumes.items():
         require(not volume.get("external") and not volume.get("driver_opts")
@@ -99,6 +102,36 @@ def validate_compose(config, project, port):
             require("offline_ingress" not in service.get("networks", {}),
                     "Application services cannot use the relay's outward network")
             require(not ports, "Recovery refuses additional published ports")
+
+
+def validate_operator_output_profile(config):
+    service = config.get("services", {}).get("operator-output-init", {})
+    mounts = service.get("volumes") or []
+    require("operator_output" in config.get("volumes", {})
+            and service.get("image") == "opentrack-bootstrap:local"
+            and service.get("command") == ["prepare-output", "--directory", "/operator-output"]
+            and not service.get("entrypoint") and service.get("network_mode") == "none"
+            and not service.get("networks") and service.get("user") == "0:0"
+            and service.get("read_only") and service.get("cap_drop") == ["ALL"]
+            and set(service.get("cap_add") or []) == {"CHOWN", "FOWNER", "DAC_OVERRIDE"}
+            and service.get("security_opt") == ["no-new-privileges:true"]
+            and len(mounts) == 1 and mounts[0].get("type") == "volume"
+            and mounts[0].get("source") == "operator_output"
+            and mounts[0].get("target") == "/operator-output" and not mounts[0].get("read_only"),
+            "Selected operator output requires its fixed networkless private initializer")
+
+
+def check_operator_output(root):
+    info = root.lstat()
+    require(stat.S_ISDIR(info.st_mode) and info.st_uid == info.st_gid == 10001
+            and stat.S_IMODE(info.st_mode) == 0o700,
+            "Operator output directory must retain private service ownership and permissions")
+    require({path.name for path in root.iterdir()} == {"recovery-qualification.txt"},
+            "Operator output must contain exactly its private qualification artifact")
+    info = (root / "recovery-qualification.txt").lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == info.st_gid == 10001
+            and stat.S_IMODE(info.st_mode) == 0o600 and info.st_size > 0,
+            "Operator output artifact must be a nonempty private service-owned regular file")
 
 
 def safe_members(archive):
@@ -142,10 +175,16 @@ def checked_archive(path, checksum):
 
 def volume_operation(action, volume, storage_key=None):
     """Run only inside the isolated bootstrap helper with two named mounts."""
-    require(volume in RECOVERY_VOLUMES, "Unknown recovery volume")
+    require(volume in RECOVERY_VOLUMES + OPTIONAL_RECOVERY_VOLUMES, "Unknown recovery volume")
     root, backup = Path("/volume"), Path("/backup")
+    if action == "check-output":
+        require(volume == "operator_output", "Private output inspection requires the selected optional volume")
+        check_operator_output(root)
+        return
     archive_path, checksum = backup / f"{volume}.tar", backup / f"{volume}.sha256"
     if action == "snapshot":
+        if volume == "operator_output":
+            check_operator_output(root)
         os.chmod(backup, 0o700)
         with archive_path.open("xb") as output:
             os.chmod(archive_path, 0o600)
@@ -186,6 +225,15 @@ def volume_operation(action, volume, storage_key=None):
                 damaged.unlink()
     with checked_archive(archive_path, checksum) as archive:
         members = safe_members(archive)
+        if volume == "operator_output":
+            entries = {member.name.removeprefix("./"): member for member in members}
+            require(set(entries) == {".", "recovery-qualification.txt"}
+                    and entries["."].isdir() and entries["."].mode == 0o700
+                    and entries["recovery-qualification.txt"].isfile()
+                    and entries["recovery-qualification.txt"].mode == 0o600
+                    and entries["recovery-qualification.txt"].size > 0
+                    and all(member.uid == member.gid == 10001 for member in members),
+                    "Operator output archive must contain only its privately owned directory and artifact")
         if action == "restore":
             require(not any(root.iterdir()), "Recovery refuses a nonempty target volume")
             options = {"numeric_owner": True}
@@ -235,6 +283,8 @@ def volume_operation(action, volume, storage_key=None):
                     require(hashlib.file_digest(current, "sha256").digest()
                             == hashlib.file_digest(original, "sha256").digest(),
                             "Restored volume bytes differ from their snapshot")
+        if volume == "operator_output":
+            check_operator_output(root)
 
 
 def require(condition, message):
@@ -377,11 +427,13 @@ class Qualification:
         return information[0]
 
     def cleanup_recovery(self, *, remove_backup=False):
+        self.cleanup_operator_output()
+        self.cleanup_operator_output(initializer=True)
         target = self.project + "-restore"
         restored = Qualification(argparse.Namespace(project=target, url=self.url,
                                  output=str(self.output), expected_architecture=self.expected_architecture,
                                  compose_file=self.compose_files))
-        config = json.loads(restored.dc("config", "--format", "json").stdout)
+        config = json.loads(restored.dc("--profile", "operator", "config", "--format", "json").stdout)
         validate_compose(config, target, self.port)
         backup = self.project + "_recovery_backup"
         information = self.volume_info(backup, optional=True)
@@ -420,7 +472,8 @@ class Qualification:
         helper = self.command(["docker", "container", "inspect", self.project + "-recovery-helper"], allowed=(0, 1))
         if not helper.returncode:
             helper_info = json.loads(helper.stdout)[0]
-            allowed = set(volumes) | {f"{self.project}_{name}" for name in RECOVERY_VOLUMES} | {backup}
+            allowed = set(volumes) | {f"{self.project}_{name}"
+                                      for name in RECOVERY_VOLUMES + OPTIONAL_RECOVERY_VOLUMES} | {backup}
             require((helper_info["Config"].get("Labels") or {}).get(RECOVERY_LABEL) == self.project
                     and helper_info["HostConfig"].get("NetworkMode") == "none"
                     and all(mount["Type"] == "volume" and mount.get("Name") in allowed for mount in helper_info["Mounts"]),
@@ -434,8 +487,11 @@ class Qualification:
             self.command(["docker", "volume", "rm", backup])
 
     def volume_task(self, action, project, volume, backup, image, storage_key=None):
-        require(project in (self.project, self.project + "-restore") and volume in RECOVERY_VOLUMES,
+        require(project in (self.project, self.project + "-restore")
+                and volume in RECOVERY_VOLUMES + OPTIONAL_RECOVERY_VOLUMES,
                 "Recovery refuses a volume outside its exact source/target inventory")
+        require(action != "check-output" or volume == "operator_output",
+                "Private output inspection requires the selected optional volume")
         require(backup == self.project + "_recovery_backup", "Recovery backup is outside its owned inventory")
         information = self.volume_info(f"{project}_{volume}")
         labels = information.get("Labels") or {}
@@ -445,13 +501,16 @@ class Qualification:
         backup_info = self.volume_info(backup)
         require((backup_info.get("Labels") or {}).get(RECOVERY_LABEL) == self.project,
                 "Recovery backup has unexpected ownership labels")
-        require(project != self.project or action == "snapshot", "Recovery refuses to change a source volume")
-        helper = "import hashlib, os, re, signal, sys, tarfile\nfrom pathlib import Path\nsignal.alarm(150)\n"
+        require(project != self.project or action in ("snapshot", "check-output"),
+                "Recovery refuses to change a source volume")
+        helper = "import hashlib, os, re, signal, stat, sys, tarfile\nfrom pathlib import Path\nsignal.alarm(150)\n"
         helper += "RECOVERY_VOLUMES = " + repr(RECOVERY_VOLUMES) + "\n"
+        helper += "OPTIONAL_RECOVERY_VOLUMES = " + repr(OPTIONAL_RECOVERY_VOLUMES) + "\n"
         helper += "\n\n".join(inspect.getsource(function)
-                                 for function in (require, safe_members, checked_archive, volume_operation))
+                                 for function in (require, check_operator_output, safe_members,
+                                                  checked_archive, volume_operation))
         helper += "\ntry:\n    volume_operation(*sys.argv[1:])\nexcept RuntimeError as error:\n    raise SystemExit('Recovery validation rejected: ' + str(error))\nexcept OSError as error:\n    raise SystemExit('Recovery filesystem failure: errno=' + str(error.errno))\nexcept (ValueError, tarfile.TarError):\n    raise SystemExit('Recovery archive failure: invalid format')\n"
-        readonly = action in ("snapshot", "verify", "reject-missing", "reject-corrupt")
+        readonly = action in ("snapshot", "verify", "reject-missing", "reject-corrupt", "check-output")
         mount = f"type=volume,src={project}_{volume},dst=/volume" + (",readonly" if readonly else "")
         result = self.command(["docker", "run", "--rm", "--pull", "never", "--network", "none",
                              "--name", self.project + "-recovery-helper", "--label", f"{RECOVERY_LABEL}={self.project}",
@@ -505,6 +564,82 @@ class Qualification:
                 require(network.get("Name") == name and bool(network.get("Internal")) == (not outward)
                         and (network.get("Labels") or {}).get("com.docker.compose.project") == self.project,
                         "Offline runtime network is external or belongs to another project")
+
+    def operator_output_container(self, *, initializer=False):
+        project = self.project + "-restore" if initializer else self.project
+        name = project + "-operator-output"
+        identifiers = self.command(["docker", "container", "ls", "--all", "--quiet",
+                                    "--filter", f"name=^/{name}$"], timeout=15).stdout.split()
+        if not identifiers:
+            return None
+        require(len(identifiers) == 1, "Private output cleanup found an unexpected container inventory")
+        items = json.loads(self.command(["docker", "container", "inspect", name], timeout=15).stdout)
+        require(len(items) == 1, "Private output cleanup requires exactly its owned container")
+        container = items[0]
+        labels = container.get("Config", {}).get("Labels") or {}
+        expected = {(project + "_operator_output", "/operator-output", True)}
+        if not initializer:
+            expected.add((project + "_operator_secrets", "/run/secrets", False))
+        require(container.get("Name") == "/" + name
+                and labels.get(RECOVERY_LABEL) == self.project
+                and labels.get("com.docker.compose.project") == project
+                and labels.get("com.docker.compose.service") == ("operator-output-init" if initializer else "operator")
+                and container.get("HostConfig", {}).get("NetworkMode") == ("none" if initializer else project + "_database")
+                and len(container.get("Mounts", [])) == len(expected)
+                and all(mount.get("Type") == "volume" for mount in container.get("Mounts", []))
+                and {(mount.get("Name"), mount.get("Destination"), mount.get("RW"))
+                     for mount in container.get("Mounts", [])} == expected,
+                "Private output cleanup refuses an unrelated container or volume")
+        return container
+
+    def cleanup_operator_output(self, *, initializer=False):
+        try:
+            if self.operator_output_container(initializer=initializer) is None:
+                return
+            project = self.project + "-restore" if initializer else self.project
+            self.command(["docker", "container", "rm", "--force", project + "-operator-output"], timeout=30)
+            require(self.operator_output_container(initializer=initializer) is None,
+                    "Private output container remains after bounded cleanup")
+        except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+            raise RuntimeError("Private operator-output container cleanup failed; details withheld") from None
+
+    def seed_operator_output(self, base):
+        actor = Qualification(argparse.Namespace(project=self.project, url=self.url,
+                              output=str(self.output), expected_architecture=self.expected_architecture,
+                              compose_file=self.compose_files))
+        reserved = False
+        try:
+            require(self.operator_output_container() is None,
+                    "Private output issuance refuses a preexisting named container")
+            reserved = True
+            invitation, _ = self.request(base + "/invitations", "POST",
+                {"email": "output-recovery@example.test", "role": "viewer", "team_ids": []},
+                headers={"Idempotency-Key": "docker-operator-output-account"}, expected=(201,))
+            session, _ = actor.request("/api/v1/invitations/accept", "POST",
+                {"token": invitation["token"], "display_name": "Example Recovery Account",
+                 "password": secrets.token_urlsafe(36) + "A1!"})
+            user = session["user"]["id"]
+            require(isinstance(user, str) and re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", user),
+                    "Operator output requires its dedicated synthetic account")
+            result = self.dc("run", "--no-deps", "--name", self.project + "-operator-output",
+                "--label", f"{RECOVERY_LABEL}={self.project}", "-T", "operator", "operator-recovery-issue",
+                "--user", user, "--reason", "Synthetic cold-recovery output qualification",
+                "--output-file", "/operator-output/recovery-qualification.txt")
+            receipt = json.loads(result.stdout)
+            require(isinstance(receipt, dict) and set(receipt) == {"id", "user_id", "expires_at", "output_file"}
+                    and receipt["user_id"] == user and isinstance(receipt["id"], str)
+                    and re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", receipt["id"])
+                    and isinstance(receipt["expires_at"], str) and receipt["expires_at"]
+                    and receipt["output_file"] == "/operator-output/recovery-qualification.txt",
+                    "Operator output requires a valid private issuance receipt")
+        except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+            raise RuntimeError("Private operator-output qualification failed; no receipt or bearer data printed") from None
+        finally:
+            try:
+                if reserved:
+                    self.cleanup_operator_output()
+            finally:
+                actor.cookies.clear()
 
     def seed_private_issue(self, base, team, key, content, title="Private cold restore fixture"):
         digest = hashlib.sha256(content).hexdigest()
@@ -658,12 +793,16 @@ class Qualification:
                 "Revocation checks must reuse the original reader session without replacement")
 
     def cold_recovery(self, account, password, issue_path, attachment, body, digest):
-        config = json.loads(self.dc("config", "--format", "json").stdout)
+        config = json.loads(self.dc("--profile", "operator", "config", "--format", "json").stdout)
         validate_compose(config, self.project, self.port)
+        validate_operator_output_profile(config)
+        selected_volumes = RECOVERY_VOLUMES + OPTIONAL_RECOVERY_VOLUMES
         restored = Qualification(argparse.Namespace(project=self.project + "-restore", url=self.url,
                                  output=str(self.output), expected_architecture=self.expected_architecture,
                                  compose_file=self.compose_files))
-        validate_compose(json.loads(restored.dc("config", "--format", "json").stdout), restored.project, self.port)
+        restored_config = json.loads(restored.dc("--profile", "operator", "config", "--format", "json").stdout)
+        validate_compose(restored_config, restored.project, self.port)
+        validate_operator_output_profile(restored_config)
         for kind in ("container", "volume", "network"):
             arguments = ["docker", "ps", "--all", "--quiet"] if kind == "container" else ["docker", kind, "ls", "--quiet"]
             require(not self.command(arguments + ["--filter", f"label=com.docker.compose.project={restored.project}"]).stdout.strip(),
@@ -682,6 +821,9 @@ class Qualification:
                                compose_file=self.compose_files))
         source_stopped = False
         try:
+            self.seed_operator_output(issue_path.rsplit("/issues/", 1)[0])
+            self.volume_task("check-output", self.project, "operator_output", backup, bootstrap_image)
+            self.record("restricted operator CLI populated the selected private output volume without exposing bearer data")
             private = self.seed_private_recovery(reader, issue_path.rsplit("/issues/", 1)[0])
             self.check_private_revocation(private, issue_path, attachment, body, digest)
             self.record("live revoked private-team reader keeps public access; saved private URLs conceal content and metadata")
@@ -702,7 +844,7 @@ class Qualification:
             require(all(not item["State"]["Running"] and not item["State"].get("Restarting")
                         and item["State"]["ExitCode"] == 0 for item in states),
                     "A coherent cold snapshot requires every source service stopped cleanly")
-            for name in RECOVERY_VOLUMES:
+            for name in selected_volumes:
                 self.volume_task("snapshot", self.project, name, backup, bootstrap_image)
             for name in config["volumes"]:
                 volume = f"{restored.project}_{name}"
@@ -713,9 +855,21 @@ class Qualification:
             for action in ("reject-missing", "reject-corrupt"):
                 self.volume_task(action, restored.project, "blobs", backup, bootstrap_image)
             self.record("missing and corrupt recovery archives rejected before target writes")
-            for name in RECOVERY_VOLUMES:
+            for name in selected_volumes:
                 self.volume_task("restore", restored.project, name, backup, bootstrap_image)
-            self.record("all seven restored volume inventories, bytes, UID/GID and modes match their cold snapshots")
+            self.record("all seven core and selected optional restored inventories, bytes, UID/GID and modes match their cold snapshots")
+            require(self.operator_output_container(initializer=True) is None,
+                    "Private output initialization refuses a preexisting named container")
+            try:
+                restored.dc("run", "--no-deps", "--name", restored.project + "-operator-output",
+                            "--label", f"{RECOVERY_LABEL}={self.project}", "-T", "operator-output-init")
+            except (RuntimeError, OSError, ValueError, subprocess.SubprocessError):
+                raise RuntimeError("Private restored output initialization failed; details withheld") from None
+            finally:
+                self.cleanup_operator_output(initializer=True)
+            require(self.volume_task("verify", restored.project, "operator_output", backup, bootstrap_image).returncode == 0,
+                    "Private restored output changed during its networkless initializer")
+            self.record("selected operator output restored with identical private bytes and metadata before its networkless initializer; populated contents remain unchanged")
             restored.dc("up", "--detach", "--wait", "--wait-timeout", "180", "database", timeout=240)
             require(restored.container("database")["Image"] == database_image,
                     "Recovery used a different database image")
@@ -781,10 +935,10 @@ done
             finally:
                 reader.cookies.clear()
         self.record("only the owned restore project removed; source installation and private recovery backup retained")
-        return {"volumes": list(RECOVERY_VOLUMES), "backup_volume": backup,
+        return {"volumes": list(selected_volumes), "backup_volume": backup,
                 "external_dispatch": "restored worker never started; application networks internal; fixed HTTP relay only",
                 "limitations": ["cold same-host/same-architecture snapshot, not an encrypted scheduled backup profile",
-                                "operator_output and optional HTTPS volumes are outside the normal runtime fixture",
+                                "optional HTTPS volumes and recovery-code redemption are outside this fixture",
                                 "provider encryption keys and future module data are not implemented fixture coverage",
                                 "not a prior-release migration failure or different-host restore rehearsal"]}
 
@@ -1001,6 +1155,9 @@ def main():
     parser.add_argument("--cleanup-backup", action="store_true",
                         help="With --cleanup-recovery, also remove its labelled synthetic backup")
     args = parser.parse_args()
+    def interrupted(_signal, _frame):
+        raise SystemExit("Docker qualification interrupted")
+    signal.signal(signal.SIGTERM, interrupted)
     try:
         require(not args.cleanup_backup or args.cleanup_recovery, "Backup cleanup requires explicit recovery cleanup")
         qualification = Qualification(args)
@@ -1011,6 +1168,8 @@ def main():
             qualification.run()
     except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired) as error:
         raise SystemExit(f"Docker qualification failed: {error}") from None
+    except KeyboardInterrupt:
+        raise SystemExit("Docker qualification interrupted") from None
 
 
 if __name__ == "__main__":
