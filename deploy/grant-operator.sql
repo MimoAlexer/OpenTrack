@@ -59,6 +59,7 @@ BEGIN
  EXECUTE format('REVOKE ALL ON ALL FUNCTIONS IN SCHEMA %I FROM %I',schema_name,role_name);
  EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I',current_database(),role_name);
  EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I',schema_name,role_name);
+ EXECUTE format('GRANT SELECT(version,success,checksum) ON %I._sqlx_migrations TO %I',schema_name,role_name);
  EXECUTE format('GRANT EXECUTE ON FUNCTION %s,%s,%s,%s,%s,%s,%s,%s,%s,%s TO %I',issue_function,revoke_function,disable_function,enable_function,consumer_status_function,consumer_disposition_function,consumer_enabled_function,cleanup_resume_function,admission_limits_function,admission_status_function,role_name);
 END $$;
 COMMIT;

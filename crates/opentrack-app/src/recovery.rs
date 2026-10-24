@@ -3,7 +3,8 @@ use chrono::{DateTime, Utc};
 use opentrack_domain::{RecoveryComplete, RecoveryReceipt, validate_password};
 
 /// A separately provisioned operator login can execute the explicit recovery and
-/// account lifecycle commands. It never becomes an App principal or receives table access.
+/// account lifecycle commands. It never becomes an App principal; its direct
+/// table reads are limited to migration compatibility metadata.
 #[derive(Clone)]
 pub struct Operator {
     pool: PgPool,
@@ -55,7 +56,10 @@ impl Operator {
                WHERE n.nspname=current_schema() AND c.relkind IN ('r','p','v','m','f')
                AND (pg_has_role(current_user,c.relowner,'MEMBER')
                  OR has_table_privilege(current_user,c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
-                 OR has_any_column_privilege(current_user,c.oid,'SELECT,INSERT,UPDATE,REFERENCES')))
+                 OR has_any_column_privilege(current_user,c.oid,'INSERT,UPDATE,REFERENCES')
+                 OR EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped
+                   AND has_column_privilege(current_user,c.oid,a.attnum,'SELECT')
+                   AND NOT(c.relname='_sqlx_migrations' AND a.attname IN('version','success','checksum')))))
              OR EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
                WHERE n.nspname=current_schema() AND c.relkind='S'
                AND has_sequence_privilege(current_user,c.oid,'USAGE,SELECT,UPDATE'))
@@ -80,11 +84,17 @@ impl Operator {
         .map_err(db_error)?;
         if prohibited || !allowed {
             tracing::error!(
-                "Operator database role must have only the explicit operator capabilities and no role memberships, table, ownership, schema creation, or elevated privileges"
+                "Operator database role must have only explicit operator capabilities and migration metadata reads, without role memberships, data-table access, ownership, schema creation, or elevated privileges"
             );
             return Err(Error::Forbidden);
         }
         Ok(Self { pool })
+    }
+
+    pub async fn schema_is_current(&self) -> Result<bool> {
+        store::schema_is_current(&self.pool)
+            .await
+            .map_err(|_| Error::Internal)
     }
 
     pub async fn consumer_status(&self, workspace: Uuid) -> Result<serde_json::Value> {

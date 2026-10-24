@@ -324,6 +324,10 @@ impl Harness {
                 self.schema
             ),
             format!(
+                "GRANT SELECT(version,success,checksum) ON {}._sqlx_migrations TO \"{role}\"",
+                self.schema
+            ),
+            format!(
                 "GRANT EXECUTE ON FUNCTION {}.operator_issue_recovery(uuid,uuid,text,integer,text),{}.operator_revoke_recovery(uuid,text),{}.operator_disable_account(uuid,text),{}.operator_enable_account(uuid,text) TO \"{role}\"",
                 self.schema, self.schema, self.schema, self.schema
             ),

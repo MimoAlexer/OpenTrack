@@ -42,6 +42,7 @@ BEGIN
  EXECUTE format('REVOKE CREATE ON SCHEMA %I FROM %I',schema_name,role_name);
  EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I',current_database(),role_name);
  EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I',schema_name,role_name);
+ EXECUTE format('GRANT SELECT(version,success,checksum) ON %I._sqlx_migrations TO %I',schema_name,role_name);
  EXECUTE format('GRANT EXECUTE ON FUNCTION %s,%s TO %I',discovery,context_lock,role_name);
  EXECUTE format('GRANT SELECT,UPDATE(state,version,available_at,lease_owner,lease_token,lease_expires_at,attempt_count,retry_count,error_code,updated_at,finished_at) ON %I.jobs TO %I',schema_name,role_name);
  EXECUTE format('GRANT SELECT,INSERT,UPDATE(lease_token,ended_at,outcome) ON %I.job_attempts TO %I',schema_name,role_name);
