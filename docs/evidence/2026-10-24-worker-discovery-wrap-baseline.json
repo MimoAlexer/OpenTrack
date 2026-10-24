@@ -1,0 +1,254 @@
+{
+  "scope": "Controlled fresh PostgreSQL94workspace/sevenintent baseline; no retained browser acceptance claim",
+  "exit_code": 101,
+  "tests": {
+    "passed": 1,
+    "failed": 1,
+    "only_failure": "Dense default-profile backlog exceeded the unchanged 30-second completion gate"
+  },
+  "owned_session_cleanup_confirmed": true,
+  "source_sha256": {
+    "crates/opentrack-server/tests/worker_daemon_contract.rs": "dfb449a8f8dfb9a6e1f1a6c6d018139df48c1c8c7f889867438d6bb0079bb718",
+    "crates/opentrack-server/src/worker.rs": "14e41c9c8a44aa3ba583845ff8073626f0cd3eee70392d7017c492c97ef6c3e1"
+  },
+  "results": [
+    {
+      "workspace_rank": 93,
+      "registered_workspaces": 94,
+      "captured_access_intents": 7,
+      "live_assigned_teams": 3,
+      "post_return_observed_ms": 31716.059932,
+      "completed_within_30_seconds": false,
+      "first_observation_at_or_after_30_seconds": {
+        "attempt_count": 0,
+        "observed_elapsed_ms": 30011.030794,
+        "state": "queued"
+      },
+      "owned_worker_clean_exit": true,
+      "profile": {
+        "lease_seconds": 60,
+        "max_connections": 5,
+        "poll_interval_ms": 2000
+      },
+      "stages": {
+        "AttachmentGc": {
+          "completed_calls": 47,
+          "failed": 0,
+          "selector_calls": 47,
+          "worked": 0
+        },
+        "Capture": {
+          "completed_calls": 48,
+          "failed": 0,
+          "selector_calls": 48,
+          "worked": 0
+        },
+        "DocumentRetention": {
+          "completed_calls": 47,
+          "failed": 0,
+          "selector_calls": 48,
+          "worked": 0
+        },
+        "Job": {
+          "completed_calls": 48,
+          "failed": 0,
+          "selector_calls": 48,
+          "worked": 32
+        },
+        "Retention": {
+          "completed_calls": 48,
+          "failed": 0,
+          "selector_calls": 48,
+          "worked": 0
+        }
+      },
+      "job_selector_calls": 48,
+      "job_selector_gaps_at_least_1900_ms": [
+        2028.659,
+        2010.545,
+        2026.417,
+        2012.213,
+        2031.396,
+        2010.746,
+        2023.087,
+        2009.972,
+        2030.312,
+        2010.92,
+        2026.986,
+        2013.906,
+        2025.968,
+        2013.135,
+        2027.165
+      ],
+      "job_selector_cursor_ranks": [
+        null,
+        19,
+        39,
+        59,
+        79,
+        93,
+        null,
+        19,
+        39,
+        59,
+        79,
+        93,
+        null,
+        19,
+        39,
+        59,
+        79,
+        93,
+        null,
+        19,
+        39,
+        59,
+        79,
+        93,
+        null,
+        19,
+        39,
+        59,
+        79,
+        93,
+        null,
+        19,
+        39,
+        59,
+        79,
+        93,
+        null,
+        19,
+        39,
+        59,
+        79,
+        93,
+        null,
+        19,
+        39,
+        59,
+        79,
+        93
+      ],
+      "exact_authorized_effect_assertions_passed_before_final_timing_gate": true
+    },
+    {
+      "workspace_rank": 0,
+      "registered_workspaces": 94,
+      "captured_access_intents": 7,
+      "live_assigned_teams": 3,
+      "post_return_observed_ms": 29615.544200999997,
+      "completed_within_30_seconds": true,
+      "first_observation_at_or_after_30_seconds": null,
+      "owned_worker_clean_exit": true,
+      "profile": {
+        "lease_seconds": 60,
+        "max_connections": 5,
+        "poll_interval_ms": 2000
+      },
+      "stages": {
+        "AttachmentGc": {
+          "completed_calls": 50,
+          "failed": 0,
+          "selector_calls": 50,
+          "worked": 0
+        },
+        "Capture": {
+          "completed_calls": 51,
+          "failed": 0,
+          "selector_calls": 51,
+          "worked": 1
+        },
+        "DocumentRetention": {
+          "completed_calls": 50,
+          "failed": 0,
+          "selector_calls": 50,
+          "worked": 0
+        },
+        "Job": {
+          "completed_calls": 50,
+          "failed": 0,
+          "selector_calls": 51,
+          "worked": 36
+        },
+        "Retention": {
+          "completed_calls": 50,
+          "failed": 0,
+          "selector_calls": 50,
+          "worked": 0
+        }
+      },
+      "job_selector_calls": 51,
+      "job_selector_gaps_at_least_1900_ms": [
+        2026.183,
+        2011.309,
+        2022.977,
+        2009.394,
+        2026.122,
+        2011.849,
+        2027.685,
+        2013.813,
+        2024.251,
+        2008.9,
+        2028.309,
+        2013.077,
+        2027.187,
+        2013.762
+      ],
+      "job_selector_cursor_ranks": [
+        null,
+        0,
+        20,
+        40,
+        60,
+        80,
+        93,
+        null,
+        0,
+        20,
+        40,
+        60,
+        80,
+        93,
+        null,
+        0,
+        20,
+        40,
+        60,
+        80,
+        93,
+        null,
+        0,
+        20,
+        40,
+        60,
+        80,
+        93,
+        null,
+        0,
+        20,
+        40,
+        60,
+        80,
+        93,
+        null,
+        0,
+        20,
+        40,
+        60,
+        80,
+        93,
+        null,
+        0,
+        20,
+        40,
+        60,
+        80,
+        93,
+        null,
+        0
+      ],
+      "exact_authorized_effect_assertions_passed_before_final_timing_gate": true
+    }
+  ]
+}

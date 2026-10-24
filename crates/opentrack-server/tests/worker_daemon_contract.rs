@@ -719,6 +719,13 @@ fn assert_discovery_gap(first: &DiscoveryCall, next: &DiscoveryCall) {
     );
 }
 
+fn assert_discovery_continues(first: &DiscoveryCall, next: &DiscoveryCall) {
+    assert!(
+        next.1 - first.1 < 1_900_000,
+        "Cursor wrap must continue within the remaining four-call discovery budget"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn exhausted_empty_discovery_waits_before_calling_the_selector_again() {
     let h = Harness::new().await;
@@ -780,7 +787,7 @@ async fn discovery_cooldown_preserves_cursor_despite_capture_progress_and_errors
         assert_eq!(calls[5].2, Some(scopes[80]));
         assert_eq!(calls[6].2, None);
         assert_discovery_gap(&calls[3], &calls[4]);
-        assert_discovery_gap(&calls[5], &calls[6]);
+        assert_discovery_continues(&calls[5], &calls[6]);
         loop {
             if discovery_job(h, &actor, scopes[80], &ahead).await.0 == "succeeded"
                 && discovery_job(h, &actor, scopes[0], &behind).await.0 == "succeeded" { break; }
@@ -867,7 +874,7 @@ async fn finite_ahead_registry_arrivals_remain_budgeted_then_allow_behind_work()
         }
         let calls = wait_discovery_calls(h, &mut daemon, 15).await;
         for burst in [4, 8, 12] { assert_discovery_gap(&calls[burst - 1], &calls[burst]); }
-        assert_discovery_gap(&calls[13], &calls[14]);
+        assert_discovery_continues(&calls[13], &calls[14]);
         let expected = [None, Some(19), Some(39), Some(59), Some(79), Some(99), Some(119),
             Some(139), Some(159), Some(179), Some(199), Some(219), Some(239), Some(240), None];
         for (call, expected) in calls.iter().zip(expected) {
@@ -951,7 +958,7 @@ fn start_discovery_lifecycle_worker(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn short_and_full_fourth_discovery_pages_both_keep_the_empty_reset_cooldown() {
+async fn short_and_full_fourth_discovery_pages_keep_the_cooldown_then_resume_through_wrap() {
     let h = Harness::new().await;
     let runner = h.clone();
     let result = tokio::spawn(async move {
@@ -969,12 +976,12 @@ async fn short_and_full_fourth_discovery_pages_both_keep_the_empty_reset_cooldow
                 Some(scopes[count - 1]), None];
             for (call, expected) in calls.iter().zip(expected) { assert_eq!(call.2, expected); }
             assert_discovery_gap(&calls[3], &calls[4]);
-            assert_discovery_gap(&calls[4], &calls[5]);
+            assert_discovery_continues(&calls[4], &calls[5]);
             stop_discovery_worker(&mut daemon).await;
             let output = discovery_output(&path, &directory, &url);
             println!("{}", json!({"fourth_page_boundary":{"registered_scopes":count,
                 "measurements":discovery_receipt(&output, &discovery_calls(h).await),
-                "boundary":"A short or full fourth page consumes the burst; the later empty lookup starts its own cooldown."}}));
+                "boundary":"A short or full fourth page consumes the burst; the later empty wrap consumes credit within the next burst."}}));
         }
         restore_discovery(h, &original).await;
     }).await;
@@ -1082,4 +1089,182 @@ async fn shutdown_drains_the_owned_inflight_job_selector_without_starting_later_
     if let Err(error) = result {
         std::panic::resume_unwind(error.into_panic());
     }
+}
+
+async fn dense_assignment_backlog(workspace_rank: usize) {
+    let h = Harness::with_connections(6).await;
+    let runner = h.clone();
+    let result = tokio::spawn(async move {
+        let h = &runner;
+        let directory = PrivateDirectory::new();
+        let (actor, scopes, url) = discovery_fixture(h, 94).await;
+        let workspace = scopes[workspace_rank];
+        let user = actor.user.id;
+        let team = h.app.bootstrap(&actor, workspace).await.unwrap().teams[0].id;
+        let mut teams = vec![team];
+        for (key, name) in [("BA", "Backlog Team A"), ("BB", "Backlog Team B")] {
+            teams.push(h.app.create_team(&actor, workspace, &Uuid::new_v4().to_string(),
+                serde_json::from_value(json!({"name":name,"key":key,"private":false})).unwrap()
+            ).await.unwrap().id);
+        }
+        let mut assigned = Vec::new();
+        for team_id in &teams {
+            assigned.push(h.app.create_issue(&actor, workspace, &Uuid::new_v4().to_string(),
+                serde_json::from_value::<opentrack_domain::CreateIssue>(json!({
+                    "team_id":team_id,"title":"Owner-assigned scheduling fixture","assignee_id":user
+                })).unwrap()
+            ).await.unwrap());
+        }
+        let issue = assigned[0].clone();
+        let worker = Worker::connect(&url, WorkerOptions::default()).await.unwrap();
+        worker.capture(workspace).await.unwrap();
+        let mut drained = false;
+        for _ in 0..16 {
+            let Some(claim) = worker.claim(workspace).await.unwrap() else {
+                drained = true;
+                break;
+            };
+            assert!(matches!(worker.run_claim(&claim).await.unwrap(),
+                WorkerTick::Completed | WorkerTick::Progress));
+        }
+        assert!(drained, "Only initial fixture work may be drained directly");
+        assert_eq!(worker.capture(workspace).await.unwrap().processed, 0);
+        let mut tx = h.context(user, workspace).await;
+        let baseline_seq: i64 = sqlx::query_scalar(
+            "SELECT last_seq FROM workspace_stream_heads WHERE workspace_id=$1"
+        ).bind(workspace).fetch_one(&mut *tx).await.unwrap();
+        let due: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM jobs WHERE workspace_id=$1 AND state<>'succeeded'"
+        ).bind(workspace).fetch_one(&mut *tx).await.unwrap();
+        tx.commit().await.unwrap();
+        assert_eq!(due, 0);
+
+        for index in 0..7 {
+            let team_id = teams[1 + index % 2];
+            let current = h.app.list_teams(&actor, workspace,
+                serde_json::from_value(json!({"limit":100})).unwrap()
+            ).await.unwrap().data.into_iter().find(|value| value.id == team_id).unwrap();
+            let updated = h.app.update_team(&actor, workspace, team_id, &current.etag(),
+                serde_json::from_value(json!({"private":!current.private})).unwrap()
+            ).await.unwrap();
+            assert_ne!(updated.private, current.private);
+        }
+        let epoch = h.app.bootstrap(&actor, workspace).await.unwrap().auth_epoch;
+        let captured = worker.capture(workspace).await.unwrap();
+        assert_eq!((captured.processed, captured.captured), (7, 7));
+        assert!(!captured.backfilled && !captured.dead_lettered);
+        let mut tx = h.context(user, workspace).await;
+        let assignments: Vec<Uuid> = sqlx::query_scalar(
+            "SELECT c.job_id FROM consumer_receipts c
+             JOIN workspace_events e ON e.workspace_id=c.workspace_id AND e.event_id=c.event_id
+             JOIN jobs j ON j.workspace_id=c.workspace_id AND j.id=c.job_id
+             WHERE c.workspace_id=$1 AND e.seq>$2 AND e.event_type='access.changed'
+             AND c.state='captured' AND c.consumer_name='assignment_cleanup' AND c.consumer_version=1
+             AND j.kind='assignment.reconcile' AND j.state='queued' AND j.attempt_count=0
+             AND j.available_at<=clock_timestamp() ORDER BY e.seq"
+        ).bind(workspace).bind(baseline_seq).fetch_all(&mut *tx).await.unwrap();
+        tx.commit().await.unwrap();
+        assert_eq!(assignments.len(), 7);
+        worker.pool.close().await;
+
+        let queued = discovery_enqueue(h, &actor, workspace, &issue).await;
+        let returned = Instant::now();
+        assert_eq!(discovery_job(h, &actor, workspace, &queued).await, ("queued".into(), 0));
+        let original = measure_discovery(h, &url).await;
+        let (mut daemon, path) = start_discovery_worker(&directory, &url);
+        let mut boundary = None;
+        let deadline = returned + Duration::from_secs(75);
+        let (completed, observed_ms) = loop {
+            assert!(daemon.0.try_wait().unwrap().is_none(), "Owned worker exited during observation");
+            assert!(fs::metadata(&path).unwrap().len() <= 1048576, "Private worker log exceeded its bound");
+            let current = discovery_job(h, &actor, workspace, &queued).await;
+            let elapsed = returned.elapsed();
+            if boundary.is_none() && elapsed >= Duration::from_secs(30) {
+                boundary = Some(json!({"observed_elapsed_ms":elapsed.as_secs_f64()*1000.0,
+                    "state":current.0,"attempt_count":current.1}));
+            }
+            if current.0 == "succeeded" || current.0 == "blocked" || current.0 == "dead_letter"
+                || Instant::now() >= deadline {
+                break (current.0 == "succeeded", elapsed.as_secs_f64() * 1000.0);
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        };
+        stop_discovery_worker(&mut daemon).await;
+        let output = discovery_output(&path, &directory, &url);
+        let calls = discovery_calls(h).await;
+        let receipt = discovery_receipt(&output, &calls);
+        let passed = completed && observed_ms <= 30_000.0;
+        println!("{}", json!({"dense_assignment_backlog":{
+            "registered_workspaces":94,"workspace_rank":workspace_rank,
+            "live_assigned_teams":3,"captured_access_intents":7,
+            "post_return_observed_ms":observed_ms,"completed_within_30_seconds":passed,
+            "first_observation_at_or_after_30_seconds":boundary,
+            "owned_worker_clean_exit":true,"diagnostic":receipt,
+            "job_selector_cursors":calls.iter().filter(|call|call.3==20).map(|call|
+                call.2.map(|cursor|scopes.binary_search(&cursor).unwrap())).collect::<Vec<_>>(),
+            "timing_boundary":"Queue precedes daemon startup; post-return time includes fixture instrumentation, startup and observation. The 75-second collection bound does not extend the 30-second acceptance criterion.",
+            "limits":"Fresh isolated PostgreSQL schema and real worker; no browser, cloned retained-state, statistical performance or whole-product acceptance is inferred."
+        }}));
+        restore_discovery(h, &original).await;
+
+        assert!(completed, "Default worker did not eventually complete the normal workflow command");
+        discovery_completed(h, &actor, workspace, &issue, &queued).await;
+        assert_eq!(h.app.bootstrap(&actor, workspace).await.unwrap().auth_epoch, epoch);
+        let mut tx = h.context(user, workspace).await;
+        let exact: bool = sqlx::query_scalar(
+            "SELECT j.requested_by=$3 AND j.attempt_count=1 AND j.retry_count=0 AND j.error_code IS NULL
+             AND j.lease_owner IS NULL AND j.lease_expires_at IS NULL AND j.lease_token>0
+             AND (SELECT count(*)=1 AND bool_and(lease_token=j.lease_token AND outcome='succeeded'
+                 AND ended_at IS NOT NULL) FROM job_attempts WHERE workspace_id=$1 AND job_id=$2)
+             AND (SELECT count(*)=1 AND bool_and(actor_id=$3 AND actor_kind='account')
+                 FROM workspace_events WHERE workspace_id=$1 AND entity_id=$4 AND mutation_id=$2
+                 AND event_type='issue.updated')
+             AND (SELECT count(*)=1 FROM activity_entries WHERE workspace_id=$1 AND entity_id=$4
+                 AND changes->>'job_id'=$2::text AND changes->>'source'='workflow_replacement')
+             AND source.archived_at IS NOT NULL AND source.replacement_job_id=j.id AND target.is_default
+             FROM jobs j JOIN workflow_replacements r USING(workspace_id,id)
+             JOIN workflow_statuses source ON source.workspace_id=r.workspace_id
+                 AND source.team_id=r.team_id AND source.id=r.source_status_id
+             JOIN workflow_statuses target ON target.workspace_id=r.workspace_id
+                 AND target.team_id=r.team_id AND target.id=r.replacement_status_id
+             WHERE j.workspace_id=$1 AND j.id=$2"
+        ).bind(workspace).bind(queued.id).bind(user).bind(issue.id)
+            .fetch_one(&mut *tx).await.unwrap();
+        let retained: (i64, bool) = sqlx::query_as(
+            "SELECT count(*),coalesce(bool_and(j.kind='assignment.reconcile' AND j.attempt_count=1
+                 AND j.retry_count=0 AND j.error_code IS NULL AND j.lease_token>0
+                 AND j.lease_owner IS NULL AND j.lease_expires_at IS NULL
+                 AND r.scanned_count>0 AND r.cleared_count=0
+                 AND (SELECT count(*)=1 AND bool_and(a.lease_token=j.lease_token)
+                     FROM job_attempts a WHERE a.workspace_id=j.workspace_id AND a.job_id=j.id)),false)
+             FROM jobs j JOIN assignment_reconciliations r USING(workspace_id,id)
+             JOIN consumer_receipts c ON c.workspace_id=j.workspace_id AND c.job_id=j.id
+             WHERE j.workspace_id=$1 AND j.id=ANY($2) AND c.state='captured'
+                 AND c.consumer_name='assignment_cleanup' AND c.consumer_version=1"
+        ).bind(workspace).bind(&assignments).fetch_one(&mut *tx).await.unwrap();
+        tx.commit().await.unwrap();
+        assert!(exact, "Workflow must retain its exact authorized one-attempt/fence/history effects");
+        assert_eq!(retained, (7, true), "Maintenance must preserve healthy ownership and bounded cursor progress");
+        for initial in &assigned {
+            let saved = h.app.get_issue(&actor, workspace, initial.id).await.unwrap();
+            assert_eq!(saved.assignee_id, Some(user));
+            assert_eq!(saved.version.parse::<u64>().unwrap(),
+                initial.version.parse::<u64>().unwrap() + u64::from(initial.id == issue.id));
+        }
+        assert!(passed, "Dense default-profile backlog exceeded the unchanged 30-second completion gate");
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn dense_backlog_reaches_minimum_uuid_workspace_within_thirty_seconds() {
+    dense_assignment_backlog(0).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn dense_backlog_reaches_maximum_uuid_workspace_within_thirty_seconds() {
+    dense_assignment_backlog(93).await;
 }
