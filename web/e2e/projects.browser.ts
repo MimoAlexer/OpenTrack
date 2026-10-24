@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Page } from '@playwright/test';
 import { test, expect, paragraph, SavedWorkspace } from './fixtures';
 import type { StructuredDocument } from '../src/documents/types';
-import type { Team } from '../src/types';
+import type { Bootstrap, Team } from '../src/types';
 import type { FullProject, Project, ProjectIssue, ProjectProgress, ProjectUpdate } from '../src/projects/types';
 
 const projectsPath = (saved: SavedWorkspace, id?: string) => `/teams/${saved.team.id}/projects${id ? `/${id}` : ''}`;
@@ -20,11 +20,21 @@ async function openProject(page: Page, saved: SavedWorkspace, project: Project) 
   await expect(page.getByRole('heading', { name: project.name, exact: true })).toBeVisible();
 }
 
-test('project creation and brief edits persist while metadata and body versions remain independent', async ({ page, saved }) => {
+test('project creation and brief edits persist while metadata and body versions remain independent', async ({ page, saved: owner }) => {
+  const team = await owner.request<Team>('/teams', 'POST', {
+    name: `Project acceptance ${randomUUID()}`, key: `P${randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase()}`,
+    private: false,
+  }, { 'Idempotency-Key': randomUUID() });
+  const bootstrap = await owner.request<Bootstrap>('/bootstrap');
+  const saved = new SavedWorkspace(owner.http, owner.session, { ...bootstrap, teams: [team] }, owner.origin);
   const name = `Saved project ${randomUUID()}`;
   const briefText = 'Ship the reviewed onboarding journey';
   await saved.open(page);
   await page.getByRole('navigation', { name: 'Workspace navigation' }).getByRole('link', { name: 'Projects', exact: true }).click();
+  const teamPicker = page.getByRole('combobox', { name: 'Project team', exact: true });
+  await teamPicker.selectOption(saved.team.id);
+  await expect(teamPicker).toHaveValue(saved.team.id);
+  const selectedTeam = await teamPicker.inputValue();
   await page.getByRole('button', { name: 'New project', exact: true }).click();
   const create = page.getByRole('dialog', { name: 'New project', exact: true });
   await create.getByRole('textbox', { name: 'Name', exact: true }).fill(name);
@@ -38,11 +48,13 @@ test('project creation and brief edits persist while metadata and body versions 
   await brief.press('Control+a');
   await create.getByRole('toolbar', { name: 'Project brief formatting' }).getByRole('button', { name: 'Bold', exact: true }).click();
   const created = page.waitForResponse(response => response.request().method() === 'POST'
-    && response.url() === `${saved.origin}${saved.path}${projectsPath(saved)}`);
+    && response.url() === `${saved.origin}${saved.path}/teams/${selectedTeam}/projects`);
   await create.getByRole('button', { name: 'Create project', exact: true }).click();
   const response = await created;
   expect(response.status()).toBe(201);
+  expect(response.url()).toBe(`${saved.origin}${saved.path}${projectsPath(saved)}`);
   const project = await response.json() as FullProject;
+  expect(project.team_id).toBe(saved.team.id);
   await expect(create).toHaveCount(0);
   await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
   await expect(page.getByText('No eligible issue scope', { exact: true })).toBeVisible();

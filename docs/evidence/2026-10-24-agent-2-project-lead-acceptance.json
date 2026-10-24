@@ -1,0 +1,69 @@
+{
+  "format_version": 1,
+  "scope": "Existing project lead retirement and explicit clearing: one temporary owned browser journey, no production behavior change.",
+  "source_head": "f60dbbf0ed754774a378325053ee79af93f16597",
+  "server_sha256": "4ccb63b478051701d180599af546a8e0bfbdea66e5d384b33566d8a297e436e4",
+  "frontend_tree_sha256": "9b848bb4d4cbcf8da22c760552c05358627fdb2b345878292c63f1f23049a5d7",
+  "test_source_sha256": "dc14920280001cd39b7b0a99fa73f964276bb18512171f525f452c7e4a326bb1",
+  "retained_ordinary_context_patch_sha256": "602aefad26964dc10376d127204fccc351cea24de0c4cf44cebc7783f77e04f8",
+  "browser_receipt_sha256": "d4594e188e85aafa1814325f90bb3bd5933db562ea71e78e1b20b99309a89af0",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "project lead retirement preserves history and requires explicit clearing",
+      "status": "passed",
+      "duration_ms": 6515
+    },
+    {
+      "browser": "firefox",
+      "check": "project lead retirement preserves history and requires explicit clearing",
+      "status": "passed",
+      "duration_ms": 9360
+    },
+    {
+      "browser": "webkit",
+      "check": "project lead retirement preserves history and requires explicit clearing",
+      "status": "passed",
+      "duration_ms": 9046
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "per_engine": 1,
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "frontend_and_e2e_typecheck": "pass",
+    "listed_cases": 3,
+    "command_exit_code": 0,
+    "source_binary_frontend_unchanged": true,
+    "test_file_restored_exactly": true
+  },
+  "playwright_version": "1.64.1",
+  "worker_startup_settings": [
+    {
+      "poll_interval_ms": 2000,
+      "max_connections": 5,
+      "lease_seconds": 60
+    }
+  ],
+  "observed": [
+    "An owner selected a distinct active synthetic workspace member through the real project lead picker; the assignee response included that identity and metadata saved with its current validator and one version increment.",
+    "After API deactivation of that member and explicit reload, the project retained its historical lead identity/name with assignable=false. Stored project version and updated_at stayed unchanged; the projected metadata validator changed.",
+    "The real assignee search excluded the inactive identity; the current historical option was disabled and selected.",
+    "A summary-only UI save omitted lead_id and narrative, used the post-retirement validator and preserved the historical lead through reload with one metadata-version increment.",
+    "Explicitly resubmitting the inactive lead with the current validator returned422 without metadata or brief mutation.",
+    "UI No lead sent an explicit null with the current validator, persisted null through reload and advanced metadata once. The inactive identity was absent from both eligible results and historical-current options after clearing.",
+    "The canonical brief identity, content, version and stored timestamps remained unchanged throughout; unrelated project fields were preserved."
+  ],
+  "limits": [
+    "Three selected checks, not a full browser matrix or complete project requirement.",
+    "The additional test was temporarily applied and restored exactly. Permanent regression promotion and final integrated-head qualification remain separate work.",
+    "The browser remained signed in as the unchanged owner; this does not qualify member-management UI, global account deletion/disablement or real-time authority propagation.",
+    "No parent App/API import, schema change, worker dispatch diagnosis or peer runtime access occurred.",
+    "Known private-board exit, qualified152 dependency, native/physical/assistive, recovery, performance and whole-product gates remain open."
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "status": "passed",
+  "scope": "Corrected working tree based on production 725e856; no synchronized final-head claim.",
+  "targeted_total": 56,
+  "checks": [
+    {
+      "check": "conceals denied private board metadata after 403 during refresh",
+      "status": "passed"
+    },
+    {
+      "check": "conceals denied private board metadata after 404 during refresh",
+      "status": "passed"
+    },
+    {
+      "check": "conceals denied private board metadata after 403 during retry",
+      "status": "passed"
+    },
+    {
+      "check": "conceals denied private board metadata after 404 during retry",
+      "status": "passed"
+    },
+    {
+      "check": "does not restore a denied board from an empty list when fresh workflow proof fails with 404",
+      "status": "passed"
+    },
+    {
+      "check": "does not restore a denied board from an empty list when fresh workflow proof fails with network",
+      "status": "passed"
+    },
+    {
+      "check": "does not restore a denied board from an empty list when fresh workflow proof fails with wrong team",
+      "status": "passed"
+    },
+    {
+      "check": "retains denial for the same team, principal and epoch across filter changes and back until explicit retry",
+      "status": "passed"
+    },
+    {
+      "check": "fences a superseded workflow proof and page until the latest refresh receives its own proof",
+      "status": "passed"
+    },
+    {
+      "check": "fences a late listing response after independent workflow revocation until an explicit retry",
+      "status": "passed"
+    }
+  ],
+  "limitations": [
+    "Controlled component transport responses do not independently establish server authorization."
+  ],
+  "artifacts": "Raw paths, stack traces, response data and DOM dumps are excluded."
+}
