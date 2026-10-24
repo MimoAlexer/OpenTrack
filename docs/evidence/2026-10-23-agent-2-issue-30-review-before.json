@@ -1,0 +1,17 @@
+{
+  "status": "failed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "a real stale board move preserves its intent and requires review before applying the newest ETag",
+      "status": "failed",
+      "duration_ms": 1283,
+      "failure": "board.browser.ts:136"
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}

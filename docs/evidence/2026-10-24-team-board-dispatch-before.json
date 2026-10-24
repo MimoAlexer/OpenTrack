@@ -1,0 +1,856 @@
+{
+  "format_version": 1,
+  "date": "2026-10-24",
+  "scope": "One correlated Chromium first53-case observation; not a full159 acceptance substitute.",
+  "source": {
+    "functional_head": "9dc597b357fa1d43bfa972ce9675b02b90920919",
+    "merge_only_head": "00adb98b3764dbbd2374698d4b2335d2351abd8f",
+    "identical_tree": "be693e7db5745064acbac00f66757d9707ed777c",
+    "binary_sha256": "5d31ddbd6024ab0c7046a720adee3779e41aed051cb9275ec6b4403c06386baf",
+    "frontend_sha256": "d9d1ff6bc2a8734573076d8f308ccc2876afc95d584ad12e8c3f417c837cb80c",
+    "runner_sha256": "b4c24bf8d0a54b21f3023af12a4661a7ce8df3fbfe998de2cc4307b1f9dd5714",
+    "observer_sha256": "e41594c8a834a790a54298188c1165abe5886d8b388181169444439c62b3ee3d",
+    "workflow_instrumentation_sha256": "9ad50e788df9fed804995c092f7fb2a634d88804bf1ea6db957ee70e8f9758e0"
+  },
+  "result": {
+    "actual_exit_code": 1,
+    "passed": 52,
+    "total": 53,
+    "failure": "Only the unchanged workflow success predicate failed: expected succeeded, received queued.",
+    "full159_status": "HOLD; original156/159 failure remains preserved."
+  },
+  "profile": {
+    "worker": {
+      "poll_interval_ms": 2000,
+      "max_connections": 5,
+      "lease_seconds": 60
+    },
+    "case_timeout_ms": 60000,
+    "expect_timeout_ms": 10000,
+    "workflow_poll_timeout_ms": 30000,
+    "retries": 0
+  },
+  "correlation": {
+    "identifier_source": "The actual browser POST response asserted202, parsed and canonical-validated.",
+    "publication": "Exclusive600 packet fsynced/closed before zero-byte600 ready marker; observer read only ready packets.",
+    "target_selected_independently_of_inventory_cap": true,
+    "accepted_target_samples": 40,
+    "accepted_target_missing": 0
+  },
+  "actual_poll_boundary": {
+    "comparison": {
+      "started_utc": "2026-10-24T15:52:27.209Z",
+      "started_case_offset_ms": 3326.749,
+      "finished_utc": "2026-10-24T15:52:56.620Z",
+      "finished_case_offset_ms": 32737.652,
+      "comparisonPassed": false
+    },
+    "comparison_after202_start_ms": 339.0,
+    "comparison_after202_end_ms": 29750.0,
+    "first_targeted": {
+      "after202_ms": 1294.32,
+      "state": "queued",
+      "attempt_count": 0,
+      "eligible": true,
+      "older_count": 23,
+      "older_by_kind": [
+        {
+          "kind": "assignment.reconcile",
+          "count": 23
+        }
+      ]
+    },
+    "max_older_count": 23,
+    "poll_window_target_samples": 23,
+    "poll_window_all_eligible_queued_attempt0": true,
+    "first_in_poll": {
+      "after202_ms": 1294.32,
+      "state": "queued",
+      "attempt_count": 0,
+      "eligible": true,
+      "older_count": 23,
+      "older_by_kind": [
+        {
+          "kind": "assignment.reconcile",
+          "count": 23
+        }
+      ]
+    },
+    "last_in_poll": {
+      "after202_ms": 28810.883,
+      "state": "queued",
+      "attempt_count": 0,
+      "eligible": true,
+      "older_count": 11,
+      "older_by_kind": [
+        {
+          "kind": "assignment.reconcile",
+          "count": 11
+        }
+      ]
+    },
+    "first_after_poll": {
+      "after202_ms": 30060.742,
+      "state": "queued",
+      "attempt_count": 0,
+      "eligible": true,
+      "older_count": 10,
+      "older_by_kind": [
+        {
+          "kind": "assignment.reconcile",
+          "count": 10
+        }
+      ]
+    },
+    "api_poll_count": 31,
+    "api_states": [
+      "queued"
+    ],
+    "last_api_poll": {
+      "source": "acceptance_poll",
+      "observed_utc": "2026-10-24T15:52:56.619Z",
+      "case_offset_ms": 32736.793,
+      "after_202_ms": 29748.538,
+      "request_start_after_202_ms": 29719.61,
+      "state": "queued",
+      "version": "1",
+      "matched_count": "1",
+      "processed_count": "0",
+      "remaining_count": "1",
+      "error_code": null
+    }
+  },
+  "observed_older_queue": {
+    "first_sampled": 23,
+    "maximum_sampled": 23,
+    "all_observed_older_kinds": [
+      "assignment.reconcile"
+    ],
+    "ordered_older_rows_cap": 16,
+    "timeline": [
+      {
+        "after_202_ms": 1294.32,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 23,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 23
+          }
+        ],
+        "bounded_older_rows": 16,
+        "older_rows_truncated": true
+      },
+      {
+        "after_202_ms": 2480.765,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 22,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 22
+          }
+        ],
+        "bounded_older_rows": 16,
+        "older_rows_truncated": true
+      },
+      {
+        "after_202_ms": 3734.335,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 22,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 22
+          }
+        ],
+        "bounded_older_rows": 16,
+        "older_rows_truncated": true
+      },
+      {
+        "after_202_ms": 4986.167,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 21,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 21
+          }
+        ],
+        "bounded_older_rows": 16,
+        "older_rows_truncated": true
+      },
+      {
+        "after_202_ms": 6243.317,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 21,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 21
+          }
+        ],
+        "bounded_older_rows": 16,
+        "older_rows_truncated": true
+      },
+      {
+        "after_202_ms": 7497.946,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 20,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 20
+          }
+        ],
+        "bounded_older_rows": 16,
+        "older_rows_truncated": true
+      },
+      {
+        "after_202_ms": 8752.137,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 20,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 20
+          }
+        ],
+        "bounded_older_rows": 16,
+        "older_rows_truncated": true
+      },
+      {
+        "after_202_ms": 10005.489,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 19,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 19
+          }
+        ],
+        "bounded_older_rows": 16,
+        "older_rows_truncated": true
+      },
+      {
+        "after_202_ms": 11256.454,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 19,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 19
+          }
+        ],
+        "bounded_older_rows": 16,
+        "older_rows_truncated": true
+      },
+      {
+        "after_202_ms": 12509.027,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 18,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 18
+          }
+        ],
+        "bounded_older_rows": 16,
+        "older_rows_truncated": true
+      },
+      {
+        "after_202_ms": 13760.541,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 17,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 17
+          }
+        ],
+        "bounded_older_rows": 16,
+        "older_rows_truncated": true
+      },
+      {
+        "after_202_ms": 15018.59,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 17,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 17
+          }
+        ],
+        "bounded_older_rows": 16,
+        "older_rows_truncated": true
+      },
+      {
+        "after_202_ms": 16270.453,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 16,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 16
+          }
+        ],
+        "bounded_older_rows": 16,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 17524.4,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 16,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 16
+          }
+        ],
+        "bounded_older_rows": 16,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 18776.558,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 15,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 15
+          }
+        ],
+        "bounded_older_rows": 15,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 20032.755,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 15,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 15
+          }
+        ],
+        "bounded_older_rows": 15,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 21286.891,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 14,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 14
+          }
+        ],
+        "bounded_older_rows": 14,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 22542.835,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 14,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 14
+          }
+        ],
+        "bounded_older_rows": 14,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 23794.825,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 13,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 13
+          }
+        ],
+        "bounded_older_rows": 13,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 25048.021,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 13,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 13
+          }
+        ],
+        "bounded_older_rows": 13,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 26302.783,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 12,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 12
+          }
+        ],
+        "bounded_older_rows": 12,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 27558.684,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 12,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 12
+          }
+        ],
+        "bounded_older_rows": 12,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 28810.883,
+        "inside_actual_poll_window": true,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 11,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 11
+          }
+        ],
+        "bounded_older_rows": 11,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 30060.742,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 10,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 10
+          }
+        ],
+        "bounded_older_rows": 10,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 31314.838,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 10,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 10
+          }
+        ],
+        "bounded_older_rows": 10,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 32567.712,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 9,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 9
+          }
+        ],
+        "bounded_older_rows": 9,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 33817.388,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 9,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 9
+          }
+        ],
+        "bounded_older_rows": 9,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 34823.666,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 8,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 8
+          }
+        ],
+        "bounded_older_rows": 8,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 36076.063,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 8,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 8
+          }
+        ],
+        "bounded_older_rows": 8,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 37335.394,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 7,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 7
+          }
+        ],
+        "bounded_older_rows": 7,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 38581.512,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 7,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 7
+          }
+        ],
+        "bounded_older_rows": 7,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 39833.293,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 6,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 6
+          }
+        ],
+        "bounded_older_rows": 6,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 41091.967,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 6,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 6
+          }
+        ],
+        "bounded_older_rows": 6,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 42339.288,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 5,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 5
+          }
+        ],
+        "bounded_older_rows": 5,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 43592.023,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 5,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 5
+          }
+        ],
+        "bounded_older_rows": 5,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 44842.974,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 4,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 4
+          }
+        ],
+        "bounded_older_rows": 4,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 46095.614,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 3,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 3
+          }
+        ],
+        "bounded_older_rows": 3,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 47347.776,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 3,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 3
+          }
+        ],
+        "bounded_older_rows": 3,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 48599.654,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 2,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 2
+          }
+        ],
+        "bounded_older_rows": 2,
+        "older_rows_truncated": false
+      },
+      {
+        "after_202_ms": 49851.795,
+        "inside_actual_poll_window": false,
+        "state": "queued",
+        "eligible": true,
+        "attempt_count": 0,
+        "older_eligible_count": 2,
+        "older_by_kind": [
+          {
+            "kind": "assignment.reconcile",
+            "count": 2
+          }
+        ],
+        "bounded_older_rows": 2,
+        "older_rows_truncated": false
+      }
+    ]
+  },
+  "worker_exact_poll_window": {
+    "stages": {
+      "Capture": 96,
+      "Job": 96,
+      "Retention": 96,
+      "DocumentRetention": 96,
+      "AttachmentGc": 96
+    },
+    "worked": {
+      "Job": 84,
+      "Capture": 1
+    },
+    "failed_stages": 0,
+    "max_stage_ms": 88.304585,
+    "idle_started": 12,
+    "idle_completed": 12
+  },
+  "final_correlated_durable": {
+    "job": {
+      "state": "queued",
+      "version": 1,
+      "created_at": "2026-10-24T15:52:26.81292+00:00",
+      "error_code": null,
+      "updated_at": "2026-10-24T15:52:26.81292+00:00",
+      "finished_at": null,
+      "retry_count": 0,
+      "available_at": "2026-10-24T15:52:26.81292+00:00",
+      "max_attempts": 5,
+      "attempt_count": 0
+    },
+    "attempts": [],
+    "attempts_total": 0
+  },
+  "claim_effect_timing": {
+    "claim_observed": false,
+    "effect_observed": false,
+    "reason": "All40 targeted samples and the final post-cleanup correlated row remained queued/attempt0; no attempt rows exist."
+  },
+  "observation": {
+    "process_samples": 710,
+    "database_intervals": 143,
+    "database_interval_max_ms": 1255.06,
+    "process_interval_max_ms": 254.738,
+    "own_worker_identity_matches": 710,
+    "overhead": "Private filesystem writes/fsyncs, one extra worker-role connection, scoped inventory and exact-target read-only queries per interval."
+  },
+  "cleanup": {
+    "children": [
+      {
+        "role": "api",
+        "exit_code": 0,
+        "reaped": true
+      },
+      {
+        "role": "worker",
+        "exit_code": 0,
+        "reaped": true
+      },
+      {
+        "role": "observer",
+        "exit_code": 0,
+        "reaped": true
+      },
+      {
+        "role": "browser",
+        "exit_code": 1,
+        "reaped": true
+      }
+    ],
+    "browser_monitor_reaped": true,
+    "anchored_namespace_empty": true,
+    "failures": [],
+    "original_workflow_source_restored": true
+  },
+  "limits": [
+    "All23 samples inside the actual comparator window show eligible queued attempt0, not continuous state between samples.",
+    "The first targeted sample was1294.320ms after202; its23 older rows are the first observed count, not an exact count at commit/202.",
+    "The last pre-end sample has11 older assignments; the first post-end sample has10. The earlier seven-row checkpoint was later progress, not the deadline.",
+    "Configured30000ms and actual29410.903ms comparator elapsed are recorded separately; no timeout/retry/profile was changed.",
+    "Older counts follow visible eligibility and available_at/id ordering; locked rows might be skipped by an actual claim.",
+    "No full cursor identity, continuous liveness, general performance bound or historical failure attribution is inferred.",
+    "Core/private authority browser9pass, full159failure, this53observation, unit tests and native/manual gates remain distinct."
+  ]
+}

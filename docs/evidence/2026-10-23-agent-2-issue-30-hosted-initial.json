@@ -1,0 +1,34 @@
+{
+  "status": "failed",
+  "source_commit": "725e856c6193f2ccb15b0c1768a9361119a6725b",
+  "workflow_run_id": "40031922296",
+  "job_id": "120682071836",
+  "total": 141,
+  "passed": 138,
+  "failed": 3,
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "template preview materializes titles and requires cancel, merge or replace before durable creation",
+      "status": "failed",
+      "failure": "collaboration.browser.ts:207"
+    },
+    {
+      "browser": "firefox",
+      "check": "template preview materializes titles and requires cancel, merge or replace before durable creation",
+      "status": "failed",
+      "failure": "collaboration.browser.ts:212"
+    },
+    {
+      "browser": "webkit",
+      "check": "template preview materializes titles and requires cancel, merge or replace before durable creation",
+      "status": "failed",
+      "failure": "collaboration.browser.ts:207"
+    }
+  ],
+  "limitations": [
+    "The hosted log exposes sanitized source locations, not raw assertion details or the materialized title.",
+    "This failed hosted run is separate from the local selected browser evidence and does not waive acceptance gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers, HTTP bodies, environment values or absolute paths are published."
+}

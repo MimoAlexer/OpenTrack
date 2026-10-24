@@ -1,0 +1,58 @@
+{
+  "status": "passed",
+  "scope": "Corrected project-team test plus all board, planning and project browser cases; unchanged production based on 4fb31a5/main36ec6a3.",
+  "worker_poll_interval_ms": 2000,
+  "files": [
+    "board.browser.ts",
+    "planning.browser.ts",
+    "projects.browser.ts"
+  ],
+  "total": 60,
+  "passed": 60,
+  "failed": 0,
+  "browsers": [
+    {
+      "browser": "chromium",
+      "total": 20,
+      "passed": 20,
+      "failed": 0
+    },
+    {
+      "browser": "firefox",
+      "total": 20,
+      "passed": 20,
+      "failed": 0
+    },
+    {
+      "browser": "webkit",
+      "total": 20,
+      "passed": 20,
+      "failed": 0
+    }
+  ],
+  "project_creation_checks": [
+    {
+      "browser": "chromium",
+      "check": "project creation and brief edits persist while metadata and body versions remain independent",
+      "status": "passed",
+      "duration_ms": 3441
+    },
+    {
+      "browser": "firefox",
+      "check": "project creation and brief edits persist while metadata and body versions remain independent",
+      "status": "passed",
+      "duration_ms": 4744
+    },
+    {
+      "browser": "webkit",
+      "check": "project creation and brief edits persist while metadata and body versions remain independent",
+      "status": "passed",
+      "duration_ms": 3947
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}

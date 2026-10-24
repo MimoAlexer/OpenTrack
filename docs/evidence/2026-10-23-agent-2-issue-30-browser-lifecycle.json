@@ -1,0 +1,64 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "canceled, short and same-status board drags do not send a write",
+      "status": "passed",
+      "duration_ms": 2224
+    },
+    {
+      "browser": "chromium",
+      "check": "an archived drop target preserves intent until an explicit active replacement is reviewed and saved",
+      "status": "passed",
+      "duration_ms": 1997
+    },
+    {
+      "browser": "chromium",
+      "check": "archived and viewer boards remain read-only and the real API rejects status writes",
+      "status": "passed",
+      "duration_ms": 3747
+    },
+    {
+      "browser": "firefox",
+      "check": "canceled, short and same-status board drags do not send a write",
+      "status": "passed",
+      "duration_ms": 2855
+    },
+    {
+      "browser": "firefox",
+      "check": "an archived drop target preserves intent until an explicit active replacement is reviewed and saved",
+      "status": "passed",
+      "duration_ms": 2179
+    },
+    {
+      "browser": "firefox",
+      "check": "archived and viewer boards remain read-only and the real API rejects status writes",
+      "status": "passed",
+      "duration_ms": 3723
+    },
+    {
+      "browser": "webkit",
+      "check": "canceled, short and same-status board drags do not send a write",
+      "status": "passed",
+      "duration_ms": 2076
+    },
+    {
+      "browser": "webkit",
+      "check": "an archived drop target preserves intent until an explicit active replacement is reviewed and saved",
+      "status": "passed",
+      "duration_ms": 1882
+    },
+    {
+      "browser": "webkit",
+      "check": "archived and viewer boards remain read-only and the real API rejects status writes",
+      "status": "passed",
+      "duration_ms": 3868
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}

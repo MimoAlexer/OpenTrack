@@ -1,0 +1,110 @@
+{
+  "scope": "Post-run read-only snapshot of the latest three matching synthetic workflow replacement jobs; no browser-to-job identity claim.",
+  "worker_poll_interval_ms": 2000,
+  "query_bounds": [
+    "Explicit synthetic workspace scope; latest three workflow.status_replace jobs joined to Workflow acceptance teams with matched_count=1.",
+    "Read-only transaction, five-second statement timeout, 500ms lock timeout; at most ten attempts per job."
+  ],
+  "records": [
+    {
+      "observed_at": "2026-10-23 22:59:10.058132+00",
+      "state": "queued",
+      "attempt_count": 0,
+      "retry_count": 0,
+      "max_attempts": 5,
+      "error_code": null,
+      "created_at": "2026-10-23 22:57:36.534391+00",
+      "available_at": "2026-10-23 22:57:36.534391+00",
+      "updated_at": "2026-10-23 22:57:36.534391+00",
+      "finished_at": null,
+      "lease_expires_at": null,
+      "first_claimed_at": null,
+      "enqueue_to_first_claim_ms": null,
+      "first_claim_to_terminal_ms": null,
+      "terminal": false,
+      "matched_count": 1,
+      "processed_count": 0,
+      "remaining_count": 1,
+      "source_retiring_at": "2026-10-23 22:57:36.539993+00",
+      "source_archived_at": null,
+      "source_job_matches": true,
+      "target_available": true,
+      "attempt_history_truncated": false,
+      "recent_attempts": []
+    },
+    {
+      "observed_at": "2026-10-23 22:59:10.058132+00",
+      "state": "succeeded",
+      "attempt_count": 1,
+      "retry_count": 0,
+      "max_attempts": 5,
+      "error_code": null,
+      "created_at": "2026-10-23 22:54:06.777064+00",
+      "available_at": "2026-10-23 22:57:19.568797+00",
+      "updated_at": "2026-10-23 22:57:19.568797+00",
+      "finished_at": "2026-10-23 22:57:19.568797+00",
+      "lease_expires_at": null,
+      "first_claimed_at": "2026-10-23 22:57:19.539179+00",
+      "enqueue_to_first_claim_ms": 192762.115,
+      "first_claim_to_terminal_ms": 29.618,
+      "terminal": true,
+      "matched_count": 1,
+      "processed_count": 1,
+      "remaining_count": 0,
+      "source_retiring_at": "2026-10-23 22:54:06.781817+00",
+      "source_archived_at": "2026-10-23 22:57:19.556388+00",
+      "source_job_matches": true,
+      "target_available": true,
+      "attempt_history_truncated": false,
+      "recent_attempts": [
+        {
+          "attempt": 1,
+          "outcome": "succeeded",
+          "ended_at": "2026-10-24T00:57:19.567901+02:00",
+          "elapsed_ms": 28.722,
+          "started_at": "2026-10-24T00:57:19.539179+02:00"
+        }
+      ]
+    },
+    {
+      "observed_at": "2026-10-23 22:59:10.058132+00",
+      "state": "succeeded",
+      "attempt_count": 1,
+      "retry_count": 0,
+      "max_attempts": 5,
+      "error_code": null,
+      "created_at": "2026-10-23 22:50:20.912986+00",
+      "available_at": "2026-10-23 22:52:07.277446+00",
+      "updated_at": "2026-10-23 22:52:07.277446+00",
+      "finished_at": "2026-10-23 22:52:07.277446+00",
+      "lease_expires_at": null,
+      "first_claimed_at": "2026-10-23 22:52:07.254135+00",
+      "enqueue_to_first_claim_ms": 106341.149,
+      "first_claim_to_terminal_ms": 23.311,
+      "terminal": true,
+      "matched_count": 1,
+      "processed_count": 1,
+      "remaining_count": 0,
+      "source_retiring_at": "2026-10-23 22:50:20.917073+00",
+      "source_archived_at": "2026-10-23 22:52:07.267876+00",
+      "source_job_matches": true,
+      "target_available": true,
+      "attempt_history_truncated": false,
+      "recent_attempts": [
+        {
+          "attempt": 1,
+          "outcome": "succeeded",
+          "ended_at": "2026-10-24T00:52:07.277104+02:00",
+          "elapsed_ms": 22.969,
+          "started_at": "2026-10-24T00:52:07.254135+02:00"
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "A later snapshot does not establish state at the failed assertion or the exact browser polling deadline.",
+    "Enqueue-to-first-claim is a durable timestamp interval, not handler CPU time or proof of a scheduler cause.",
+    "Current available_at is not proof of initial eligibility; per-stage, lock, pool, GC and historical build provenance were not captured."
+  ],
+  "artifacts": "Job and workspace identifiers, payloads, requester identities, raw errors and connection data are excluded."
+}

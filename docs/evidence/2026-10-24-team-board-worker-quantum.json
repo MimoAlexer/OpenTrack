@@ -1,0 +1,75 @@
+{
+  "source_head": "4b2a006fa75670241b94ed8a2d591f47d60f85f0",
+  "source_sha256": {
+    "crates/opentrack-server/src/worker.rs": "eeab933231b61926418e78e1a3db25ed0cc1679141b9bef13520039199444881",
+    "crates/opentrack-server/tests/worker_daemon_contract.rs": "e22c852f2c4e7190decd503df759c740374e334f6d91518ebe413875fbc88154"
+  },
+  "checks": [
+    {
+      "check": "policy",
+      "exit_code": 0,
+      "elapsed_seconds": 6.296,
+      "owned_session_cleanup_confirmed": true
+    },
+    {
+      "check": "daemon",
+      "exit_code": 0,
+      "elapsed_seconds": 92.33,
+      "owned_session_cleanup_confirmed": true
+    },
+    {
+      "check": "authority-fencing",
+      "exit_code": 0,
+      "elapsed_seconds": 16.526,
+      "owned_session_cleanup_confirmed": true
+    },
+    {
+      "check": "lint",
+      "exit_code": 0,
+      "elapsed_seconds": 42.423,
+      "owned_session_cleanup_confirmed": true
+    },
+    {
+      "check": "build",
+      "exit_code": 0,
+      "elapsed_seconds": 0.717,
+      "owned_session_cleanup_confirmed": true
+    }
+  ],
+  "test_results": {
+    "policy": [
+      "ok. 8 passed; 0 failed; 0 ignored; 0 measured; 31 filtered out; finished in 0.00s"
+    ],
+    "daemon": [
+      "ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 82.94s"
+    ],
+    "authority-fencing": [
+      "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.38s",
+      "ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.20s"
+    ]
+  },
+  "fairness": {
+    "both_commands_completed_within_30_seconds": true,
+    "boundary": "Owner-only committed claim trace; one effect per five-stage round; retained state and general p95 are separate.",
+    "busy_scopes": 2,
+    "claimed_batches": 22,
+    "default_profile": {
+      "lease_seconds": 60,
+      "max_connections": 5,
+      "poll_interval_ms": 2000
+    },
+    "maximum_consecutive_claims": 4,
+    "older_intents_per_scope": 8,
+    "registered_scopes": 94
+  },
+  "earlier_attempt_preserved": {
+    "phase": "policy test compilation",
+    "cause": "A non-Copy WorkerTick was moved twice in the new test.",
+    "correction": "Borrow the same Result across the quantum assertions.",
+    "runtime_or_sql_executed": false
+  },
+  "limits": [
+    "Local real PostgreSQL/daemon and policy evidence; retained browser/CI/native gates are separate.",
+    "Four-batch preference is bounded; arbitrary backlog or slow effects have no blanket30s guarantee."
+  ]
+}

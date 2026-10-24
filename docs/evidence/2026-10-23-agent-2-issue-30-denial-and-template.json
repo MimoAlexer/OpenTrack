@@ -1,0 +1,49 @@
+{
+  "status": "failed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "private-team membership revocation conceals board cards and rejects the pending move",
+      "status": "passed",
+      "duration_ms": 3618
+    },
+    {
+      "browser": "chromium",
+      "check": "template preview materializes titles and requires cancel, merge or replace before durable creation",
+      "status": "failed",
+      "duration_ms": 1464,
+      "failure": "collaboration.browser.ts:212"
+    },
+    {
+      "browser": "firefox",
+      "check": "private-team membership revocation conceals board cards and rejects the pending move",
+      "status": "passed",
+      "duration_ms": 4648
+    },
+    {
+      "browser": "firefox",
+      "check": "template preview materializes titles and requires cancel, merge or replace before durable creation",
+      "status": "failed",
+      "duration_ms": 2506,
+      "failure": "collaboration.browser.ts:212"
+    },
+    {
+      "browser": "webkit",
+      "check": "private-team membership revocation conceals board cards and rejects the pending move",
+      "status": "passed",
+      "duration_ms": 3995
+    },
+    {
+      "browser": "webkit",
+      "check": "template preview materializes titles and requires cancel, merge or replace before durable creation",
+      "status": "failed",
+      "duration_ms": 1656,
+      "failure": "collaboration.browser.ts:212"
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}

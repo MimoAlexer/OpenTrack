@@ -1,0 +1,25 @@
+{
+  "head": "4fb31a54669a83ded6f85af27d7f75416c4b7c38",
+  "workflow_run_id": "40037208855",
+  "job_id": "120699583620",
+  "total": 144,
+  "passed": 141,
+  "failed": 3,
+  "failures": [
+    {
+      "browser": "chromium",
+      "check": "project creation and brief edits persist while metadata and body versions remain independent",
+      "failure": "projects.browser.ts:40"
+    },
+    {
+      "browser": "firefox",
+      "check": "project creation and brief edits persist while metadata and body versions remain independent",
+      "failure": "projects.browser.ts:40"
+    },
+    {
+      "browser": "webkit",
+      "check": "project creation and brief edits persist while metadata and body versions remain independent",
+      "failure": "projects.browser.ts:40"
+    }
+  ]
+}

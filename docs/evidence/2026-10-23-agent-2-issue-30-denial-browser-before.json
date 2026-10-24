@@ -1,0 +1,17 @@
+{
+  "status": "failed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "private-team membership revocation conceals board cards and rejects the pending move",
+      "status": "failed",
+      "duration_ms": 13537,
+      "failure": "board.browser.ts:303"
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}

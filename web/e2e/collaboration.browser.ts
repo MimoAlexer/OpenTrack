@@ -198,6 +198,7 @@ test('template preview materializes titles and requires cancel, merge or replace
   await saved.open(page);
   await page.getByRole('button', { name: /^New issue/ }).click();
   const create = page.getByRole('dialog', { name: 'New issue', exact: true });
+  await create.getByRole('combobox', { name: 'Team', exact: true }).selectOption(saved.team.id);
   await create.getByRole('textbox', { name: 'Title', exact: true }).fill('Keep reviewed draft');
   await create.getByRole('textbox', { name: 'Description', exact: true }).fill('Original draft description');
   await create.getByRole('combobox', { name: 'Priority', exact: true }).selectOption('3');
@@ -209,7 +210,9 @@ test('template preview materializes titles and requires cancel, merge or replace
   };
   await choose('Use a template');
   const materialized = await chooser.getByRole('region', { name: 'Template preview' }).locator('h4').innerText();
-  expect(materialized).toMatch(/^EXA Example Team \d{4}-\d{2}-\d{2}$/);
+  const prefix = `${saved.team.key} ${saved.team.name} `;
+  expect(materialized.startsWith(prefix)).toBe(true);
+  expect(materialized.slice(prefix.length)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   await chooser.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(create.getByRole('textbox', { name: 'Title', exact: true })).toHaveValue('Keep reviewed draft');
   await choose('Use a template');
