@@ -1,0 +1,257 @@
+{
+  "format_version": 1,
+  "date": "2026-10-24",
+  "scope": "Fresh retained-snapshot qualification of the bounded four-batch scheduler with PR155 authority recovery.",
+  "source_head": "4b2a006fa75670241b94ed8a2d591f47d60f85f0",
+  "backend_sha256": "a4ddc69b46c258fde00d61ccd1e75bfdc9162ecb5edc1636eb6b42cf5e56c7c6",
+  "frontend_sha256": "d9d1ff6bc2a8734573076d8f308ccc2876afc95d584ad12e8c3f417c837cb80c",
+  "board_spec_sha256": "dc8df5a32d91f5719bbe649d2014d046d221d90f3e6240b10132bf4f766336a4",
+  "web_source_files": 244,
+  "web_sources_identical_to_prior_9dc": true,
+  "selected_source_hashes": {
+    "web/e2e/workflow-taxonomy.browser.ts": "4798b905fcd70131f16bc96ad7f765924f0c391e5ffa9fee5c56404f86ada87e",
+    "web/e2e/fixtures.ts": "97c8f8183457a7b4af966090b12fbe58166c0f7fa37822643c5511d4fb469445",
+    "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "web/package-lock.json": "8e2fdbd29514709587cbfcde6a0bafd0b2c99fe5ebb5a6652c1e0c77eeaff009",
+    "web/src/App.tsx": "3ef77daf596688428620952d97fe85492baf5d71e6c25c55a95b66610cd7214b",
+    "web/src/api.ts": "6030abc0142d297f4fc5341bb0b30d9a7e94aa5266098b5304e5e63596587858",
+    "web/src/issues/IssueList.tsx": "794e457931706c72bd27c0ea79537446d437abb99581860c1fa1fd1878916aa0"
+  },
+  "contract": {
+    "workers": 1,
+    "retries": 0,
+    "case_timeout_ms": 60000,
+    "expect_timeout_ms": 10000,
+    "workflow_predicate_timeout_ms": 30000,
+    "workflow_source_uninstrumented": true,
+    "default_public_schema_preserved": true
+  },
+  "connected": {
+    "actual_exit_code": 0,
+    "status": "passed",
+    "passed": 9,
+    "total": 9,
+    "per_engine": {
+      "chromium": {
+        "passed": 3,
+        "total": 3
+      },
+      "firefox": {
+        "passed": 3,
+        "total": 3
+      },
+      "webkit": {
+        "passed": 3,
+        "total": 3
+      }
+    },
+    "connected_authority_cases_passed": 9,
+    "restore": {
+      "new_independent_database": true,
+      "create_exit": 0,
+      "restore_exit": 0,
+      "checks": {
+        "registry_scopes": 116,
+        "api_connect": true,
+        "worker_connect": true,
+        "operator_connect": true,
+        "bad_table_owners": 0,
+        "public_connect_revoked": true
+      },
+      "dump_sha256": "fc20272c8fc6cbd35c30f5993978182b4fbc06f72fb375a9d4efe04047bcae70",
+      "blob_files": 12,
+      "blob_digest": "f196782708a2f3fdad400adf139d98c6f8c9d370bd8d6984bdf3514772652145",
+      "children_reaped": true
+    },
+    "ordered_listing": {
+      "total": 9,
+      "per_engine": {
+        "chromium": 3,
+        "firefox": 3,
+        "webkit": 3
+      },
+      "selection_order_sha256": "bf90a717bfa747814f61a829f6bd5687de48b89425bb6a83d008e74c376f31ab",
+      "exit": 0
+    },
+    "worker_profile": {
+      "poll_interval_ms": 2000,
+      "max_connections": 5,
+      "lease_seconds": 60
+    },
+    "runner_sha256": "64c4656e716d99803fc3171c95b87cf6d942f39efe1d17b781c2271943ee5040",
+    "helper_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+    "node_started_witnessed": true,
+    "cleanup": {
+      "children": [
+        {
+          "role": "api",
+          "exit_code": 0,
+          "reaped": true
+        },
+        {
+          "role": "worker",
+          "exit_code": 0,
+          "reaped": true
+        },
+        {
+          "role": "browser",
+          "exit_code": 0,
+          "reaped": true
+        }
+      ],
+      "browser_monitor_reaped": true,
+      "anchored_namespace_empty": true,
+      "failures": [],
+      "source_unchanged": true,
+      "private_modes_verified": true
+    },
+    "workflow_case_results": []
+  },
+  "full": {
+    "actual_exit_code": 0,
+    "status": "passed",
+    "passed": 159,
+    "total": 159,
+    "per_engine": {
+      "chromium": {
+        "passed": 53,
+        "total": 53
+      },
+      "firefox": {
+        "passed": 53,
+        "total": 53
+      },
+      "webkit": {
+        "passed": 53,
+        "total": 53
+      }
+    },
+    "connected_authority_cases_passed": 9,
+    "restore": {
+      "new_independent_database": true,
+      "create_exit": 0,
+      "restore_exit": 0,
+      "checks": {
+        "registry_scopes": 116,
+        "api_connect": true,
+        "worker_connect": true,
+        "operator_connect": true,
+        "bad_table_owners": 0,
+        "public_connect_revoked": true
+      },
+      "dump_sha256": "fc20272c8fc6cbd35c30f5993978182b4fbc06f72fb375a9d4efe04047bcae70",
+      "blob_files": 12,
+      "blob_digest": "f196782708a2f3fdad400adf139d98c6f8c9d370bd8d6984bdf3514772652145",
+      "children_reaped": true
+    },
+    "ordered_listing": {
+      "total": 159,
+      "per_engine": {
+        "chromium": 53,
+        "firefox": 53,
+        "webkit": 53
+      },
+      "selection_order_sha256": "619c6b46c859288b08eb95f57adca493ae43af3078efe58716fed393ad593322",
+      "exit": 0
+    },
+    "worker_profile": {
+      "poll_interval_ms": 2000,
+      "max_connections": 5,
+      "lease_seconds": 60
+    },
+    "runner_sha256": "64c4656e716d99803fc3171c95b87cf6d942f39efe1d17b781c2271943ee5040",
+    "helper_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+    "node_started_witnessed": true,
+    "cleanup": {
+      "children": [
+        {
+          "role": "api",
+          "exit_code": 0,
+          "reaped": true
+        },
+        {
+          "role": "worker",
+          "exit_code": 0,
+          "reaped": true
+        },
+        {
+          "role": "browser",
+          "exit_code": 0,
+          "reaped": true
+        }
+      ],
+      "browser_monitor_reaped": true,
+      "anchored_namespace_empty": true,
+      "failures": [],
+      "source_unchanged": true,
+      "private_modes_verified": true
+    },
+    "workflow_case_results": [
+      {
+        "browser": "chromium",
+        "status": "passed",
+        "whole_case_duration_ms": 4413
+      },
+      {
+        "browser": "firefox",
+        "status": "passed",
+        "whole_case_duration_ms": 12316
+      },
+      {
+        "browser": "webkit",
+        "status": "passed",
+        "whole_case_duration_ms": 13393
+      }
+    ]
+  },
+  "preserved_before": {
+    "source_head": "9dc597b357fa1d43bfa972ce9675b02b90920919",
+    "backend_sha256": "5d31ddbd6024ab0c7046a720adee3779e41aed051cb9275ec6b4403c06386baf",
+    "connected": {
+      "passed": 9,
+      "total": 9
+    },
+    "full": {
+      "passed": 156,
+      "total": 159,
+      "failed": "All three workflow success predicates received queued at the unchanged30000ms deadline."
+    },
+    "correlated_chromium_observation": {
+      "passed": 52,
+      "total": 53,
+      "exact_target_samples_in_poll": 23,
+      "all_sampled_target_states": "queued/eligible/attempt0",
+      "first_and_max_sampled_older_assignments": 23,
+      "last_sample_before_poll_end_older_assignments": 11,
+      "first_sample_after_poll_end_older_assignments": 10
+    },
+    "old_poststates_and_receipts_retained": true,
+    "receipt_references": [
+      {
+        "artifact": "connected-summary.json",
+        "sha256": "b100a8b92a01fc2dac82243330f674a6f5fdbd322ef25a8683891ec240a2906b"
+      },
+      {
+        "artifact": "full-summary.json",
+        "sha256": "16417fa0e787ecc74af6053297dcb7d5c09e740e9aef3d083ee9ead12fc1c307"
+      },
+      {
+        "artifact": "full-failure-analysis.json",
+        "sha256": "e8f1162648f349b5a524ea53c2e3941a973b2073db089f20c654ea3d5757b27b"
+      },
+      {
+        "artifact": "diagnostic/correlated-publication.json",
+        "sha256": "614d07bccf688de45631851469d257631358d64c2cfc8b889157d630fe473f0a"
+      }
+    ]
+  },
+  "limits": [
+    "The successful159 matrix is the unchanged complete browser selection; the separate9 cases are not added to its159 count.",
+    "Successful workflow durations are whole-test durations, not measured commit-to-claim or per-poll latencies.",
+    "This qualification adds no workflow instrumentation or database sampler; original assertions and default worker profile remain unchanged.",
+    "The prior156/159 and correlated52/53 failures remain genuine evidence, not waived or replaced with a fresh-state claim.",
+    "These results are bounded retained-clone browser evidence; native/manual/assistive/provider/generalp95 and whole-product gates remain separate.",
+    "Unit/daemon/fairness/shutdown tests, CI and final integration review are recorded separately by the lead."
+  ]
+}
