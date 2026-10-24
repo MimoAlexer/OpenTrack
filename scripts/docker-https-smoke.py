@@ -2,17 +2,22 @@
 """Qualify the local-CA HTTPS profile on an existing disposable Docker stack.
 
 Only opentrack-smoke-* projects are accepted. Run after docker-smoke.py has
-completed first-owner setup and the proxy image has been built. No account
-credentials, private CA keys or disabled TLS verification are used.
+completed first-owner setup and the proxy image has been built. The standalone
+command needs no account credentials; recovery checks retain existing actors in
+memory. Private CA keys are never exported and TLS verification stays enabled.
 """
 import argparse
+import copy
+import http.cookiejar
 import hashlib
 from html.parser import HTMLParser
+import inspect
 import json
 import os
 from pathlib import Path
 import re
 import ssl
+import stat
 import subprocess
 import tempfile
 import time
@@ -23,11 +28,184 @@ import urllib.request
 
 ORIGIN = "https://localhost:18443"
 MAX_RESPONSE = 8 * 1024 * 1024
+MAX_PROXY_METADATA_ENTRIES = 4096
+MAX_PROXY_METADATA_DEPTH = 32
+MAX_PROXY_METADATA_CLASSES = 64
+MAX_PROXY_METADATA_BYTES = 16384
+RECOVERY_LABEL = "org.opentrack.qualification.recovery"
+METADATA_PURPOSE_LABEL = "org.opentrack.qualification.purpose"
 
 
 def require(condition, message):
     if not condition:
         raise RuntimeError(message)
+
+
+def proxy_metadata(roots):
+    require(type(roots) is dict and set(roots) == {"proxy_data", "proxy_config"}
+            and all(isinstance(root, Path) for root in roots.values()),
+            "Proxy metadata roots rejected")
+    require(hasattr(os, "O_DIRECTORY") and hasattr(os, "O_NOFOLLOW"),
+            "Proxy metadata filesystem rejected")
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    result = {}
+    try:
+        for volume in ("proxy_data", "proxy_config"):
+            root = roots[volume]
+            root_info = root.lstat()
+            require(stat.S_ISDIR(root_info.st_mode), "Proxy metadata entry rejected")
+            device, entries_seen, classes = root_info.st_dev, 0, {}
+
+            def visit(name, info, depth, parent=None):
+                nonlocal entries_seen
+                require(depth <= MAX_PROXY_METADATA_DEPTH, "Proxy metadata bounds exceeded")
+                require(info.st_dev == device and not info.st_mode & 0o7000,
+                        "Proxy metadata entry rejected")
+                if stat.S_ISDIR(info.st_mode):
+                    kind = "directory"
+                else:
+                    require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1,
+                            "Proxy metadata entry rejected")
+                    kind = "file"
+                entries_seen += 1
+                require(entries_seen <= MAX_PROXY_METADATA_ENTRIES, "Proxy metadata bounds exceeded")
+                key = (kind, info.st_uid, info.st_gid, f"{stat.S_IMODE(info.st_mode):04o}")
+                classes[key] = classes.get(key, 0) + 1
+                require(len(classes) <= MAX_PROXY_METADATA_CLASSES, "Proxy metadata bounds exceeded")
+                if kind == "directory":
+                    descriptor = os.open(name, flags, dir_fd=parent)
+                    try:
+                        opened = os.fstat(descriptor)
+                        require((opened.st_dev, opened.st_ino) == (info.st_dev, info.st_ino),
+                                "Proxy metadata entry rejected")
+                        with os.scandir(descriptor) as children:
+                            for child in children:
+                                visit(child.name, os.lstat(child.name, dir_fd=descriptor),
+                                      depth + 1, descriptor)
+                    finally:
+                        os.close(descriptor)
+
+            visit(root, root_info, 0)
+            result[volume] = [{"kind": kind, "uid": uid, "gid": gid, "mode": mode, "count": count}
+                              for (kind, uid, gid, mode), count in sorted(classes.items())]
+    except (OSError, NotImplementedError):
+        raise RuntimeError("Proxy metadata filesystem rejected") from None
+    return parse_proxy_metadata(json.dumps(result, separators=(",", ":")))
+
+
+def parse_proxy_metadata(output):
+    require(type(output) is str, "Proxy metadata JSON rejected")
+    require(len(output) <= MAX_PROXY_METADATA_BYTES, "Proxy metadata bounds exceeded")
+
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result, "Proxy metadata JSON rejected")
+            result[key] = value
+        return result
+
+    def invalid_constant(_value):
+        raise RuntimeError("Proxy metadata JSON rejected")
+
+    try:
+        require(len(output.encode("utf-8")) <= MAX_PROXY_METADATA_BYTES,
+                "Proxy metadata bounds exceeded")
+        value = json.loads(output, object_pairs_hook=unique_object, parse_constant=invalid_constant)
+    except (ValueError, RecursionError):
+        raise RuntimeError("Proxy metadata JSON rejected") from None
+    require(type(value) is dict and set(value) == {"proxy_data", "proxy_config"},
+            "Proxy metadata schema rejected")
+    normalized = {}
+    for volume in ("proxy_data", "proxy_config"):
+        records = value[volume]
+        require(type(records) is list and 1 <= len(records) <= MAX_PROXY_METADATA_CLASSES,
+                "Proxy metadata schema rejected")
+        seen, total, entries = set(), 0, []
+        for record in records:
+            require(type(record) is dict and set(record) == {"kind", "uid", "gid", "mode", "count"},
+                    "Proxy metadata schema rejected")
+            require(type(record["kind"]) is str and record["kind"] in ("directory", "file")
+                    and all(type(record[key]) is int and 0 <= record[key] <= 4294967294
+                            for key in ("uid", "gid"))
+                    and type(record["mode"]) is str and re.fullmatch(r"0[0-7]{3}", record["mode"])
+                    and type(record["count"]) is int and 0 < record["count"] <= MAX_PROXY_METADATA_ENTRIES,
+                    "Proxy metadata schema rejected")
+            key = (record["kind"], record["uid"], record["gid"], record["mode"])
+            require(key not in seen, "Proxy metadata schema rejected")
+            seen.add(key)
+            total += record["count"]
+            require(total <= MAX_PROXY_METADATA_ENTRIES, "Proxy metadata bounds exceeded")
+            entries.append({"kind": key[0], "uid": key[1], "gid": key[2],
+                            "mode": key[3], "count": record["count"]})
+        require(any(record["kind"] == "directory" for record in entries),
+                "Proxy metadata schema rejected")
+        normalized[volume] = sorted(entries, key=lambda record: (
+            record["kind"], record["uid"], record["gid"], record["mode"]))
+    return normalized
+
+
+def readonly_actor(actor, opener):
+    view = copy.copy(actor)
+
+    def request(path, method="GET", body=None, *, raw=None, headers=None,
+                expected=(200,), authenticated=True):
+        selection = None
+        try:
+            if not (type(path) is str and path.startswith("/") and not path.startswith("//")
+                    and all(ord(character) > 32 and ord(character) != 127
+                            and character not in "#\\" for character in path)
+                    and method == "GET" and body is None and raw is None
+                    and type(authenticated) is bool and type(expected) is tuple and expected
+                    and all(type(status) is int and 100 <= status <= 599 for status in expected)
+                    and (headers is None or type(headers) is dict)):
+                raise RuntimeError("Read-only HTTPS transport rejected")
+            target = ORIGIN + path
+            parsed = urllib.parse.urlsplit(target)
+            if (parsed.scheme != "https" or parsed.netloc != "localhost:18443"
+                    or parsed.fragment or parsed.username or parsed.password):
+                raise RuntimeError("Read-only HTTPS transport rejected")
+            fields = {"Origin": ORIGIN, "Accept-Encoding": "identity"}
+            permitted = {"if-none-match": "If-None-Match", "range": "Range"}
+            for name, value in (headers or {}).items():
+                if (type(name) is not str or name.lower() not in permitted
+                        or type(value) is not str or not value
+                        or any(character in value for character in "\r\n\x00")):
+                    raise RuntimeError("Read-only HTTPS transport rejected")
+                canonical = permitted[name.lower()]
+                if canonical in fields:
+                    raise RuntimeError("Read-only HTTPS transport rejected")
+                fields[canonical] = value
+            outgoing = urllib.request.Request(target, method="GET", headers=fields)
+            # CookieJar has no public policy getter; preserve its policy without sharing state.
+            selection = http.cookiejar.CookieJar(policy=copy.deepcopy(actor.cookies._policy))
+            if authenticated:
+                for cookie in actor.cookies:
+                    selection.set_cookie(copy.deepcopy(cookie))
+            selection.add_cookie_header(outgoing)
+            try:
+                reply = opener.open(outgoing, timeout=30)
+            except urllib.error.HTTPError as error:
+                reply = error
+            with reply:
+                if (reply.status not in expected or 300 <= reply.status < 400
+                        or reply.geturl() != target):
+                    raise RuntimeError("Read-only HTTPS transport rejected")
+                received = reply.read(MAX_RESPONSE + 1)
+                if len(received) > MAX_RESPONSE:
+                    raise RuntimeError("Read-only HTTPS transport rejected")
+                response_headers = reply.headers
+            media_type = response_headers.get("Content-Type", "").partition(";")[0].strip().lower()
+            if media_type in ("application/json", "application/problem+json"):
+                return json.loads(received), response_headers
+            return received, response_headers
+        except Exception:
+            raise RuntimeError("Read-only HTTPS transport rejected") from None
+        finally:
+            if selection is not None:
+                selection.clear()
+
+    view.request = request
+    return view
 
 
 class NoRedirects(urllib.request.HTTPRedirectHandler):
@@ -66,6 +244,7 @@ class Qualification:
         self.certificate = self.directory / "local-ca.crt"
         self.output = Path(args.output)
         self.checks = []
+        self.metadata_reserved = False
 
     def command(self, arguments, *, timeout=90, allowed=(0,)):
         result = subprocess.run(arguments, env=self.environment, capture_output=True,
@@ -93,6 +272,142 @@ class Qualification:
                 and labels.get("com.docker.compose.service") == service,
                 "Container identity does not match the disposable project")
         return item
+
+    def metadata_container(self, image):
+        name = self.project + "-https-metadata"
+        identifiers = self.command(["docker", "container", "ls", "--all", "--quiet",
+                                    "--filter", f"name=^/{name}$"], timeout=15).stdout.split()
+        if not identifiers:
+            return None
+        require(len(identifiers) == 1, "Proxy metadata identity rejected")
+        items = json.loads(self.command(["docker", "container", "inspect", name], timeout=15).stdout)
+        require(type(items) is list and len(items) == 1 and type(items[0]) is dict,
+                "Proxy metadata identity rejected")
+        item = items[0]
+        configuration, host = item.get("Config", {}), item.get("HostConfig", {})
+        require(type(configuration) is dict and type(host) is dict, "Proxy metadata identity rejected")
+        labels = configuration.get("Labels") or {}
+        mounts = item.get("Mounts", [])
+        require(type(labels) is dict and type(mounts) is list
+                and all(type(mount) is dict for mount in mounts), "Proxy metadata identity rejected")
+        require(item.get("Name") == "/" + name and item.get("Image") == image
+                and configuration.get("Image") == image and configuration.get("User") == "10001:10001"
+                and labels.get(RECOVERY_LABEL) == self.project
+                and labels.get("com.docker.compose.project") == self.project
+                and labels.get(METADATA_PURPOSE_LABEL) == "https-metadata"
+                and host.get("NetworkMode") == "none" and host.get("ReadonlyRootfs") is True
+                and not host.get("Privileged") and not host.get("CapAdd")
+                and host.get("CapDrop") == ["ALL"]
+                and host.get("SecurityOpt") == ["no-new-privileges:true"]
+                and len(mounts) == 2 and all(mount.get("Type") == "volume"
+                                           and mount.get("RW") is False for mount in mounts)
+                and {(mount.get("Name"), mount.get("Destination"), mount.get("RW")) for mount in mounts}
+                == {(self.project + "_proxy_data", "/proxy-data", False),
+                    (self.project + "_proxy_config", "/proxy-config", False)},
+                "Proxy metadata identity rejected")
+        return item
+
+    def cleanup_metadata(self, image):
+        try:
+            if self.metadata_container(image) is None:
+                self.metadata_reserved = False
+                return
+            self.command(["docker", "container", "rm", "--force",
+                          self.project + "-https-metadata"], timeout=30)
+            require(self.metadata_container(image) is None, "Proxy metadata cleanup unconfirmed")
+            self.metadata_reserved = False
+        except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+            raise RuntimeError("Proxy metadata cleanup unconfirmed") from None
+
+    def measure_metadata(self, image):
+        primary = None
+        reserved = False
+        try:
+            require(not self.metadata_reserved, "Proxy metadata prior cleanup is unconfirmed")
+            require(type(image) is str and re.fullmatch(r"sha256:[0-9a-f]{64}", image),
+                    "Proxy metadata image rejected")
+            require(self.metadata_container(image) is None, "Proxy metadata refuses a preexisting helper")
+            initialize = self.container("initialize")
+            require(initialize.get("Image") == image and not initialize.get("State", {}).get("Running")
+                    and initialize.get("State", {}).get("ExitCode") == 0,
+                    "Proxy metadata image rejected")
+            volumes = {}
+            for volume in ("proxy_data", "proxy_config"):
+                name = self.project + "_" + volume
+                items = json.loads(self.command(["docker", "volume", "inspect", name], timeout=15).stdout)
+                require(type(items) is list and len(items) == 1 and type(items[0]) is dict,
+                        "Proxy metadata volume identity rejected")
+                item = items[0]
+                labels = item.get("Labels") or {}
+                require(type(labels) is dict and item.get("Name") == name
+                        and item.get("Driver") == "local" and not item.get("Options")
+                        and labels.get("com.docker.compose.project") == self.project
+                        and labels.get("com.docker.compose.volume") == volume,
+                        "Proxy metadata volume identity rejected")
+                require(type(item.get("CreatedAt")) is str and item["CreatedAt"],
+                        "Proxy metadata volume identity rejected")
+                volumes[volume] = item
+                require(not self.command(["docker", "ps", "--quiet", "--filter", "volume=" + name],
+                                         timeout=15).stdout.strip(), "Proxy metadata writer is active")
+            identifiers = self.command(["docker", "ps", "--all", "--quiet", "--filter",
+                                        "label=com.docker.compose.project=" + self.project], timeout=15).stdout.split()
+            require(identifiers, "Proxy metadata source inventory rejected")
+            containers = json.loads(self.command(["docker", "inspect", *identifiers], timeout=15).stdout)
+            require(type(containers) is list and len(containers) == len(identifiers) and all(
+                    type(item) is dict and
+                    (item.get("Config", {}).get("Labels") or {}).get("com.docker.compose.project") == self.project
+                    and not item.get("State", {}).get("Running") and not item.get("State", {}).get("Restarting")
+                    and not item.get("State", {}).get("OOMKilled") and item.get("State", {}).get("ExitCode") == 0
+                    for item in containers), "Proxy metadata writer is active")
+            helper = "import json, os, re, signal, stat\nfrom pathlib import Path\n"
+            for bound in ("ENTRIES", "DEPTH", "CLASSES", "BYTES"):
+                key = "MAX_PROXY_METADATA_" + bound
+                helper += key + " = " + str(globals()[key]) + "\n"
+            helper += "\n".join(inspect.getsource(function) for function in
+                                 (require, proxy_metadata, parse_proxy_metadata))
+            helper += ("\ndef expired(_signal, _frame):\n    raise TimeoutError()\n"
+                       "signal.signal(signal.SIGALRM, expired)\nsignal.alarm(15)\n"
+                       "try:\n    value = proxy_metadata({'proxy_data':Path('/proxy-data'),"
+                       "'proxy_config':Path('/proxy-config')})\n"
+                       "    print(json.dumps(value,separators=(',',':')),flush=True)\n"
+                       "except (RuntimeError,OSError,ValueError,TimeoutError):\n"
+                       "    raise SystemExit('Proxy metadata helper rejected') from None\n")
+            reserved = True
+            self.metadata_reserved = True
+            result = self.command(["docker", "run", "--pull", "never", "--name", self.project + "-https-metadata",
+                "--label", RECOVERY_LABEL + "=" + self.project,
+                "--label", "com.docker.compose.project=" + self.project,
+                "--label", METADATA_PURPOSE_LABEL + "=https-metadata",
+                "--network", "none", "--user", "10001:10001", "--read-only", "--cap-drop", "ALL",
+                "--security-opt", "no-new-privileges:true",
+                "--mount", "type=volume,src=" + self.project + "_proxy_data,dst=/proxy-data,readonly,volume-nocopy",
+                "--mount", "type=volume,src=" + self.project + "_proxy_config,dst=/proxy-config,readonly,volume-nocopy",
+                "--entrypoint", "python3", image, "-c", helper], timeout=30)
+            completed = self.metadata_container(image)
+            require(completed is not None and not completed.get("State", {}).get("Running")
+                    and not completed.get("State", {}).get("Restarting")
+                    and not completed.get("State", {}).get("OOMKilled")
+                    and completed.get("State", {}).get("ExitCode") == 0,
+                    "Proxy metadata helper did not complete")
+            observed = parse_proxy_metadata(result.stdout)
+            for volume, original in volumes.items():
+                current = json.loads(self.command(["docker", "volume", "inspect", self.project + "_" + volume],
+                                                 timeout=15).stdout)
+                require(current == [original], "Proxy metadata source volume changed")
+            return observed
+        except BaseException as error:
+            primary = ("interrupted" if isinstance(error, (KeyboardInterrupt, SystemExit)) else
+                       "timeout" if isinstance(error, subprocess.TimeoutExpired) else "helper")
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise
+            raise RuntimeError("Proxy metadata rejected: " + primary) from None
+        finally:
+            if reserved:
+                try:
+                    self.cleanup_metadata(image)
+                except RuntimeError:
+                    reason = ("primary=" + primary + "; ") if primary else ""
+                    raise RuntimeError("Proxy metadata rejected: " + reason + "cleanup=unconfirmed") from None
 
     @staticmethod
     def opener(context):

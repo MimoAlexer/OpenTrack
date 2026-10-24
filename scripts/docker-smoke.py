@@ -6,6 +6,7 @@ this developer/CI qualification; ordinary installation uses Docker alone.
 Never writes credentials into the public receipt or process arguments.
 """
 import argparse
+import copy
 import hashlib
 import http.cookiejar
 from html.parser import HTMLParser
@@ -17,13 +18,20 @@ from pathlib import Path
 import re
 import secrets
 import signal
+import ssl
 import stat
 import subprocess
 import tarfile
+import tempfile
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+
+
+_https_spec = importlib.util.spec_from_file_location("docker_https_smoke", Path(__file__).with_name("docker-https-smoke.py"))
+https = importlib.util.module_from_spec(_https_spec)
+_https_spec.loader.exec_module(https)
 
 
 RECOVERY_VOLUMES = ("database", "blobs", "database_secrets", "api_secrets",
@@ -426,7 +434,39 @@ class Qualification:
                 "Docker resolved an unexpected volume")
         return information[0]
 
-    def cleanup_recovery(self, *, remove_backup=False):
+    def cleanup_recovery(self, *, remove_backup=False, include_https_metadata=False):
+        if include_https_metadata:
+            failed = []
+            try:
+                name = self.project + "-https-metadata"
+                identifiers = self.command(["docker", "container", "ls", "--all", "--quiet",
+                    "--filter", f"name=^/{name}$"], timeout=15).stdout.split()
+                if identifiers:
+                    require(len(identifiers) == 1, "HTTPS metadata cleanup unconfirmed")
+                    initialize = self.container("initialize")
+                    labels = initialize.get("Config", {}).get("Labels") or {}
+                    image = initialize.get("Image")
+                    require(type(image) is str and re.fullmatch(r"sha256:[0-9a-f]{64}", image)
+                            and labels.get("com.docker.compose.project") == self.project
+                            and labels.get("com.docker.compose.service") == "initialize"
+                            and initialize.get("Config", {}).get("Image") == "opentrack-bootstrap:local"
+                            and not initialize.get("State", {}).get("Running")
+                            and not initialize.get("State", {}).get("Restarting")
+                            and not initialize.get("State", {}).get("OOMKilled")
+                            and initialize.get("State", {}).get("ExitCode") == 0,
+                            "HTTPS metadata cleanup unconfirmed")
+                    https.Qualification(argparse.Namespace(
+                        project=self.project, output=str(self.output))).cleanup_metadata(image)
+            except BaseException:
+                failed.append("https_metadata")
+            finally:
+                try:
+                    self.cleanup_recovery(remove_backup=remove_backup)
+                except BaseException:
+                    failed.append("http_recovery")
+            if failed:
+                raise RuntimeError("Recovery cleanup unconfirmed: " + ",".join(failed)) from None
+            return
         self.cleanup_operator_output()
         self.cleanup_operator_output(initializer=True)
         target = self.project + "-restore"
@@ -792,6 +832,372 @@ class Qualification:
         require(tuple((c.name, c.value, c.domain, c.path) for c in reader.cookies) == fixture["cookies"],
                 "Revocation checks must reuse the original reader session without replacement")
 
+    def measure_https_source(self, account, password, private, issue_path, attachment, body, digest, bootstrap_image):
+        stage, primary, interruption = "preflight", None, None
+        cleanup = []
+        mutated = established = False
+        temporary = context = owner = secure = fingerprint = observed = owner_id = None
+        secure_cookies = http.cookiejar.CookieJar()
+        tls = https.Qualification(argparse.Namespace(project=self.project, output=str(self.output)))
+        strict = {key: tls.environment[key] for key in (
+            "OPENTRACK_DOMAIN", "OPENTRACK_PUBLIC_URL", "OPENTRACK_HTTPS_PORT", "OPENTRACK_HTTPS_BIND_ADDRESS")}
+        tls.environment = {**self.environment, **strict}
+        tls.compose = [*self.compose, "--file", "compose.https.yaml", "--profile", "operator", "--profile", "https"]
+
+        def start(*services):
+            tls.dc("up", "--detach", "--wait", "--wait-timeout", "180", "--no-build",
+                   "--pull", "never", "--no-deps", *services, timeout=240)
+
+        def stop_http_services():
+            tls.dc("stop", "--timeout", "35", "worker", "offline-relay", timeout=70)
+            for service in ("worker", "offline-relay"):
+                state = tls.container(service)["State"]
+                require(not state["Running"] and not state.get("Restarting")
+                        and not state.get("OOMKilled") and state.get("ExitCode") == 0,
+                        "HTTPS source HTTP services did not stop")
+
+        def remove_proxy():
+            identifiers = tls.dc("ps", "--all", "--quiet", "proxy", timeout=15).stdout.split()
+            if not identifiers:
+                return
+            require(len(identifiers) == 1 and re.fullmatch(r"[0-9a-f]{12,64}", identifiers[0]),
+                    "HTTPS source proxy cleanup rejected")
+            items = json.loads(tls.command(["docker", "inspect", identifiers[0]], timeout=15).stdout)
+            require(type(items) is list and len(items) == 1, "HTTPS source proxy cleanup rejected")
+            item = items[0]
+            labels = item["Config"].get("Labels") or {}
+            host = item["HostConfig"]
+            require(labels.get("com.docker.compose.project") == self.project
+                    and labels.get("com.docker.compose.service") == "proxy" and item["Image"] == images["proxy"]
+                    and item["Config"].get("Image") == "opentrack-proxy:local"
+                    and item["Config"].get("User") == "10001:10001" and host.get("ReadonlyRootfs") is True
+                    and not host.get("Privileged") and not host.get("CapAdd") and host.get("CapDrop") == ["ALL"]
+                    and host.get("SecurityOpt") == ["no-new-privileges:true"]
+                    and host.get("NetworkMode") in {self.project + "_web", self.project + "_offline_ingress"}
+                    and set(item["NetworkSettings"].get("Networks") or {})
+                    == {self.project + "_web", self.project + "_offline_ingress"}
+                    and host.get("PortBindings") == {"8443/tcp": [{"HostIp": "127.0.0.1", "HostPort": "18443"}]}
+                    and len(item["Mounts"]) == 2 and all(mount.get("Type") == "volume" for mount in item["Mounts"])
+                    and {(mount.get("Name"), mount.get("Destination"), mount.get("RW")) for mount in item["Mounts"]}
+                    == {(self.project + "_proxy_data", "/data", True),
+                        (self.project + "_proxy_config", "/config", True)}
+                    and not item["State"]["Running"] and not item["State"].get("Restarting")
+                    and not item["State"].get("OOMKilled") and item["State"].get("ExitCode") == 0,
+                    "HTTPS source proxy cleanup rejected")
+            tls.command(["docker", "container", "rm", identifiers[0]], timeout=30)
+            require(not tls.dc("ps", "--all", "--quiet", "proxy", timeout=15).stdout.strip(),
+                    "HTTPS source proxy removal unconfirmed")
+
+        def verify_runtime():
+            identifiers = tls.command(["docker", "ps", "--quiet", "--filter",
+                "label=com.docker.compose.project=" + self.project], timeout=15).stdout.split()
+            require(identifiers, "HTTPS source runtime rejected")
+            items = json.loads(tls.command(["docker", "inspect", *identifiers], timeout=15).stdout)
+            services = set()
+            for item in items:
+                labels = item["Config"].get("Labels") or {}
+                service = labels.get("com.docker.compose.service")
+                require(labels.get("com.docker.compose.project") == self.project
+                        and service in {"database", "app", "proxy"}
+                        and service not in services and item["State"]["Running"]
+                        and not item["State"].get("Restarting") and not item["State"].get("OOMKilled"),
+                        "HTTPS source runtime rejected")
+                services.add(service)
+                require(item["Image"] == images[service], "HTTPS source image rejected")
+                host = item["HostConfig"]
+                require(host.get("NetworkMode") not in ("host", "default", "bridge")
+                        and not host.get("NetworkMode", "").startswith("container:"),
+                        "HTTPS source network rejected")
+                attached = item["NetworkSettings"].get("Networks") or {}
+                require(set(attached) == {config["networks"][name]["name"]
+                    for name in config["services"][service].get("networks", {})}, "HTTPS source network rejected")
+                for name, connection in attached.items():
+                    network = json.loads(tls.command(["docker", "network", "inspect", connection["NetworkID"]], timeout=15).stdout)[0]
+                    outward = service == "proxy" and name == self.project + "_offline_ingress"
+                    labels = network.get("Labels") or {}
+                    require(network.get("Name") == name and network.get("Internal") is (not outward)
+                            and labels.get("com.docker.compose.project") == self.project
+                            and labels.get("com.docker.compose.network") == name.removeprefix(self.project + "_"),
+                            "HTTPS source network rejected")
+                if service == "proxy":
+                    bindings = {key: value for key, value in (host.get("PortBindings") or {}).items() if value}
+                    actual = {key: value for key, value in (item["NetworkSettings"].get("Ports") or {}).items() if value}
+                    expected = {"8443/tcp": [{"HostIp": "127.0.0.1", "HostPort": "18443"}]}
+                    require(bindings == actual == expected
+                            and host.get("NetworkMode") in {self.project + "_web", self.project + "_offline_ingress"}
+                            and item["Config"].get("User") == "10001:10001" and host.get("ReadonlyRootfs") is True
+                            and not host.get("Privileged")
+                            and host.get("CapDrop") == ["ALL"] and not host.get("CapAdd")
+                            and host.get("SecurityOpt") == ["no-new-privileges:true"], "HTTPS source proxy rejected")
+                else:
+                    require(not any((host.get("PortBindings") or {}).values())
+                            and not any((item["NetworkSettings"].get("Ports") or {}).values()),
+                            "HTTPS source published HTTP rejected")
+                if service == "proxy":
+                    require(len(item["Mounts"]) == 2 and all(mount["Type"] == "volume" for mount in item["Mounts"])
+                            and {(mount["Name"], mount["Destination"], mount["RW"]) for mount in item["Mounts"]}
+                            == {(self.project + "_proxy_data", "/data", True),
+                                (self.project + "_proxy_config", "/config", True)}, "HTTPS source proxy mounts rejected")
+                if service == "app":
+                    environment = dict(value.split("=", 1) for value in item["Config"]["Env"])
+                    require(environment.get("OPENTRACK_ENVIRONMENT") == "production"
+                            and environment.get("OPENTRACK__SERVER__LOCAL_CONTAINER") == "false"
+                            and environment.get("OPENTRACK_PUBLIC_URL") == https.ORIGIN,
+                            "HTTPS source configuration rejected")
+            require(services == {"database", "app", "proxy"},
+                    "HTTPS source runtime rejected")
+
+        def original_controls():
+            nonlocal owner_id
+            session, _ = owner.request("/api/v1/auth/session")
+            require(session["user"]["email"] == account
+                    and (owner_id is None or session["user"]["id"] == owner_id)
+                    and any(workspace["id"] == private["workspace"] and workspace["role"] == "owner"
+                            for workspace in session["workspaces"]), "HTTPS source owner rejected")
+            owner_id = session["user"]["id"]
+            owner.check_private_revocation(tls_private, issue_path, attachment, body, digest)
+            issue, _ = owner.request(issue_path)
+            document, _ = owner.request(issue_path + "/document")
+            content, _ = owner.request(attachment + "/content")
+            require(issue["id"] == issue_path.rsplit("/", 1)[1] and document["body"] == body
+                    and hashlib.sha256(content).hexdigest() == digest, "HTTPS source data rejected")
+
+        def secure_controls():
+            session, _ = secure.request("/api/v1/auth/session")
+            require(session["user"]["id"] == owner_id and session["user"]["email"] == account,
+                    "HTTPS secure owner rejected")
+            secure.check_private_revocation(tls_private, issue_path, attachment, body, digest)
+
+        try:
+            require(urllib.parse.urlsplit(self.url).hostname == "localhost", "HTTPS source hostname rejected")
+            require(tls.metadata_container(bootstrap_image) is None, "HTTPS source preexisting helper rejected")
+            http_config = json.loads(self.dc("--profile", "operator", "config", "--format", "json").stdout)
+            validate_compose(http_config, self.project, self.port)
+            validate_operator_output_profile(http_config)
+            self.verify_offline_runtime(http_config)
+            temporary = tempfile.TemporaryDirectory(prefix="opentrack-https-")
+            tls.directory = Path(temporary.name)
+            tls.certificate = tls.directory / "local-ca.crt"
+            metadata = tls.directory.lstat()
+            require(stat.S_ISDIR(metadata.st_mode) and stat.S_IMODE(metadata.st_mode) == 0o700
+                    and metadata.st_uid == os.getuid(), "HTTPS source private storage rejected")
+            override = tls.directory / "ingress.yaml"
+            descriptor = os.open(override, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(descriptor, "w", encoding="ascii") as stream:
+                stream.write("services:\n  proxy:\n    networks:\n      web: {}\n      offline_ingress: {}\n")
+            metadata = override.lstat()
+            require(stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1
+                    and stat.S_IMODE(metadata.st_mode) == 0o600 and metadata.st_uid == os.getuid(),
+                    "HTTPS source private override rejected")
+            tls.compose = [*self.compose, "--file", "compose.https.yaml", "--file", str(override),
+                           "--profile", "operator", "--profile", "https"]
+            config = json.loads(tls.dc("config", "--format", "json").stdout)
+            require(set(config["volumes"]) == set(RECOVERY_VOLUMES + OPTIONAL_RECOVERY_VOLUMES + ("proxy_data", "proxy_config")),
+                    "HTTPS source volume inventory rejected")
+            for name in ("proxy_data", "proxy_config"):
+                volume = config["volumes"][name]
+                require(not volume.get("external") and not volume.get("driver_opts")
+                        and volume.get("driver") in (None, "local") and volume.get("name") == self.project + "_" + name,
+                        "HTTPS source volume identity rejected")
+            proxy = config["services"]["proxy"]
+            require(proxy.get("image") == "opentrack-proxy:local" and proxy.get("user") == "10001:10001"
+                    and proxy.get("read_only") is True and proxy.get("cap_drop") == ["ALL"]
+                    and not proxy.get("cap_add") and not proxy.get("privileged") and not proxy.get("volumes_from")
+                    and proxy.get("security_opt") == ["no-new-privileges:true"]
+                    and not proxy.get("entrypoint") and not proxy.get("command")
+                    and proxy.get("environment", {}).get("OPENTRACK_DOMAIN") == "localhost"
+                    and proxy.get("tmpfs") == ["/tmp:size=16m,mode=1777"]
+                    and set(proxy.get("networks", {})) == {"web", "offline_ingress"}
+                    and all(connection in (None, {}) for connection in proxy["networks"].values())
+                    and proxy.get("network_mode") in (None, "none")
+                    and len(proxy.get("ports", [])) == 1 and proxy["ports"][0].get("host_ip") == "127.0.0.1"
+                    and str(proxy["ports"][0].get("published")) == "18443" and proxy["ports"][0].get("target") == 8443
+                    and len(proxy.get("volumes", [])) == 2
+                    and all(mount.get("type") == "volume" and not mount.get("read_only") for mount in proxy["volumes"])
+                    and {(mount.get("source"), mount.get("target")) for mount in proxy["volumes"]}
+                    == {("proxy_data", "/data"), ("proxy_config", "/config")}, "HTTPS source proxy model rejected")
+            require(all(config["services"]["app"]["environment"].get(key) == value for key, value in {
+                "OPENTRACK_ENVIRONMENT": "production", "OPENTRACK__SERVER__LOCAL_CONTAINER": "false",
+                "OPENTRACK_PUBLIC_URL": https.ORIGIN}.items()), "HTTPS source configuration rejected")
+            projected = copy.deepcopy(config)
+            del projected["services"]["proxy"]
+            for name in ("proxy_data", "proxy_config"):
+                del projected["volumes"][name]
+            validate_compose(projected, self.project, self.port)
+            validate_operator_output_profile(projected)
+            for key in ("OPENTRACK_ENVIRONMENT", "OPENTRACK__SERVER__LOCAL_CONTAINER", "OPENTRACK_PUBLIC_URL"):
+                projected["services"]["app"]["environment"][key] = http_config["services"]["app"]["environment"][key]
+            require(projected == http_config, "HTTPS source HTTP model changed")
+            images = {}
+            for name in ("app", "worker", "database", "offline-relay"):
+                item = self.container(name)
+                state = item["State"]
+                require(state.get("Running") is True and not state.get("Restarting")
+                        and not state.get("OOMKilled")
+                        and (state.get("Health") or {}).get("Status", "healthy") == "healthy",
+                        "HTTPS source requires running HTTP services")
+                images[name] = item["Image"]
+            images["proxy"] = images["offline-relay"]
+            for image in {bootstrap_image, *images.values()}:
+                information = json.loads(self.command(["docker", "image", "inspect", image], timeout=15).stdout)
+                require(len(information) == 1 and information[0].get("Id") == image
+                        and information[0].get("Os") == "linux"
+                        and information[0].get("Architecture") == self.expected_architecture, "HTTPS source image rejected")
+            cached = json.loads(self.command(["docker", "image", "inspect", "opentrack-proxy:local"], timeout=15).stdout)
+            require(len(cached) == 1 and cached[0].get("Id") == images["proxy"], "HTTPS source proxy image changed")
+            stage, mutated = "tls_start", True
+            stop_http_services()
+            start("app", "proxy")
+            verify_runtime()
+            stage = "tls_trust"
+            tls.export_certificate(tls.container("proxy"))
+            tls.certificate.chmod(0o600)
+            metadata = tls.certificate.lstat()
+            require(stat.S_ISREG(metadata.st_mode) and metadata.st_uid == os.getuid()
+                    and stat.S_IMODE(metadata.st_mode) == 0o600, "HTTPS source private certificate rejected")
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            context.load_verify_locations(cafile=str(tls.certificate))
+            require(context.check_hostname and context.verify_mode == ssl.CERT_REQUIRED
+                    and context.cert_store_stats()["x509_ca"] == 1, "HTTPS source trust rejected")
+            opener = tls.opener(context)
+            tls.ready(opener)
+            require(tls.rejects_untrusted(ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT))
+                    and tls.rejects_untrusted(ssl.create_default_context()), "HTTPS source untrusted CA accepted")
+            stage = "original_controls"
+            owner = https.readonly_actor(self, opener)
+            reader = https.readonly_actor(private["reader"], opener)
+            tls_private = {**private, "reader": reader, "move": {**private["move"], "reader": reader}}
+            original_controls()
+            stage = "secure_login"
+            secure_http = urllib.request.build_opener(urllib.request.ProxyHandler({}),
+                urllib.request.HTTPSHandler(context=context), https.NoRedirects(),
+                urllib.request.HTTPCookieProcessor(secure_cookies))
+            target = https.ORIGIN + "/api/v1/auth/login"
+            request = urllib.request.Request(target, method="POST", data=json.dumps({"email": account, "password": password}).encode(),
+                headers={"Origin": https.ORIGIN, "Content-Type": "application/json", "Accept-Encoding": "identity"})
+            with secure_http.open(request, timeout=30) as reply:
+                require(reply.status == 200 and reply.geturl() == target
+                        and reply.headers.get("Content-Type", "").partition(";")[0].strip().lower() == "application/json",
+                        "HTTPS source login rejected")
+                received = reply.read(https.MAX_RESPONSE + 1)
+                require(len(received) <= https.MAX_RESPONSE, "HTTPS source login response rejected")
+                session = json.loads(received)
+            cookies = list(secure_cookies)
+            require(len(cookies) == 1 and cookies[0].name == "opentrack_session" and cookies[0].secure
+                    and cookies[0].has_nonstandard_attr("HttpOnly") and cookies[0].get_nonstandard_attr("SameSite") == "Lax"
+                    and cookies[0].path == "/" and not cookies[0].domain_specified
+                    and cookies[0].domain == http.cookiejar.eff_request_host(urllib.request.Request(https.ORIGIN))[1]
+                    and cookies[0].value not in {cookie.value for cookie in self.cookies}
+                    and session["user"]["id"] == owner_id, "HTTPS source secure cookie rejected")
+            secure_actor = copy.copy(self)
+            secure_actor.cookies, secure_actor.csrf = secure_cookies, session["csrf_token"]
+            secure = https.readonly_actor(secure_actor, opener)
+            secure_controls()
+            established = True
+            stage = "writer_fence"
+            self.cleanup_operator_output()
+            self.cleanup_operator_output(initializer=True)
+            tls.dc("stop", "--timeout", "35", "proxy", "app", timeout=70)
+            fingerprint = self.database_fingerprint()
+            tls.dc("stop", "--timeout", "35", "database", timeout=55)
+            identifiers = tls.command(["docker", "ps", "--all", "--quiet", "--filter",
+                "label=com.docker.compose.project=" + self.project], timeout=15).stdout.split()
+            require(identifiers, "HTTPS source writer fence rejected")
+            items = json.loads(tls.command(["docker", "inspect", *identifiers], timeout=15).stdout)
+            require(len(items) == len(identifiers) and all(
+                (item["Config"].get("Labels") or {}).get("com.docker.compose.project") == self.project
+                and (item["Config"].get("Labels") or {}).get("com.docker.compose.oneoff") not in ("True", "true")
+                and not item["State"]["Running"] and not item["State"].get("Restarting")
+                and not item["State"].get("OOMKilled") and item["State"].get("ExitCode") == 0
+                for item in items), "HTTPS source writer fence rejected")
+            for name in ("proxy_data", "proxy_config"):
+                require(not tls.command(["docker", "ps", "--quiet", "--filter",
+                    "volume=" + self.project + "_" + name], timeout=15).stdout.strip(),
+                    "HTTPS source writer fence rejected")
+            stage = "metadata"
+            observed = tls.measure_metadata(bootstrap_image)
+        except BaseException as error:
+            primary = (stage, "interrupted" if isinstance(error, (KeyboardInterrupt, SystemExit)) else
+                       "timeout" if isinstance(error, subprocess.TimeoutExpired) else "refused")
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                interruption = type(error)
+        finally:
+            if tls.metadata_reserved:
+                try:
+                    tls.cleanup_metadata(bootstrap_image)
+                except BaseException:
+                    cleanup.append("helper")
+            if mutated:
+                fenced = False
+                try:
+                    stop_http_services()
+                    fenced = True
+                except BaseException:
+                    cleanup.append("tls_writer_stop")
+                if fenced:
+                    try:
+                        start("database")
+                        if fingerprint is not None:
+                            require(self.database_fingerprint() == fingerprint, "HTTPS source database changed")
+                    except BaseException:
+                        cleanup.append("database_restart")
+                    try:
+                        start("app", "proxy")
+                        verify_runtime()
+                        require(established, "HTTPS source controls were not established")
+                        tls.ready(opener)
+                        original_controls()
+                        secure_controls()
+                        require(tls.rejects_untrusted(ssl.create_default_context()), "HTTPS source trust changed")
+                    except BaseException:
+                        cleanup.append("https_restart")
+            try:
+                secure_cookies.clear()
+            except BaseException:
+                cleanup.append("secure_session")
+            if mutated:
+                try:
+                    tls.dc("stop", "--timeout", "35", "proxy", "app", timeout=70)
+                except BaseException:
+                    cleanup.append("tls_stop")
+                try:
+                    remove_proxy()
+                except BaseException:
+                    cleanup.append("proxy_removal")
+                try:
+                    self.dc("up", "--detach", "--wait", "--wait-timeout", "180", "--no-build", "--no-deps",
+                            "database", "app", "worker", "offline-relay", timeout=240)
+                    self.ready()
+                    self.verify_offline_runtime(http_config)
+                    session, _ = self.request("/api/v1/auth/session")
+                    require(session["user"]["email"] == account
+                            and (owner_id is None or session["user"]["id"] == owner_id), "HTTP source owner changed")
+                    self.check_private_revocation(private, issue_path, attachment, body, digest)
+                except BaseException:
+                    cleanup.append("http_restore")
+            try:
+                if temporary is not None:
+                    temporary.cleanup()
+            except BaseException:
+                cleanup.append("private_storage")
+        if primary or cleanup:
+            message = "HTTPS source metadata rejected"
+            if primary:
+                message += ": stage=" + primary[0] + "; primary=" + primary[1]
+            if cleanup:
+                message += "; cleanup=" + ",".join(cleanup)
+            if interruption is not None and not cleanup:
+                if interruption is KeyboardInterrupt:
+                    raise KeyboardInterrupt from None
+                raise SystemExit(message) from None
+            raise RuntimeError(message) from None
+        return {"metadata": observed, "source_https_restart_verified": True, "source_http_restore_verified": True,
+                "source_proxy_removed": True,
+                "original_sessions_verified": True, "secure_owner_session_verified": True,
+                "system_trust_rejected_local_ca": True,
+                "limitation": "class observation only; no archive policy or HTTPS cold restore qualified"}
+
     def cold_recovery(self, account, password, issue_path, attachment, body, digest):
         config = json.loads(self.dc("--profile", "operator", "config", "--format", "json").stdout)
         validate_compose(config, self.project, self.port)
@@ -828,6 +1234,8 @@ class Qualification:
             self.check_private_revocation(private, issue_path, attachment, body, digest)
             self.record("live revoked private-team reader keeps public access; saved private URLs conceal content and metadata")
             self.record("live private-A grant and unchanged control survive the move to private B; saved moved URLs conceal content and metadata")
+            https_observation = self.measure_https_source(account, password, private, issue_path, attachment,
+                                                         body, digest, bootstrap_image)
             source_stopped = True
             self.dc("stop", "--timeout", "35", "app", "worker", timeout=70)
             fingerprint = self.database_fingerprint()
@@ -936,6 +1344,7 @@ done
                 reader.cookies.clear()
         self.record("only the owned restore project removed; source installation and private recovery backup retained")
         return {"volumes": list(selected_volumes), "backup_volume": backup,
+                "https_metadata": https_observation,
                 "external_dispatch": "restored worker never started; application networks internal; fixed HTTP relay only",
                 "limitations": ["cold same-host/same-architecture snapshot, not an encrypted scheduled backup profile",
                                 "optional HTTPS volumes and recovery-code redemption are outside this fixture",
@@ -1162,7 +1571,7 @@ def main():
         require(not args.cleanup_backup or args.cleanup_recovery, "Backup cleanup requires explicit recovery cleanup")
         qualification = Qualification(args)
         if args.cleanup_recovery:
-            qualification.cleanup_recovery(remove_backup=args.cleanup_backup)
+            qualification.cleanup_recovery(remove_backup=args.cleanup_backup, include_https_metadata=True)
             print("Only the exact owned recovery fixture was cleaned", flush=True)
         else:
             qualification.run()
