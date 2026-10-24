@@ -317,6 +317,9 @@ struct ApiDoc;
 
 pub fn openapi() -> Value {
     let mut doc = serde_json::to_value(ApiDoc::openapi()).expect("OpenAPI is serializable");
+    // Track package metadata changes in cached builds, including macro-generated schemas.
+    let license = env!("CARGO_PKG_LICENSE");
+    doc["info"]["license"] = json!({ "name": license, "identifier": license });
     doc["components"]["securitySchemes"] = json!({
         "cookieAuth":{"type":"apiKey","in":"cookie","name":"opentrack_session"},
         "csrfToken":{"type":"apiKey","in":"header","name":"X-CSRF-Token"},

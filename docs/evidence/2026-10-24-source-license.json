@@ -97,6 +97,58 @@
     "image_wide_license_relabeling": false,
     "actual_new_deb_or_image_license_inspection_executed": false
   },
+  "api_license_contract": {
+    "checks": [
+      {
+        "check": "format",
+        "exit_code": 0,
+        "elapsed_seconds": 19.807,
+        "owned_session_cleanup_confirmed": true
+      },
+      {
+        "check": "contract-generation",
+        "exit_code": 0,
+        "elapsed_seconds": 65.147,
+        "owned_session_cleanup_confirmed": true
+      },
+      {
+        "check": "real-router-contract",
+        "exit_code": 0,
+        "elapsed_seconds": 6.618,
+        "owned_session_cleanup_confirmed": true,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "check": "strict-api-lint",
+        "exit_code": 0,
+        "elapsed_seconds": 31.298,
+        "owned_session_cleanup_confirmed": true
+      },
+      {
+        "check": "server-build",
+        "exit_code": 0,
+        "elapsed_seconds": 25.177,
+        "owned_session_cleanup_confirmed": true
+      }
+    ],
+    "changed_json_paths": [
+      "$.info.license.identifier",
+      "$.info.license.name"
+    ],
+    "typescript_unchanged": true,
+    "typescript_sha256": "3361bdc058a9c9f288889a3bc3fbae1ce330f014226f0163efc3fe07c6c63517",
+    "license_env_dependency_tracked": true,
+    "licensed_binary_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39"
+  },
+  "preserved_ci_failure": {
+    "head": "ff03218d83c7ee55cab1bee92ac804e5e896ae85",
+    "run": 40127668627,
+    "job": 120972549548,
+    "test": "real_router_separates_navigation_health_capabilities_and_missing_resources",
+    "cause": "Fresh live API license metadata differed from the committed generator input. Only license name/identifier changed."
+  },
   "source_sha256": {
     "LICENSE": "d8a6cc31abc16b6748c7a21f21611f5a1ec33f67d22ca23d7da1c19b95496bee",
     "Cargo.toml": "b171883a69f33610498aed166afd03ce5edefbed2359981f253d09210fc89860",
@@ -117,12 +169,14 @@
     "desktop/package.json": "a2dedf3db7f5a044cc3b7d3bac6ed0a4284f0dd542591ad0dd49343adc30f201",
     "desktop/package-lock.json": "eb2ab108f4a6a393607b19b7428761acae87fc14c5ed6cd212d7b537f8e7679e",
     "scripts/contracts/package.json": "474162e5f2604613344ab2c1ea21d81dfcdb9d01babdfb5f9d29df5821f65f9d",
-    "scripts/contracts/package-lock.json": "e2d7032b558cf4806355d9c478f160f711e48123022ec97fa968b2627e1f1854"
+    "scripts/contracts/package-lock.json": "e2d7032b558cf4806355d9c478f160f711e48123022ec97fa968b2627e1f1854",
+    "crates/opentrack-api/src/contract.rs": "b0021d06012069fe3b96c8ff36204d6f153015dc1fafe49377fcc3ba618e1666",
+    "docs/api/openapi.json": "8627eecc930aaeed81ea5dfa23ce7dc88db5c74e7f144ef6b20b094647808f1c"
   },
-  "data_impact": "No database migration or application business-logic change. User installer adds the license artifact beside its managed executable.",
+  "data_impact": "No database migration or application business-logic change. User installer adds the license artifact; API description advertises the same tracked package license.",
   "limits": [
     "Source ratification does not ratify contribution terms, public identity, third-party compatibility or complete distribution notices/SBOM.",
-    "Cargo commands validate seven package declarations offline/locked; they are not new native binary builds.",
+    "Cargo metadata validates seven package declarations; this does not qualify desktop bundles or GUI behavior.",
     "Installer tests use synthetic bytes/private HOME-XDG; no real user installation or GUI launch occurred.",
     "Debian/container inclusion is configured and source-checked; actual built-artifact inspection remains separate.",
     "Fresh exact-head CI and final source/evidence/privacy/conversation review remain required before integration.",

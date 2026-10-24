@@ -17,6 +17,15 @@ the separate desktop package, each declaring the same license. All three npm
 project manifests and only their root lock metadata changed; dependency versions
 and edges did not. Both Cargo locks and the vendored MIT manifest remain unchanged.
 
+Fresh hosted verification at `ff03218d` caught a live OpenAPI/generator mismatch:
+the declared license appeared in the live schema while the committed input still
+contained an empty license. Regeneration changed only `info.license.name` and
+`info.license.identifier`; TypeScript output remained byte-identical. The API
+reads licensing with tracked `env!` metadata so cached builds refresh it too.
+The normal generator check, one real TCP router contract, formatting, strict API
+Clippy and server rebuild passed. The original hosted failure is retained; its
+other green checks do not qualify the corrective head.
+
 The user installer now stages the license before destination writes and copies
 it beside the managed executable with mode0644. Sixteen synthetic installation
 tests passed with no skips, covering exact bytes/modes, managed updates,
