@@ -1,0 +1,148 @@
+{
+  "date": "2026-10-24",
+  "scope": "Issue create/edit Unicode scalar input alignment; existing Rust validation remains authoritative.",
+  "before": {
+    "source_head": "e56d123dae69d5bc09927a2acbd6ebc6eace81c5",
+    "candidate_sha256": "0f9e055a089608520d01fed3581736cf8975b0015db1ed46795cd602577aca18",
+    "binary_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+    "frontend_sha256": "d9d1ff6bc2a8734573076d8f308ccc2876afc95d584ad12e8c3f417c837cb80c",
+    "worker_profile": {
+      "poll_interval_ms": 2000,
+      "max_connections": 5,
+      "lease_seconds": 60
+    },
+    "cases": [
+      {
+        "browser": "chromium",
+        "status": "failed",
+        "stage": "full created-title input before POST",
+        "expected_scalars": 256,
+        "received_scalars": 128,
+        "received_utf16_units": 256
+      },
+      {
+        "browser": "firefox",
+        "status": "failed",
+        "stage": "full created-title input before POST",
+        "expected_scalars": 256,
+        "received_scalars": 128,
+        "received_utf16_units": 256
+      },
+      {
+        "browser": "webkit",
+        "status": "failed",
+        "stage": "full created-title input before POST",
+        "expected_scalars": 256,
+        "received_scalars": 128,
+        "received_utf16_units": 256
+      }
+    ],
+    "passed": 0,
+    "failed": 3,
+    "cleanup_failures": [],
+    "namespace_zero": true,
+    "all_children_reaped": true,
+    "source_runtime_unchanged": true
+  },
+  "after": {
+    "source_head": "19ffc3c4d4d2b25e4b703d6c51af2b4b7611e8e5",
+    "candidate_sha256": "0f9e055a089608520d01fed3581736cf8975b0015db1ed46795cd602577aca18",
+    "binary_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+    "frontend_sha256": "81b623f3872f5f96d9aea964a21a30ee223c335a6f14fc2159ebebf6c6817e91",
+    "cases": [
+      {
+        "browser": "chromium",
+        "status": "passed"
+      },
+      {
+        "browser": "firefox",
+        "status": "passed"
+      },
+      {
+        "browser": "webkit",
+        "status": "passed"
+      }
+    ],
+    "passed": 3,
+    "failed": 0,
+    "worker_profile": {
+      "poll_interval_ms": 2000,
+      "max_connections": 5,
+      "lease_seconds": 60
+    },
+    "running_executables_match": true,
+    "served_frontend_and_core_profile_match": true,
+    "all_children_exit0_reaped": true,
+    "browser_namespace_zero": true,
+    "cleanup_failures": [],
+    "source_runtime_unchanged": true,
+    "private_run_modes_verified": true,
+    "tracked_test_retained": true
+  },
+  "same_browser_test_sha256": "0f9e055a089608520d01fed3581736cf8975b0015db1ed46795cd602577aca18",
+  "checks": [
+    {
+      "check": "frontend-tests",
+      "exit_code": 0,
+      "elapsed_seconds": 28.828,
+      "owned_process_reaped": true,
+      "passed": 696,
+      "files": 72
+    },
+    {
+      "check": "typescript-frontend",
+      "exit_code": 0,
+      "elapsed_seconds": 0.765,
+      "owned_process_reaped": true
+    },
+    {
+      "check": "typescript-browser",
+      "exit_code": 0,
+      "elapsed_seconds": 0.469,
+      "owned_process_reaped": true
+    },
+    {
+      "check": "typecheck",
+      "exit_code": 0,
+      "elapsed_seconds": 1.593,
+      "owned_process_reaped": true
+    },
+    {
+      "check": "build",
+      "exit_code": 0,
+      "elapsed_seconds": 1.438,
+      "owned_process_reaped": true
+    }
+  ],
+  "full_matrix_discovery": {
+    "total": 168,
+    "per_engine": {
+      "chromium": 56,
+      "firefox": 56,
+      "webkit": 56
+    },
+    "listing_only": true,
+    "selection_order_sha256": "bbb2620318d8cbd1545469b62d2980d900c71dcac44d24c547ff5eb5966b70fe"
+  },
+  "source_sha256": {
+    "web/src/issues/CreateIssue.tsx": "1ae1569534703a26bc115400c6d8b87bb75edbe3360dd30ad492aeadea3bc300",
+    "web/src/issues/IssueEditor.tsx": "3af42072aa9ce128c64fe5a001e2728b3f1f1ccf2e1cc65b546ae50b20d82569",
+    "web/src/App.keyboard.test.tsx": "4bba9d356cd6aa3321ba29c31db2b16baa6e15b6c5c3deb62b1a710af20464af",
+    "web/src/attachments/documents.test.tsx": "f075230bc34f227f507596e97c519154f0c18f794f98e75c02de09923512921d",
+    "web/src/templates/CreateIssueTemplates.test.tsx": "347141927a7723fd4e496e758551f2cab8e2991a7e2115deb9ff28d74aa7715b",
+    "web/e2e/unicode-issue-titles.browser.ts": "0f9e055a089608520d01fed3581736cf8975b0015db1ed46795cd602577aca18",
+    "crates/opentrack-domain/src/lib.rs": "9765b3468bb23ab9663309cfab3b9435b03a830f026d5dfed22ad1e2c53ed95f"
+  },
+  "asserted": [
+    "Native keyboard entry preserves256 supplementary scalars (512UTF16 units) in create/edit.",
+    "Actual257-scalar POST/PATCH writes return422; full drafts and saved title/version remain intact.",
+    "Repaired256-scalar create/edit succeeds and reload retains exact values and one edit version increment."
+  ],
+  "data_impact": "No backend business validation, API shape, migration or persisted format change; frontend native caps removed only.",
+  "limits": [
+    "Three executed journeys are separate from the168-case discovery count; fresh exact-head CI remains required.",
+    "Existing template scalar diagnostics, composition/dirty/conflict/idempotency behavior are retained.",
+    "Physical keyboard/IME, native webview, assistive technology and the broader exceptional-state/cross-account matrix remain separately qualified.",
+    "Both fresh fixture databases and raw private artifacts are retained; no old state reset or DROP occurred."
+  ]
+}
