@@ -34,9 +34,13 @@ for package in lock['packages']:
 # host paths, so already installed development libraries remain usable.
 import re
 for pc in root.rglob('*.pc'):
-    text = pc.read_text()
-    text = re.sub(r'(?m)^(prefix|exec_prefix|includedir|libdir|datadir)=/usr(?=/|$)', lambda m: f'{m.group(1)}={root}/usr', text)
-    pc.write_text(text)
+    lines = []
+    for line in pc.read_text().splitlines(keepends=True):
+        line = re.sub(r'^(prefix|exec_prefix|includedir|libdir|datadir)=/usr(?=/|$)', lambda m: f'{m.group(1)}={root}/usr', line)
+        if line.startswith(('Cflags:', 'Cflags.private:', 'Libs:', 'Libs.private:')):
+            line = re.sub(r'(?<!\S)(-[IL])/usr(?=/|\s|$)', lambda m: f'{m.group(1)}{root}/usr', line)
+        lines.append(line)
+    pc.write_text(''.join(lines))
 # Header packages contain unversioned .so links to existing host runtimes.
 for path in root.rglob('*'):
     if path.is_symlink() and not path.exists():
