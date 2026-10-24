@@ -1,0 +1,386 @@
+{
+  "date": "2026-10-25",
+  "scope": "Fresh Ubuntu 26.04 AMD64 native SDK, normal release DEB and private user installation/update.",
+  "before": {
+    "source_head": "465284ad15ceb90102bb34de9ff6adb110ae2d9f",
+    "source_archive_sha256": "ef3454eeb7322ff3b893e620205ef5ea5c82ed7a79d5d3859c6567cdaad2dc69",
+    "controller_sha256": "7f9e141ec0ae5cc508f70ed6e6c08aff4238d87899ade8d58ea377f413bf94fc",
+    "status": "failed-before-package",
+    "build_exit_code": 1,
+    "build_elapsed_seconds": 55.87,
+    "header_archives": 71,
+    "locked_crate_archives": 541,
+    "signed_archive_provenance_verified": true,
+    "ancestor_cargo_config_absence": {
+      "before_cargo": 22,
+      "before_build": 22
+    },
+    "frozen_source_files_unchanged": 1025,
+    "cleanup_failures": [],
+    "all_owned_children_reaped": true,
+    "app_launch_attempted": false,
+    "database_or_service_started": false,
+    "failure": "gdk-sys pkg-config dependency metadata closure missing from71-package lock; gdk3.24.52 itself exists.",
+    "initial_missing_modules": [
+      "expat",
+      "xrender",
+      "xproto",
+      "x11",
+      "xext",
+      "xcb",
+      "xcb-render"
+    ],
+    "source_lock_omitted_verified_supplemental_archives": 18,
+    "runtime_and_artifacts_retained": true,
+    "private_result_sha256": "59a58c27d07cadf41392eb41b136ab218505187436f7775dfdb138d8e0c481f3",
+    "private_build_log_sha256": "25b1197f88d522c39b2020d22bf663706831cf784a1b057142927d75e9d7b58b"
+  },
+  "source_head_built": "e9e778fa8318bde3e52a311cacadf242ee73b56f",
+  "source_archive_sha256": "a3aa3bc0a110ff2c8012d5bfcd71572696c2abe5e6f7a90a752d941d03a23333",
+  "source_manifest_sha256": "a39c23f7c7da87f59336a54b4208db01ac0df657405e1d2f61a93d9fd8a488a8",
+  "controller_sha256": "6ddd4a40a7c5255f8dc7bcb2358a6aaf4081b4b4dffde2ea26b0647e766bb585",
+  "inputs_sha256": "1a39592ff8b34f618e8a645d8ffed17bbcad47816f3fdc23f3694ea251eaa950",
+  "private_result_sha256": "76d95f4003d41592a48a4f2e9272427bc72340f8642761cc41b1b4b16a9bd94b",
+  "private_build_log_sha256": "79e32c0aab9bb0e57f0047b3a8b0029a42dd758dfaac69190fd054b799f18208",
+  "source_sha256": {
+    "desktop/linux-packages.lock.json": "a905551765748ade16cd1273c4997ac0c317c84b2c831fc6b7d7029d0dfb1540",
+    "desktop/scripts/prepare-linux-sysroot.py": "e66caf6e9f7e68e24fc6c8dbf729257167123785385f1186ccee9769c74f32b8",
+    "desktop/scripts/build-linux.sh": "78f9fbc40636bdaee3e6c6936002fdeafd19f8d4491f832eac4feaf74a959f83",
+    "desktop/scripts/test-check.py": "c342b518562565869635f4ff753d6192f1bf11101106dd33d7842ca8755db048",
+    "desktop/README.md": "7e79faf05b49b05ae7a0139fa8d9b5ae98b175ed28861de600be04b82ac89b89"
+  },
+  "built_critical_source_sha256": {
+    "desktop/linux-packages.lock.json": "a905551765748ade16cd1273c4997ac0c317c84b2c831fc6b7d7029d0dfb1540",
+    "desktop/scripts/build-linux.sh": "78f9fbc40636bdaee3e6c6936002fdeafd19f8d4491f832eac4feaf74a959f83",
+    "desktop/scripts/prepare-linux-sysroot.py": "e66caf6e9f7e68e24fc6c8dbf729257167123785385f1186ccee9769c74f32b8",
+    "desktop/scripts/install-user-linux.py": "22d415dfd80604e0e8affaf204de8e35ed4ab00f5997a08c7738a30066c581e0",
+    "desktop/Tauri.toml": "107346f837e93ec3e08123a8baf680889d6129dc2e70b90c266bd2e702c5f4fb",
+    "desktop/Cargo.toml": "3c90583b78a5de7b755402092c952b6a80eec72ddfc576d93ad32f7a5cf1ba8d",
+    "desktop/Cargo.lock": "63b07a69280c1a372922c9a771c14db98976e3d30d58f47e2054e208daf5c51a",
+    "desktop/package-lock.json": "eb2ab108f4a6a393607b19b7428761acae87fc14c5ed6cd212d7b537f8e7679e",
+    "web/package-lock.json": "78aff5bbff8f65f554fd76ae3838b1753cb6ab18f586b3868394126c07df31c2",
+    "LICENSE": "d8a6cc31abc16b6748c7a21f21611f5a1ec33f67d22ca23d7da1c19b95496bee"
+  },
+  "source_snapshot": {
+    "regular_files": 1025,
+    "all_original_bytes_unchanged": true,
+    "fresh_source_overlay_target_home_xdg": true
+  },
+  "sdk": {
+    "original71_records_unchanged": true,
+    "development_archives": 89,
+    "added_archives": 18,
+    "signed_supplemental_and_runtime_records": 21,
+    "signed_archive_provenance_verified": true,
+    "public_locked_crate_archives_copied": 541,
+    "requirements": [
+      "glib-2.0 >= 2.70",
+      "gobject-2.0 >= 2.70",
+      "gio-2.0 >= 2.70",
+      "gdk-3.0 >= 3.22",
+      "gtk+-3.0 >= 3.24",
+      "gdk-pixbuf-2.0 >= 2.36.8",
+      "webkit2gtk-4.1 >= 2.40",
+      "javascriptcoregtk-4.1 >= 2.38",
+      "libsoup-3.0 >= 3.0",
+      "dbus-1 >= 1.6"
+    ],
+    "overlay_pc_files": 154,
+    "cflags_libs_sha256": "7776d3ae8fc06240e3572b1f86d6625be71c0a73c6dfd13d1549153d0551944c",
+    "emitted_include_library_paths_resolved": 27,
+    "path_scopes": [
+      "installed-host",
+      "overlay"
+    ],
+    "literal_usr_overlay_flags": 0,
+    "preflight_before_release_build": true,
+    "installed_host_metadata_unchanged": true
+  },
+  "tool_versions": {
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+    "node": "v22.22.1",
+    "npm": "11.11.0"
+  },
+  "synthetic_checks": {
+    "passed": 7,
+    "failed": 0,
+    "scope": "Mocked native check/preflight commands; no SDK extraction or compiler."
+  },
+  "harmless_supervisor_proof": {
+    "passed": 3,
+    "failed": 0,
+    "detached_cases": 2,
+    "all_owned_children_reaped": true,
+    "cleanup_failures": []
+  },
+  "commands": [
+    {
+      "name": "host-architecture",
+      "exit_code": 0,
+      "elapsed_seconds": 0.202,
+      "output_bytes": 6,
+      "retained_bytes": 6,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "updates-signature",
+      "exit_code": 0,
+      "elapsed_seconds": 0.202,
+      "output_bytes": 608,
+      "retained_bytes": 608,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "updates-packages",
+      "exit_code": 0,
+      "elapsed_seconds": 0.204,
+      "output_bytes": 3962938,
+      "retained_bytes": 3962938,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "base-signature",
+      "exit_code": 0,
+      "elapsed_seconds": 0.203,
+      "output_bytes": 608,
+      "retained_bytes": 608,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "base-packages",
+      "exit_code": 0,
+      "elapsed_seconds": 0.208,
+      "output_bytes": 7581722,
+      "retained_bytes": 7581722,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "security-signature",
+      "exit_code": 0,
+      "elapsed_seconds": 0.202,
+      "output_bytes": 608,
+      "retained_bytes": 608,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "security-packages",
+      "exit_code": 0,
+      "elapsed_seconds": 0.208,
+      "output_bytes": 3192760,
+      "retained_bytes": 3192760,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "rustc-version",
+      "exit_code": 0,
+      "elapsed_seconds": 0.208,
+      "output_bytes": 36,
+      "retained_bytes": 36,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "cargo-version",
+      "exit_code": 0,
+      "elapsed_seconds": 0.206,
+      "output_bytes": 36,
+      "retained_bytes": 36,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "node-version",
+      "exit_code": 0,
+      "elapsed_seconds": 0.206,
+      "output_bytes": 9,
+      "retained_bytes": 9,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "npm-version",
+      "exit_code": 0,
+      "elapsed_seconds": 0.406,
+      "output_bytes": 8,
+      "retained_bytes": 8,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "host-pkgconfig-search-path",
+      "exit_code": 0,
+      "elapsed_seconds": 0.201,
+      "output_bytes": 170,
+      "retained_bytes": 170,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "extract-runtime-0",
+      "exit_code": 0,
+      "elapsed_seconds": 0.402,
+      "output_bytes": 0,
+      "retained_bytes": 0,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "extract-runtime-1",
+      "exit_code": 0,
+      "elapsed_seconds": 0.202,
+      "output_bytes": 0,
+      "retained_bytes": 0,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "extract-runtime-2",
+      "exit_code": 0,
+      "elapsed_seconds": 0.203,
+      "output_bytes": 0,
+      "retained_bytes": 0,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "prepare-fresh-sdk",
+      "exit_code": 0,
+      "elapsed_seconds": 1.003,
+      "output_bytes": 126,
+      "retained_bytes": 126,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "fresh-sdk-cflags-libs",
+      "exit_code": 0,
+      "elapsed_seconds": 0.201,
+      "output_bytes": 3584,
+      "retained_bytes": 3584,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "native-release-build",
+      "exit_code": 0,
+      "elapsed_seconds": 393.704,
+      "output_bytes": 41405,
+      "retained_bytes": 41405,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "deb-control-stream",
+      "exit_code": 0,
+      "elapsed_seconds": 0.202,
+      "output_bytes": 3072,
+      "retained_bytes": 3072,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "deb-data-stream",
+      "exit_code": 0,
+      "elapsed_seconds": 0.225,
+      "output_bytes": 28630016,
+      "retained_bytes": 28630016,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "native-library-resolution",
+      "exit_code": 0,
+      "elapsed_seconds": 0.202,
+      "output_bytes": 10598,
+      "retained_bytes": 10598,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "private-user-install",
+      "exit_code": 0,
+      "elapsed_seconds": 0.203,
+      "output_bytes": 150,
+      "retained_bytes": 150,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "validate-install",
+      "exit_code": 0,
+      "elapsed_seconds": 0.203,
+      "output_bytes": 0,
+      "retained_bytes": 0,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "private-user-managed-update",
+      "exit_code": 0,
+      "elapsed_seconds": 0.202,
+      "output_bytes": 150,
+      "retained_bytes": 150,
+      "overflow": false,
+      "drain_failed": false
+    },
+    {
+      "name": "validate-managed-update",
+      "exit_code": 0,
+      "elapsed_seconds": 0.202,
+      "output_bytes": 0,
+      "retained_bytes": 0,
+      "overflow": false,
+      "drain_failed": false
+    }
+  ],
+  "release_binary": {
+    "sha256": "07d666b406a3c8f860e19e3b5b91aff21da7e56ef1f19bafa988517e38e81f78",
+    "bytes": 28578976
+  },
+  "package": {
+    "name": "OpenTrack_0.1.0_amd64.deb",
+    "bytes": 9236290,
+    "sha256": "6bd736c8810eca4b50f29e10e4bcdec777862d9b70f99ac441eb130ab69bd296",
+    "control": {
+      "Package": "open-track",
+      "Version": "0.1.0",
+      "Architecture": "amd64",
+      "Maintainer": "opentrack"
+    },
+    "control_sha256": "07e97696d2711410f72d5cbe4dc526053d1bdfdc79475e9c886a087d9dd9b453",
+    "license_sha256": "d8a6cc31abc16b6748c7a21f21611f5a1ec33f67d22ca23d7da1c19b95496bee",
+    "license_mode": "0644",
+    "packaged_binary_sha256": "88e172cf670f47e3f91a1fce64377187c07885357a0258952ab3c69d332ce9b6",
+    "bundle_marker_difference_bytes": 3,
+    "launcher_sha256": "be29f84448f5eb7aae7cc28c6e35224fd3e6e7a654185092724b439a9080c77e"
+  },
+  "private_installation": {
+    "phases": 2,
+    "project_license_sha256": "d8a6cc31abc16b6748c7a21f21611f5a1ec33f67d22ca23d7da1c19b95496bee",
+    "license_mode": "0644",
+    "real_release_binary_match": true,
+    "actual_desktop_file_tools": true,
+    "managed_atomic_replacements_verified": 4,
+    "application_launched": false
+  },
+  "all_owned_children_reaped": true,
+  "cleanup_failures": [],
+  "app_launch_attempted": false,
+  "database_or_service_started": false,
+  "retention": "Failed71 and corrected89 runtimes, source snapshots, logs, caches and artifacts retained; no host package installation.",
+  "limits": [
+    "One Ubuntu 26.04 AMD64 normal release build and private installation/update; no reproducible-second-build claim.",
+    "The path audit covers emitted include/library flag forms, not arbitrary linker-option grammar.",
+    "No rendered GUI, native authentication, chooser/deep-link execution, physical input, IME or assistive-technology acceptance.",
+    "Other operating systems, complete dependency notices/SBOM/advisory disposition, signing and release publication remain open.",
+    "This does not establish offline installation/restore or full-product completion; fresh exact-head CI and final review remain required."
+  ]
+}
