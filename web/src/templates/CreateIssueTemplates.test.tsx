@@ -35,7 +35,8 @@ const buttons = (text: string) => [...container.querySelectorAll<HTMLButtonEleme
 async function click(text: string) { const button = buttons(text).at(-1); expect(button, text).toBeTruthy(); await act(async () => button!.click()); }
 async function render(close: () => void = () => {}) { await act(async () => root.render(<CreateIssue workspaceId="w" data={data} session={session} close={close} created={created}/>)); }
 async function select(label: string, value: string) { const element = container.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!; await act(async () => { element.value = value; element.dispatchEvent(new Event('change', { bubbles: true })); }); }
-async function title(value: string) { const input = container.querySelector<HTMLInputElement>('input[maxlength="256"]')!; await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); }); }
+const titleInput = () => [...container.querySelectorAll('label')].find(label => label.firstChild?.textContent === 'Title')!.querySelector<HTMLInputElement>('input')!;
+async function title(value: string) { const input = titleInput(); await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); }); }
 async function choose() { await click('Use a template'); expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/preview'))).toHaveLength(0); await click('Bug reportv1'); }
 async function submit() { await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); }
 const submitButton = () => container.querySelector<HTMLButtonElement>('button[type=submit]')!;
@@ -53,14 +54,14 @@ it('waits for pending uploads and preserves ready files when explicitly replacin
   await render(); await title('Local title'); await act(async () => { editor.onChange({ type: 'doc', content: [...fromPlainText('Local body').content, { type: 'attachment', attrs: { id: fileId } }] }); editor.attachmentsChanged?.({ pending: true, busy: true, cancelAll: async () => true }); });
   await choose(); expect(buttons('Replace template fields')[0].disabled).toBe(true); expect(container.textContent).toContain('Finish or cancel pending uploads');
   await act(async () => editor.attachmentsChanged?.({ pending: false, busy: false, cancelAll: async () => true })); await click('Replace template fields');
-  expect(attachmentIds(editor.value)).toEqual([fileId]); expect(plainText(editor.value).trim()).toBe('Steps to reproduce'); expect(container.querySelector<HTMLInputElement>('input[maxlength="256"]')!.value).toBe('Investigate failure');
+  expect(attachmentIds(editor.value)).toEqual([fileId]); expect(plainText(editor.value).trim()).toBe('Steps to reproduce'); expect(titleInput().value).toBe('Investigate failure');
 });
 it('preserves draft and pinned version after a template conflict until an explicit preview review', async () => {
   await render(); await choose(); await click('Use template'); await title('My corrected title');
   create = async () => json({ code: 'version_conflict', detail: 'Template changed', details: { current: fixture('2').template } }, 412);
-  submitButton().focus(); await submit(); expect(submitButton().disabled).toBe(true); expect(document.activeElement).toBe(buttons('Bug report')[0]); expect(container.querySelector<HTMLInputElement>('input[maxlength="256"]')!.value).toBe('My corrected title');
+  submitButton().focus(); await submit(); expect(submitButton().disabled).toBe(true); expect(document.activeElement).toBe(buttons('Bug report')[0]); expect(titleInput().value).toBe('My corrected title');
   preview = fixture('2'); await click('Bug report'); expect(container.textContent).toContain('Version 2'); await click('Keep draft with reviewed version');
-  expect(container.querySelector<HTMLInputElement>('input[maxlength="256"]')!.value).toBe('My corrected title'); expect(submitButton().disabled).toBe(false);
+  expect(titleInput().value).toBe('My corrected title'); expect(submitButton().disabled).toBe(false);
   create = async () => json({ id: 'i' }); await submit(); const writes = fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/issues')); expect(JSON.parse((writes[0][1] as RequestInit).body as string).template.version).toBe('1'); expect(JSON.parse((writes[1][1] as RequestInit).body as string).template.version).toBe('2');
 });
 it('requires field-by-field stale-default repair and blocks unsupported content without changing the draft', async () => {
@@ -81,7 +82,7 @@ it('does not submit the underlying issue from Ctrl+Enter inside the template cho
   await render(); await title('Ready draft'); await choose();
   await act(async () => buttons('Merge into draft')[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true })));
   expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/issues'))).toHaveLength(0); expect(created).not.toHaveBeenCalled();
-  expect(container.querySelector<HTMLInputElement>('input[maxlength="256"]')!.value).toBe('Ready draft'); expect(container.querySelector('.template-picker')).not.toBeNull();
+  expect(titleInput().value).toBe('Ready draft'); expect(container.querySelector('.template-picker')).not.toBeNull();
 });
 
 it.each([false, true])('Escape closes only the nested chooser and preserves the outer issue dialog (dirty: %s)', async dirty => {
@@ -91,7 +92,7 @@ it.each([false, true])('Escape closes only the nested chooser and preserves the 
   const cancel = new Event('cancel', { bubbles: false, cancelable: true });
   await act(async () => dialogs[1].dispatchEvent(cancel));
   expect(cancel.defaultPrevented).toBe(true); expect(close).not.toHaveBeenCalled(); expect(container.querySelectorAll('dialog[open]')).toHaveLength(1);
-  expect(container.textContent).not.toContain('Discard this issue draft?'); expect(container.querySelector<HTMLInputElement>('input[maxlength="256"]')!.value).toBe(dirty ? 'Local draft' : ''); expect(document.activeElement).toBe(trigger);
+  expect(container.textContent).not.toContain('Discard this issue draft?'); expect(titleInput().value).toBe(dirty ? 'Local draft' : ''); expect(document.activeElement).toBe(trigger);
 });
 
 it('applies the reviewed server title and keeps it across UTC midnight and an interrupted create', async () => {
@@ -110,7 +111,7 @@ it('requires an explicit valid title repair when the resolved pattern is too lon
   preview = { ...fixture(), materialized_title: null, can_create: false, diagnostics: [{ field: 'title', code: 'title_too_long', reference_id: null }] };
   preview.template = { ...preview.template, title_mode: 'pattern', title: '{{team.name}}{{team.name}}{{team.name}}' };
   await render(); await choose(); expect(container.textContent).toContain('Title needs attention'); expect(container.textContent).toContain('exceeds 256 characters'); await click('Use template');
-  expect(container.querySelector<HTMLInputElement>('input[maxlength="256"]')!.value).toBe(''); expect(submitButton().disabled).toBe(true);
+  expect(titleInput().value).toBe(''); expect(submitButton().disabled).toBe(true);
   await title('界'.repeat(257)); await submit(); expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/issues'))).toHaveLength(0);
   await title('Reviewed replacement'); expect(submitButton().disabled).toBe(false); await submit();
   const write = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/issues'))![1] as RequestInit;
@@ -119,9 +120,9 @@ it('requires an explicit valid title repair when the resolved pattern is too lon
 
 it.each(['Merge into draft', 'Replace template fields'])('keeps explicit draft choice for pattern titles: %s', async choice => {
   preview = { ...fixture(), materialized_title: 'ENG 2028-02-29' }; preview.template = { ...preview.template, title_mode: 'pattern', title: '{{team.key}} {{date}}' };
-  await render(); await title('My edited title'); await choose(); await click('Cancel'); expect(container.querySelector<HTMLInputElement>('input[maxlength="256"]')!.value).toBe('My edited title');
+  await render(); await title('My edited title'); await choose(); await click('Cancel'); expect(titleInput().value).toBe('My edited title');
   await click('Use a template'); await click('Bug reportv1'); await click(choice);
-  expect(container.querySelector<HTMLInputElement>('input[maxlength="256"]')!.value).toBe(choice === 'Merge into draft' ? 'My edited title' : 'ENG 2028-02-29');
+  expect(titleInput().value).toBe(choice === 'Merge into draft' ? 'My edited title' : 'ENG 2028-02-29');
 });
 
 it('preserves literal brace titles without evaluating placeholders', async () => {
@@ -137,6 +138,6 @@ it.each(['Merge into draft', 'Keep draft with reviewed version'])('accepts an ex
   await submit();
   preview = { ...fixture('2'), materialized_title: null, can_create: false, diagnostics: [{ field: 'title', code: 'title_too_long', reference_id: null }] }; preview.template = { ...preview.template, title_mode: 'pattern', title: '{{team.name}}'.repeat(19) };
   await click('Bug report'); await click(choice);
-  expect(container.querySelector<HTMLInputElement>('input[maxlength="256"]')!.value).toBe('Investigate failure'); expect(submitButton().disabled).toBe(false);
+  expect(titleInput().value).toBe('Investigate failure'); expect(submitButton().disabled).toBe(false);
   create = async () => json({ id: 'i' }); await submit(); expect(created).toHaveBeenCalledOnce();
 });

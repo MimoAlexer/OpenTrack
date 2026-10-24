@@ -36,7 +36,7 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); localStorage.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 async function key(target: EventTarget, key: string, options: KeyboardEventInit = {}) { await act(async () => target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...options }))); }
 async function click(text: string) { const button = [...container.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent?.replace('?', '').trim() === text)!; expect(button).toBeTruthy(); await act(async () => button.click()); }
-async function setTitle(value: string) { const input = container.querySelector<HTMLInputElement>('input[maxlength="256"]')!; expect(input).toBeTruthy(); await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); }); return input; }
+async function setTitle(value: string) { const input = [...container.querySelectorAll('label')].find(label => label.firstChild?.textContent === 'Title')!.querySelector<HTMLInputElement>('input')!; expect(input).toBeTruthy(); await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); }); return input; }
 
 it('creates from C and opens the returned issue through the ordinary create form', async () => {
   await act(async () => root.render(<App />)); await key(window, 'c');

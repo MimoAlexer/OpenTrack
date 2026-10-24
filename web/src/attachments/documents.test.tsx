@@ -20,10 +20,11 @@ const json = (value: unknown) => new Response(JSON.stringify(value), { status: 2
 let container: HTMLDivElement; let root: Root;
 beforeEach(() => { vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true); vi.useFakeTimers(); HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); }; HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); }; container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+const titleInput = () => [...container.querySelectorAll('label')].find(label => label.firstChild?.textContent === 'Title')!.querySelector<HTMLInputElement>('input')!;
 it('creates an issue with its ready references atomically and prevents cross-team reuse or submit while files are pending', async () => {
   const fetch = vi.fn((url: string) => Promise.resolve(json(url.endsWith('/capabilities') ? { features: { attachments: true }, limits: { max_upload_bytes: 25 * 1024 * 1024 } } : { id: 'i' }))); vi.stubGlobal('fetch', fetch); const created = vi.fn();
   await act(async () => root.render(<CreateIssue workspaceId="w" data={data} session={session} close={() => {}} created={created} />)); expect(editor.attachmentTarget).toEqual({ team_id: 't' });
-  const title = container.querySelector<HTMLInputElement>('input[maxlength="256"]')!; await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(title, 'Files issue'); title.dispatchEvent(new Event('input', { bubbles: true })); editor.attachmentsChanged?.({ pending: true, busy: true, cancelAll: async () => true }); });
+  const title = titleInput(); await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(title, 'Files issue'); title.dispatchEvent(new Event('input', { bubbles: true })); editor.attachmentsChanged?.({ pending: true, busy: true, cancelAll: async () => true }); });
   const create = () => container.querySelector<HTMLButtonElement>('button[type=submit]')!; expect(create().disabled).toBe(true); expect(container.querySelector<HTMLSelectElement>('.team-field select')!.disabled).toBe(true);
   await act(async () => { editor.onChange(body); editor.attachmentsChanged?.({ pending: false, busy: false, cancelAll: async () => true }); }); expect(create().disabled).toBe(false); expect(container.querySelector<HTMLSelectElement>('.team-field select')!.disabled).toBe(true);
   await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); const sent = fetch.mock.calls.find(([url]) => url.endsWith('/issues'))!; expect(JSON.parse((sent as unknown as [string, RequestInit])[1].body as string).document).toEqual({ schema_version: 1, body }); expect(created).toHaveBeenCalledOnce();
@@ -38,7 +39,7 @@ it('autosaves a ready file reference using the document ETag while keeping pendi
 
 function OtherDraft({ dirty }: { dirty: boolean }) { useUnsavedChanges(dirty); return null; }
 async function readyIssueDraft() {
-  const title = container.querySelector<HTMLInputElement>('input[maxlength="256"]')!;
+  const title = titleInput();
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(title, 'Files issue');
     title.dispatchEvent(new Event('input', { bubbles: true }));
