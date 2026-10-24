@@ -1,0 +1,60 @@
+{
+  "format_version": 1,
+  "scope": "Issue30 controlled child authority and retained-source recovery increment; parent integration remains pending.",
+  "source_base": "3641fbd83713171ced46a67ecf8a4e9f4cf5aa98",
+  "source_sha256": {
+    "web/src/issues/IssueList.tsx": "74b7d50d7fa1437efd059bd80b93eb487404dea9292aa63aa1501820ec932c62",
+    "web/src/issues/IssueList.test.tsx": "c277cab83f59fd9d20974d123f7e496c924bfcb3ce158957f3476e648ad87564"
+  },
+  "before": {
+    "scope": "Unpublished child patch8e0bb5be; four proposed-contract probes, later acknowledged by owners.",
+    "probe_sha256": "66598107c9f839e908348c2fceb60e371ebeae884c6d21d2b455ac2f8c903666",
+    "passed": 0,
+    "failed": 4,
+    "observed": "Canceled originalA proofs were fenced; NEW retainedA403/404 proofs under B/list never notified the current callback. All four reached only that final failing assertion, with concealment/no writes retained.",
+    "probe_reversed_exactly": true
+  },
+  "correction": "Fresh current proof must match the single retained denied team and authority history and remain known in the captured bootstrap. The destination route may differ. Abort, sequence, actor/workspace/history/query/URL and captured-callback fences remain.",
+  "after": {
+    "targeted": {
+      "passed": 87,
+      "total": 87,
+      "files": 2
+    },
+    "full_frontend": {
+      "passed": 659,
+      "total": 659,
+      "files": 67
+    },
+    "corrected_cases": [
+      {
+        "name": "reports only a new current retained-source proof from Try again after fresh 403",
+        "status": "passed"
+      },
+      {
+        "name": "reports only a new current retained-source proof from Try again after fresh 404",
+        "status": "passed"
+      },
+      {
+        "name": "reports only a new current retained-source proof from Open all issues after fresh 403",
+        "status": "passed"
+      },
+      {
+        "name": "reports only a new current retained-source proof from Open all issues after fresh 404",
+        "status": "passed"
+      }
+    ],
+    "frontend_typecheck": "pass",
+    "e2e_typecheck": "pass",
+    "production_frontend_build": "pass",
+    "verification_exit_code": 0
+  },
+  "limits": [
+    "Controlled React child/router checks; no real parent teardown, PostgreSQL revocation or new browser acceptance.",
+    "Parent App/API/new unit are not imported; exact conditional handoff follows qualified152 synchronization.",
+    "API rotation during pending authority proof and dirty-editor notification/exit ordering remain final connected qualification requirements.",
+    "Remote155 remains at cb5765c with a known exit privacy hold; its four green checks do not qualify this changed source.",
+    "No migration, worker, privilege, timeout, retry or production profile change.",
+    "Issue30 manual rank, inherited requirements and the complete product remain open."
+  ]
+}

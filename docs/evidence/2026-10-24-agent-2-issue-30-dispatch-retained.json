@@ -1,0 +1,105 @@
+{
+  "status": "failed",
+  "scope": "Targeted existing workflow browser case after qualified-main integration on the retained Agent2 database, before the authority-bridge implementation. This is not an identical-dataset benchmark.",
+  "provenance": {
+    "captured_at": "2026-10-24T01:56:59.666909+02:00",
+    "source_head": "3641fbd83713171ced46a67ecf8a4e9f4cf5aa98",
+    "qualified_main": "39c363d88c47b6715b11a7dfa04bf4cd0c55e907",
+    "server_sha256": "4ccb63b478051701d180599af546a8e0bfbdea66e5d384b33566d8a297e436e4",
+    "frontend_tree_sha256": "4c340c3a52d7c08ffcda5ea88379ad48d738412951602eba211f46ba8fcf875e",
+    "worker_poll_interval_ms": 2000,
+    "scope": "Pre-run hashes for the targeted workflow test on the retained Agent2 database; no identical-dataset or general performance claim."
+  },
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "light workflow settings persist defaults and order, then a saved replacement survives reload and restores its source identity",
+      "status": "failed",
+      "duration_ms": 34064,
+      "failure": "workflow-taxonomy.browser.ts:126"
+    },
+    {
+      "browser": "firefox",
+      "check": "light workflow settings persist defaults and order, then a saved replacement survives reload and restores its source identity",
+      "status": "failed",
+      "duration_ms": 36604,
+      "failure": "workflow-taxonomy.browser.ts:126"
+    },
+    {
+      "browser": "webkit",
+      "check": "light workflow settings persist defaults and order, then a saved replacement survives reload and restores its source identity",
+      "status": "failed",
+      "duration_ms": 34858,
+      "failure": "workflow-taxonomy.browser.ts:126"
+    }
+  ],
+  "post_run_worker_metadata": {
+    "observed_at": "2026-10-24T02:11:29.427139+02:00",
+    "own_exact_command_worker_count_after_cleanup": 0,
+    "workers": [],
+    "worker_log_bytes": 229,
+    "worker_log_lines": 1,
+    "worker_log_sha256": "10df1fdf3b654891baef5dc25e9df64a66c1b61ef61b551f339a2f2839bcdba5",
+    "configured_api_worker_database_match": true,
+    "startup_event_count": 1,
+    "startup_poll_interval_ms": 2000,
+    "startup_max_connections": 5,
+    "startup_lease_seconds": 60,
+    "limitations": [
+      "Post-run process and log metadata does not prove a worker remained alive throughout the test or explain scheduler timing."
+    ]
+  },
+  "post_run_jobs": [
+    {
+      "observed_at": "2026-10-24 00:08:15.523449+00",
+      "state": "queued",
+      "attempt_count": 0,
+      "retry_count": 0,
+      "created_at": "2026-10-23 23:59:23.289185+00",
+      "first_claimed_at": null,
+      "finished_at": null,
+      "matched_count": 1,
+      "processed_count": 0,
+      "remaining_count": 1,
+      "recent_attempts": [],
+      "available_at": "2026-10-23 23:59:23.289185+00",
+      "availability_time_due_at_snapshot": true
+    },
+    {
+      "observed_at": "2026-10-24 00:08:15.523449+00",
+      "state": "queued",
+      "attempt_count": 0,
+      "retry_count": 0,
+      "created_at": "2026-10-23 23:58:37.749512+00",
+      "first_claimed_at": null,
+      "finished_at": null,
+      "matched_count": 1,
+      "processed_count": 0,
+      "remaining_count": 1,
+      "recent_attempts": [],
+      "available_at": "2026-10-23 23:58:37.749512+00",
+      "availability_time_due_at_snapshot": true
+    },
+    {
+      "observed_at": "2026-10-24 00:08:15.523449+00",
+      "state": "queued",
+      "attempt_count": 0,
+      "retry_count": 0,
+      "created_at": "2026-10-23 23:57:53.101226+00",
+      "first_claimed_at": null,
+      "finished_at": null,
+      "matched_count": 1,
+      "processed_count": 0,
+      "remaining_count": 1,
+      "recent_attempts": [],
+      "available_at": "2026-10-23 23:57:53.101226+00",
+      "availability_time_due_at_snapshot": true
+    }
+  ],
+  "limitations": [
+    "The configured database tuple and startup event do not prove stage progress, continuous worker liveness or the cause of no recorded job attempt.",
+    "Later job state is not the state at the failed browser assertion; latest matching fixture jobs are not individually bound to browser identities.",
+    "This negative retained-data result does not contradict the separate passing hosted clean-fixture matrices or establish a dispatch regression."
+  ],
+  "artifacts": "No credentials, connection strings, filesystem paths, actor/job/workspace IDs, raw logs or response bodies are included."
+}

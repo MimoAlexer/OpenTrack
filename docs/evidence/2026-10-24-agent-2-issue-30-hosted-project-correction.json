@@ -1,0 +1,23 @@
+{
+  "head": "cb5765c183135747c44cdb34eaf350f31236f5ae",
+  "workflow_run_id": "40039778645",
+  "job_id": "120707912455",
+  "browser": {
+    "total": 144,
+    "passed": 144,
+    "failed": 0,
+    "engines": [
+      { "browser": "chromium", "passed": 48, "failed": 0 },
+      { "browser": "firefox", "passed": 48, "failed": 0 },
+      { "browser": "webkit", "passed": 48, "failed": 0 }
+    ]
+  },
+  "offline_runtime": { "passed": 30, "failed": 0 },
+  "https": { "passed": 5, "failed": 0 },
+  "limitations": [
+    "These counts describe the existing hosted matrix at this exact head, not whole-product qualification.",
+    "The browser matrix does not contain the newly identified revoked-private-board exit assertion. Cached private metadata after Open all issues remains an unresolved qualification hold.",
+    "HTTPS checks do not include an authenticated HTTPS session flow.",
+    "Physical input, assistive technology and native GUI qualification remain separate gates."
+  ]
+}

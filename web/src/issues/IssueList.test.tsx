@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Bootstrap, Issue, Session, Status } from '../types';
 import { IssueList } from './IssueList';
 import { restoreIssueRowFocus } from './focus';
-import { issuesUrl, navigate, parseRoute, useLocation } from '../router';
+import { issuesUrl, navigate, parseRoute, useLocation, useUnsavedChanges } from '../router';
 
 const session: Session = { audience: 'web', user: { id: 'u', display_name: 'Owner', email: 'owner@example.test' }, csrf_token: 'csrf-one', workspaces: [{ id: 'w', name: 'Workspace', slug: 'workspace', role: 'owner' }] };
 const status: Status = { id: 's', team_id: 't', name: 'Ready', category: 'unstarted', color: 'slate', position: 0, is_default: true, archived_at: null, retiring_at: null, replacement_status_id: null, replacement_job_id: null };
@@ -23,7 +23,7 @@ const workflow = () => json({ team_id: 't', version: '1', can_manage: true, stat
 const privateStatus = { ...status, name: 'Private review stage' };
 const privateData: Bootstrap = { ...data, teams: [{ ...data.teams[0], name: 'Private board team', private: true }], statuses: [privateStatus] };
 const privateWorkflow = () => json({ team_id: 't', version: '1', can_manage: true, statuses: [privateStatus] });
-async function renderPrivateBoard(refresh = 0, params = boardParams()) { await act(async () => root.render(<IssueList workspaceId="w" data={privateData} session={session} params={params} selectedId="i" refresh={refresh} create={() => {}} searchRef={createRef()} />)); }
+async function renderPrivateBoard(refresh = 0, params = boardParams(), teamAccessLost?: (team: string) => void) { await act(async () => root.render(<IssueList workspaceId="w" data={privateData} session={session} params={params} selectedId="i" refresh={refresh} create={() => {}} searchRef={createRef()} teamAccessLost={teamAccessLost} />)); }
 function concealedPrivateBoard() {
   expect(container.textContent).not.toContain('Private board team');
   expect(container.textContent).not.toContain('Private review stage');
@@ -139,6 +139,324 @@ it('fences a superseded workflow proof and page until the latest refresh receive
   expect(container.textContent).toContain(latest.title);
   expect(container.textContent).not.toContain(old.title);
   expect(container.textContent).toContain('Private board team');
+});
+
+it.each([403, 404])('notifies only after fresh known-team workflow proof returns %s', async status => {
+  let reads = 0; let workflows = 0; let finish!: (response: Response) => void;
+  const lost = vi.fn();
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return ++workflows === 1 ? Promise.resolve(privateWorkflow()) : new Promise<Response>(resolve => { finish = resolve; });
+    return Promise.resolve(++reads === 1 ? page() : json({ code: 'not_found', detail: 'Issue unavailable.' }, 404));
+  }));
+  await renderPrivateBoard(0, boardParams(), lost); await renderPrivateBoard(1, boardParams(), lost);
+  concealedPrivateBoard(); expect(lost).not.toHaveBeenCalled();
+  await act(async () => finish(json({ code: 'not_available', detail: 'Team unavailable.' }, status)));
+  expect(lost).toHaveBeenCalledTimes(1); expect(lost).toHaveBeenCalledWith('t'); concealedPrivateBoard();
+});
+
+it.each(['authorized', 'unauthenticated', 'network', 'wrong team'] as const)('does not report an ambiguous resource denial as team loss when proof is %s', async outcome => {
+  let reads = 0; let workflows = 0;
+  const lost = vi.fn();
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) {
+      if (++workflows === 1 || outcome === 'authorized') return Promise.resolve(privateWorkflow());
+      if (outcome === 'network') return Promise.reject(new TypeError('Offline'));
+      return Promise.resolve(outcome === 'unauthenticated' ? json({ code: 'unauthorized' }, 401) : json({ team_id: 'another-team', version: '1', can_manage: true, statuses: [] }));
+    }
+    return Promise.resolve(++reads === 1 ? page() : json({ code: 'not_found', detail: 'Issue unavailable.' }, 404));
+  }));
+  await renderPrivateBoard(0, boardParams(), lost); await renderPrivateBoard(1, boardParams(), lost);
+  expect(workflows).toBe(2); expect(lost).not.toHaveBeenCalled(); concealedPrivateBoard();
+});
+
+it('does not classify an authorized empty page as team loss', async () => {
+  const lost = vi.fn();
+  vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(url.includes('/workflow') ? privateWorkflow() : page([]))));
+  await renderPrivateBoard(0, boardParams(), lost);
+  expect(lost).not.toHaveBeenCalled(); expect(container.textContent).toContain('No issues on this page');
+});
+
+it('retains the originating callback when a same-scope proof outlives a callback update', async () => {
+  let reads = 0; let workflows = 0; let finish!: (response: Response) => void;
+  const original = vi.fn(); const replacement = vi.fn();
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return ++workflows === 1 ? Promise.resolve(privateWorkflow()) : new Promise<Response>(resolve => { finish = resolve; });
+    return Promise.resolve(++reads === 1 ? page() : json({ code: 'not_found' }, 404));
+  }));
+  await renderPrivateBoard(0, boardParams(), original); await renderPrivateBoard(1, boardParams(), original);
+  await renderPrivateBoard(1, boardParams(), replacement);
+  await act(async () => finish(json({ code: 'not_found' }, 404)));
+  expect(original).toHaveBeenCalledTimes(1); expect(original).toHaveBeenCalledWith('t'); expect(replacement).not.toHaveBeenCalled();
+});
+
+it.each(['principal', 'workspace', 'team', 'filter', 'epoch', 'URL', 'unmount'] as const)('ignores team proof after a changed %s', async change => {
+  let reads = 0; let workflows = 0; let finish!: (response: Response) => void;
+  const lost = vi.fn(); const previous = { url: `${location.pathname}${location.search}`, state: history.state };
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return ++workflows === 2 ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(privateWorkflow());
+    return Promise.resolve(++reads === 2 ? json({ code: 'not_found' }, 404) : page([]));
+  }));
+  const draw = (props: Partial<Parameters<typeof IssueList>[0]> = {}) => act(async () => root.render(<IssueList workspaceId="w" data={privateData} session={session} params={boardParams()} refresh={reads ? 1 : 0} create={() => {}} searchRef={createRef()} teamAccessLost={lost} {...props}/>));
+  try {
+    await draw(); await draw();
+    expect(workflows).toBe(2); expect(lost).not.toHaveBeenCalled();
+    if (change === 'unmount') await act(async () => root.render(null));
+    else if (change === 'URL') history.pushState({}, '', '/w/w/issues?team_id=another-team');
+    else if (change === 'principal') await draw({ session: { ...session, csrf_token: 'another-session' } });
+    else if (change === 'workspace') await draw({ workspaceId: 'another-workspace' });
+    else if (change === 'epoch') await draw({ data: { ...privateData, auth_epoch: '2' } });
+    else await draw({ params: new URLSearchParams(change === 'team' ? 'team_id=another-team&layout=board&display_version=1' : 'team_id=t&layout=board&display_version=1&q=changed') });
+    await act(async () => finish(json({ code: 'not_found' }, 404)));
+    expect(lost).not.toHaveBeenCalled();
+  } finally { history.replaceState(previous.state, '', previous.url); }
+});
+
+it.each([false, true])('keeps exit concealed until authority proof, including a missing parent callback (%s)', async callback => {
+  let reads = 0; let workflows = 0; let finish!: (response: Response) => void;
+  const lost = vi.fn(); const previous = { url: `${location.pathname}${location.search}`, state: history.state };
+  history.replaceState({ otIndex: 0 }, '', '/w/w/issues?team_id=t&status_id=s&layout=board&display_version=1&q=review&priority=2&sort=priority');
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) {
+      workflows += 1;
+      return workflows === (callback ? 3 : 2) ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(privateWorkflow());
+    }
+    return Promise.resolve(++reads === 1 ? page() : json({ code: 'not_found' }, 404));
+  }));
+  function Routed({ refresh }: { refresh: number }) {
+    const route = parseRoute(useLocation());
+    return <IssueList workspaceId="w" data={privateData} session={session} params={route.search} refresh={refresh} create={() => {}} searchRef={createRef()} teamAccessLost={callback ? lost : undefined}/>;
+  }
+  try {
+    await act(async () => root.render(<Routed refresh={0}/>)); await act(async () => root.render(<Routed refresh={1}/>));
+    const exit = [...container.querySelectorAll('button')].find(button => button.textContent === 'Open all issues')!; exit.focus();
+    await act(async () => exit.click());
+    expect(document.activeElement).toBe(exit); expect(exit.disabled).toBe(false); expect(exit.getAttribute('aria-disabled')).toBe('true');
+    concealedPrivateBoard(); expect(location.search).toContain('team_id=t'); expect(lost).not.toHaveBeenCalled();
+    await act(async () => finish(json({ code: 'not_found' }, 404)));
+    concealedPrivateBoard();
+    const query = new URLSearchParams(location.search);
+    expect(query.get('q')).toBe('review'); expect(query.get('priority')).toBe('2'); expect(query.get('sort')).toBe('priority');
+    expect(query.get('team_id')).toBe(callback ? null : 't'); expect(query.get('layout')).toBe(callback ? 'list' : 'board');
+    expect(lost).toHaveBeenCalledTimes(callback ? 1 : 0);
+    expect(reads).toBe(2);
+  } finally { history.replaceState(previous.state, '', previous.url); }
+});
+
+it('does not invalidate team authority when a moved issue was deleted but its team remains readable', async () => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
+  const target = { ...privateStatus, id: 'started', name: 'Started', is_default: false };
+  const lost = vi.fn(); let workflows = 0;
+  const fetch = vi.fn((url: string, options: RequestInit) => {
+    if (url.includes('/workflow')) { workflows += 1; return Promise.resolve(json({ team_id: 't', version: '1', can_manage: true, statuses: [privateStatus, target] })); }
+    return Promise.resolve(options.method === 'PATCH' ? json({ code: 'not_found', detail: 'Issue deleted.' }, 404) : page());
+  });
+  vi.stubGlobal('fetch', fetch);
+  await act(async () => root.render(<IssueList workspaceId="w" data={{ ...privateData, statuses: [privateStatus, target] }} session={session} params={boardParams()} refresh={0} create={() => {}} searchRef={createRef()} teamAccessLost={lost}/>));
+  await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Move ENG-1"]')!.click());
+  const select = container.querySelector<HTMLSelectElement>('[aria-label="Move ENG-1 to status"]')!;
+  await act(async () => { select.value = target.id; select.dispatchEvent(new Event('change', { bubbles: true })); });
+  await act(async () => container.querySelector<HTMLButtonElement>('dialog button[type="submit"]')!.click());
+  expect(fetch.mock.calls.filter(([, options]) => options.method === 'PATCH')).toHaveLength(1);
+  expect(workflows).toBe(2); expect(lost).not.toHaveBeenCalled(); concealedPrivateBoard();
+});
+
+it.each([false, true])('uses authorized exit proof while respecting an independent draft navigation guard (%s)', async draft => {
+  let reads = 0; let workflows = 0; let finish!: (response: Response) => void;
+  const previous = { url: `${location.pathname}${location.search}`, state: history.state };
+  history.replaceState({ otIndex: 0 }, '', '/w/w/issues?team_id=t&status_id=s&layout=board&display_version=1&q=review&priority=2&sort=priority');
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return ++workflows === 1 ? Promise.resolve(privateWorkflow()) : new Promise<Response>(resolve => { finish = resolve; });
+    return Promise.resolve(++reads === 2 ? json({ code: 'not_found' }, 404) : page());
+  }));
+  function Routed({ refresh }: { refresh: number }) {
+    const route = parseRoute(useLocation()); useUnsavedChanges(draft);
+    return <><input aria-label="Independent draft" defaultValue="Keep this draft"/><IssueList workspaceId="w" data={privateData} session={session} params={route.search} refresh={refresh} create={() => {}} searchRef={createRef()}/></>;
+  }
+  try {
+    await act(async () => root.render(<Routed refresh={0}/>)); await act(async () => root.render(<Routed refresh={1}/>));
+    const input = container.querySelector<HTMLInputElement>('[aria-label="Independent draft"]')!;
+    await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Open all issues')!.click());
+    concealedPrivateBoard();
+    await act(async () => finish(privateWorkflow()));
+    expect(container.querySelector('[aria-label="Independent draft"]')).toBe(input); expect(input.value).toBe('Keep this draft');
+    const query = new URLSearchParams(location.search);
+    expect(query.get('q')).toBe('review'); expect(query.get('priority')).toBe('2'); expect(query.get('sort')).toBe('priority');
+    expect(query.get('team_id')).toBe(draft ? 't' : null); expect(query.get('layout')).toBe(draft ? 'board' : 'list');
+    expect(confirm).toHaveBeenCalledTimes(draft ? 1 : 0);
+    if (draft) concealedPrivateBoard(); else expect(container.querySelector('#row-i')).not.toBeNull();
+  } finally { history.replaceState(previous.state, '', previous.url); }
+});
+
+it('retains the original denied team and reports only its fresh recovery proofs after another team is selected', async () => {
+  const otherTeam = { ...privateData.teams[0], id: 'other-team', key: 'OTHER', name: 'Other team', private: false };
+  const otherStatus = { ...status, id: 'other-status', team_id: otherTeam.id };
+  const bootstrap = { ...privateData, teams: [...privateData.teams, otherTeam], statuses: [...privateData.statuses, otherStatus] };
+  let reads = 0; let workflows = 0; const proofPaths: string[] = []; const lost = vi.fn();
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) {
+      proofPaths.push(url);
+      return Promise.resolve(++workflows === 1 ? privateWorkflow() : json({ code: 'not_found' }, 404));
+    }
+    reads += 1;
+    return Promise.resolve(reads === 2 || reads === 3 ? json({ code: 'not_found' }, 404) : page());
+  }));
+  const draw = (refresh: number, params = boardParams()) => act(async () => root.render(<IssueList workspaceId="w" data={bootstrap} session={session} params={params} refresh={refresh} create={() => {}} searchRef={createRef()} teamAccessLost={lost}/>));
+  await draw(0); await draw(1); expect(lost).toHaveBeenCalledWith('t'); lost.mockClear();
+  await draw(1, new URLSearchParams('team_id=other-team&layout=board&display_version=1'));
+  concealedPrivateBoard(); expect(reads).toBe(2);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Try again')!.click());
+    concealedPrivateBoard();
+  }
+  expect(reads).toBe(4); expect(proofPaths.every(path => path.endsWith('/teams/t/workflow'))).toBe(true);
+  expect(lost).toHaveBeenCalledTimes(2); expect(lost).toHaveBeenNthCalledWith(1, 't'); expect(lost).toHaveBeenNthCalledWith(2, 't');
+});
+
+it.each([['Try again', 403], ['Try again', 404], ['Open all issues', 403], ['Open all issues', 404]] as const)('reports only a new current retained-source proof from %s after fresh %s', async (recovery, denialStatus) => {
+  const previous = { url: location.pathname + location.search, state: history.state };
+  const originalParams = new URLSearchParams('team_id=t&layout=board&display_version=1&q=work&priority=2&sort=priority');
+  history.replaceState({ otIndex: 0 }, '', issuesUrl('w', originalParams));
+  const otherTeam = { ...privateData.teams[0], id: 'other-team', key: 'OTHER', name: 'Accessible team', private: false };
+  const otherStatus = { ...status, id: 'other-status', team_id: otherTeam.id };
+  const bootstrap = { ...privateData, teams: [...privateData.teams, otherTeam], statuses: [...privateData.statuses, otherStatus] };
+  const source = { ...issue, title: 'Retained private work', priority: 2 };
+  const control = { ...issue, id: 'public-control', key: 'OTHER-1', team_id: otherTeam.id, status_id: otherStatus.id, title: 'Accessible control work', priority: 2 };
+  let reads = 0; let workflows = 0;
+  let finishOld: (response: Response) => void = () => {}; let finishCurrent: (response: Response) => void = () => {};
+  const obsoleteLost = vi.fn(); const lost = vi.fn(); const proofPaths: string[] = []; const issueQueries: URLSearchParams[] = [];
+  const fetch = vi.fn((url: string, _options: RequestInit) => {
+    if (url.endsWith('/workflow')) {
+      proofPaths.push(url); workflows += 1;
+      if (workflows === 1) return Promise.resolve(privateWorkflow());
+      if (workflows === 2) return new Promise<Response>(resolve => { finishOld = resolve; });
+      return new Promise<Response>(resolve => { finishCurrent = resolve; });
+    }
+    issueQueries.push(new URLSearchParams(url.split('?')[1])); reads += 1;
+    return Promise.resolve(reads === 1 ? page([source]) : reads === 2 ? json({ code: 'not_found', detail: 'Issue unavailable.' }, 404) : page([control]));
+  });
+  vi.stubGlobal('fetch', fetch);
+  function Routed({ refresh }: { refresh: number }) {
+    const route = parseRoute(useLocation());
+    return <IssueList workspaceId="w" data={bootstrap} session={session} params={route.search} selectedId={route.issueId} refresh={refresh} create={() => {}} searchRef={createRef()} teamAccessLost={route.search.get('team_id') === 't' ? obsoleteLost : lost}/>;
+  }
+  const noWrites = () => expect(fetch.mock.calls.filter(([, options]) => options.method && options.method !== 'GET')).toEqual([]);
+  try {
+    await act(async () => root.render(<Routed refresh={0}/>));
+    expect(container.querySelector('#row-i')?.textContent).toContain(source.title);
+    expect(container.textContent).toContain('Private board team');
+    expect(container.textContent).toContain('Private review stage');
+    await act(async () => root.render(<Routed refresh={1}/>));
+    expect(workflows).toBe(2); concealedPrivateBoard();
+    expect(obsoleteLost).not.toHaveBeenCalled(); expect(lost).not.toHaveBeenCalled(); noWrites();
+    const next = new URLSearchParams(originalParams); next.set('team_id', otherTeam.id); next.set('layout', 'list');
+    await act(async () => { navigate(issuesUrl('w', next)); });
+    expect(new URLSearchParams(location.search).get('team_id')).toBe(otherTeam.id);
+    expect(new URLSearchParams(location.search).get('layout')).toBe('list');
+    await act(async () => finishOld(json({ code: 'not_available', detail: 'Team unavailable.' }, denialStatus)));
+    concealedPrivateBoard(); expect(reads).toBe(2);
+    expect(obsoleteLost).not.toHaveBeenCalled(); expect(lost).not.toHaveBeenCalled(); noWrites();
+    await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === recovery)!.click());
+    expect(workflows).toBe(3); expect(reads).toBe(recovery === 'Try again' ? 3 : 2);
+    expect(proofPaths).toEqual(Array(3).fill('/api/v1/workspaces/w/teams/t/workflow'));
+    if (recovery === 'Try again') {
+      const query = issueQueries.at(-1)!;
+      expect(query.get('team_id')).toBe(otherTeam.id); expect(query.get('limit')).toBe('50');
+      expect(query.get('q')).toBe('work'); expect(query.get('priority')).toBe('2'); expect(query.get('sort')).toBe('priority');
+      expect(query.has('layout')).toBe(false); expect(query.has('display_version')).toBe(false);
+    }
+    concealedPrivateBoard(); expect(container.querySelector('#row-public-control')).toBeNull();
+    expect(obsoleteLost).not.toHaveBeenCalled(); expect(lost).not.toHaveBeenCalled(); noWrites();
+    await act(async () => finishCurrent(json({ code: 'not_available', detail: 'Team unavailable.' }, denialStatus)));
+    concealedPrivateBoard(); expect(container.textContent).not.toContain(source.title); noWrites();
+    expect(obsoleteLost).not.toHaveBeenCalled();
+    expect(lost).toHaveBeenCalledTimes(1); expect(lost).toHaveBeenCalledWith('t');
+  } finally {
+    finishOld(json({ code: 'not_available' }, denialStatus)); finishCurrent(json({ code: 'not_available' }, denialStatus));
+    history.replaceState(previous.state, '', previous.url);
+  }
+});
+
+it.each(['list', 'board'])('settles pending %s refreshes across opening and closing the same-query detail', async layout => {
+  const previous = { url: `${location.pathname}${location.search}`, state: history.state };
+  history.replaceState({ otIndex: 0 }, '', `/w/w/issues?team_id=t&layout=${layout}&display_version=1`);
+  const other = { ...issue, id: 'other', key: 'ENG-2', title: 'Other saved work' };
+  const snapshot = (title: string) => json({ data: [{ ...issue, title }, other], next_cursor: 'next-page', has_more: true });
+  let reads = 0; let finish!: (response: Response) => void;
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return Promise.resolve(privateWorkflow());
+    return ++reads === 1 ? Promise.resolve(snapshot(issue.title)) : new Promise<Response>(resolve => { finish = resolve; });
+  }));
+  function Routed({ refresh }: { refresh: number }) {
+    const route = parseRoute(useLocation());
+    return <><IssueList workspaceId="w" data={privateData} session={session} params={route.search} selectedId={route.issueId} refresh={refresh} create={() => {}} searchRef={createRef()}/>{route.issueId && <button onClick={() => navigate(issuesUrl('w', route.search))}>Close detail</button>}</>;
+  }
+  try {
+    await act(async () => root.render(<Routed refresh={0}/>)); await act(async () => root.render(<Routed refresh={1}/>));
+    await act(async () => container.querySelector<HTMLAnchorElement>('#row-i')!.click());
+    expect(location.pathname).toBe('/w/w/issues/i');
+    await act(async () => finish(snapshot('Saved while detail opened')));
+    expect(container.querySelector('#row-i')?.textContent).toContain('Saved while detail opened');
+    expect(container.querySelector('.issue-list')?.getAttribute('aria-busy')).toBe('false');
+    if (layout === 'board') {
+      expect(container.querySelector<HTMLButtonElement>('[aria-label="Move ENG-2"]')?.disabled).toBe(false);
+      expect([...container.querySelectorAll('button')].find(button => button.textContent === 'Next board page')?.getAttribute('aria-disabled')).toBe('false');
+    }
+    await act(async () => root.render(<Routed refresh={2}/>));
+    await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Close detail')!.click());
+    expect(location.pathname).toBe('/w/w/issues');
+    await act(async () => finish(snapshot('Saved while detail closed')));
+    expect(container.querySelector('#row-i')?.textContent).toContain('Saved while detail closed');
+    expect(container.querySelector('.issue-list')?.getAttribute('aria-busy')).toBe('false');
+    if (layout === 'board') expect(container.querySelector<HTMLButtonElement>('[aria-label="Move ENG-1"]')?.disabled).toBe(false);
+    expect(reads).toBe(3);
+  } finally { history.replaceState(previous.state, '', previous.url); }
+});
+
+it.each([403, 404])('processes current-team %s after detail changes during both pending reads', async status => {
+  const previous = { url: `${location.pathname}${location.search}`, state: history.state };
+  history.replaceState({ otIndex: 0 }, '', '/w/w/issues?team_id=t&layout=board&display_version=1');
+  let reads = 0; let workflows = 0; let finishPage!: (response: Response) => void; let finishProof!: (response: Response) => void;
+  const lost = vi.fn();
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return ++workflows === 1 ? Promise.resolve(privateWorkflow()) : new Promise<Response>(resolve => { finishProof = resolve; });
+    return ++reads === 1 ? Promise.resolve(page()) : new Promise<Response>(resolve => { finishPage = resolve; });
+  }));
+  function Routed({ refresh }: { refresh: number }) {
+    const route = parseRoute(useLocation());
+    return <><IssueList workspaceId="w" data={privateData} session={session} params={route.search} selectedId={route.issueId} refresh={refresh} create={() => {}} searchRef={createRef()} teamAccessLost={lost}/>{route.issueId && <button onClick={() => navigate(issuesUrl('w', route.search))}>Close detail</button>}</>;
+  }
+  try {
+    await act(async () => root.render(<Routed refresh={0}/>)); await act(async () => root.render(<Routed refresh={1}/>));
+    await act(async () => container.querySelector<HTMLAnchorElement>('#row-i')!.click());
+    await act(async () => finishPage(json({ code: 'not_found', detail: 'Issue unavailable.' }, 404)));
+    expect(workflows).toBe(2); expect(lost).not.toHaveBeenCalled(); concealedPrivateBoard();
+    await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Close detail')!.click());
+    await act(async () => finishProof(json({ code: 'not_available', detail: 'Team unavailable.' }, status)));
+    expect(lost).toHaveBeenCalledTimes(1); expect(lost).toHaveBeenCalledWith('t'); concealedPrivateBoard();
+    expect(container.querySelector('.issue-list')?.getAttribute('aria-busy')).toBe('false');
+  } finally { history.replaceState(previous.state, '', previous.url); }
+});
+
+it.each([200, 404])('does not replay an obsolete exit intent after detail navigation when proof returns %s', async status => {
+  const previous = { url: `${location.pathname}${location.search}`, state: history.state };
+  const query = '?team_id=t&layout=board&display_version=1';
+  history.replaceState({ otIndex: 0 }, '', `/w/w/issues${query}`);
+  let reads = 0; let workflows = 0; let finish!: (response: Response) => void; const lost = vi.fn();
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) return ++workflows === 3 ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(privateWorkflow());
+    return Promise.resolve(++reads === 1 ? page() : json({ code: 'not_found' }, 404));
+  }));
+  try {
+    await renderPrivateBoard(0, boardParams(), lost); await renderPrivateBoard(1, boardParams(), lost);
+    await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Open all issues')!.click());
+    history.pushState({}, '', `/w/w/issues/another-issue${query}`);
+    await act(async () => finish(status === 200 ? privateWorkflow() : json({ code: 'not_found' }, 404)));
+    expect(location.pathname).toBe('/w/w/issues/another-issue'); expect(location.search).toBe(query);
+    expect(lost).toHaveBeenCalledTimes(status === 404 ? 1 : 0); concealedPrivateBoard();
+    expect(container.querySelector('.issue-list')?.getAttribute('aria-busy')).toBe('false');
+  } finally { history.replaceState(previous.state, '', previous.url); }
 });
 
 it('requires an explicit team and rejects unsupported board display versions without broadening the query', async () => {
