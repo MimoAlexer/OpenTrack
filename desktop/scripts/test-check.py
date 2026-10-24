@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Exercise check.sh modes and failure propagation without compiling Rust."""
+"""Exercise native checks and build preflight without compiling Rust or extracting an SDK."""
 import os
 from pathlib import Path
 import shutil
 import subprocess
+import tempfile
 import unittest
 
 
@@ -25,6 +26,7 @@ cargo() {
   echo "cargo $*"
   [ "${FAIL_COMMAND:-}" != "cargo $1" ]
 }
+npm() { echo "npm $*"; return 99; }
 source "$CHECK_SCRIPT" "$@"
 '''
 
@@ -85,6 +87,21 @@ class CheckModes(unittest.TestCase):
         result, calls = self.run_check("--core", fail="pkg-config")
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(len(calls), 1)
+
+    def test_missing_native_libraries_fail_before_package_preparation(self):
+        with tempfile.TemporaryDirectory() as overlay:
+            result = subprocess.run(
+                [self.bash, "-c", HARNESS, "native-build-preflight-test"],
+                env=dict(os.environ, CHECK_SCRIPT=SCRIPT.with_name("build-linux.sh").as_posix(),
+                         OPENTRACK_DESKTOP_BUILD_ROOT=overlay, FAIL_COMMAND="pkg-config"),
+                capture_output=True, text=True, timeout=10,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            calls = result.stdout.splitlines()
+            self.assertEqual(calls[0], "overlay")
+            self.assertEqual(len(calls), 2)
+            self.assertTrue(calls[1].startswith("pkg-config --print-errors --cflags --libs "))
+            self.assertEqual(list(Path(overlay).iterdir()), [])
 
     def test_failed_vendor_verification_never_compiles(self):
         result, calls = self.run_check("--core", fail="python3")

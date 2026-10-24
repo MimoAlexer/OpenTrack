@@ -112,10 +112,22 @@
       "sha256": "9e99ba57e776dcd8861a8f89be4fe439ea86bd577a2695b9aed34785bba05fac"
     },
     {
+      "package": "libdbus-1-dev",
+      "version": "1.16.2-2ubuntu4",
+      "filename": "libdbus-1-dev_1.16.2-2ubuntu4_amd64.deb",
+      "sha256": "f93267f289f894f11c4ebd5708413e1563bbdd50e075f42214e762309c7c4afa"
+    },
+    {
       "package": "libdbusmenu-glib-dev",
       "version": "18.10.20180917~bzr492+repack1-4build1",
       "filename": "libdbusmenu-glib-dev_18.10.20180917~bzr492+repack1-4build1_amd64.deb",
       "sha256": "48f397c0433f1189a9b9293dbecd5b14150a5089a29d6734fc6e70518ff16f25"
+    },
+    {
+      "package": "libegl-dev",
+      "version": "1.7.0-3",
+      "filename": "libegl-dev_1.7.0-3_amd64.deb",
+      "sha256": "d0f96489f4937816b7e439f893e90c210290a82a5219ec16b1f13b4c3807bf85"
     },
     {
       "package": "libegl1-mesa-dev",
@@ -128,6 +140,12 @@
       "version": "1.5.10-2build1",
       "filename": "libepoxy-dev_1.5.10-2build1_amd64.deb",
       "sha256": "09348b4bf17ad0e71087cc1c0c6a556d261b4a56bbb535024bfa3606ea6ebf41"
+    },
+    {
+      "package": "libexpat1-dev",
+      "version": "2.7.4-1ubuntu0.2",
+      "filename": "libexpat1-dev_2.7.4-1ubuntu0.2_amd64.deb",
+      "sha256": "78b22a6dcdd3053dd2f3d442347ebf0427612f3b7efac75447a2229ba1568544"
     },
     {
       "package": "libfontconfig-dev",
@@ -158,6 +176,12 @@
       "version": "2.44.5+dfsg-4ubuntu1",
       "filename": "libgdk-pixbuf-2.0-dev_2.44.5+dfsg-4ubuntu1_amd64.deb",
       "sha256": "01daf029ba48bc9f4722b505a19918fafd0a70516b516b836a991ae5e37aec9a"
+    },
+    {
+      "package": "libgl-dev",
+      "version": "1.7.0-3",
+      "filename": "libgl-dev_1.7.0-3_amd64.deb",
+      "sha256": "a8abfeb7fe6bcb9e868458d2347106bbc9ab0fecb54d92a5626f3612a2d2aef8"
     },
     {
       "package": "libgles-dev",
@@ -340,10 +364,22 @@
       "sha256": "57d0bdf2f1199e4305fd4b81a3ab665c5cb5b38654a0b8e032a1beca411e0418"
     },
     {
+      "package": "libsystemd-dev",
+      "version": "259.5-0ubuntu3.4",
+      "filename": "libsystemd-dev_259.5-0ubuntu3.4_amd64.deb",
+      "sha256": "4b09051a056bf36c891b1934c9981769ddb3735ef1cebc906b037a8a5d4ab72c"
+    },
+    {
       "package": "libthai-dev",
       "version": "0.1.30-1",
       "filename": "libthai-dev_0.1.30-1_amd64.deb",
       "sha256": "996d76b48a389f74a602afa8c266f541934de027b54ab8ef4bb4ca118a6c751c"
+    },
+    {
+      "package": "libwayland-dev",
+      "version": "1.24.0-2",
+      "filename": "libwayland-dev_1.24.0-2_amd64.deb",
+      "sha256": "a548bfe425ed52952a3f4317e4c18b8d85ae10e9455745ff49062523ba8c177e"
     },
     {
       "package": "libwebkit2gtk-4.1-dev",
@@ -352,16 +388,58 @@
       "sha256": "9a80a1aeebd7fbb3df0369e11cf118f26b52dc4256d8ede642b4291f57132d85"
     },
     {
+      "package": "libx11-dev",
+      "version": "2:1.8.13-1ubuntu0.1",
+      "filename": "libx11-dev_2%3a1.8.13-1ubuntu0.1_amd64.deb",
+      "sha256": "b751b15b1661789ea179a3c01948b4e6eef819a8c3b5d27da679e345b46dccf5"
+    },
+    {
+      "package": "libxau-dev",
+      "version": "1:1.0.11-1build2",
+      "filename": "libxau-dev_1%3a1.0.11-1build2_amd64.deb",
+      "sha256": "55a7100aa12d940c41e0735212122cc835192bce385e7bbfe14b234759aad51c"
+    },
+    {
+      "package": "libxcb-render0-dev",
+      "version": "1.17.0-2ubuntu1",
+      "filename": "libxcb-render0-dev_1.17.0-2ubuntu1_amd64.deb",
+      "sha256": "bea5eec4d84ae0c145cc32cd15e2ec7c458e66cd16b3b8cf4656e0966e437541"
+    },
+    {
       "package": "libxcb-shm0-dev",
       "version": "1.17.0-2ubuntu1",
       "filename": "libxcb-shm0-dev_1.17.0-2ubuntu1_amd64.deb",
       "sha256": "8f31234bf98ef4ba4d6a55155a340599920840c3aa7100853a8e9bd60c382257"
     },
     {
+      "package": "libxcb1-dev",
+      "version": "1.17.0-2ubuntu1",
+      "filename": "libxcb1-dev_1.17.0-2ubuntu1_amd64.deb",
+      "sha256": "9be071fbb1cc4cb311d477456dbe4e1e97ae9b46468cff51b015c76700da9887"
+    },
+    {
+      "package": "libxcomposite-dev",
+      "version": "1:0.4.6-1build1",
+      "filename": "libxcomposite-dev_1%3a0.4.6-1build1_amd64.deb",
+      "sha256": "f7f1c66cc270680d7ee657c500db359a372303f5d1e31a66704654375d5b8582"
+    },
+    {
       "package": "libxcursor-dev",
       "version": "1:1.2.3-1build1",
       "filename": "libxcursor-dev_1%3a1.2.3-1build1_amd64.deb",
       "sha256": "bf87cafc6fb47b9b956630fc52a2ca56761bef63b401f43e68dada074539bbaa"
+    },
+    {
+      "package": "libxdamage-dev",
+      "version": "1:1.1.7-1",
+      "filename": "libxdamage-dev_1%3a1.1.7-1_amd64.deb",
+      "sha256": "7663a5505a399b4126eb34ee1b6f3db95e1cd9ad87edeee513128c5d783b0a23"
+    },
+    {
+      "package": "libxdmcp-dev",
+      "version": "1:1.1.5-2",
+      "filename": "libxdmcp-dev_1%3a1.1.5-2_amd64.deb",
+      "sha256": "6f80b42ba84d5a55e4d3cf1850954bc2e37af585d47fc85721c8928f3c4c98e6"
     },
     {
       "package": "libxdo-dev",
@@ -374,6 +452,18 @@
       "version": "1:3.20160805.1-5.1build1",
       "filename": "libxdo3_1%3a3.20160805.1-5.1build1_amd64.deb",
       "sha256": "b4edfb3fcb5a3b6bd2b407dbb6f7071c975db611e86774d8a3026a28133e96e5"
+    },
+    {
+      "package": "libxext-dev",
+      "version": "2:1.3.4-1build3",
+      "filename": "libxext-dev_2%3a1.3.4-1build3_amd64.deb",
+      "sha256": "5de129b859b79eab3a273c77dcc450a521fd28cff3920b679ad6ad99fcf6fbb6"
+    },
+    {
+      "package": "libxfixes-dev",
+      "version": "1:6.0.0-2build2",
+      "filename": "libxfixes-dev_1%3a6.0.0-2build2_amd64.deb",
+      "sha256": "67aa2c4649d448ce4c984b63b63a24b926efab282a8ef18cce94a4edb9b0cecb"
     },
     {
       "package": "libxft-dev",
@@ -406,6 +496,18 @@
       "sha256": "6c2fbe6cab6baf35cb734d5fb60347a4221be3acf54adce58244f965097fd441"
     },
     {
+      "package": "libxrandr-dev",
+      "version": "2:1.5.4-1build1",
+      "filename": "libxrandr-dev_2%3a1.5.4-1build1_amd64.deb",
+      "sha256": "2f359402f6c05604d9a6c92cb013ffa88c42cd5c1c9f78069b9073f77e6dd8af"
+    },
+    {
+      "package": "libxrender-dev",
+      "version": "1:0.9.12-1build1",
+      "filename": "libxrender-dev_1%3a0.9.12-1build1_amd64.deb",
+      "sha256": "21cf3afb6ca2d83dd959f4a6550720b44f89a32633f62cdac3e63b622e3966f6"
+    },
+    {
       "package": "libxres-dev",
       "version": "2:1.2.1-1build2",
       "filename": "libxres-dev_2%3a1.2.1-1build2_amd64.deb",
@@ -428,6 +530,12 @@
       "version": "1.47-1",
       "filename": "wayland-protocols_1.47-1_all.deb",
       "sha256": "9e5d9e73914a8a701e4cc5adef1f3fe95624effb1bac006e240f0f35d76139e4"
+    },
+    {
+      "package": "x11proto-dev",
+      "version": "2025.1-1",
+      "filename": "x11proto-dev_2025.1-1_all.deb",
+      "sha256": "a800a05f9e22011add40fe7deef712be53c721d9e23281bfd07ede46e514dd45"
     }
   ]
 }
