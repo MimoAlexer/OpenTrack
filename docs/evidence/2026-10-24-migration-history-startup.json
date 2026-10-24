@@ -1,0 +1,119 @@
+{
+  "date": "2026-10-24",
+  "base_main": "eeb5e53cb564f6cd35b0aea43e07743ab4e6cf69",
+  "scope": "Migration-history executable startup compatibility; separate from stored document JSON schema versions.",
+  "validation": {
+    "snapshot": "read-only repeatable read",
+    "metadata": [
+      "version",
+      "success",
+      "checksum"
+    ],
+    "requires_complete_embedded_up_migrations": true,
+    "repairs_or_applies_metadata": false,
+    "generic_historical_constructors_preserved": true,
+    "check_config_and_migrate_exempt": true
+  },
+  "baseline": {
+    "baseline_binary_sha256": "a4ddc69b46c258fde00d61ccd1e75bfdc9162ecb5edc1636eb6b42cf5e56c7c6",
+    "fixture_has_applied_unknown_version": true,
+    "api_status": 200,
+    "unknown_schema_accepted": true,
+    "cleanup_failures": [],
+    "owned_api_reaped": true
+  },
+  "corrective_standalone": {
+    "candidate_binary_sha256": "af1c435313cd169f6530be7c5a5b8cbcd93091b6bce61630e125506d8eaade51",
+    "results": [
+      {
+        "fixture": "future",
+        "api_status": null,
+        "cleanup_failures": [],
+        "owned_api_reaped": true,
+        "exit_code": 1,
+        "history_refusal": true,
+        "storage_not_created": true
+      },
+      {
+        "fixture": "current",
+        "api_status": 200,
+        "cleanup_failures": [],
+        "owned_api_reaped": true,
+        "exit_code": 0
+      }
+    ],
+    "same_unsupported_fixture_as_baseline": true,
+    "matching_current_restore_positive_control": true
+  },
+  "checks": [
+    {
+      "check": "schema-contract",
+      "exit_code": 0,
+      "elapsed_seconds": 11.744,
+      "owned_session_cleanup_confirmed": true
+    },
+    {
+      "check": "workspace-rust",
+      "exit_code": 0,
+      "elapsed_seconds": 1466.981,
+      "owned_session_cleanup_confirmed": true
+    },
+    {
+      "check": "lint",
+      "exit_code": 0,
+      "elapsed_seconds": 70.925,
+      "owned_session_cleanup_confirmed": true
+    },
+    {
+      "check": "build",
+      "exit_code": 0,
+      "elapsed_seconds": 0.663,
+      "owned_session_cleanup_confirmed": true
+    }
+  ],
+  "workspace_rust": {
+    "passed": 258,
+    "failed": 0,
+    "ignored": 4,
+    "reported_test_groups": 86
+  },
+  "source_sha256": {
+    "crates/opentrack-store/src/lib.rs": "6afa405706daf0f81e6807ab75024f4cbe98f15beeefbbf2bdb92fac4fa50694",
+    "crates/opentrack-server/src/main.rs": "4a26dc0a8868da0b560aeb734d64a0db24d7e240561e8443428090b247c0f6fc",
+    "crates/opentrack-server/src/worker.rs": "2cbdabc84a59678f95ed6306686583c27c3c5ae664b4776bbe661b601d9179cb",
+    "crates/opentrack-server/src/operator.rs": "0bd3f6192958bc863a4bbbecd38aea758cf219b4785b3bea30b5156f8226643d",
+    "crates/opentrack-app/src/worker.rs": "4f51662dec9ffbe71e28a145b510b91ebaa9c7618ed3f8a0aba0817cf58e0828",
+    "crates/opentrack-app/src/recovery.rs": "0f4382ed0f19b3a1e8864b8411426738f691d9cbb0c5711837d1f9a4ba823601",
+    "crates/opentrack-app/tests/support/mod.rs": "aa1dc7152cd05feac7dc51be04c36bfc9f0f57b146c095975731fbd02b336a4a",
+    "deploy/grant-worker.sql": "292bb39f166e314f6d797847013fa4df4fc16725ca03e8a017701e0e3fb99045",
+    "deploy/grant-operator.sql": "ea2814fec0219ef4114dab69e53cddaed2ec7fe0126259a75215a4115d08777a",
+    "crates/opentrack-server/tests/schema_compatibility_contract.rs": "a1dd2f2d066ba666eb4bf195f0922bbddd203ec7a0e411d1c25a1f828c732c44"
+  },
+  "retained_attempts": [
+    {
+      "phase": "fixture preparation",
+      "result": "PowerShell quoting parse refusal before any command executed.",
+      "correction": "Use a saved Python preparation file instead of nested shell quoting."
+    },
+    {
+      "phase": "first local schema suite",
+      "passed": 1,
+      "failed": 4,
+      "cause": "Private operator URL named a different test database; fixture identity assertion stopped those cases.",
+      "correction": "All four private test-role URLs and CONNECT target the dedicated owned test database."
+    },
+    {
+      "phase": "first standalone current control",
+      "cause": "Positive fixture omitted its required existing private blob root.",
+      "correction": "Use the restored private blob directory; preserve first logs and rerun with a new output directory."
+    }
+  ],
+  "migration_impact": "No migration file or accepted schema version changes; matching worker/operator grants add only three metadata reads.",
+  "rollback": "Stop/drain and reapply the prior release matching grant scripts before its executable; no history repair or service migration credential.",
+  "limits": [
+    "Startup snapshot is not online-DDL coordination; stop/drain services for upgrades.",
+    "API pre-existing metadata authority is unchanged; narrowed API provisioning is outside this slice.",
+    "Local tests and standalone checks do not substitute for fresh exact-head CI and final integration review.",
+    "Whole-product/native/manual/provider/performance/recovery gates remain separate."
+  ]
+}

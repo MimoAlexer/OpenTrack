@@ -31,7 +31,7 @@ Set `OPENTRACK_PG_BIN` to an existing PostgreSQL 18 `bin` directory to use a sep
 
 Development credentials use `OPENTRACK_DATABASE_URL`, `OPENTRACK_MIGRATION_DATABASE_URL`, `OPENTRACK_OPERATOR_DATABASE_URL`, and `OPENTRACK_WORKER_DATABASE_URL`; isolated tests use the corresponding `OPENTRACK_TEST_DATABASE_URL`, `OPENTRACK_TEST_MIGRATION_DATABASE_URL`, `OPENTRACK_TEST_OPERATOR_DATABASE_URL`, and `OPENTRACK_TEST_WORKER_DATABASE_URL`. All eight SQL roles are non-superusers, have no replication or role/database creation ability and no RLS bypass. Runtime roles cannot create schema objects or assume the owner role. Default privileges grant runtime DML and sequence access to new migration-owned objects. Audit entries additionally deny runtime update/delete/truncate privileges; re-running setup preserves those restrictions once the audit table exists. Migrations must enforce the application authorization model and RLS on tenant tables; SQL role separation alone does not enforce tenant privacy.
 
-Re-running `setup` adds missing operator credentials without replacing the previous environment values, database URLs, or setup token. Operator URL files remain mode 0600. The operator has no application table or sequence privileges. After migration, `scripts/dev-db.sh grant-operator` and `grant-test-operator` grant only the four recovery/account lifecycle capabilities after checking role attributes, ownership, and incoming/outgoing role memberships; `migrate`, `migrate-test`, and `test` perform the matching grant step automatically. The development server launcher removes operator credentials from the serving process environment.
+Re-running `setup` adds missing operator credentials without replacing the previous environment values, database URLs, or setup token. Operator URL files remain mode 0600. The operator has no application-data table or sequence privileges; schema-history access is limited to `version`, `success` and `checksum`. After migration, `scripts/dev-db.sh grant-operator` and `grant-test-operator` apply the reviewed recovery/account lifecycle capabilities and metadata reads after checking role attributes, ownership, and incoming/outgoing role memberships; `migrate`, `migrate-test`, and `test` perform the matching grant step automatically. The development server launcher removes operator credentials from the serving process environment.
 
 For a native operator command, select the private URL file explicitly and create a protected output directory outside group-writable repository ancestors:
 
@@ -69,6 +69,38 @@ cargo test -p opentrack-app --test postgres_contract -- --nocapture
 ```
 
 The HTTP integration suite in `crates/opentrack-api/tests/http_contract.rs` uses the same isolated-database approach and real temporary frontend files. Requests pass through the actual Axum router using Tower's service interface; this verifies HTTP handling without binding a TCP port. It complements the application contract suite and browser verification.
+
+## Migration compatibility at startup
+
+Serving, foreground/once worker and operator commands validate applied migration
+versions, success flags and checksums against the executable's complete embedded
+up-migration set. Validation uses one read-only repeatable-read snapshot and never
+creates, repairs or applies migration metadata. Missing, unreadable, dirty,
+unknown or mismatched history stops startup before a listener, storage, job stage
+or recovery-code output is created. Existing table/function capability checks
+remain in force, including constructor privilege checks before history validation
+and physical-schema probes afterward.
+
+Apply migrations explicitly with the migration credential, then apply the matching
+worker/operator grants before starting the new executable. This update changes
+grants without adding a migration: worker and operator need only
+`SELECT(version,success,checksum)` on `_sqlx_migrations`; other metadata columns and
+writes remain denied. The development migrate/test helpers and normal worker
+Compose startup apply matching grants; the legacy operator profile uses its
+explicit operator-grant step. Compatibility checks use service credentials and
+do not borrow migration authority.
+`check-config` remains connection-free and explicit `migrate` retains its existing
+upgrade behavior.
+
+This grant-only update has no data migration to reverse. For rollback, stop/drain
+services and reapply the previous release's matching worker/operator grant scripts
+before starting its executable: older validators deliberately reject the new
+column-read authority. The reviewed grant helpers remove stale column ACLs.
+Do not edit applied history or lend migration credentials to bypass a refusal.
+
+Stop/drain services during upgrades; this startup snapshot is not an online-DDL
+coordination protocol. Unknown stored document JSON remains a separate opaque,
+read-only document contract rather than a database-history mismatch.
 
 ## Verification and CI
 
@@ -130,7 +162,7 @@ docker compose --env-file deploy/secrets/compose.env -f deploy/compose.yaml up -
 
 `operator-provision` uses the pinned official PostgreSQL client image and only the administrative PostgreSQL password plus the new operator password. On an existing volume, it explicitly creates the separate `opentrack_operator` login if absent. If the role exists, it first verifies that the supplied password works, then rejects ownership, role memberships or elevated attributes. It never resets an existing password. Fresh database initialization creates the same restricted role. The role gets only database `CONNECT` and schema `USAGE` at this stage.
 
-`operator-grant` uses the same client image with only the migration URL and the reviewed `grant-operator.sh`/SQL. Run it after migrations: it explicitly grants `EXECUTE` on the four recovery/account lifecycle functions after validating the role and removing direct table/sequence/function grants. The helper's URL-file input supports the generated simple host/identifier URI with a 64-character hexadecimal password; it parses this into separate libpq environment fields without putting credentials in command arguments. Custom connections can supply explicit libpq `PG*` environment settings instead of that file input. These two provisioning services are absent from normal `compose up`. Use the explicit commands above; the normal app needs neither administrator nor operator credentials.
+`operator-grant` uses the same client image with only the migration URL and the reviewed `grant-operator.sh`/SQL. Run it after migrations: it grants the reviewed definer functions and read-only `version`, `success`, `checksum` metadata after validating the role and removing stale table/sequence/function grants. Other schema-history columns and all direct metadata writes stay denied. The helper's URL-file input supports the generated simple host/identifier URI with a 64-character hexadecimal password; it parses this into separate libpq environment fields without putting credentials in command arguments. Custom connections can supply explicit libpq `PG*` environment settings instead of that file input. These two provisioning services are absent from normal `compose up`. Use the explicit commands above; the normal app needs neither administrator nor operator credentials.
 
 Account disable and re-enable use the same separate operator service and credential. They need no output file; see the [account lifecycle commands](ACCOUNT_SECURITY.md#disable-or-re-enable-a-global-account). Existing deployments must apply migration 0007 and rerun `operator-grant` before using this binary’s operator commands.
 

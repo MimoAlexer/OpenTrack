@@ -191,6 +191,13 @@ pub async fn run(cli: &Cli, cfg: &Settings) -> Result<(), String> {
     )
     .await
     .map_err(|_| "Worker startup failed; check migrations and the restricted worker credential")?;
+    let history_current = opentrack_store::schema_is_current(&worker.pool)
+        .await
+        .map_err(|_| "Cannot verify worker migration history; apply matching worker grants")?;
+    if !history_current {
+        worker.pool.close().await;
+        return Err("Database migration history is incompatible with this executable".into());
+    }
     let current_schema: bool =
         sqlx::query_scalar("SELECT to_regclass('consumer_receipts') IS NOT NULL AND to_regclass('document_revisions') IS NOT NULL AND to_regclass('attachments') IS NOT NULL AND to_regclass('issue_templates') IS NOT NULL AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('issue_templates') AND attname='title_mode' AND NOT attisdropped) AND to_regclass('issue_template_sources') IS NOT NULL AND to_regclass('issue_subscriptions') IS NOT NULL AND to_regclass('document_mentions') IS NOT NULL AND to_regclass('mention_intents') IS NOT NULL AND to_regclass('subscription_events') IS NOT NULL AND to_regclass('discussion_sources') IS NOT NULL AND to_regclass('user_preferences') IS NOT NULL AND to_regclass('user_preference_events') IS NOT NULL AND to_regclass('projects') IS NOT NULL AND to_regclass('project_issues') IS NOT NULL AND to_regclass('project_updates') IS NOT NULL AND to_regclass('milestones') IS NOT NULL AND to_regclass('cycles') IS NOT NULL AND to_regclass('cycle_issues') IS NOT NULL AND to_regclass('cycle_snapshots') IS NOT NULL AND to_regclass('cycle_close_reports') IS NOT NULL AND to_regclass('cycle_carry_operations') IS NOT NULL AND to_regclass('cycle_reopen_reasons') IS NOT NULL AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('project_issues') AND attname='milestone_id' AND NOT attisdropped)")
             .fetch_one(&worker.pool)

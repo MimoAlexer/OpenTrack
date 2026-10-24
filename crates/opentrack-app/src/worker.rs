@@ -78,6 +78,7 @@ impl Worker {
                 OR (c.relname='workspace_members' AND a.attname IN('workspace_id','user_id','role','active'))
                 OR (c.relname='team_members' AND a.attname IN('workspace_id','team_id','user_id','role'))
                 OR (c.relname='teams' AND a.attname IN('id','workspace_id','private','archived_at','workflow_version'))
+                OR (c.relname='_sqlx_migrations' AND a.attname IN('version','success','checksum'))
                 OR (c.relname='issues' AND a.attname IN('id','workspace_id','team_id','status_id','version','archived_at','deleted_at','assignee_id'))))
               OR (has_column_privilege(current_user,c.oid,a.attnum,'INSERT') AND c.relname NOT IN('job_attempts','activity_entries','audit_entries','workspace_events'))
               OR (has_column_privilege(current_user,c.oid,a.attnum,'UPDATE') AND NOT (

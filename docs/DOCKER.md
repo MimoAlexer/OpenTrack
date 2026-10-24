@@ -93,6 +93,13 @@ The second command copies only this local proxy's public CA certificate. Trust t
 
 Local HTTP readiness is not proof of a working public certificate or external network route. A self-signed local certificate must not be described as a publicly trusted deployment.
 
+Before an upgrade, stop/drain application services, apply migrations and use the
+matching service grants. Startup rejects migration history that is dirty,
+missing, unknown or has mismatched checksums. The worker/operator read only the
+three schema-history columns needed for this check; a missing grant refuses
+startup rather than borrowing migration authority. See
+[runtime compatibility](RUNTIME_SETUP.md#migration-compatibility-at-startup).
+
 ## Stop, restart and inspect
 
 ```sh

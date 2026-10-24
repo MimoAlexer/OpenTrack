@@ -11,6 +11,13 @@ pub async fn run(cli: &Cli, cfg: &Settings) -> Result<(), String> {
     let operator = Operator::connect(&cfg.operator_database_url()?)
         .await
         .map_err(|_| "Cannot connect with a correctly restricted operator role; verify migrations and operator grants (connection details redacted)")?;
+    if !operator
+        .schema_is_current()
+        .await
+        .map_err(|_| "Cannot verify operator migration history; apply matching operator grants")?
+    {
+        return Err("Database migration history is incompatible with this executable".into());
+    }
     if cli.action.is_consumer_operator() {
         return run_consumer(cli, &operator).await;
     }

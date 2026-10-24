@@ -21,6 +21,28 @@ mod transaction;
 pub use transaction::{Tx, begin};
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
+pub async fn schema_is_current(pool: &PgPool) -> Result<bool, sqlx::migrate::MigrateError> {
+    use sqlx::migrate::Migrate;
+
+    let mut tx = pool.begin().await?;
+    sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+        .execute(&mut *tx)
+        .await?;
+    let dirty = tx.dirty_version(&MIGRATOR.table_name).await?;
+    let applied = tx.list_applied_migrations(&MIGRATOR.table_name).await?;
+    let expected: Vec<_> = MIGRATOR
+        .iter()
+        .filter(|migration| migration.migration_type.is_up_migration())
+        .collect();
+    let current = dirty.is_none()
+        && expected.len() == applied.len()
+        && expected.iter().zip(&applied).all(|(expected, actual)| {
+            expected.version == actual.version && expected.checksum == actual.checksum
+        });
+    tx.commit().await?;
+    Ok(current)
+}
+
 pub async fn context(tx: &mut Tx, user: Uuid, workspace: Option<Uuid>) -> Result<(), sqlx::Error> {
     context_values(tx, user, workspace).await?;
     // Account guard comes before every workspace guard and remains until commit.
