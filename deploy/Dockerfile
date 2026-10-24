@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS base
+COPY LICENSE /usr/share/licenses/opentrack/LICENSE
 
 FROM base AS bootstrap
 RUN apt-get update && apt-get install -y --no-install-recommends python3 \
@@ -30,6 +31,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     && mkdir -p /build/out && cp /build/target/release/opentrack-server /build/out/opentrack-server
 
 FROM caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f AS proxy
+COPY LICENSE /usr/share/licenses/opentrack/LICENSE
 RUN mkdir -p /data/caddy /config/caddy && chown -R 10001:10001 /data /config \
     && chmod 0700 /data /data/caddy /config /config/caddy \
     && setcap -r /usr/bin/caddy

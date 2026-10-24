@@ -22,5 +22,8 @@ shortDescription = "OpenTrack workspace desktop client"
 [bundle.linux.deb]
 desktopTemplate = "linux/OpenTrack.desktop.hbs"
 
+[bundle.linux.deb.files]
+"usr/share/licenses/opentrack/LICENSE" = "../LICENSE"
+
 [plugins.deep-link.desktop]
 schemes = ["opentrack"]

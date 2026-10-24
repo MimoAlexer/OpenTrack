@@ -65,7 +65,7 @@ Access/research date for all entries: **2026-10-17**. Prioritize official produc
 | R59 | [MCP authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) | Versioned external-tool authorization contract |
 | R60 | [Node releases](https://nodejs.org/en/about/previous-releases) | Maintained runtime selection |
 | R61 | [Rust stable distribution](https://static.rust-lang.org/dist/channel-rust-stable.toml) | Observed compiler candidate; read-only metadata |
-| R62 | [AGPLv3 text](https://www.gnu.org/licenses/agpl-3.0.txt) | Proposed network-source license; ratification pending |
+| R62 | [AGPLv3 text](https://www.gnu.org/licenses/agpl-3.0.txt) · [SPDX identifier/text](https://spdx.org/licenses/AGPL-3.0-or-later.html) | Source-license choice ratified24 October2026; distribution review remains separate |
 | R63 | [Existing opentrack project](https://github.com/opentrack/opentrack) | Concrete working-name collision; not trademark clearance |
 
 [Compatibility evidence](COMPATIBILITY.md) additionally cites 19 individual crates.io/npm package records and dependency/feature metadata, including publication dates, MSRVs and React/Node peers. Those machine-readable records were fetched read-only, without installing dependencies. An observed release is not a vulnerability-free claim.

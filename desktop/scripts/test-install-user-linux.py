@@ -14,6 +14,7 @@ SCRIPT = Path(__file__).with_name("install-user-linux.py")
 VALIDATOR = shutil.which("desktop-file-validate")
 OLD = b"\x00opaque synthetic legacy artifact\xfe"
 SELECTED = b"\x00opaque synthetic selected artifact\xff"
+LICENSE = b"Synthetic project license fixture.\n"
 
 
 class PrivateUserInstall(unittest.TestCase):
@@ -22,6 +23,8 @@ class PrivateUserInstall(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.desktop = self.root / "desktop"
+        self.license_source = self.root / "LICENSE"
+        self.license_source.write_bytes(LICENSE)
         (self.desktop / "scripts").mkdir(parents=True)
         (self.desktop / "icons").mkdir()
         self.installer = self.desktop / "scripts/install-user-linux.py"
@@ -46,6 +49,7 @@ class PrivateUserInstall(unittest.TestCase):
                     "TMPDIR":str(self.root), "LANG":"C", "installer":"MUST_NOT_EXPAND",
                     "CARGO_TARGET_DIR":str(self.root / "unrelated-cargo-output")}
         self.destination = self.data / "opentrack/bin/opentrack-desktop"
+        self.license = self.data / "opentrack/LICENSE"
         self.icon = self.data / "icons/hicolor/256x256/apps/app.opentrack.desktop.png"
         self.launcher = self.data / "applications/app.opentrack.desktop.desktop"
 
@@ -71,7 +75,8 @@ class PrivateUserInstall(unittest.TestCase):
     def assert_identity(self, expected):
         self.assertEqual(hashlib.sha256(self.destination.read_bytes()).digest(), hashlib.sha256(expected).digest())
         self.assertEqual(self.icon.read_bytes(), (self.desktop / "icons/icon.png").read_bytes())
-        for path, mode in [(self.destination, 0o755), (self.icon, 0o644), (self.launcher, 0o644)]:
+        self.assertEqual(self.license.read_bytes(), self.license_source.read_bytes())
+        for path, mode in [(self.destination, 0o755), (self.icon, 0o644), (self.license, 0o644), (self.launcher, 0o644)]:
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), mode)
         entry = self.launcher.read_text()
         for line in ["Name=OpenTrack", "StartupWMClass=opentrack-desktop",
@@ -104,6 +109,7 @@ class PrivateUserInstall(unittest.TestCase):
         self.assertEqual(self.run_install().returncode, 0)
         sentinel = self.data / "keep-private-data"
         sentinel.write_bytes(b"unrelated private fixture")
+        self.license_source.write_bytes(b"Updated synthetic project license fixture.\n")
         self.assertEqual(self.run_install("--binary", self.selected).returncode, 0)
         self.assert_identity(SELECTED)
         self.assertEqual(sentinel.read_bytes(), b"unrelated private fixture")
@@ -123,6 +129,61 @@ class PrivateUserInstall(unittest.TestCase):
             path.write_bytes(b"unmanaged sentinel")
         before = self.snapshot()
         self.assertNotEqual(self.run_install("--binary", self.selected).returncode, 0)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_license_without_managed_launcher_is_not_replaced(self):
+        self.license.parent.mkdir(parents=True)
+        self.license.write_bytes(b"unmanaged license fixture")
+        before = self.snapshot()
+        self.assertNotEqual(self.run_install("--binary", self.selected).returncode, 0)
+        self.assertEqual(self.snapshot(), before)
+        self.license.unlink()
+        self.license.symlink_to(self.root / "missing-license-target")
+        self.assertNotEqual(self.run_install("--binary", self.selected).returncode, 0)
+        self.assertTrue(self.license.is_symlink(), "An unmanaged dangling link must remain unchanged")
+        self.assertFalse(self.destination.exists())
+
+    def test_managed_license_update_replaces_a_leaf_link_without_following_it(self):
+        self.assertEqual(self.run_install().returncode, 0)
+        unrelated = self.root / "unrelated-license"
+        unrelated.write_bytes(b"preserved unrelated fixture")
+        self.license.unlink()
+        self.license.symlink_to(unrelated)
+        self.assertEqual(self.run_install("--binary", self.selected).returncode, 0)
+        self.assert_identity(SELECTED)
+        self.assertFalse(self.license.is_symlink())
+        self.assertEqual(unrelated.read_bytes(), b"preserved unrelated fixture")
+
+    def test_invalid_project_license_preserves_the_existing_install(self):
+        self.assertEqual(self.run_install().returncode, 0)
+        before = self.snapshot()
+        for kind in ["missing", "directory", "symlink"]:
+            with self.subTest(kind=kind):
+                self.license_source.unlink()
+                if kind == "directory":
+                    self.license_source.mkdir()
+                elif kind == "symlink":
+                    self.license_source.symlink_to(self.selected)
+                self.assertNotEqual(self.run_install("--binary", self.selected).returncode, 0)
+                self.assertEqual(self.snapshot(), before)
+                if kind == "directory":
+                    self.license_source.rmdir()
+                elif kind == "symlink":
+                    self.license_source.unlink()
+                self.license_source.write_bytes(LICENSE)
+
+    def test_unreadable_project_license_fails_before_installation_writes(self):
+        if os.getuid() == 0:
+            self.skipTest("Read-denial control requires a non-root test user")
+        self.assertEqual(self.run_install().returncode, 0)
+        before = self.snapshot()
+        self.license_source.chmod(0)
+        try:
+            result = self.run_install("--binary", self.selected)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("could not be completed", result.stderr)
+        finally:
+            self.license_source.chmod(0o644)
         self.assertEqual(self.snapshot(), before)
 
     def test_unreadable_existing_launcher_refuses_without_disclosing_paths(self):

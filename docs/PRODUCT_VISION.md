@@ -43,7 +43,7 @@ Proposed usability study: eight participants, including two keyboard-first and t
 
 ## Stewardship
 
-Recommend AGPL-3.0-or-later for the eventual product to preserve source availability for networked derivatives. Compare permissive MIT/Apache adoption benefits and AGPL contribution/legal friction in ADR-015. Licensing, the public project name, and trademark availability require maintainer decisions before public release. The design can proceed independently of those release decisions.
+Project source uses AGPL-3.0-or-later, ratified in [ADR-015](adr/015_LICENSE.md), with the full text in [LICENSE](../LICENSE). The public project name, trademark availability, contribution policy and distribution review remain release decisions. Development can proceed independently of those remaining decisions.
 
 ## Approved expansion direction
 

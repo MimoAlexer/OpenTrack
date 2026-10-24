@@ -1,0 +1,131 @@
+{
+  "date": "2026-10-24",
+  "decision": "Explicit source-license choice: AGPL-3.0-or-later.",
+  "license_source": {
+    "source_commit": "31ba1a50e5397e00a304dbadc76531740e89ee48",
+    "source_url": "https://raw.githubusercontent.com/spdx/license-list-data/31ba1a50e5397e00a304dbadc76531740e89ee48/text/AGPL-3.0-or-later.txt",
+    "sha256": "d8a6cc31abc16b6748c7a21f21611f5a1ec33f67d22ca23d7da1c19b95496bee",
+    "bytes": 34020
+  },
+  "source_license_bytes": 34020,
+  "cargo_metadata": [
+    {
+      "check": "backend",
+      "exit_code": 0,
+      "project_packages": 6,
+      "licenses": [
+        "AGPL-3.0-or-later"
+      ],
+      "elapsed_seconds": 0.635,
+      "owned_session_cleanup_confirmed": true
+    },
+    {
+      "check": "desktop",
+      "exit_code": 0,
+      "project_packages": 1,
+      "licenses": [
+        "AGPL-3.0-or-later"
+      ],
+      "elapsed_seconds": 0.175,
+      "owned_session_cleanup_confirmed": true
+    }
+  ],
+  "cargo_lock_hashes_unchanged": {
+    "Cargo.lock": "929ee4a4e8d71391f5a250940aaed037ebb63fc49e6737038e9e544c871f4db7",
+    "desktop/Cargo.lock": "63b07a69280c1a372922c9a771c14db98976e3d30d58f47e2054e208daf5c51a"
+  },
+  "npm_project_declarations": 3,
+  "npm_changes": [
+    {
+      "file": "web/package.json",
+      "before_sha256": "c00a87fe106c5e6cfd8291989cfcba1c725a71d905dd0e8462fd8300e6980f68",
+      "after_sha256": "59c3ce2372a6431a0ab0dec69b2b71cfc66e09caddf5e5df0820f035b15b6412",
+      "only_project_license_changed": true
+    },
+    {
+      "file": "web/package-lock.json",
+      "before_sha256": "8e2fdbd29514709587cbfcde6a0bafd0b2c99fe5ebb5a6652c1e0c77eeaff009",
+      "after_sha256": "78aff5bbff8f65f554fd76ae3838b1753cb6ab18f586b3868394126c07df31c2",
+      "only_project_license_changed": true
+    },
+    {
+      "file": "desktop/package.json",
+      "before_sha256": "537a0d920219355f169fb26450a2ae289e5c417fd9c4e5f137eef55d90d23a7c",
+      "after_sha256": "a2dedf3db7f5a044cc3b7d3bac6ed0a4284f0dd542591ad0dd49343adc30f201",
+      "only_project_license_changed": true
+    },
+    {
+      "file": "desktop/package-lock.json",
+      "before_sha256": "504cb89f1b50a71b946c48d6a3baed5e7012e9c0d70730807036dd4249f5fae2",
+      "after_sha256": "eb2ab108f4a6a393607b19b7428761acae87fc14c5ed6cd212d7b537f8e7679e",
+      "only_project_license_changed": true
+    },
+    {
+      "file": "scripts/contracts/package.json",
+      "before_sha256": "4dea62ac62942a52aa88d7f966cbfea8dc3b5f73c9a6ee5c875c52cd1c42c406",
+      "after_sha256": "474162e5f2604613344ab2c1ea21d81dfcdb9d01babdfb5f9d29df5821f65f9d",
+      "only_project_license_changed": true
+    },
+    {
+      "file": "scripts/contracts/package-lock.json",
+      "before_sha256": "9c3c80b2fbee99057a1f4723f1b81b321cd5c08b902300aaabbe7840fdf3e5e3",
+      "after_sha256": "e2d7032b558cf4806355d9c478f160f711e48123022ec97fa968b2627e1f1854",
+      "only_project_license_changed": true
+    }
+  ],
+  "third_party": {
+    "vendored_glib_manifest_unchanged": true,
+    "vendored_glib_license": "MIT",
+    "dependency_versions_or_edges_changed": false
+  },
+  "installer": {
+    "exit_code": 0,
+    "tests": 16,
+    "elapsed_seconds": 3.344,
+    "owned_session_cleanup_confirmed": true,
+    "scope": "Synthetic bytes/private HOME-XDG only; no real user installation or application launch.",
+    "passed": 16,
+    "failed": 0,
+    "skipped": 0,
+    "installed_license_mode": "0644",
+    "atomicity": "per-file; not a four-file transaction"
+  },
+  "packaging_configuration": {
+    "debian_license_source_resolves": true,
+    "debian_destination": "usr/share/licenses/opentrack/LICENSE",
+    "container_copy_declarations": 3,
+    "image_wide_license_relabeling": false,
+    "actual_new_deb_or_image_license_inspection_executed": false
+  },
+  "source_sha256": {
+    "LICENSE": "d8a6cc31abc16b6748c7a21f21611f5a1ec33f67d22ca23d7da1c19b95496bee",
+    "Cargo.toml": "b171883a69f33610498aed166afd03ce5edefbed2359981f253d09210fc89860",
+    "crates/opentrack-adapters/Cargo.toml": "f588b17a998e135868d8972bff318251dce9ebc2a22a98497f71a5cbd821abb9",
+    "crates/opentrack-api/Cargo.toml": "e520ea89ff395f85d05924f17f5ea2cb37232b5052e1ff73a973bb20a0b390f6",
+    "crates/opentrack-app/Cargo.toml": "54429fd0cd316054d41a0607bdb10a96d9a831b82d12e67f2b6b7803a9c8a1e4",
+    "crates/opentrack-domain/Cargo.toml": "287733c295f423e200754376e671e74752bba533802978ab856f19709eaee69f",
+    "crates/opentrack-server/Cargo.toml": "1f947f8efff1644156f80f5f192e748d6158ec1a98b41fb1ac0d6a31ba5ea2b9",
+    "crates/opentrack-store/Cargo.toml": "4944d0788af12f7ec51c4256e308c66ac03d8f16f45f8f4b106cccac5216d275",
+    "desktop/Cargo.toml": "3c90583b78a5de7b755402092c952b6a80eec72ddfc576d93ad32f7a5cf1ba8d",
+    "desktop/Tauri.toml": "107346f837e93ec3e08123a8baf680889d6129dc2e70b90c266bd2e702c5f4fb",
+    "desktop/scripts/install-user-linux.py": "22d415dfd80604e0e8affaf204de8e35ed4ab00f5997a08c7738a30066c581e0",
+    "desktop/scripts/test-install-user-linux.py": "81f9fc89a2cbb006beeb6b38158ffd4efe6581092ce8d649721485a10c3d55b2",
+    "deploy/Dockerfile": "0821fdbdc95b64a3870cf7deec955fd4d1b06d189439ce96b10cc44dde44abeb",
+    "deploy/postgres.Dockerfile": "36425b1cac86813f6b82a3fa6e8a1aa4edf26b92212c212bfdb8684ad538ab30",
+    "web/package.json": "59c3ce2372a6431a0ab0dec69b2b71cfc66e09caddf5e5df0820f035b15b6412",
+    "web/package-lock.json": "78aff5bbff8f65f554fd76ae3838b1753cb6ab18f586b3868394126c07df31c2",
+    "desktop/package.json": "a2dedf3db7f5a044cc3b7d3bac6ed0a4284f0dd542591ad0dd49343adc30f201",
+    "desktop/package-lock.json": "eb2ab108f4a6a393607b19b7428761acae87fc14c5ed6cd212d7b537f8e7679e",
+    "scripts/contracts/package.json": "474162e5f2604613344ab2c1ea21d81dfcdb9d01babdfb5f9d29df5821f65f9d",
+    "scripts/contracts/package-lock.json": "e2d7032b558cf4806355d9c478f160f711e48123022ec97fa968b2627e1f1854"
+  },
+  "data_impact": "No database migration or application business-logic change. User installer adds the license artifact beside its managed executable.",
+  "limits": [
+    "Source ratification does not ratify contribution terms, public identity, third-party compatibility or complete distribution notices/SBOM.",
+    "Cargo commands validate seven package declarations offline/locked; they are not new native binary builds.",
+    "Installer tests use synthetic bytes/private HOME-XDG; no real user installation or GUI launch occurred.",
+    "Debian/container inclusion is configured and source-checked; actual built-artifact inspection remains separate.",
+    "Fresh exact-head CI and final source/evidence/privacy/conversation review remain required before integration.",
+    "No release publication, signing, repository-visibility or unrelated infrastructure action is authorized by this source-license decision."
+  ]
+}

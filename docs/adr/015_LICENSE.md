@@ -1,6 +1,6 @@
 # ADR-015 Open-source licensing and project identity
 
-Date:2026-10-17. Status: Proposed; maintainer ratification required.
+Date:2026-10-17. Source-license decision ratified:2026-10-24. Status: Accepted for source licensing; contribution and public-identity decisions remain open.
 
 ## Problem
 
@@ -12,14 +12,14 @@ MIT/Apache are permissive and easy to adopt, with fewer obligations on hosted de
 
 ## Decision
 
-Recommend AGPL-3.0-or-later for the eventual product and transparent contribution policy. Keep optional proprietary/provider runtimes separately obtained with their own terms. Do not claim an unratified license grant or copy competitor code/assets.
+Use `AGPL-3.0-or-later` for original project source. The repository [LICENSE](../../LICENSE) contains the unmodified license text; Rust and npm project packages declare the matching SPDX identifier. The source-license choice was explicitly ratified on24 October2026. Third-party and vendored components retain their existing licenses. Keep optional proprietary/provider runtimes separately obtained with their own terms.
 
 ## Consequences and risks
 
-License is PROPOSED, not ratified by this planning session. The unrelated opentrack head-tracking project already uses the working name; public identity/trademark clearance remains unresolved. Copyleft compatibility and SDK distribution require review before release.
+Source licensing is ratified. This does not establish third-party compatibility, complete distribution notices, system-library or SDK disposition. Public identity/trademark clearance and contribution policy remain unresolved release work.
 
 ## Reconsideration and validation
 
-Maintainer ratifies license/contribution terms and name before public release. This does not block private implementation M01. Verify intended terms from authoritative license text and dependency licenses at release.
+The [SPDX identifier and license text](https://spdx.org/licenses/AGPL-3.0-or-later.html) distinguish the chosen later-version option from AGPL-3.0-only. Recheck dependency licenses, corresponding-source delivery and notices for each distributed artifact before release. Ratify contribution terms and public identity separately; this decision does not authorize release publication.
 
 See [canonical specification](../PRODUCT_VISION.md).

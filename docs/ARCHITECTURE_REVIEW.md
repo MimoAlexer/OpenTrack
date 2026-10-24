@@ -31,7 +31,7 @@ Review date: **17 October 2026**, historical Phase 0 snapshot. Later implementat
 | Runner control identity and quotas were underspecified in configuration | [Configuration](CONFIGURATION_POLICY.md) now includes private listener, mTLS files, enrollment lifetime, queue/log/artifact bounds and reviewer policy |
 | Crate dependency table omitted app-to-store although transaction text required it | App explicitly depends on store; store never depends on app, keeping the planned Rust graph acyclic |
 | Numeric task order put issue writes before their durable event foundation | All eighty tasks now have explicit prerequisites; M03-T06 precedes T02, audit storage precedes privileged identity commands, and M14 tracks are independent |
-| Public identity could be claimed prematurely | Existing unrelated opentrack project is recorded; [ADR-015](adr/015_LICENSE.md) keeps public naming and proposed AGPL terms pending maintainer ratification |
+| Public identity could be claimed prematurely | [ADR-015](adr/015_LICENSE.md) records the ratified source license while public naming, contribution policy and distribution review remain open |
 
 ## Verification record
 
@@ -57,7 +57,7 @@ Checks validate file structure and selected explicit contracts. They cannot prov
 
 ## Remaining gates and limits
 
-The package is ready to guide M01, not to claim production readiness. [Q01–Q12](OPEN_QUESTIONS.md) assign owner roles, decision deadlines and safe defaults. The material gates are the resolved dependency/toolchain build, editor/drag accessibility, actual VM isolation, exact subscription-deployment eligibility, maintained OAuth/MCP integration, restore/performance evidence and license/public-name ratification.
+The package is ready to guide M01, not to claim production readiness. [Q01–Q12](OPEN_QUESTIONS.md) assign owner roles, decision deadlines and safe defaults. The material gates are the resolved dependency/toolchain build, editor/drag accessibility, actual VM isolation, exact subscription-deployment eligibility, maintained OAuth/MCP integration, restore/performance evidence and remaining distribution/public-name decisions. Source licensing was ratified24 October2026; it does not clear these other gates.
 
 Performance numbers are targets. Provider behavior is researched official capability, not evidence of this user's account entitlement. Candidate packages were inspected read-only, not installed, compiled or vulnerability-certified. Color arithmetic is not a screen-reader or rendered-component test. Mermaid diagrams are source-level planning diagrams; no rendered-diagram or browser interaction test has occurred. Product research is based on public documentation, not a hands-on competitor benchmark.
 
