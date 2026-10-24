@@ -1,0 +1,287 @@
+{
+  "scope": "one matched pre-full retained snapshot, full126-case matrices, default worker profile",
+  "baseline_binary_sha256": "4ccb63b478051701d180599af546a8e0bfbdea66e5d384b33566d8a297e436e4",
+  "candidate_binary_sha256": "5d31ddbd6024ab0c7046a720adee3779e41aed051cb9275ec6b4403c06386baf",
+  "frontend_dist_sha256_equal": true,
+  "snapshot": {
+    "scope": "post-focused-three-case-retained-clone-pre-full",
+    "status": "passed",
+    "primary_failure": null,
+    "cleanup_failures": [],
+    "source_database": "opentrack",
+    "registry_count": 116,
+    "dump_exit": 0,
+    "dump_bytes": 3988806,
+    "dump_sha256": "fc20272c8fc6cbd35c30f5993978182b4fbc06f72fb375a9d4efe04047bcae70",
+    "blob_files": 12,
+    "blob_digest": "f196782708a2f3fdad400adf139d98c6f8c9d370bd8d6984bdf3514772652145",
+    "children_reaped": true,
+    "interruption_requested": false
+  },
+  "candidate_prebrowser_input_fingerprint": {
+    "status": "passed",
+    "failure": null,
+    "baseline": {
+      "tables": 70,
+      "rows": 58603,
+      "sequences": 0,
+      "sha256": "59f1aa680ffd006358927fd85f1eab75b67c9eee38495cc3a4dcb69b52c8bad1"
+    },
+    "candidate": {
+      "tables": 70,
+      "rows": 58603,
+      "sequences": 0,
+      "sha256": "59f1aa680ffd006358927fd85f1eab75b67c9eee38495cc3a4dcb69b52c8bad1"
+    },
+    "same_blob_fingerprint": true,
+    "children_reaped": true
+  },
+  "worker_profile": {
+    "poll_interval_ms": 2000,
+    "max_connections": 5,
+    "lease_seconds": 60
+  },
+  "workflow_poll_timeout_ms": 30000,
+  "baseline_checks": 126,
+  "candidate_checks": 126,
+  "cases": [
+    {
+      "browser": "chromium",
+      "baseline": {
+        "first_success_after_202_ms": 18779.859,
+        "last_queued_api_after_202_ms": 17717.312,
+        "comparison_start_after_202_ms": 320.0,
+        "comparison_duration_ms": 18461.0,
+        "comparison_passed": true,
+        "durable_target_samples_during_comparison": 15,
+        "eligible_queued_attempt0_samples": 14,
+        "older_eligible_same_scope_max": 4,
+        "first_attempt_created_to_started_ms": 18081.855,
+        "first_attempt_after_202_ms": 18067.708,
+        "attempt_count": 1,
+        "retry_count": 0,
+        "cap_hit_samples_during_comparison": 0,
+        "cap_metadata_available": false,
+        "idle_wait_completed_records": 9
+      },
+      "candidate": {
+        "first_success_after_202_ms": 3295.6,
+        "last_queued_api_after_202_ms": 2271.924,
+        "comparison_start_after_202_ms": 332.0,
+        "comparison_duration_ms": 2964.0,
+        "comparison_passed": true,
+        "durable_target_samples_during_comparison": 3,
+        "eligible_queued_attempt0_samples": 2,
+        "older_eligible_same_scope_max": 0,
+        "first_attempt_created_to_started_ms": 2993.209,
+        "first_attempt_after_202_ms": 2978.647,
+        "attempt_count": 1,
+        "retry_count": 0,
+        "cap_hit_samples_during_comparison": 0,
+        "cap_metadata_available": true,
+        "idle_wait_completed_records": 2
+      }
+    },
+    {
+      "browser": "firefox",
+      "baseline": {
+        "first_success_after_202_ms": 19008.632,
+        "last_queued_api_after_202_ms": 17987.446,
+        "comparison_start_after_202_ms": 535.0,
+        "comparison_duration_ms": 18474.0,
+        "comparison_passed": true,
+        "durable_target_samples_during_comparison": 15,
+        "eligible_queued_attempt0_samples": 15,
+        "older_eligible_same_scope_max": 4,
+        "first_attempt_created_to_started_ms": 18537.658,
+        "first_attempt_after_202_ms": 18516.585,
+        "attempt_count": 1,
+        "retry_count": 0,
+        "cap_hit_samples_during_comparison": 0,
+        "cap_metadata_available": false,
+        "idle_wait_completed_records": 9
+      },
+      "candidate": {
+        "first_success_after_202_ms": 12578.734,
+        "last_queued_api_after_202_ms": 11566.04,
+        "comparison_start_after_202_ms": 465.0,
+        "comparison_duration_ms": 12114.0,
+        "comparison_passed": true,
+        "durable_target_samples_during_comparison": 9,
+        "eligible_queued_attempt0_samples": 10,
+        "older_eligible_same_scope_max": 5,
+        "first_attempt_created_to_started_ms": 11886.727,
+        "first_attempt_after_202_ms": 11874.129,
+        "attempt_count": 1,
+        "retry_count": 0,
+        "cap_hit_samples_during_comparison": 2,
+        "cap_metadata_available": true,
+        "idle_wait_completed_records": 6
+      }
+    },
+    {
+      "browser": "webkit",
+      "baseline": {
+        "first_success_after_202_ms": 30128.322,
+        "last_queued_api_after_202_ms": 29117.174,
+        "comparison_start_after_202_ms": 377.0,
+        "comparison_duration_ms": 29752.0,
+        "comparison_passed": true,
+        "durable_target_samples_during_comparison": 0,
+        "eligible_queued_attempt0_samples": 0,
+        "older_eligible_same_scope_max": null,
+        "first_attempt_created_to_started_ms": 30021.206,
+        "first_attempt_after_202_ms": 30001.75,
+        "attempt_count": 1,
+        "retry_count": 0,
+        "cap_hit_samples_during_comparison": 0,
+        "cap_metadata_available": false,
+        "idle_wait_completed_records": 14
+      },
+      "candidate": {
+        "first_success_after_202_ms": 3861.932,
+        "last_queued_api_after_202_ms": 2805.716,
+        "comparison_start_after_202_ms": 503.0,
+        "comparison_duration_ms": 3360.0,
+        "comparison_passed": true,
+        "durable_target_samples_during_comparison": 2,
+        "eligible_queued_attempt0_samples": 3,
+        "older_eligible_same_scope_max": 0,
+        "first_attempt_created_to_started_ms": 3696.07,
+        "first_attempt_after_202_ms": 3632.825,
+        "attempt_count": 1,
+        "retry_count": 0,
+        "cap_hit_samples_during_comparison": 2,
+        "cap_metadata_available": true,
+        "idle_wait_completed_records": 2
+      }
+    }
+  ],
+  "limits": [
+    "Both complete matrices passed126/126; this does not erase the original retained124/126 failure.",
+    "The baseline executed historical binary bytes; candidate executed the frozen corrective9a6a43a build.",
+    "Observer is an extra read-only connection sampled at roughly1s; it adds measurement overhead.",
+    "Baseline32-row ordering excluded WebKit target behind terminal rows; only API polls and later durable timeline cover that case.",
+    "Candidate observer orders active rows first and records cap counts; API polling, assertions and worker defaults are unchanged.",
+    "These bounded runs do not qualify generalp95, native/manual/provider or whole-product acceptance."
+  ],
+  "implementation_source_commit": "9a6a43af287e086e9ecbff7a1addcf6a75ccb356",
+  "runtime_proofs": {
+    "baseline": {
+      "source_hashes": {
+        "binary": "4ccb63b478051701d180599af546a8e0bfbdea66e5d384b33566d8a297e436e4",
+        "helper": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "runner": "ba35224ece3d8f4811161abe26edecce7ded9ae2fdfb9afbc2fe90186886000a",
+        "browser": "7623c85e4d2ad1e1ebd5a137a9cc0c0fbae4ed4d98213cd4545a87614d7701fd",
+        "config": "98050e634d5f87c7e68dd963dbe1767dafa2f7e437c8a98d79cbcda6bf56a2ac",
+        "observer": "7fc11fef9df55a61e71b5bfd064e5dc9218c59f90e1683b02f18466b433a8c31",
+        "observer_base": "a2cd47f10022279156ab3fa174dd770e6f6f6485b182643361c78b06af36ee61",
+        "inherited_diagnostic_config": "0a794a0d87db7b81f2b5f1650020c6e2600fd140fe0fc96cc2c3ced00e4e371f",
+        "original_config": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+        "fixture": "97c8f8183457a7b4af966090b12fbe58166c0f7fa37822643c5511d4fb469445",
+        "reporter": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667",
+        "package_lock": "8e2fdbd29514709587cbfcde6a0bafd0b2c99fe5ebb5a6652c1e0c77eeaff009",
+        "node": "d0efb6fcb9d023ba4e2b160ec2384dc28fe4f17732141ef47f676828fa960505",
+        "python": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+        "unshare": "41c65e55107cbbb1a1f6994784a938dd7dbbe255d1fea6b7a58ec96eabe382ef"
+      },
+      "passed_per_engine": {
+        "chromium": 42,
+        "firefox": 42,
+        "webkit": 42
+      },
+      "functional_exit": 0,
+      "node_witnessed": true,
+      "owned_browser_monitor_reaped": true,
+      "anchored_namespace_empty": true,
+      "children": [
+        {
+          "name": "api",
+          "exit": 0,
+          "reaped": true
+        },
+        {
+          "name": "worker",
+          "exit": 0,
+          "reaped": true
+        },
+        {
+          "name": "observer",
+          "exit": 0,
+          "reaped": true
+        },
+        {
+          "name": "browser",
+          "exit": 0,
+          "reaped": true
+        }
+      ],
+      "cleanup_failures": [],
+      "observer_process_samples": 2067,
+      "observer_completed_database_intervals": 415,
+      "original_spec_restored": true
+    },
+    "candidate": {
+      "source_hashes": {
+        "binary": "5d31ddbd6024ab0c7046a720adee3779e41aed051cb9275ec6b4403c06386baf",
+        "helper": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "runner": "9b9f07b40e005233022d78b0a7edbf2b96911ccf44d0c0a29335191565f47db6",
+        "browser": "7623c85e4d2ad1e1ebd5a137a9cc0c0fbae4ed4d98213cd4545a87614d7701fd",
+        "config": "98050e634d5f87c7e68dd963dbe1767dafa2f7e437c8a98d79cbcda6bf56a2ac",
+        "observer": "21e1f18d61d13b723bee60f2106be7129e87a0aa27312b993b56465d371993f3",
+        "observer_base": "8eddda292409e4d286268ab0b072cd8d455a7013e1af77098658246fb315c8bd",
+        "inherited_diagnostic_config": "0a794a0d87db7b81f2b5f1650020c6e2600fd140fe0fc96cc2c3ced00e4e371f",
+        "original_config": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+        "fixture": "97c8f8183457a7b4af966090b12fbe58166c0f7fa37822643c5511d4fb469445",
+        "reporter": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667",
+        "package_lock": "8e2fdbd29514709587cbfcde6a0bafd0b2c99fe5ebb5a6652c1e0c77eeaff009",
+        "node": "d0efb6fcb9d023ba4e2b160ec2384dc28fe4f17732141ef47f676828fa960505",
+        "python": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+        "unshare": "41c65e55107cbbb1a1f6994784a938dd7dbbe255d1fea6b7a58ec96eabe382ef"
+      },
+      "passed_per_engine": {
+        "chromium": 42,
+        "firefox": 42,
+        "webkit": 42
+      },
+      "functional_exit": 0,
+      "node_witnessed": true,
+      "owned_browser_monitor_reaped": true,
+      "anchored_namespace_empty": true,
+      "children": [
+        {
+          "name": "api",
+          "exit": 0,
+          "reaped": true
+        },
+        {
+          "name": "worker",
+          "exit": 0,
+          "reaped": true
+        },
+        {
+          "name": "observer",
+          "exit": 0,
+          "reaped": true
+        },
+        {
+          "name": "browser",
+          "exit": 0,
+          "reaped": true
+        }
+      ],
+      "cleanup_failures": [],
+      "observer_process_samples": 1810,
+      "observer_completed_database_intervals": 363,
+      "original_spec_restored": true
+    }
+  },
+  "candidate_startup_only_failure_preserved": {
+    "browser_started": false,
+    "reason": "Existing storage guard rejected blobs below the executable parent directory.",
+    "correction": "Copy the same pinned binary into a private bin directory, keeping blobs and static assets as siblings.",
+    "guard_unchanged": true,
+    "owned_services_reaped": true,
+    "candidate_input_unchanged_verified_before_next_nonce": true
+  }
+}

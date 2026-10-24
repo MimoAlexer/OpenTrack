@@ -49,8 +49,32 @@ async fn assert_empty_sweep(worker: &Worker, cursor: &mut Option<Uuid>, remainin
         assert_eq!(worker.tick(cursor).await.unwrap(), WorkerTick::Scanning);
         assert_eq!(*cursor, page.last().copied());
     }
-    assert_eq!(worker.tick(cursor).await.unwrap(), WorkerTick::Idle);
+    let expected = if cursor.is_some() {
+        WorkerTick::Scanning
+    } else {
+        WorkerTick::Idle
+    };
+    assert_eq!(worker.tick(cursor).await.unwrap(), expected);
     assert_eq!(*cursor, None);
+}
+
+#[tokio::test]
+async fn empty_registry_backs_off_after_resetting_a_stale_cursor() {
+    let h = Harness::new().await;
+    let worker = Worker::connect(&h.worker_url().await, WorkerOptions::default())
+        .await
+        .unwrap();
+    let mut cursor = None;
+    assert_eq!(worker.tick(&mut cursor).await.unwrap(), WorkerTick::Idle);
+    cursor = Some(Uuid::new_v4());
+    assert_eq!(
+        worker.tick(&mut cursor).await.unwrap(),
+        WorkerTick::Scanning
+    );
+    assert_eq!(cursor, None);
+    assert_eq!(worker.tick(&mut cursor).await.unwrap(), WorkerTick::Idle);
+    worker.pool.close().await;
+    h.cleanup().await;
 }
 
 async fn enqueue(h: &Harness, actor: &Actor, workspace: Uuid) -> (Issue, WorkflowReplacement) {

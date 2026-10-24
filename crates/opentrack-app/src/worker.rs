@@ -119,9 +119,10 @@ impl Worker {
     /// Bounded discovery and exactly one committed effect batch at most.
     /// The caller retains the cursor between ticks so idle workspaces cannot starve later ones.
     pub async fn tick(&self, cursor: &mut Option<Uuid>) -> Result<WorkerTick> {
+        let continuing = cursor.is_some();
         match self.next_claim(cursor).await? {
             Some(claim) => self.run_claim(&claim).await,
-            None if cursor.is_some() => Ok(WorkerTick::Scanning),
+            None if continuing || cursor.is_some() => Ok(WorkerTick::Scanning),
             None => Ok(WorkerTick::Idle),
         }
     }

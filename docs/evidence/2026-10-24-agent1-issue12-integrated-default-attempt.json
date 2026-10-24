@@ -1,0 +1,867 @@
+{
+  "format_version": 1,
+  "source": {
+    "format_version": 1,
+    "job": "issue12-20261024T001042Z-integrated-default",
+    "source_head": "c4f3affcbf173c1fcd6e2c0990fdf7fbfeabb503",
+    "qualified_main_dependency": "39c363d88c47b6715b11a7dfa04bf4cd0c55e907",
+    "worker_dependency_merge": "3197bb5af84579341a32d7a6f27a8c5c2072008f",
+    "expected_cases": 126,
+    "inventory_files": 12,
+    "worker_poll_interval_ms": 2000,
+    "rust_checks": {
+      "passed_cases": 27,
+      "normal_parallelism": true,
+      "formatting": "passed",
+      "server_build": "passed"
+    },
+    "frontend_checks": {
+      "passed_cases": 601,
+      "files": 69,
+      "typecheck_targets": 2,
+      "build": "passed"
+    },
+    "tracked_app_sha256": "da92e15ccac555646929d1ea40d542b85ba4b07de2c46bafd71a405be5b4ecd3",
+    "shared_helper_sha256": "44b7986216467793fbb2181a0c8d42091b39c8009341706888fb421ed427b699",
+    "limits": "Source snapshot and passed prerequisites; browser matrix failed as recorded below"
+  },
+  "started_utc": "2026-10-24T00:10:43Z",
+  "exit_code": 1,
+  "receipt_fresh": true,
+  "owned_server_worker_processes_after_cleanup": 0,
+  "artifacts": {
+    "binary_sha256": "4ccb63b478051701d180599af546a8e0bfbdea66e5d384b33566d8a297e436e4",
+    "frontend_sha256": "ea30f1942de8423b2326a72d8212b6ecbec26b2ecce68d9f06ce2b6cb8267620",
+    "worker_poll_interval_ms": 2000,
+    "playwright_version": "1.64.1"
+  },
+  "receipt": {
+    "status": "failed",
+    "checks": [
+      {
+        "browser": "chromium",
+        "check": "document JSON saves references, exports exact structure, undoes and reloads",
+        "status": "passed",
+        "duration_ms": 5575
+      },
+      {
+        "browser": "chromium",
+        "check": "Markdown worker runs under production CSP, round-trips saved semantics and keeps hostile text inert",
+        "status": "passed",
+        "duration_ms": 4016
+      },
+      {
+        "browser": "chromium",
+        "check": "character preference persists while visible controls, palette and sequences remain usable",
+        "status": "passed",
+        "duration_ms": 3173
+      },
+      {
+        "browser": "chromium",
+        "check": "nested transfer Escape unwinds once and Mod+Enter cannot save or create behind it",
+        "status": "passed",
+        "duration_ms": 1331
+      },
+      {
+        "browser": "chromium",
+        "check": "template preview materializes titles and requires cancel, merge or replace before durable creation",
+        "status": "passed",
+        "duration_ms": 1949
+      },
+      {
+        "browser": "chromium",
+        "check": "activity retains attributable facts and every event across grouped pagination",
+        "status": "passed",
+        "duration_ms": 1889
+      },
+      {
+        "browser": "chromium",
+        "check": "HTML clipboard parsing preserves formatting while removing active HTML and unsafe URLs before save, reload and read-only display",
+        "status": "passed",
+        "duration_ms": 7843
+      },
+      {
+        "browser": "chromium",
+        "check": "local password login works with every external origin blocked and recovers keyboard focus",
+        "status": "passed",
+        "duration_ms": 4910
+      },
+      {
+        "browser": "chromium",
+        "check": "rename retains saved issue URLs and switching replaces the previous workspace content",
+        "status": "passed",
+        "duration_ms": 1451
+      },
+      {
+        "browser": "chromium",
+        "check": "invitation keyboard acceptance switches accounts and member settings conceal owner actions",
+        "status": "passed",
+        "duration_ms": 3977
+      },
+      {
+        "browser": "chromium",
+        "check": "competing issue editors preserve the rejected draft and require an explicit reviewed save",
+        "status": "passed",
+        "duration_ms": 2441
+      },
+      {
+        "browser": "chromium",
+        "check": "competing issue editors preserve the rejected draft and can adopt the saved version",
+        "status": "passed",
+        "duration_ms": 2730
+      },
+      {
+        "browser": "chromium",
+        "check": "keyboard-only create, status, save, search and recent navigation work with character shortcuts disabled",
+        "status": "passed",
+        "duration_ms": 1770
+      },
+      {
+        "browser": "chromium",
+        "check": "picker ignores synthetic composition and modified text keys before ordinary keyboard selection",
+        "status": "passed",
+        "duration_ms": 901
+      },
+      {
+        "browser": "chromium",
+        "check": "private-team revocation removes a real recent issue title and excludes it from search",
+        "status": "passed",
+        "duration_ms": 5351
+      },
+      {
+        "browser": "chromium",
+        "check": "issue-list arrows cross saved rows and delayed archive refreshes preserve return focus",
+        "status": "passed",
+        "duration_ms": 1839
+      },
+      {
+        "browser": "chromium",
+        "check": "palette searches saved issues and reauthorizes recent titles with character shortcuts disabled",
+        "status": "passed",
+        "duration_ms": 1328
+      },
+      {
+        "browser": "chromium",
+        "check": "palette keeps focus and removes a saved result deleted before it is selected",
+        "status": "passed",
+        "duration_ms": 923
+      },
+      {
+        "browser": "chromium",
+        "check": "milestones persist outcomes, keyboard order and scoped assignment, then safely detach on deletion",
+        "status": "passed",
+        "duration_ms": 3023
+      },
+      {
+        "browser": "chromium",
+        "check": "milestone conflicts retain the typed draft and require a review of the saved version",
+        "status": "passed",
+        "duration_ms": 922
+      },
+      {
+        "browser": "chromium",
+        "check": "milestone loading and connection failure remain recoverable without fake empty counts",
+        "status": "passed",
+        "duration_ms": 715
+      },
+      {
+        "browser": "chromium",
+        "check": "cycle creation keeps DST calendar boundaries, rejects overlap and preserves a conflicting draft",
+        "status": "passed",
+        "duration_ms": 1520
+      },
+      {
+        "browser": "chromium",
+        "check": "live cycle scope follows completed work while daily snapshots remain immutable across recapture and reload",
+        "status": "passed",
+        "duration_ms": 2499
+      },
+      {
+        "browser": "chromium",
+        "check": "cycle closure preserves issue state, accessible history and explicit conflict-aware carry-forward",
+        "status": "passed",
+        "duration_ms": 7845
+      },
+      {
+        "browser": "chromium",
+        "check": "light shared primitives meet contrast, modal focus and saved combobox selection",
+        "status": "passed",
+        "duration_ms": 1274
+      },
+      {
+        "browser": "chromium",
+        "check": "dark shared primitives meet contrast, modal focus and saved combobox selection",
+        "status": "passed",
+        "duration_ms": 1090
+      },
+      {
+        "browser": "chromium",
+        "check": "shared issue form stays operable at 320px reflow with enlarged text",
+        "status": "passed",
+        "duration_ms": 1321
+      },
+      {
+        "browser": "chromium",
+        "check": "shared issue form stays operable at 640px reflow with enlarged text",
+        "status": "passed",
+        "duration_ms": 1309
+      },
+      {
+        "browser": "chromium",
+        "check": "forced colors and reduced motion retain visible native focus",
+        "status": "passed",
+        "duration_ms": 533
+      },
+      {
+        "browser": "chromium",
+        "check": "project creation and brief edits persist while metadata and body versions remain independent",
+        "status": "passed",
+        "duration_ms": 3369
+      },
+      {
+        "browser": "chromium",
+        "check": "project scope excludes canceled, archived and deleted work while completion and updates preserve issue facts",
+        "status": "passed",
+        "duration_ms": 2590
+      },
+      {
+        "browser": "chromium",
+        "check": "stale project metadata drafts are reviewed without overwriting an independently saved brief",
+        "status": "passed",
+        "duration_ms": 1433
+      },
+      {
+        "browser": "chromium",
+        "check": "competing project brief editors retain the rejected draft until an explicit reviewed save",
+        "status": "passed",
+        "duration_ms": 3710
+      },
+      {
+        "browser": "chromium",
+        "check": "project brief references and file bytes persist while revision selection remains read-only and keyboard accessible",
+        "status": "passed",
+        "duration_ms": 6836
+      },
+      {
+        "browser": "chromium",
+        "check": "team settings deep links load and save a team beyond the first 50 without directory paging",
+        "status": "passed",
+        "duration_ms": 1566
+      },
+      {
+        "browser": "chromium",
+        "check": "light workflow settings persist defaults and order, then a saved replacement survives reload and restores its source identity",
+        "status": "passed",
+        "duration_ms": 4640
+      },
+      {
+        "browser": "chromium",
+        "check": "label restoration preserves a proposed name through a real name collision and stale reference review",
+        "status": "passed",
+        "duration_ms": 1260
+      },
+      {
+        "browser": "chromium",
+        "check": "a shared label directory pages beyond one hundred saved labels without omissions or duplicates",
+        "status": "passed",
+        "duration_ms": 2592
+      },
+      {
+        "browser": "chromium",
+        "check": "archived issue restoration requires an eligible assignee repair and preserves it after a real version conflict",
+        "status": "passed",
+        "duration_ms": 3647
+      },
+      {
+        "browser": "chromium",
+        "check": "workspace-menu creation seeds a usable team and default, then an issue survives reload",
+        "status": "passed",
+        "duration_ms": 1321
+      },
+      {
+        "browser": "chromium",
+        "check": "a committed workspace survives a failed session refresh and retries opening without another create",
+        "status": "passed",
+        "duration_ms": 1467
+      },
+      {
+        "browser": "chromium",
+        "check": "declining navigation after workspace creation keeps the original issue draft until it is explicitly saved",
+        "status": "passed",
+        "duration_ms": 1716
+      },
+      {
+        "browser": "firefox",
+        "check": "document JSON saves references, exports exact structure, undoes and reloads",
+        "status": "passed",
+        "duration_ms": 7426
+      },
+      {
+        "browser": "firefox",
+        "check": "Markdown worker runs under production CSP, round-trips saved semantics and keeps hostile text inert",
+        "status": "passed",
+        "duration_ms": 5832
+      },
+      {
+        "browser": "firefox",
+        "check": "character preference persists while visible controls, palette and sequences remain usable",
+        "status": "passed",
+        "duration_ms": 4753
+      },
+      {
+        "browser": "firefox",
+        "check": "nested transfer Escape unwinds once and Mod+Enter cannot save or create behind it",
+        "status": "passed",
+        "duration_ms": 2143
+      },
+      {
+        "browser": "firefox",
+        "check": "template preview materializes titles and requires cancel, merge or replace before durable creation",
+        "status": "passed",
+        "duration_ms": 3297
+      },
+      {
+        "browser": "firefox",
+        "check": "activity retains attributable facts and every event across grouped pagination",
+        "status": "passed",
+        "duration_ms": 3302
+      },
+      {
+        "browser": "firefox",
+        "check": "HTML clipboard parsing preserves formatting while removing active HTML and unsafe URLs before save, reload and read-only display",
+        "status": "passed",
+        "duration_ms": 11237
+      },
+      {
+        "browser": "firefox",
+        "check": "local password login works with every external origin blocked and recovers keyboard focus",
+        "status": "passed",
+        "duration_ms": 5220
+      },
+      {
+        "browser": "firefox",
+        "check": "rename retains saved issue URLs and switching replaces the previous workspace content",
+        "status": "passed",
+        "duration_ms": 1093
+      },
+      {
+        "browser": "firefox",
+        "check": "invitation keyboard acceptance switches accounts and member settings conceal owner actions",
+        "status": "passed",
+        "duration_ms": 4851
+      },
+      {
+        "browser": "firefox",
+        "check": "competing issue editors preserve the rejected draft and require an explicit reviewed save",
+        "status": "passed",
+        "duration_ms": 3891
+      },
+      {
+        "browser": "firefox",
+        "check": "competing issue editors preserve the rejected draft and can adopt the saved version",
+        "status": "passed",
+        "duration_ms": 4258
+      },
+      {
+        "browser": "firefox",
+        "check": "keyboard-only create, status, save, search and recent navigation work with character shortcuts disabled",
+        "status": "passed",
+        "duration_ms": 3047
+      },
+      {
+        "browser": "firefox",
+        "check": "picker ignores synthetic composition and modified text keys before ordinary keyboard selection",
+        "status": "passed",
+        "duration_ms": 1382
+      },
+      {
+        "browser": "firefox",
+        "check": "private-team revocation removes a real recent issue title and excludes it from search",
+        "status": "passed",
+        "duration_ms": 5864
+      },
+      {
+        "browser": "firefox",
+        "check": "issue-list arrows cross saved rows and delayed archive refreshes preserve return focus",
+        "status": "passed",
+        "duration_ms": 2549
+      },
+      {
+        "browser": "firefox",
+        "check": "palette searches saved issues and reauthorizes recent titles with character shortcuts disabled",
+        "status": "passed",
+        "duration_ms": 1796
+      },
+      {
+        "browser": "firefox",
+        "check": "palette keeps focus and removes a saved result deleted before it is selected",
+        "status": "passed",
+        "duration_ms": 1254
+      },
+      {
+        "browser": "firefox",
+        "check": "milestones persist outcomes, keyboard order and scoped assignment, then safely detach on deletion",
+        "status": "passed",
+        "duration_ms": 3419
+      },
+      {
+        "browser": "firefox",
+        "check": "milestone conflicts retain the typed draft and require a review of the saved version",
+        "status": "passed",
+        "duration_ms": 2173
+      },
+      {
+        "browser": "firefox",
+        "check": "milestone loading and connection failure remain recoverable without fake empty counts",
+        "status": "passed",
+        "duration_ms": 1138
+      },
+      {
+        "browser": "firefox",
+        "check": "cycle creation keeps DST calendar boundaries, rejects overlap and preserves a conflicting draft",
+        "status": "passed",
+        "duration_ms": 2145
+      },
+      {
+        "browser": "firefox",
+        "check": "live cycle scope follows completed work while daily snapshots remain immutable across recapture and reload",
+        "status": "passed",
+        "duration_ms": 2753
+      },
+      {
+        "browser": "firefox",
+        "check": "cycle closure preserves issue state, accessible history and explicit conflict-aware carry-forward",
+        "status": "passed",
+        "duration_ms": 12045
+      },
+      {
+        "browser": "firefox",
+        "check": "light shared primitives meet contrast, modal focus and saved combobox selection",
+        "status": "passed",
+        "duration_ms": 1972
+      },
+      {
+        "browser": "firefox",
+        "check": "dark shared primitives meet contrast, modal focus and saved combobox selection",
+        "status": "passed",
+        "duration_ms": 1957
+      },
+      {
+        "browser": "firefox",
+        "check": "shared issue form stays operable at 320px reflow with enlarged text",
+        "status": "passed",
+        "duration_ms": 2070
+      },
+      {
+        "browser": "firefox",
+        "check": "shared issue form stays operable at 640px reflow with enlarged text",
+        "status": "passed",
+        "duration_ms": 2215
+      },
+      {
+        "browser": "firefox",
+        "check": "forced colors and reduced motion retain visible native focus",
+        "status": "passed",
+        "duration_ms": 1661
+      },
+      {
+        "browser": "firefox",
+        "check": "project creation and brief edits persist while metadata and body versions remain independent",
+        "status": "passed",
+        "duration_ms": 4358
+      },
+      {
+        "browser": "firefox",
+        "check": "project scope excludes canceled, archived and deleted work while completion and updates preserve issue facts",
+        "status": "passed",
+        "duration_ms": 4680
+      },
+      {
+        "browser": "firefox",
+        "check": "stale project metadata drafts are reviewed without overwriting an independently saved brief",
+        "status": "passed",
+        "duration_ms": 2751
+      },
+      {
+        "browser": "firefox",
+        "check": "competing project brief editors retain the rejected draft until an explicit reviewed save",
+        "status": "passed",
+        "duration_ms": 5126
+      },
+      {
+        "browser": "firefox",
+        "check": "project brief references and file bytes persist while revision selection remains read-only and keyboard accessible",
+        "status": "passed",
+        "duration_ms": 7796
+      },
+      {
+        "browser": "firefox",
+        "check": "team settings deep links load and save a team beyond the first 50 without directory paging",
+        "status": "passed",
+        "duration_ms": 2236
+      },
+      {
+        "browser": "firefox",
+        "check": "light workflow settings persist defaults and order, then a saved replacement survives reload and restores its source identity",
+        "status": "failed",
+        "duration_ms": 35802,
+        "failure": "workflow-taxonomy.browser.ts:126"
+      },
+      {
+        "browser": "firefox",
+        "check": "label restoration preserves a proposed name through a real name collision and stale reference review",
+        "status": "passed",
+        "duration_ms": 2684
+      },
+      {
+        "browser": "firefox",
+        "check": "a shared label directory pages beyond one hundred saved labels without omissions or duplicates",
+        "status": "passed",
+        "duration_ms": 3111
+      },
+      {
+        "browser": "firefox",
+        "check": "archived issue restoration requires an eligible assignee repair and preserves it after a real version conflict",
+        "status": "passed",
+        "duration_ms": 4964
+      },
+      {
+        "browser": "firefox",
+        "check": "workspace-menu creation seeds a usable team and default, then an issue survives reload",
+        "status": "passed",
+        "duration_ms": 2308
+      },
+      {
+        "browser": "firefox",
+        "check": "a committed workspace survives a failed session refresh and retries opening without another create",
+        "status": "passed",
+        "duration_ms": 2846
+      },
+      {
+        "browser": "firefox",
+        "check": "declining navigation after workspace creation keeps the original issue draft until it is explicitly saved",
+        "status": "passed",
+        "duration_ms": 2907
+      },
+      {
+        "browser": "webkit",
+        "check": "document JSON saves references, exports exact structure, undoes and reloads",
+        "status": "passed",
+        "duration_ms": 6730
+      },
+      {
+        "browser": "webkit",
+        "check": "Markdown worker runs under production CSP, round-trips saved semantics and keeps hostile text inert",
+        "status": "passed",
+        "duration_ms": 4775
+      },
+      {
+        "browser": "webkit",
+        "check": "character preference persists while visible controls, palette and sequences remain usable",
+        "status": "passed",
+        "duration_ms": 4981
+      },
+      {
+        "browser": "webkit",
+        "check": "nested transfer Escape unwinds once and Mod+Enter cannot save or create behind it",
+        "status": "passed",
+        "duration_ms": 1886
+      },
+      {
+        "browser": "webkit",
+        "check": "template preview materializes titles and requires cancel, merge or replace before durable creation",
+        "status": "passed",
+        "duration_ms": 2911
+      },
+      {
+        "browser": "webkit",
+        "check": "activity retains attributable facts and every event across grouped pagination",
+        "status": "passed",
+        "duration_ms": 3565
+      },
+      {
+        "browser": "webkit",
+        "check": "HTML clipboard parsing preserves formatting while removing active HTML and unsafe URLs before save, reload and read-only display",
+        "status": "passed",
+        "duration_ms": 9130
+      },
+      {
+        "browser": "webkit",
+        "check": "local password login works with every external origin blocked and recovers keyboard focus",
+        "status": "passed",
+        "duration_ms": 5256
+      },
+      {
+        "browser": "webkit",
+        "check": "rename retains saved issue URLs and switching replaces the previous workspace content",
+        "status": "passed",
+        "duration_ms": 2199
+      },
+      {
+        "browser": "webkit",
+        "check": "invitation keyboard acceptance switches accounts and member settings conceal owner actions",
+        "status": "passed",
+        "duration_ms": 4050
+      },
+      {
+        "browser": "webkit",
+        "check": "competing issue editors preserve the rejected draft and require an explicit reviewed save",
+        "status": "passed",
+        "duration_ms": 3943
+      },
+      {
+        "browser": "webkit",
+        "check": "competing issue editors preserve the rejected draft and can adopt the saved version",
+        "status": "passed",
+        "duration_ms": 3143
+      },
+      {
+        "browser": "webkit",
+        "check": "keyboard-only create, status, save, search and recent navigation work with character shortcuts disabled",
+        "status": "passed",
+        "duration_ms": 2594
+      },
+      {
+        "browser": "webkit",
+        "check": "picker ignores synthetic composition and modified text keys before ordinary keyboard selection",
+        "status": "passed",
+        "duration_ms": 1359
+      },
+      {
+        "browser": "webkit",
+        "check": "private-team revocation removes a real recent issue title and excludes it from search",
+        "status": "passed",
+        "duration_ms": 5314
+      },
+      {
+        "browser": "webkit",
+        "check": "issue-list arrows cross saved rows and delayed archive refreshes preserve return focus",
+        "status": "passed",
+        "duration_ms": 2023
+      },
+      {
+        "browser": "webkit",
+        "check": "palette searches saved issues and reauthorizes recent titles with character shortcuts disabled",
+        "status": "passed",
+        "duration_ms": 1689
+      },
+      {
+        "browser": "webkit",
+        "check": "palette keeps focus and removes a saved result deleted before it is selected",
+        "status": "passed",
+        "duration_ms": 1140
+      },
+      {
+        "browser": "webkit",
+        "check": "milestones persist outcomes, keyboard order and scoped assignment, then safely detach on deletion",
+        "status": "passed",
+        "duration_ms": 3128
+      },
+      {
+        "browser": "webkit",
+        "check": "milestone conflicts retain the typed draft and require a review of the saved version",
+        "status": "passed",
+        "duration_ms": 1328
+      },
+      {
+        "browser": "webkit",
+        "check": "milestone loading and connection failure remain recoverable without fake empty counts",
+        "status": "passed",
+        "duration_ms": 978
+      },
+      {
+        "browser": "webkit",
+        "check": "cycle creation keeps DST calendar boundaries, rejects overlap and preserves a conflicting draft",
+        "status": "passed",
+        "duration_ms": 1569
+      },
+      {
+        "browser": "webkit",
+        "check": "live cycle scope follows completed work while daily snapshots remain immutable across recapture and reload",
+        "status": "passed",
+        "duration_ms": 2090
+      },
+      {
+        "browser": "webkit",
+        "check": "cycle closure preserves issue state, accessible history and explicit conflict-aware carry-forward",
+        "status": "passed",
+        "duration_ms": 9776
+      },
+      {
+        "browser": "webkit",
+        "check": "light shared primitives meet contrast, modal focus and saved combobox selection",
+        "status": "passed",
+        "duration_ms": 1493
+      },
+      {
+        "browser": "webkit",
+        "check": "dark shared primitives meet contrast, modal focus and saved combobox selection",
+        "status": "passed",
+        "duration_ms": 1479
+      },
+      {
+        "browser": "webkit",
+        "check": "shared issue form stays operable at 320px reflow with enlarged text",
+        "status": "passed",
+        "duration_ms": 1983
+      },
+      {
+        "browser": "webkit",
+        "check": "shared issue form stays operable at 640px reflow with enlarged text",
+        "status": "passed",
+        "duration_ms": 1943
+      },
+      {
+        "browser": "webkit",
+        "check": "forced colors and reduced motion retain visible native focus",
+        "status": "passed",
+        "duration_ms": 1034
+      },
+      {
+        "browser": "webkit",
+        "check": "project creation and brief edits persist while metadata and body versions remain independent",
+        "status": "passed",
+        "duration_ms": 3815
+      },
+      {
+        "browser": "webkit",
+        "check": "project scope excludes canceled, archived and deleted work while completion and updates preserve issue facts",
+        "status": "passed",
+        "duration_ms": 3360
+      },
+      {
+        "browser": "webkit",
+        "check": "stale project metadata drafts are reviewed without overwriting an independently saved brief",
+        "status": "passed",
+        "duration_ms": 2054
+      },
+      {
+        "browser": "webkit",
+        "check": "competing project brief editors retain the rejected draft until an explicit reviewed save",
+        "status": "passed",
+        "duration_ms": 4710
+      },
+      {
+        "browser": "webkit",
+        "check": "project brief references and file bytes persist while revision selection remains read-only and keyboard accessible",
+        "status": "passed",
+        "duration_ms": 7867
+      },
+      {
+        "browser": "webkit",
+        "check": "team settings deep links load and save a team beyond the first 50 without directory paging",
+        "status": "passed",
+        "duration_ms": 2003
+      },
+      {
+        "browser": "webkit",
+        "check": "light workflow settings persist defaults and order, then a saved replacement survives reload and restores its source identity",
+        "status": "failed",
+        "duration_ms": 34485,
+        "failure": "workflow-taxonomy.browser.ts:126"
+      },
+      {
+        "browser": "webkit",
+        "check": "label restoration preserves a proposed name through a real name collision and stale reference review",
+        "status": "passed",
+        "duration_ms": 1977
+      },
+      {
+        "browser": "webkit",
+        "check": "a shared label directory pages beyond one hundred saved labels without omissions or duplicates",
+        "status": "passed",
+        "duration_ms": 3196
+      },
+      {
+        "browser": "webkit",
+        "check": "archived issue restoration requires an eligible assignee repair and preserves it after a real version conflict",
+        "status": "passed",
+        "duration_ms": 5312
+      },
+      {
+        "browser": "webkit",
+        "check": "workspace-menu creation seeds a usable team and default, then an issue survives reload",
+        "status": "passed",
+        "duration_ms": 2883
+      },
+      {
+        "browser": "webkit",
+        "check": "a committed workspace survives a failed session refresh and retries opening without another create",
+        "status": "passed",
+        "duration_ms": 2354
+      },
+      {
+        "browser": "webkit",
+        "check": "declining navigation after workspace creation keeps the original issue draft until it is explicitly saved",
+        "status": "passed",
+        "duration_ms": 2864
+      }
+    ],
+    "limitations": [
+      "Synthetic composition events do not qualify a real OS IME.",
+      "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+    ],
+    "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+  },
+  "failure_kinds": [
+    {
+      "check": "light workflow settings persist defaults and order, then a saved replacement survives reload and restores its source identity",
+      "kind": "timeout",
+      "actionability": []
+    },
+    {
+      "check": "light workflow settings persist defaults and order, then a saved replacement survives reload and restores its source identity",
+      "kind": "timeout",
+      "actionability": []
+    }
+  ],
+  "limits": "Functional browser matrix; no default dispatch performance, native/manual/provider or whole-product acceptance claim",
+  "retained_state_observation": {
+    "registry_scopes": 94,
+    "workflow_jobs_created_during_run": [
+      {
+        "kind": "workflow.status_replace",
+        "state": "succeeded",
+        "created_at": "2026-10-24T02:12:39.557036+02:00",
+        "error_code": null,
+        "finished_at": "2026-10-24T02:12:40.046679+02:00",
+        "retry_count": 0,
+        "attempt_count": 1,
+        "first_outcome": "succeeded",
+        "queue_seconds": 0.465782,
+        "first_attempt_at": "2026-10-24T02:12:40.022818+02:00",
+        "first_effect_seconds": 0.023592,
+        "first_attempt_finished_at": "2026-10-24T02:12:40.04641+02:00"
+      },
+      {
+        "kind": "workflow.status_replace",
+        "state": "succeeded",
+        "created_at": "2026-10-24T02:15:19.965194+02:00",
+        "error_code": null,
+        "finished_at": "2026-10-24T02:15:54.740583+02:00",
+        "retry_count": 0,
+        "attempt_count": 1,
+        "first_outcome": "succeeded",
+        "queue_seconds": 34.761086,
+        "first_attempt_at": "2026-10-24T02:15:54.72628+02:00",
+        "first_effect_seconds": 0.014047,
+        "first_attempt_finished_at": "2026-10-24T02:15:54.740327+02:00"
+      },
+      {
+        "kind": "workflow.status_replace",
+        "state": "succeeded",
+        "created_at": "2026-10-24T02:18:28.421258+02:00",
+        "error_code": null,
+        "finished_at": "2026-10-24T02:19:05.571386+02:00",
+        "retry_count": 0,
+        "attempt_count": 1,
+        "first_outcome": "succeeded",
+        "queue_seconds": 37.129083,
+        "first_attempt_at": "2026-10-24T02:19:05.550341+02:00",
+        "first_effect_seconds": 0.020629,
+        "first_attempt_finished_at": "2026-10-24T02:19:05.57097+02:00"
+      }
+    ],
+    "scope": "Read-only post-failure retained job/attempt rows; no polling-time sampled state or causal claim"
+  }
+}

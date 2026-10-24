@@ -1,0 +1,109 @@
+{
+  "format_version": 1,
+  "scope": "matched retained snapshot API/default-worker backlog; not a browser matrix or historical assertion-time cause",
+  "exit_code": 0,
+  "candidate_source_commit": "9a6a43af287e086e9ecbff7a1addcf6a75ccb356",
+  "dump_sha256": "fc20272c8fc6cbd35c30f5993978182b4fbc06f72fb375a9d4efe04047bcae70",
+  "blob_digest": "f196782708a2f3fdad400adf139d98c6f8c9d370bd8d6984bdf3514772652145",
+  "binary_sha256": [
+    "4ccb63b478051701d180599af546a8e0bfbdea66e5d384b33566d8a297e436e4",
+    "5d31ddbd6024ab0c7046a720adee3779e41aed051cb9275ec6b4403c06386baf"
+  ],
+  "driver_sha256": "8c7d5a2b82bd645854a338a17b63b6bb7a74eb735baf3daad73cbc88f8eadf33",
+  "common_sha256": "28b49c6e93655552f22733286dff8f09c0e361387cc025b6acb23c5bb5c49bad",
+  "same_initial_fingerprint": true,
+  "registered_workspaces": 116,
+  "restored_definer_ownership_verified": true,
+  "older_privacy_intents": 8,
+  "selection": "Eight intents chosen before execution for this retained116scope scaling case; distinct from fresh94/seven and historical browser assertions.",
+  "results": [
+    {
+      "variant": "before",
+      "observed_ms": 34124.032808000266,
+      "completed_within_30_seconds": false,
+      "timing_outcome": "failed",
+      "exact_effects": {
+        "workflow": true,
+        "maintenance": true,
+        "maintenance_completed": 0
+      },
+      "worker_profile": {
+        "poll_interval_ms": 2000,
+        "max_connections": 5,
+        "lease_seconds": 60
+      },
+      "children_reaped": true,
+      "commands_reaped": true,
+      "cleanup_failures": [],
+      "eight_older_eligible_jobs_at_worker_start": true,
+      "initial_setup_bound_seconds": 600,
+      "initial_setup_observed_seconds": 209.16872572800003,
+      "private_receipt_sha256": "068c20f25c907185f143138d0a9cb3656c3f9b7277915d6ca25ebe11a50ccbe8",
+      "scoped_sql_samples": 32,
+      "first_sql_observation_after_30s": {
+        "observed_ms": 30541.192068000328,
+        "state": "queued",
+        "attempt_count": 0
+      }
+    },
+    {
+      "variant": "after",
+      "observed_ms": 18314.461833999758,
+      "completed_within_30_seconds": true,
+      "timing_outcome": "passed",
+      "exact_effects": {
+        "workflow": true,
+        "maintenance": true,
+        "maintenance_completed": 0
+      },
+      "worker_profile": {
+        "poll_interval_ms": 2000,
+        "max_connections": 5,
+        "lease_seconds": 60
+      },
+      "children_reaped": true,
+      "commands_reaped": true,
+      "cleanup_failures": [],
+      "eight_older_eligible_jobs_at_worker_start": true,
+      "initial_setup_bound_seconds": 600,
+      "initial_setup_observed_seconds": 115.80738288300017,
+      "private_receipt_sha256": "a0004d5ded5def0eaef0b8bf187de491642e51469adeb9c0953b6f450d5a51c3",
+      "scoped_sql_samples": 17,
+      "first_sql_observation_after_30s": null
+    }
+  ],
+  "comparison_demonstrates_correction": true,
+  "acceptance_seconds": 30,
+  "collection_seconds": 75,
+  "maintenance_boundary": "Eight jobs advanced bounded cursors with exact current attempt fences and preserved healthy assignments; completion of all maintenance jobs is not claimed.",
+  "setup_failure_preserved": {
+    "phase": "restore before API/worker startup",
+    "cause": "Initial driver dropped default public schema although snapshot omits schema creation.",
+    "correction": "Keep default schema and restore into new nonce-suffixed databases; preserve partial first database/receipt.",
+    "all_owned_commands_reaped": true
+  },
+  "limits": [
+    "Controlled API/PostgreSQL/worker workload on cloned retained state; no browser matrix claim.",
+    "Does not reconstruct the historical failing browser assertion time or prove its exact cause.",
+    "No timeout/profile change, row or checkpoint repair, retry to hunt for failure, or general performance claim.",
+    "Original databases, snapshots, roles, old worktrees and failed evidence preserved."
+  ],
+  "source_sha256": {
+    "before_reference": {
+      "commit": "41ffc8d1b8ccccfce6296f944d4f064463963a07",
+      "file": "crates/opentrack-app/src/worker.rs",
+      "sha256": "bc09372e6fe1040accde330fb775b18c38a5232a8b105b97607293aa68218ffc"
+    },
+    "after_reference": {
+      "commit": "9a6a43af287e086e9ecbff7a1addcf6a75ccb356",
+      "file": "crates/opentrack-app/src/worker.rs",
+      "sha256": "7bfbca7c135aea169bd1f30c2de754baaa2a65e0c8210dc27fd549c83604153b"
+    },
+    "unchanged_server_reference": {
+      "commit": "9a6a43af287e086e9ecbff7a1addcf6a75ccb356",
+      "file": "crates/opentrack-server/src/worker.rs",
+      "sha256": "28deb166971e9d682c16ba0c64717b99d5fb00568db4fcb0c63a572871a764a1"
+    }
+  },
+  "source_boundary": "Git source hashes identify the reviewed before/after references; executed binaries are independently pinned above."
+}
