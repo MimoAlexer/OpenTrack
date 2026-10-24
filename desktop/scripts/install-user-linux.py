@@ -30,10 +30,17 @@ try:
 except OSError:
     raise SystemExit("The Linux client source could not be inspected.") from None
 icon = desktop / "icons/icon.png"
+project_license = desktop.parent / "LICENSE"
+try:
+    if project_license.is_symlink() or not project_license.is_file():
+        raise SystemExit("The project license must be an existing regular file, not a symbolic link.")
+except OSError:
+    raise SystemExit("The project license could not be inspected.") from None
 data = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share")))
 if not data.is_absolute() or any(char in str(data) for char in "\r\n\0"):
     raise SystemExit("XDG_DATA_HOME must be an absolute path without control characters.")
 destination = data / "opentrack/bin/opentrack-desktop"
+license_destination = data / "opentrack/LICENSE"
 icon_destination = data / "icons/hicolor/256x256/apps/app.opentrack.desktop.png"
 launcher = data / "applications/app.opentrack.desktop.desktop"
 try:
@@ -44,12 +51,13 @@ try:
     if existing_launcher is not None and b"X-OpenTrack-Managed=true" not in existing_launcher:
         raise SystemExit("An unmanaged OpenTrack launcher exists; it was not replaced.")
     if existing_launcher is None:
-        try:
-            destination.stat()
-        except FileNotFoundError:
-            pass
-        else:
-            raise SystemExit("An unmanaged OpenTrack executable exists; it was not replaced.")
+        for path, label in [(destination, "executable"), (license_destination, "license")]:
+            try:
+                path.lstat()
+            except FileNotFoundError:
+                pass
+            else:
+                raise SystemExit(f"An unmanaged OpenTrack {label} exists; it was not replaced.")
 except OSError:
     raise SystemExit("Existing user installation could not be inspected.") from None
 
@@ -86,6 +94,8 @@ try:
     with tempfile.TemporaryDirectory(prefix="opentrack-launcher-") as temporary:
         prepared = Path(temporary) / launcher.name
         prepared.write_text(entry)
+        prepared_license = Path(temporary) / "LICENSE"
+        shutil.copyfile(project_license, prepared_license)
         validator = shutil.which("desktop-file-validate")
         if validator:
             try:
@@ -94,6 +104,7 @@ try:
                 raise SystemExit("Desktop launcher validation failed; existing files were retained.") from None
         atomic_copy(binary, destination, 0o755)
         atomic_copy(icon, icon_destination, 0o644)
+        atomic_copy(prepared_license, license_destination, 0o644)
         atomic_copy(prepared, launcher, 0o644)
 except OSError:
     raise SystemExit("The user installation could not be completed.") from None

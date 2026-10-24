@@ -12,13 +12,13 @@ desktop/scripts/build-linux.sh
 
 By default, the package is written to `desktop/target/release/bundle/deb/`. The script builds fresh web assets in its own temporary directory, installs the locked Tauri CLI, and builds the locked Rust workspace. It does not replace a running server's assets. It removes its temporary assets after packaging. Install the resulting `.deb` with your distribution's package manager, then launch **OpenTrack** from the applications menu. Package installation requires the usual administrator permission and runtime dependencies.
 
-Alternatively, after a successful build, `python3 desktop/scripts/install-user-linux.py` installs the executable, icon and application launcher for the current user without administrator access. The default executable remains `desktop/target/release/opentrack-desktop`. For a release build in an absolute external `CARGO_TARGET_DIR`, select the executable explicitly:
+Alternatively, after a successful build, `python3 desktop/scripts/install-user-linux.py` installs the executable, project license, icon and application launcher for the current user without administrator access. The default executable remains `desktop/target/release/opentrack-desktop`. For a release build in an absolute external `CARGO_TARGET_DIR`, select the executable explicitly:
 
 ```sh
 python3 desktop/scripts/install-user-linux.py --binary "$CARGO_TARGET_DIR/release/opentrack-desktop"
 ```
 
-`--binary ABSOLUTE_PATH` requires an existing regular file and rejects relative paths and symbolic links; the installer does not discover Cargo configuration. Run the same command after rebuilding to update the user installation. Each file is copied atomically, but the three-file installation is not a single transaction. An existing launcher without the managed marker, or an executable without a launcher, is refused before copying.
+`--binary ABSOLUTE_PATH` requires an existing regular file and rejects relative paths and symbolic links; the installer does not discover Cargo configuration. Run the same command after rebuilding to update the user installation. Each file is copied atomically, but the four-file installation is not a single transaction. The project license is copied to `$XDG_DATA_HOME/opentrack/LICENSE` (using the default user data directory when unset). An existing launcher without the managed marker, or an executable/license without a launcher, is refused before copying.
 
 The launcher registers as a handler for OpenTrack issue links without overriding an existing default handler. The host must already provide compatible runtime libraries.
 

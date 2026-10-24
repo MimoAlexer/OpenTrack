@@ -76,4 +76,4 @@ Explain the problem, resulting behavior, exact checks and outcomes, and material
 
 Update the canonical contracts and acceptance evidence for changed behavior. Evidence belongs in `docs/evidence/` when it supports a requirement or release gate; record the environment, source revision, commands, results, and limitations. Redact credentials and private content. Mark a ledger item complete only when its whole acceptance condition is evidenced, and do not close a broader roadmap issue for a partial implementation.
 
-The proposed AGPL license and contribution terms have not been ratified. Repository access and this guide do not grant a license or establish a CLA/DCO requirement. Coordinate third-party material and contribution permissions with the maintainer; see [ADR-015](docs/adr/015_LICENSE.md).
+Project source uses [AGPL-3.0-or-later](LICENSE). Contribution terms and any CLA/DCO requirement remain unratified. Coordinate third-party material and contribution permissions with the maintainer; see [ADR-015](docs/adr/015_LICENSE.md).

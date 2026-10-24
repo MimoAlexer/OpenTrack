@@ -109,6 +109,6 @@ Rust owns business rules; PostgreSQL owns durable state. The React/TypeScript ap
 
 Use [Issues](https://github.com/MimoAlexer/OpenTrack/issues) for concrete bugs and deliverables, and [Milestones](https://github.com/MimoAlexer/OpenTrack/milestones) for the delivery sequence. Read [contributing](CONTRIBUTING.md), [AGENTS.md](AGENTS.md) and the [current handoff](HANDOFF.md) before changing a contract. Follow the [security policy](SECURITY.md) for sensitive reports. Applied migrations are immutable; credentials, local databases and raw private run logs stay out of Git.
 
-## License status
+## License
 
-Licensing has **not been ratified**. AGPL-3.0-or-later is proposed in [ADR-015](docs/adr/015_LICENSE.md); this repository does not currently grant that proposed license. Release, signing and distribution decisions remain explicit open work.
+Project source is licensed under [AGPL-3.0-or-later](LICENSE), as recorded in [ADR-015](docs/adr/015_LICENSE.md). Third-party components retain their own licenses. Release, signing, distribution notices and public identity decisions remain open work.

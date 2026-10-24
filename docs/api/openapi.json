@@ -6855,7 +6855,8 @@
   "info": {
     "description": "Implemented OpenTrack endpoints. Features absent from this contract are not advertised as available. Browser-cookie writes require allowed Origin and CSRF; native bearer sessions have a separate audience and do not use browser CSRF. Data returned by a conflict is authorized for the current caller.",
     "license": {
-      "name": ""
+      "identifier": "AGPL-3.0-or-later",
+      "name": "AGPL-3.0-or-later"
     },
     "title": "OpenTrack API",
     "version": "0.1.0"
