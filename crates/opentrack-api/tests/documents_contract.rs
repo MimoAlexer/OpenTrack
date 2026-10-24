@@ -332,4 +332,213 @@ async fn exercise(h: &Harness) {
     )
     .await
     .problem(StatusCode::UNPROCESSABLE_ENTITY, "validation_failed");
+
+    // A future writer's stored JSON must stay opaque to this server version.
+    let private_team = request(
+        r,
+        Some(&client),
+        "POST",
+        &format!("{base}/teams"),
+        Some(json!({"name":"Future reference team","key":"FUT","private":true})),
+        &[("idempotency-key", "future-reference-team")],
+    )
+    .await;
+    private_team.expect(StatusCode::CREATED);
+    let private_issue = request(
+        r,
+        Some(&client),
+        "POST",
+        &format!("{base}/issues"),
+        Some(json!({"team_id":private_team.body["id"],"title":"Private future reference control"})),
+        &[("idempotency-key", "future-reference-issue")],
+    )
+    .await;
+    private_issue.expect(StatusCode::CREATED);
+    let invitation = request(
+        r,
+        Some(&client),
+        "POST",
+        &format!("{base}/invitations"),
+        Some(json!({"email":"future-reader@documents.invalid","role":"viewer","team_ids":[]})),
+        &[("idempotency-key", "future-reference-reader")],
+    )
+    .await;
+    invitation.expect(StatusCode::CREATED);
+    let accepted = request(
+        r,
+        None,
+        "POST",
+        "/api/v1/invitations/accept",
+        Some(
+            json!({"token":invitation.body["token"],"display_name":"Example Reader",
+            "password":"Future schema HTTP verification passphrase 2026!"}),
+        ),
+        &[],
+    )
+    .await;
+    accepted.expect(StatusCode::OK);
+    let reader = Client {
+        cookie: accepted.headers["set-cookie"]
+            .to_str()
+            .unwrap()
+            .split(';')
+            .next()
+            .unwrap()
+            .into(),
+        csrf: accepted.body["csrf_token"].as_str().unwrap().into(),
+    };
+    let opaque = json!({
+        "type":"futureDoc",
+        "attrs":{"unknown":[null,true,7,{"literal":"<script>not executable</script> & \\ \" café"}]},
+        "content":[{"type":"futureWidget","attrs":{"future":true,"nested":{"retain":"exactly"}},
+            "content":[{"type":"issueReference","attrs":{"id":private_issue.body["id"]}}]}],
+    });
+    let fallback = "Future-format plain text: <script>inert fallback</script> & café";
+    let workspace = w.parse::<uuid::Uuid>().unwrap();
+    let actor = setup.body["user"]["id"]
+        .as_str()
+        .unwrap()
+        .parse::<uuid::Uuid>()
+        .unwrap();
+    let document_id = initial.body["id"]
+        .as_str()
+        .unwrap()
+        .parse::<uuid::Uuid>()
+        .unwrap();
+    let mut tx = h.lock_team(workspace, team.parse().unwrap(), actor).await;
+    let stored: String = sqlx::query_scalar("UPDATE documents SET schema_version=99,body=$3,plain_text=$4,version=version+1,updated_by_user_id=$5,updated_at=clock_timestamp() WHERE workspace_id=$1 AND id=$2 RETURNING body::text")
+        .bind(workspace).bind(document_id).bind(&opaque).bind(fallback).bind(actor)
+        .fetch_one(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let future = request(r, Some(&client), "GET", &doc, None, &[]).await;
+    future.expect(StatusCode::OK);
+    assert_eq!(future.body["schema_version"], 99);
+    assert_eq!(future.body["schema_supported"], false);
+    assert_eq!(future.body["can_edit"], false);
+    assert_eq!(future.body["body"], opaque);
+    assert_eq!(future.body["plain_text"], fallback);
+    assert_eq!(future.body["etag"], future.etag());
+    assert_ne!(future.etag(), changed.etag());
+    assert_eq!(future.body["issue_references"][0]["available"], true);
+    assert_eq!(
+        future.body["issue_references"][0]["title"],
+        private_issue.body["title"]
+    );
+    let future_issue = request(r, Some(&client), "GET", &issue, None, &[]).await;
+    future_issue.expect(StatusCode::OK);
+    assert_eq!(future_issue.body["description"], fallback);
+    let history_path = format!("{doc}/revisions");
+    let history = request(r, Some(&client), "GET", &history_path, None, &[]).await;
+    history.expect(StatusCode::OK);
+    let future_revision_path = format!(
+        "{doc}/revisions/{}",
+        future.body["version"].as_str().unwrap()
+    );
+    let revision = request(r, Some(&client), "GET", &future_revision_path, None, &[]).await;
+    revision.expect(StatusCode::OK);
+    assert_eq!(revision.body["schema_version"], 99);
+    assert_eq!(revision.body["body"], opaque);
+    assert_eq!(revision.body["plain_text"], fallback);
+
+    for path in [
+        format!("{issue}/document"),
+        doc.clone(),
+        future_revision_path.clone(),
+    ] {
+        let visible = request(r, Some(&reader), "GET", &path, None, &[]).await;
+        visible.expect(StatusCode::OK);
+        assert_eq!(visible.body["schema_version"], 99);
+        assert_eq!(visible.body["body"], opaque);
+        assert_eq!(visible.body["plain_text"], fallback);
+        assert_eq!(
+            visible.body["issue_references"],
+            json!([{
+                "id":private_issue.body["id"],"available":false,"key":null,"title":null,
+            }])
+        );
+        if path != future_revision_path {
+            assert_eq!(visible.body["schema_supported"], false);
+            assert_eq!(visible.body["can_edit"], false);
+        }
+    }
+    request(
+        r,
+        Some(&reader),
+        "GET",
+        &format!(
+            "{base}/issues/{}",
+            private_issue.body["id"].as_str().unwrap()
+        ),
+        None,
+        &[],
+    )
+    .await
+    .problem(StatusCode::NOT_FOUND, "not_found");
+
+    // Unsupported stored schemas reject edits before stale-version comparison.
+    for etag in [changed.etag(), future.etag()] {
+        request(
+            r,
+            Some(&client),
+            "PATCH",
+            &doc,
+            Some(document("Cannot downgrade stored future JSON")),
+            &[("if-match", etag)],
+        )
+        .await
+        .problem(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "unsupported_document_schema",
+        );
+    }
+    request(
+        r,
+        Some(&client),
+        "PATCH",
+        &doc,
+        Some(json!({"schema_version":99,"body":opaque})),
+        &[("if-match", future.etag())],
+    )
+    .await
+    .problem(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "unsupported_document_schema",
+    );
+    request(r, Some(&client), "PATCH", &issue,
+        Some(json!({"title":"Must roll back with the rejected description","description":"Cannot flatten stored future JSON"})),
+        &[("if-match", future_issue.etag())])
+        .await.problem(StatusCode::UNPROCESSABLE_ENTITY, "unsupported_document_schema");
+    assert_eq!(
+        request(r, Some(&client), "GET", &doc, None, &[]).await.body,
+        future.body
+    );
+    assert_eq!(
+        request(r, Some(&client), "GET", &issue, None, &[])
+            .await
+            .body,
+        future_issue.body
+    );
+    assert_eq!(
+        request(r, Some(&client), "GET", &history_path, None, &[])
+            .await
+            .body,
+        history.body
+    );
+    assert_eq!(
+        request(r, Some(&client), "GET", &future_revision_path, None, &[])
+            .await
+            .body,
+        revision.body
+    );
+    let mut tx = h.lock_team(workspace, team.parse().unwrap(), actor).await;
+    let retained: String =
+        sqlx::query_scalar("SELECT body::text FROM documents WHERE workspace_id=$1 AND id=$2")
+            .bind(workspace)
+            .bind(document_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+    assert_eq!(retained, stored);
+    tx.commit().await.unwrap();
 }

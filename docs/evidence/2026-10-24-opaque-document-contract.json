@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-24",
+  "base_implementation": "ba199b67dac2eda8cbda1319b6f2f6520bcc8549",
+  "scope": "Added regression coverage for existing opaque unsupported document-format behavior; no production or migration change.",
+  "test": "independent_documents_and_idempotent_discussion_over_http",
+  "execution": "In-process Axum router with real isolated PostgreSQL and synthetic owner/viewer accounts.",
+  "preserved_patch_sha256": "17c386372782acd414eae0f4269065cdcf970f2a5c3b19d20cbf4cb73d516ad3",
+  "checks": [
+    {
+      "check": "format",
+      "exit_code": 0,
+      "elapsed_seconds": 7.363,
+      "owned_session_cleanup_confirmed": true
+    },
+    {
+      "check": "documents-contract",
+      "exit_code": 0,
+      "elapsed_seconds": 40.12,
+      "owned_session_cleanup_confirmed": true,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "check": "lint",
+      "exit_code": 0,
+      "elapsed_seconds": 26.178,
+      "owned_session_cleanup_confirmed": true
+    }
+  ],
+  "source_sha256": {
+    "crates/opentrack-api/tests/documents_contract.rs": "a752c3f14b2fad573d34cbc6632e1ce83128e67303725103537d606f3e4a559c",
+    "crates/opentrack-app/src/documents.rs": "b984189cbd076cb9481e0ef58908846a6f6cd77269bf1cc2249340c04bc65d35",
+    "crates/opentrack-api/src/problem.rs": "596344ab9c52001b34fbc66ca401d2b723a5223eb2aedf63ffc847888fdd9a25"
+  },
+  "asserted": [
+    "Opaque schema99 JSON, plaintext, ETag and version-addressed revision-route preservation.",
+    "Owner private-reference positive control; viewer metadata concealment and direct private issue404.",
+    "Unsupported stored schema remains read-only; schema1 downgrade rejected before stale/current ETag comparison.",
+    "Schema99 writes and combined legacy title/description writes reject with unsupported_document_schema.",
+    "Document, issue, revision listing, version-addressed response and canonical JSONB body text remain unchanged after rejected writes."
+  ],
+  "production_changes": false,
+  "migration_changes": false,
+  "limits": [
+    "One extended HTTP test passed; individual assertions are not reported as separate tests.",
+    "No TCP listener, browser rendering/script execution, physical input, native or assistive-technology acceptance was exercised.",
+    "Future-format project/comment documents and persisted older future-format revision rows are not qualified by this issue-document current-version fixture.",
+    "Stored document-format versions are separate from executable database migration-history compatibility.",
+    "Fresh exact-head CI and final source/evidence/privacy/conversation review remain required before integration."
+  ]
+}
