@@ -112,7 +112,7 @@ export function App() {
   if (route.area === 'join' && !(entry.kind === 'auth' && entry.setup)) return <JoinWorkspace session={entry.kind === 'session' ? entry.session : null} authenticated={authenticated} />;
   if (entry.kind === 'auth') return <AuthScreen setup={entry.setup} notice={entry.notice} onAuthenticated={authenticated} />;
   if (route.area === 'account-security') return <AccountSecurity key={entry.session.user.id} session={entry.session} authenticated={authenticated} signedOut={signedOut} />;
-  if (!entry.session.workspaces.length) return <NoWorkspace session={entry.session} authenticated={authenticated} signedOut={signedOut} />;
+  if (!entry.session.workspaces.length) return <NoWorkspace key={entry.session.user.id} session={entry.session} authenticated={authenticated} signedOut={signedOut} />;
   return <WorkspaceApp session={entry.session} theme={theme} setTheme={setTheme} signedOut={signedOut} authenticated={authenticated} />;
 }
 
@@ -120,7 +120,7 @@ function NoWorkspace({ session, authenticated, signedOut }: { session: Session; 
   const desktop = useDesktop();
   const request = useScopedRequest();
   const [creating, setCreating] = useState(false); const [reauth, setReauth] = useState(false); const [error, setError] = useState<unknown>(null);
-  return <main className="startup"><Brand /><h1>No workspace access.</h1><p>Join with an invitation, or create a workspace in an organization you manage.</p><ErrorBanner error={error} /><div className="button-row"><Link className="button primary" href="/join">Join workspace</Link><button className="button" onClick={() => setCreating(true)}>Create workspace</button><Link className="button" href="/account/security">Account security</Link><button className="quiet" onClick={async () => { try { if (desktop) await desktop.store.logout(); else await request('/auth/logout', { method: 'POST', csrf: session.csrf_token }); signedOut(); } catch (error) { setError(error); } }}>Sign out</button></div>{creating && <CreateWorkspace session={session} close={() => setCreating(false)} reauthenticate={() => setReauth(true)} created={async item => { authenticated(await request<Session>('/auth/session')); navigate(issuesUrl(item.id)); }} />}{reauth && <Reauthenticate session={session} close={() => setReauth(false)} authenticated={authenticated} />}</main>;
+  return <main className="startup"><Brand /><h1>No workspace access.</h1><p>Join with an invitation, or create a workspace in an organization you manage.</p><ErrorBanner error={error} /><div className="button-row"><Link className="button primary" href="/join">Join workspace</Link><button className="button" onClick={() => setCreating(true)}>Create workspace</button><Link className="button" href="/account/security">Account security</Link><button className="quiet" onClick={async () => { try { if (desktop) await desktop.store.logout(); else await request('/auth/logout', { method: 'POST', csrf: session.csrf_token }); signedOut(); } catch (error) { setError(error); } }}>Sign out</button></div>{creating && <CreateWorkspace session={session} close={() => setCreating(false)} reauthenticate={() => setReauth(true)} created={async item => { const updatedSession = await request<Session>('/auth/session'); authenticated(updatedSession); if (updatedSession.user.id === session.user.id) navigate(issuesUrl(item.id)); }} />}{reauth && <Reauthenticate session={session} close={() => setReauth(false)} authenticated={authenticated} />}</main>;
 }
 
 function WorkspaceApp({ session, theme, setTheme, signedOut, authenticated }: { session: Session; theme: Theme; setTheme: (theme: Theme) => void; signedOut: () => void; authenticated: (session: Session) => void }) {
@@ -260,7 +260,7 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
       </main>
     </div>
     {creating && data && <CreateIssue workspaceId={workspace.id} data={data} session={session} initialTeam={team?.id} close={() => setCreating(false)} created={created} workflowChanged={workflowChanged} />}
-    {creatingWorkspace && <CreateWorkspace session={session} close={() => setCreatingWorkspace(false)} reauthenticate={() => setReauth(true)} created={async item => { await settingsChanged(); setCreatingWorkspace(false); navigate(issuesUrl(item.id)); }} />}
+    {creatingWorkspace && <CreateWorkspace session={session} close={() => setCreatingWorkspace(false)} reauthenticate={() => setReauth(true)} created={async item => { const updatedSession = await request<Session>('/auth/session'); authenticated(updatedSession); if (updatedSession.user.id !== session.user.id) return; setCreatingWorkspace(false); navigate(issuesUrl(item.id)); }} />}
     {reauth && <Reauthenticate session={session} close={() => setReauth(false)} authenticated={authenticated} />}
     {palette && !accessBlocked && <CommandPalette key={paletteScope} charactersEnabled={shortcutPreference.charactersEnabled} commands={commands.filter(command => command.id !== 'commands')} issueSource={{ workspaceId: workspace.id, scope: paletteScope, recentIds: recentIssues, open: id => navigate(issuesUrl(workspace.id, new URLSearchParams(), id)) }} close={() => setPalette(false)} />}
     {shortcuts && <CommandHelp preference={shortcutPreference} commands={commands} close={() => setShortcuts(false)} />}

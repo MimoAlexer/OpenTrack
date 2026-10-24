@@ -1,0 +1,53 @@
+{
+  "probe": "idempotent_test_database_connect_grant",
+  "run_id": "1646b7adc0f740058cb0f32c1822f66c",
+  "rust_patch_executed": false,
+  "phases": [
+    {
+      "advisory_lock": false,
+      "waiter_observed": true,
+      "wait_type": "Lock",
+      "wait_event": "transactionid",
+      "transaction_isolation": [
+        "read committed",
+        "read committed"
+      ],
+      "first": {
+        "exit_code": 0,
+        "sqlstate": "00000",
+        "tuple_concurrently_updated": false
+      },
+      "second": {
+        "exit_code": 3,
+        "sqlstate": "XX000",
+        "tuple_concurrently_updated": true
+      },
+      "acl_unchanged": true
+    },
+    {
+      "advisory_lock": true,
+      "waiter_observed": true,
+      "wait_type": "Lock",
+      "wait_event": "advisory",
+      "transaction_isolation": [
+        "read committed",
+        "read committed"
+      ],
+      "first": {
+        "exit_code": 0,
+        "sqlstate": "00000",
+        "tuple_concurrently_updated": false
+      },
+      "second": {
+        "exit_code": 0,
+        "sqlstate": "00000",
+        "tuple_concurrently_updated": false
+      },
+      "acl_unchanged": true
+    }
+  ],
+  "verified": true,
+  "scope_validated": true,
+  "final_acl_unchanged": true,
+  "owned_processes_exited": true
+}
