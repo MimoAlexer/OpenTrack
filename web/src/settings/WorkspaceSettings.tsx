@@ -1,5 +1,5 @@
 import { Archive, ArchiveRestore } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Loading, Modal } from '../components';
 import { useUnsavedChanges } from '../router';
 import type { Session } from '../types';
@@ -29,7 +29,20 @@ export function CreateWorkspace({ session, close, created, reauthenticate }: { s
   const organizations = useResource<OrganizationSummary[]>('/organizations');
   const [organization, setOrganization] = useState('');
   const command = useCreateRequest<WorkspaceDetail>('/workspaces', session.csrf_token);
+  const committed = useRef<WorkspaceDetail | null>(null);
+  const [opening, setOpening] = useState(false); const [handoffError, setHandoffError] = useState<unknown>(null);
+  const busy = command.busy || opening;
   const allowed = organizations.data?.filter(item => ['owner', 'admin'].includes(item.role)) ?? [];
-  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)); const result = await command.submit({ ...data, organization_id: organization || allowed[0]?.id }); if (result) await created(result); }
-  return <Modal title="Create workspace" close={close} canClose={!command.busy && !command.uncertain}><form className="settings-modal-content" onSubmit={submit}><p>Create a separate workspace within an organization you manage. Teams, members, and issues stay scoped to that workspace.</p><SettingsError error={organizations.error || command.error} retry={organizations.error ? organizations.reload : undefined} reauthenticate={reauthenticate} /><UncertainNotice show={command.uncertain} />{organizations.loading ? <Loading label="Checking organization access…" /> : !allowed.length ? <div className="settings-info">You do not have organization permission to create a workspace. A workspace owner role alone does not grant this permission.</div> : <><fieldset disabled={command.busy || command.uncertain}><label className="field">Organization<select value={organization || allowed[0].id} onChange={e => setOrganization(e.target.value)}>{allowed.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="field">Workspace name<input data-autofocus name="name" required maxLength={100} /></label><div className="form-grid"><label className="field">First team<input name="team_name" required maxLength={100} /></label><label className="field">Issue prefix<input name="team_key" required pattern="[A-Za-z][A-Za-z0-9]{1,9}" maxLength={10} placeholder="ENG" className="uppercase" /></label></div></fieldset><footer className="modal-footer"><button type="button" className="button" onClick={close} disabled={command.busy || command.uncertain}>Cancel</button><button className="button primary" disabled={command.busy}>{command.busy ? 'Creating…' : command.uncertain ? 'Retry safely' : 'Create workspace'}</button></footer></>}</form></Modal>;
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (busy) return;
+    if (!committed.current) {
+      const data = Object.fromEntries(new FormData(event.currentTarget));
+      const result = await command.submit({ ...data, organization_id: organization || allowed[0]?.id });
+      if (!result) return;
+      committed.current = result;
+    }
+    setOpening(true); setHandoffError(null);
+    try { await created(committed.current); } catch (error) { setHandoffError(error); } finally { setOpening(false); }
+  }
+  return <Modal title="Create workspace" close={close} canClose={!busy && !command.uncertain}><form className="settings-modal-content" onSubmit={submit}><p>Create a separate workspace within an organization you manage. Teams, members, and issues stay scoped to that workspace.</p><SettingsError error={handoffError || organizations.error || command.error} retry={organizations.error ? organizations.reload : undefined} reauthenticate={reauthenticate} /><UncertainNotice show={command.uncertain} />{committed.current && <p className="settings-info" role="status">{committed.current.name} was created.</p>}{organizations.loading ? <Loading label="Checking organization access…" /> : !allowed.length ? <div className="settings-info">You do not have organization permission to create a workspace. A workspace owner role alone does not grant this permission.</div> : <><fieldset disabled={busy || command.uncertain || !!committed.current}><label className="field">Organization<select value={organization || allowed[0].id} onChange={e => setOrganization(e.target.value)}>{allowed.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="field">Workspace name<input data-autofocus name="name" required maxLength={100} /></label><div className="form-grid"><label className="field">First team<input name="team_name" required maxLength={100} /></label><label className="field">Issue prefix<input name="team_key" required pattern="[A-Za-z][A-Za-z0-9]{1,9}" maxLength={10} placeholder="ENG" className="uppercase" /></label></div></fieldset><footer className="modal-footer"><button type="button" className="button" onClick={close} disabled={busy || command.uncertain}>{committed.current ? 'Close' : 'Cancel'}</button><button className="button primary" disabled={busy}>{opening ? 'Opening…' : command.busy ? 'Creating…' : committed.current ? 'Retry opening workspace' : command.uncertain ? 'Retry safely' : 'Create workspace'}</button></footer></>}</form></Modal>;
 }
