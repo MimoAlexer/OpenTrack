@@ -18,7 +18,9 @@ fn body(text: &str) -> Value {
 }
 
 async fn migrate(h: &Harness) -> Result<(), sqlx::migrate::MigrateError> {
-    sqlx::migrate::Migrator {
+    let mut connection = h.owner.acquire().await?;
+    connection.close_on_drop();
+    let result = sqlx::migrate::Migrator {
         migrations: store::MIGRATOR
             .iter()
             .filter(|migration| migration.version <= 26)
@@ -27,8 +29,10 @@ async fn migrate(h: &Harness) -> Result<(), sqlx::migrate::MigrateError> {
             .into(),
         ..sqlx::migrate::Migrator::DEFAULT
     }
-    .run(&h.owner)
-    .await
+    .run_direct(None, &mut *connection, false)
+    .await;
+    connection.close().await?;
+    result
 }
 
 async fn version(h: &Harness) -> i64 {

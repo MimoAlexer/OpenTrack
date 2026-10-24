@@ -150,6 +150,7 @@ jobs:
         working-directory: web
         run: |
           npm ci --ignore-scripts
+          node --experimental-strip-types --test e2e/receipt-reporter-privacy.mjs
           npm run typecheck
           npm run test:browser:list
           npx playwright install --with-deps chromium firefox webkit
@@ -192,4 +193,4 @@ jobs:
           fi
       - name: Remove only this job's disposable containers and volumes
         if: ${{ always() && needs.scope.result == 'success' && needs.scope.outputs.docker == 'true' }}
-        run: OPENTRACK_DOMAIN=localhost OPENTRACK_PUBLIC_URL=https://localhost:18443 docker compose -f compose.yaml -f compose.https.yaml --profile https down --volumes --remove-orphans --timeout 35
+        run: OPENTRACK_DOMAIN=localhost OPENTRACK_PUBLIC_URL=https://localhost:18443 docker compose -f compose.yaml -f compose.https.yaml --profile https --profile operator down --volumes --remove-orphans --timeout 35
