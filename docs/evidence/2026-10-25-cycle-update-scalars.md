@@ -32,8 +32,9 @@ publication semantics. The visible scalar counter is verified in browser and uni
 coverage.
 
 After verified browser namespace termination, the parent validates the private
-fact UUIDs, engine, expected digest and row count. It then uses the own API database
-role with the validated actor context and constrains reason reads by the exact
+fact UUIDs, engine, expected digest and row count. It then uses the configured
+`OPENTRACK_DATABASE_URL` in a READ ONLY transaction with the validated actor context.
+PostgreSQL session-role identity was not separately recorded. It constrains reason reads by the exact
 synthetic workspace/team/cycle identities, with a two-row limit and bounded timeouts.
 The baseline has zero reason rows per engine; each corrected case has exactly one
 stored1000-scalar reason matching the request digest. Raw IDs, reason text, query
