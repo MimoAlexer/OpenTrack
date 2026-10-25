@@ -1,0 +1,668 @@
+{
+  "date": "2026-10-25",
+  "scope": "Comment moderation reason scalar input; bounded F11 increment",
+  "base_commit": "8b730204089f0ce63c61e0615c9bb7a49ebeaa98",
+  "branch": "codex/worker-a-comment-moderation-scalars",
+  "change": "Remove only the two native UTF-16 maxlength500 caps on edit/delete moderation reasons; existing Rust author/manager, required/trim/control/scalar and representation ETag policy stays unchanged.",
+  "source_and_check_sha256": {
+    "web/src/documents/IssueComments.tsx": "b6cb795f50de66bd46ad356edc80373776a496c7ce3c96c2caf4e17e63505174",
+    "web/src/documents/IssueComments.test.tsx": "4c08be0edfc6c8699111ac83f89a70318563dd7f524ac0b0bb2168463025e87b",
+    "web/e2e/comment-moderation-scalar-inputs.browser.ts": "198ab88637b360581cc9374c7cf5b832c9c44f82673d4b961ded496f55050105",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "web/e2e/fixtures.ts": "97c8f8183457a7b4af966090b12fbe58166c0f7fa37822643c5511d4fb469445",
+    "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667",
+    "work/comment-moderation-contained.py": "7e45a2e0cd4cd6394b0ef349130466dc52338c7d9900f8fbff0b7c27b9f70e4c",
+    "work/comment-moderation-scalars/unit.log": "5e2dc8f09bc4e8df095c27a7e30e21691c1f1a9e1323a33c87cb72f59437f328",
+    "work/comment-moderation-scalars/typecheck.log": "50791af51b60280d7e513ca60ad69f0d2b8af76c3ac63034a5a590ae70375779",
+    "work/comment-moderation-scalars/production-build.log": "cec44c17d4641ddc4372d5490388380f8850484dbbd3989133ea2c7b6712608c"
+  },
+  "executed_checks": [
+    {
+      "command": "cd web; npm test -- src/documents/IssueComments.test.tsx --maxWorkers=1",
+      "status": "passed",
+      "files": 1,
+      "tests": 20
+    },
+    {
+      "command": "cd web; npm run typecheck",
+      "status": "passed",
+      "targets": [
+        "tsconfig.json",
+        "tsconfig.e2e.json"
+      ]
+    },
+    {
+      "command": "npm run build --prefix web",
+      "status": "passed",
+      "candidate_production_builds": 1
+    }
+  ],
+  "browser_command": "node node_modules/@playwright/test/cli.js test comment-moderation-scalar-inputs.browser.ts",
+  "profile": {
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "journeys_per_engine": 1,
+    "workers": 1,
+    "retries": 0,
+    "test_timeout_ms": 60000,
+    "expect_timeout_ms": 10000,
+    "action_timeout_ms": 10000,
+    "origin": "http://127.0.0.1:18081",
+    "trace": false,
+    "screenshot": false,
+    "video": false
+  },
+  "private_reporters": "Existing receipt reporter plus standard JSON reporter, private per-phase output and approved copied PID containment.",
+  "fixture_isolation": "Each journey creates a synthetic private team, issue and invited member-authored comment; the authorized owner moderates through the actual UI/API. Existing private database/data, backend and scope are reused without reset or earlier-task reruns.",
+  "runtime_artifact_root": "$OPENTRACK_DEV_STATE/comment-moderation-scalars",
+  "frontend_roots": {
+    "baseline": "$OPENTRACK_DEV_STATE/workflow-label-scalars/baseline-frontend",
+    "corrected": "$OPENTRACK_DEV_STATE/comment-moderation-scalars/corrected-frontend"
+  },
+  "private_artifact_index": {
+    "path": "$OPENTRACK_DEV_STATE/comment-moderation-scalars/artifact-index.json",
+    "sha256": "6f582c7e57e80418c440f072b0be4c8b6e95bb7577d6843f5fb64b4b4ac3bcef"
+  },
+  "runs": {
+    "baseline": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "moderation reasons preserve 500 supplementary scalars through edit and deletion while 501 rejections retain drafts and saved versions",
+            "status": "failed",
+            "duration_ms": 4583,
+            "failure": "comment-moderation-scalar-inputs.browser.ts:67"
+          },
+          {
+            "browser": "firefox",
+            "check": "moderation reasons preserve 500 supplementary scalars through edit and deletion while 501 rejections retain drafts and saved versions",
+            "status": "failed",
+            "duration_ms": 6751,
+            "failure": "comment-moderation-scalar-inputs.browser.ts:67"
+          },
+          {
+            "browser": "webkit",
+            "check": "moderation reasons preserve 500 supplementary scalars through edit and deletion while 501 rejections retain drafts and saved versions",
+            "status": "failed",
+            "duration_ms": 5285,
+            "failure": "comment-moderation-scalar-inputs.browser.ts:67"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "baseline",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "198ab88637b360581cc9374c7cf5b832c9c44f82673d4b961ded496f55050105",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 1,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-counts": {
+              "edit_reason": {
+                "scalars": 250,
+                "utf16_units": 500
+              },
+              "delete_reason": {
+                "scalars": 250,
+                "utf16_units": 500
+              }
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-counts": {
+              "edit_reason": {
+                "scalars": 250,
+                "utf16_units": 500
+              },
+              "delete_reason": {
+                "scalars": 250,
+                "utf16_units": 500
+              }
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-counts": {
+              "edit_reason": {
+                "scalars": 250,
+                "utf16_units": 500
+              },
+              "delete_reason": {
+                "scalars": 250,
+                "utf16_units": 500
+              }
+            }
+          }
+        }
+      ]
+    },
+    "corrected": {
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "moderation reasons preserve 500 supplementary scalars through edit and deletion while 501 rejections retain drafts and saved versions",
+            "status": "passed",
+            "duration_ms": 8914
+          },
+          {
+            "browser": "firefox",
+            "check": "moderation reasons preserve 500 supplementary scalars through edit and deletion while 501 rejections retain drafts and saved versions",
+            "status": "passed",
+            "duration_ms": 13595
+          },
+          {
+            "browser": "webkit",
+            "check": "moderation reasons preserve 500 supplementary scalars through edit and deletion while 501 rejections retain drafts and saved versions",
+            "status": "passed",
+            "duration_ms": 13095
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "corrected",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "198ab88637b360581cc9374c7cf5b832c9c44f82673d4b961ded496f55050105",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 0,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-counts": {
+              "edit_reason": {
+                "scalars": 500,
+                "utf16_units": 1000
+              },
+              "delete_reason": {
+                "scalars": 500,
+                "utf16_units": 1000
+              }
+            },
+            "persisted-scalar-receipt": {
+              "comment_versions": [
+                "1",
+                "2",
+                "3"
+              ],
+              "document_versions_before_deletion": [
+                "1",
+                "2"
+              ],
+              "deleted_document_hidden": true,
+              "exact_request_reason_text_verified": true,
+              "audit_storage_observed": false,
+              "writes": [
+                {
+                  "method": "PATCH",
+                  "status": 422,
+                  "reason_scalars": 501
+                },
+                {
+                  "method": "PATCH",
+                  "status": 200,
+                  "reason_scalars": 500
+                },
+                {
+                  "method": "DELETE",
+                  "status": 422,
+                  "reason_scalars": 501
+                },
+                {
+                  "method": "DELETE",
+                  "status": 204,
+                  "reason_scalars": 500
+                }
+              ]
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-counts": {
+              "edit_reason": {
+                "scalars": 500,
+                "utf16_units": 1000
+              },
+              "delete_reason": {
+                "scalars": 500,
+                "utf16_units": 1000
+              }
+            },
+            "persisted-scalar-receipt": {
+              "comment_versions": [
+                "1",
+                "2",
+                "3"
+              ],
+              "document_versions_before_deletion": [
+                "1",
+                "2"
+              ],
+              "deleted_document_hidden": true,
+              "exact_request_reason_text_verified": true,
+              "audit_storage_observed": false,
+              "writes": [
+                {
+                  "method": "PATCH",
+                  "status": 422,
+                  "reason_scalars": 501
+                },
+                {
+                  "method": "PATCH",
+                  "status": 200,
+                  "reason_scalars": 500
+                },
+                {
+                  "method": "DELETE",
+                  "status": 422,
+                  "reason_scalars": 501
+                },
+                {
+                  "method": "DELETE",
+                  "status": 204,
+                  "reason_scalars": 500
+                }
+              ]
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-counts": {
+              "edit_reason": {
+                "scalars": 500,
+                "utf16_units": 1000
+              },
+              "delete_reason": {
+                "scalars": 500,
+                "utf16_units": 1000
+              }
+            },
+            "persisted-scalar-receipt": {
+              "comment_versions": [
+                "1",
+                "2",
+                "3"
+              ],
+              "document_versions_before_deletion": [
+                "1",
+                "2"
+              ],
+              "deleted_document_hidden": true,
+              "exact_request_reason_text_verified": true,
+              "audit_storage_observed": false,
+              "writes": [
+                {
+                  "method": "PATCH",
+                  "status": 422,
+                  "reason_scalars": 501
+                },
+                {
+                  "method": "PATCH",
+                  "status": 200,
+                  "reason_scalars": 500
+                },
+                {
+                  "method": "DELETE",
+                  "status": 422,
+                  "reason_scalars": 501
+                },
+                {
+                  "method": "DELETE",
+                  "status": 204,
+                  "reason_scalars": 500
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "frontend_source_provenance": [
+    {
+      "phase": "baseline",
+      "source": "web/src/documents/IssueComments.tsx",
+      "source_sha256": "9eb0d2b439d96875b10401b0b6bf06e4d986a6704fe2f27429f4c32669e11aad",
+      "sourcemap": "assets/index-CAeW4zFK.js.map",
+      "sourcemap_sha256": "516821d4467f467480c14e14fbbe529915bcca9679c49ec03554a27d8d7ecb41",
+      "bundle_sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524"
+    },
+    {
+      "phase": "corrected",
+      "source": "web/src/documents/IssueComments.tsx",
+      "source_sha256": "b6cb795f50de66bd46ad356edc80373776a496c7ce3c96c2caf4e17e63505174",
+      "sourcemap": "assets/index-Dro_Rv3K.js.map",
+      "sourcemap_sha256": "3810ed0243e36570575dc016ac762b45fc71cdb40a4902e0a1e7870ffdb60407",
+      "bundle_sha256": "71a4cedb6f52fc20ec6bd6b3d0ed67acfcdb65773a093f5425feafe18aa20d9a"
+    }
+  ],
+  "retained_frontend_assets": [
+    {
+      "phase": "baseline",
+      "path": "assets/RichTextEditor-BedJvSKb.js",
+      "sha256": "a7b972c673d27a66d332a670742aee8d25a56d230d3feca5875b4937030a9178",
+      "bytes": 444281,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/RichTextEditor-BedJvSKb.js.map",
+      "sha256": "67e888af9e6fdec5c8153941ea5aa1f1e1fcc4126da5e66158230c442c8e3d46",
+      "bytes": 1964893,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/index-B9yoYYJd.css",
+      "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+      "bytes": 90154,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/index-CAeW4zFK.js",
+      "sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524",
+      "bytes": 689015,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/index-CAeW4zFK.js.map",
+      "sha256": "516821d4467f467480c14e14fbbe529915bcca9679c49ec03554a27d8d7ecb41",
+      "bytes": 2393652,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/portability.worker-DEvlQVr4.js",
+      "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+      "bytes": 79037,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/portability.worker-DEvlQVr4.js.map",
+      "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+      "bytes": 224663,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "index.html",
+      "sha256": "ca5c59a4af58df389a9d9cd627db02f17d33f573ef9c6735ce7a9a838137797b",
+      "bytes": 606,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "theme.js",
+      "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+      "bytes": 321,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/RichTextEditor-DQFfKyQn.js",
+      "sha256": "6dd40f30eaaf3b94aef9449c5729f1783d52785ce10550fac6b64120f88cb1a9",
+      "bytes": 444281,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/RichTextEditor-DQFfKyQn.js.map",
+      "sha256": "3578ae62a9c6432a96897f3e04c16548e047c143016a96a5d513ec25f5e2c6af",
+      "bytes": 1964243,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/index-B9yoYYJd.css",
+      "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+      "bytes": 90154,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/index-Dro_Rv3K.js",
+      "sha256": "71a4cedb6f52fc20ec6bd6b3d0ed67acfcdb65773a093f5425feafe18aa20d9a",
+      "bytes": 688987,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/index-Dro_Rv3K.js.map",
+      "sha256": "3810ed0243e36570575dc016ac762b45fc71cdb40a4902e0a1e7870ffdb60407",
+      "bytes": 2391580,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/portability.worker-DEvlQVr4.js",
+      "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+      "bytes": 79037,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/portability.worker-DEvlQVr4.js.map",
+      "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+      "bytes": 224663,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "index.html",
+      "sha256": "df6016afc3aade0c6b7c7e0c66fc5fe06bfc4867cfe52153d1d7faafc93be5d4",
+      "bytes": 606,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "theme.js",
+      "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+      "bytes": 321,
+      "mode": "0o600"
+    }
+  ],
+  "private_runtime_artifacts": [
+    {
+      "phase": "baseline",
+      "path": "api.log",
+      "sha256": "1fb441ab1632b309ef2343749add89c3b5cbb7530d02adf12bbb7292c59095a1",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "migration.log",
+      "sha256": "c5230109b751899b9235199fc49f7cd148dee43efb2139c5be42315cdb3e1098",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/.last-run.json",
+      "sha256": "ba403cf3fe852136a73edaee9293340cd48aa0b7164b53697b69796dbd87f0db",
+      "bytes": 194,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/comment-moderation-scalar--cd946-n-drafts-and-saved-versions-chromium/error-context.md",
+      "sha256": "07b8b059023d9a3d8401bd37722cc8d3ac9c8354c72052739dc54f92a8239e21",
+      "bytes": 61062,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/comment-moderation-scalar--cd946-n-drafts-and-saved-versions-firefox/error-context.md",
+      "sha256": "d828f79482c6f7b05fd8efaf06f57c5844262bcb524a4f31436c9578b0122fa0",
+      "bytes": 62444,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/comment-moderation-scalar--cd946-n-drafts-and-saved-versions-webkit/error-context.md",
+      "sha256": "1dd805df1ee8f4ba46bf642e4f55b1dea1b39c05d9e03a0a749bdb70e40dd209",
+      "bytes": 63085,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "private-results.json",
+      "sha256": "5252ca4f876bafe274c6fabd27be79810cad548cf54a743f9e92fca6f23cbd0c",
+      "bytes": 107128,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "receipt.json",
+      "sha256": "f1ee797125f72c5c3d221ce2fe59835c8693e1120b87f003d8314364e7246771",
+      "bytes": 1289,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "runner.log",
+      "sha256": "3b71b873543e5c7522dbca6abde8e6f3b7bfb42d353ea3c57fb24761c87324e2",
+      "bytes": 647,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "scope-receipt.json",
+      "sha256": "7353a5a0cec56e44d99170479794a9a0686432b2d2bc8921659c19ee16cf569d",
+      "bytes": 473,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "api.log",
+      "sha256": "3ef848560560ea3cca4d2dbb00fd7583b77968e95e2399894cd2eac9a8b84bfb",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "migration.log",
+      "sha256": "3686f571e226deab22a7f8899417a4faba5d7ddaaf6bd8b9db85d13767224b2a",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "output/.last-run.json",
+      "sha256": "91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903",
+      "bytes": 45,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "private-results.json",
+      "sha256": "4301188bfbe5defb1bae14b93c081a4b4a72589afb1a7e99d04fffb98a614277",
+      "bytes": 14551,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "receipt.json",
+      "sha256": "e3069f6434f3452e11504c65f57f7d5c2a9605c2b513625181e194b537ec69d8",
+      "bytes": 1090,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "runner.log",
+      "sha256": "35fef88c8498ab0448b5063b4efe088308b395217dfe56f4282bacbdeb1e0187",
+      "bytes": 500,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "scope-receipt.json",
+      "sha256": "ec3110d62f3e770d63baee2d4c444032705cc4ab9b0ba07324482d9925ef0769",
+      "bytes": 474,
+      "mode": "0o600"
+    }
+  ],
+  "shutdown": {
+    "same_namespace_extra_processes": [],
+    "postmaster_pid_absent": true,
+    "database_data_retained": true
+  },
+  "shutdown_receipt": {
+    "path": "$OPENTRACK_DEV_STATE/comment-moderation-scalars/shutdown-audit.json",
+    "sha256": "ccbaea8ae3e0ab7df0f8208f921543c105cdfb51bd830e9118903394ec612f76"
+  },
+  "database_stop_log": {
+    "path": "$OPENTRACK_DEV_STATE/comment-moderation-scalars/database-stop.log",
+    "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+  },
+  "prior_candidate_preservation_receipt": {
+    "path": "$OPENTRACK_DEV_STATE/comment-moderation-scalars/prior-candidate-preservation.json",
+    "sha256": "a7d35d8539d151d07f25165f39cf37d82f90a14d993df4ab84cce1e18e876556"
+  },
+  "asserted_behavior": [
+    "Native sequential input proves baseline250 and corrected500 scalars in both reason controls with identical spec bytes.",
+    "Both501-scalar requests reach Rust and return HTTP422 validation_failed; reason and edited-body drafts survive and saved comment/document versions remain unchanged.",
+    "Repair submits exact500-scalar reason text under the original current If-Match, with one accepted edit and one accepted deletion.",
+    "Edit increments comment and document version once; deletion increments comment version once and the document becomes hidden behind a persistent tombstone after reload.",
+    "Focused units retain required/whitespace behavior, ordinary-author requests without moderation reason, current server permission restrictions, dirty/conflict/auth refresh and uncertain command behavior."
+  ],
+  "audit_storage_observed": false,
+  "migration_rollback": "No schema, Rust, body schema or wire change. Frontend rollback restores native cutoffs; existing server moderation policy remains authoritative.",
+  "limits": [
+    "Exact moderation reason request text and persisted comment behavior are verified; audit-row storage and the deleted document internal version were not separately read.",
+    "Normal contained completion and namespace emptiness are verified; no forced interruption drill was performed.",
+    "Physical IME/keyboard, native desktop, assistive technology, screenshots, global matrices and broader F11/M04/product acceptance remain separate gates.",
+    "Independent exact-head review, hosted checks and integration remain lead-owned. No push, PR, merge or issue closure was performed.",
+    "The ongoing worker Goal continues for scoped findings and the next explicit assignment."
+  ]
+}
