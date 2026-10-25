@@ -1,0 +1,1317 @@
+{
+  "date": "2026-10-25",
+  "base": "8b730204089f0ce63c61e0615c9bb7a49ebeaa98",
+  "scope": "F05/F15/M05 cycle-reopen reason and project-update scalar input increment",
+  "change": "Remove reason1000/body8000 native caps and correct displayed update count to Unicode scalars; retain Rust authority.",
+  "sources": [
+    {
+      "path": "web/src/cycles/Cycles.tsx",
+      "sha256": "e290b07b1ed3983277244af224250f72d34bdc3a0e8d34117174947f8cb75e17"
+    },
+    {
+      "path": "web/src/cycles/Planning.test.tsx",
+      "sha256": "46e57d05cff9d39fb7002f8d64359ad2a74c9faf3b178c4f36f2c33e627fbae3"
+    },
+    {
+      "path": "web/src/projects/ProjectUpdates.tsx",
+      "sha256": "7da16a04ff7c7e076529a8ae31783ec5bf275b2a5ed7972fb90a575c2e53e6cd"
+    },
+    {
+      "path": "web/src/projects/Projects.test.tsx",
+      "sha256": "b74ff42be6892a84a93b3c7beaa54c3b139fdce86ac0b9cda7dc82b35575c48f"
+    },
+    {
+      "path": "web/e2e/cycle-update-scalar-inputs.browser.ts",
+      "sha256": "4e26396ebc83a4cc42c6918ae2125fe6c9060dba4d8e85f55ae72f84511f4bba"
+    }
+  ],
+  "baseline_sources": [
+    {
+      "path": "web/src/cycles/Cycles.tsx",
+      "sha256": "631601f4b8296fd06d1cefcbf96eafe60d6a6d04b7f17f23b933ae9cf20910bb"
+    },
+    {
+      "path": "web/src/projects/ProjectUpdates.tsx",
+      "sha256": "47431bc05abba9c010ca8d557e333e407a97b458f33e753b63573ee4a44f3d83"
+    },
+    {
+      "path": "web/e2e/cycle-update-scalar-inputs.browser.ts",
+      "sha256": "4e26396ebc83a4cc42c6918ae2125fe6c9060dba4d8e85f55ae72f84511f4bba"
+    }
+  ],
+  "native_bulk_method": "Locator.fill(empty), focus, then Page.keyboard.insertText(text); no DOM value assignment. Measured baseline proves both original HTML caps execute.",
+  "baseline_native_facts": [
+    {
+      "kind": "native_bulk_input",
+      "engine": "chromium",
+      "control": "project_update",
+      "expected_scalars": 8000,
+      "actual_scalars": 4000,
+      "expected_utf16": 16000,
+      "actual_utf16": 8000,
+      "expected_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1",
+      "actual_sha256": "4666f21ceed86fdadc6a6288152375097e04b40d02593e6b1a5e0d38b450b36b"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "firefox",
+      "control": "project_update",
+      "expected_scalars": 8000,
+      "actual_scalars": 4000,
+      "expected_utf16": 16000,
+      "actual_utf16": 8000,
+      "expected_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1",
+      "actual_sha256": "4666f21ceed86fdadc6a6288152375097e04b40d02593e6b1a5e0d38b450b36b"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "webkit",
+      "control": "project_update",
+      "expected_scalars": 8000,
+      "actual_scalars": 4000,
+      "expected_utf16": 16000,
+      "actual_utf16": 8000,
+      "expected_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1",
+      "actual_sha256": "4666f21ceed86fdadc6a6288152375097e04b40d02593e6b1a5e0d38b450b36b"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "chromium",
+      "control": "cycle_reason",
+      "expected_scalars": 1000,
+      "actual_scalars": 500,
+      "expected_utf16": 2000,
+      "actual_utf16": 1000,
+      "expected_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d",
+      "actual_sha256": "7bf6b3d9dfe51ae2c216b950cc484b2c6edaf7475f0e54ff3ca37a855b48ff57"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "firefox",
+      "control": "cycle_reason",
+      "expected_scalars": 1000,
+      "actual_scalars": 500,
+      "expected_utf16": 2000,
+      "actual_utf16": 1000,
+      "expected_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d",
+      "actual_sha256": "7bf6b3d9dfe51ae2c216b950cc484b2c6edaf7475f0e54ff3ca37a855b48ff57"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "webkit",
+      "control": "cycle_reason",
+      "expected_scalars": 1000,
+      "actual_scalars": 500,
+      "expected_utf16": 2000,
+      "actual_utf16": 1000,
+      "expected_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d",
+      "actual_sha256": "7bf6b3d9dfe51ae2c216b950cc484b2c6edaf7475f0e54ff3ca37a855b48ff57"
+    }
+  ],
+  "checks": [
+    {
+      "command": "npm --prefix web test -- --maxWorkers=1 src/projects/Projects.test.tsx src/cycles/Planning.test.tsx",
+      "log": "work/cycle-update-units.log",
+      "result": "passed",
+      "log_sha256": "bce2e463d262533ca5622f1b739b40f3fbe21087197dd025945645b7d956c52d",
+      "passed": 55
+    },
+    {
+      "command": "npm --prefix web run typecheck",
+      "log": "work/cycle-update-typecheck-final.log",
+      "result": "application and e2e targets passed",
+      "log_sha256": "50791af51b60280d7e513ca60ad69f0d2b8af76c3ac63034a5a590ae70375779"
+    },
+    {
+      "command": "npm --prefix web run build",
+      "log": "work/cycle-update-build-final.log",
+      "result": "one final production build passed; existing chunk warning retained",
+      "log_sha256": "b1517e56d6928e86620652002fc357902e899e6b83215744131b04f71674e744"
+    }
+  ],
+  "browser_runs": {
+    "baseline": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "cycle reopening preserves a scalar-boundary reason, rejects overlength without history changes and persists one repair",
+            "status": "failed",
+            "duration_ms": 298,
+            "failure": "fixtures.ts:19"
+          },
+          {
+            "browser": "chromium",
+            "check": "project update preserves 8000 scalars and its displayed count, rejects 8001 and publishes one immutable snapshot",
+            "status": "failed",
+            "duration_ms": 1128,
+            "failure": "cycle-update-scalar-inputs.browser.ts:16"
+          },
+          {
+            "browser": "firefox",
+            "check": "cycle reopening preserves a scalar-boundary reason, rejects overlength without history changes and persists one repair",
+            "status": "failed",
+            "duration_ms": 1081,
+            "failure": "fixtures.ts:19"
+          },
+          {
+            "browser": "firefox",
+            "check": "project update preserves 8000 scalars and its displayed count, rejects 8001 and publishes one immutable snapshot",
+            "status": "failed",
+            "duration_ms": 1966,
+            "failure": "cycle-update-scalar-inputs.browser.ts:16"
+          },
+          {
+            "browser": "webkit",
+            "check": "cycle reopening preserves a scalar-boundary reason, rejects overlength without history changes and persists one repair",
+            "status": "failed",
+            "duration_ms": 341,
+            "failure": "fixtures.ts:19"
+          },
+          {
+            "browser": "webkit",
+            "check": "project update preserves 8000 scalars and its displayed count, rejects 8001 and publishes one immutable snapshot",
+            "status": "failed",
+            "duration_ms": 1066,
+            "failure": "cycle-update-scalar-inputs.browser.ts:16"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "9cad0cc90c8638a0ecda583531eed7a314e42b245af23b29a1e54478c787b288",
+      "spec_sha256": "526ef97eb8d91ff1d8208e9ae65fed226e787679ed5ff4d7df7e434ac3bc7e0d",
+      "caller_sha256": "d2c7d76aede80d5cf6b446f3aa5e44d1d7a7c5380b2f6648c6200b4b875274d8",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "artifacts": [
+        {
+          "path": "api.log",
+          "sha256": "f7094486179d244c44e03fff8a02e12458835fe2bdaec04436c94e78ede244d2",
+          "bytes": 366
+        },
+        {
+          "path": "browser.log",
+          "sha256": "f309ca36fdd67c887f240b5f85f51c4b5c0581bf9e0ce0f4dbdfaccbb2bf539b",
+          "bytes": 1025
+        },
+        {
+          "path": "caller.py",
+          "sha256": "d2c7d76aede80d5cf6b446f3aa5e44d1d7a7c5380b2f6648c6200b4b875274d8",
+          "bytes": 8703
+        },
+        {
+          "path": "cleanup.json",
+          "sha256": "8dbd52d51fd671df3f496745ceaaf6a273483ebd23a35170f7fd6b81e216a6de",
+          "bytes": 75
+        },
+        {
+          "path": "output/.last-run.json",
+          "sha256": "7ea84c569e35e0bb321c6b654bb3d5b34c0db648dc15e3d8d96a3ebbcaa79046",
+          "bytes": 341
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-chromium/error-context.md",
+          "sha256": "6aecc2c2b5c4a82b2960f2bda761fa48fc1840921b4cb27c85793893cf0c4a2d",
+          "bytes": 88836
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-firefox/error-context.md",
+          "sha256": "b70e458a37cd914497d6581baebb18ead6cf506a4cc5a15bf5673825c02a2f4f",
+          "bytes": 89696
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-webkit/error-context.md",
+          "sha256": "963b0cdad31e1cd36e8fb836c5c5bb94576f4102d10bf41dc3ff52647b077655",
+          "bytes": 90077
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-chromium/error-context.md",
+          "sha256": "cf6f7bbf2b217e0c83d11ea5083e3331c7a56e15a89ee6b0f13ec6950a4e4f45",
+          "bytes": 9569
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-firefox/error-context.md",
+          "sha256": "d1e942cd474e7246036b783d47ead0e364ff3e7d2b2c9d8572d44806d95629ae",
+          "bytes": 9569
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-webkit/error-context.md",
+          "sha256": "cef5020d243d75a420bddb8605f0875848a6fd042cf2c15802f2b2fa8e36b593",
+          "bytes": 9569
+        },
+        {
+          "path": "receipt.json",
+          "sha256": "9cad0cc90c8638a0ecda583531eed7a314e42b245af23b29a1e54478c787b288",
+          "bytes": 2001
+        },
+        {
+          "path": "result.json",
+          "sha256": "ca93bc95660a4d2cd12e6369114a5791a1cfa83b998444e49288bea3d1e2b427",
+          "bytes": 38
+        },
+        {
+          "path": "spec.browser.ts",
+          "sha256": "526ef97eb8d91ff1d8208e9ae65fed226e787679ed5ff4d7df7e434ac3bc7e0d",
+          "bytes": 8966
+        }
+      ]
+    },
+    "baseline-fixed": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "cycle reopening preserves a scalar-boundary reason, rejects overlength without history changes and persists one repair",
+            "status": "failed",
+            "duration_ms": 693,
+            "failure": "cycle-update-scalar-inputs.browser.ts:11"
+          },
+          {
+            "browser": "chromium",
+            "check": "project update preserves 8000 scalars and its displayed count, rejects 8001 and publishes one immutable snapshot",
+            "status": "failed",
+            "duration_ms": 835,
+            "failure": "cycle-update-scalar-inputs.browser.ts:11"
+          },
+          {
+            "browser": "firefox",
+            "check": "cycle reopening preserves a scalar-boundary reason, rejects overlength without history changes and persists one repair",
+            "status": "failed",
+            "duration_ms": 1884,
+            "failure": "cycle-update-scalar-inputs.browser.ts:11"
+          },
+          {
+            "browser": "firefox",
+            "check": "project update preserves 8000 scalars and its displayed count, rejects 8001 and publishes one immutable snapshot",
+            "status": "failed",
+            "duration_ms": 2189,
+            "failure": "cycle-update-scalar-inputs.browser.ts:11"
+          },
+          {
+            "browser": "webkit",
+            "check": "cycle reopening preserves a scalar-boundary reason, rejects overlength without history changes and persists one repair",
+            "status": "failed",
+            "duration_ms": 1033,
+            "failure": "cycle-update-scalar-inputs.browser.ts:11"
+          },
+          {
+            "browser": "webkit",
+            "check": "project update preserves 8000 scalars and its displayed count, rejects 8001 and publishes one immutable snapshot",
+            "status": "failed",
+            "duration_ms": 1124,
+            "failure": "cycle-update-scalar-inputs.browser.ts:11"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "bea61f19125dea955ffdb5d5a0b939512988bc0467fc3ea1ff08fc1e841dbb05",
+      "spec_sha256": "d29c23c165028444d958307dad5a3f8a4df06a345d9bf28ea700678a41571795",
+      "caller_sha256": "d2a1c876100e7b6a8483fecab482db1ee7a713bdeeefb45c3f772da820c60cec",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "artifacts": [
+        {
+          "path": "api.log",
+          "sha256": "c8c877c899ee9c3c0eb6479182559e1729c690fa6b4594e65e300063ec788984",
+          "bytes": 366
+        },
+        {
+          "path": "browser.log",
+          "sha256": "080fdfef2f2a0d1120967df4469d81bd947748ef4019dbb49d8c36e0a084e706",
+          "bytes": 1103
+        },
+        {
+          "path": "caller.py",
+          "sha256": "d2a1c876100e7b6a8483fecab482db1ee7a713bdeeefb45c3f772da820c60cec",
+          "bytes": 8720
+        },
+        {
+          "path": "cleanup.json",
+          "sha256": "8dbd52d51fd671df3f496745ceaaf6a273483ebd23a35170f7fd6b81e216a6de",
+          "bytes": 75
+        },
+        {
+          "path": "output/.last-run.json",
+          "sha256": "7ea84c569e35e0bb321c6b654bb3d5b34c0db648dc15e3d8d96a3ebbcaa79046",
+          "bytes": 341
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-chromium/bulk-input-project_update-0.json",
+          "sha256": "f83eec2149fbcb6a1e5434aa85d798f991cc27a2f20ef4058ead3a8c16a37174",
+          "bytes": 332
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-chromium/error-context.md",
+          "sha256": "dc6c420bf0aabb39aa9122e4dd6d8f7774d7039be3a31babbf70668a59442f39",
+          "bytes": 44436
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-firefox/bulk-input-project_update-0.json",
+          "sha256": "434390bda6b1748c867fde53bb62e53d3e13f7eaa86e4175bf6d84a6c19b680c",
+          "bytes": 331
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-firefox/error-context.md",
+          "sha256": "af782de7de6fd267a74f78403dae4b044b0eb9bc0be9e6f97618f70ad917f65c",
+          "bytes": 45292
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-webkit/bulk-input-project_update-0.json",
+          "sha256": "3678d5011081674d3dbfbf1f9f78c82b054156d9002d6d8c4e63c79a8eb89811",
+          "bytes": 330
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-webkit/error-context.md",
+          "sha256": "f462451efa0a9d16f3934b81a4fb381ea4d4858fea7b8e7a2e94dfabd8926f19",
+          "bytes": 45567
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-chromium/bulk-input-cycle_reason-0.json",
+          "sha256": "0bbbbefc93b025f35a4228d1221eb9d4a9291e2e625f6cc20c5bba35875286e9",
+          "bytes": 328
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-chromium/error-context.md",
+          "sha256": "9a63530dd60e8b65dd3e4d9f5773d05738cc4f652047d483ce42a98aba909eec",
+          "bytes": 33594
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-firefox/bulk-input-cycle_reason-0.json",
+          "sha256": "b587ee4bbcefab7329a1fd819c30b15c723529d8f4a85edee6e37d7bb7bb7bcb",
+          "bytes": 327
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-firefox/error-context.md",
+          "sha256": "bc024912d5e8b1f1e75a23271b0f39a4a91e8b03b0e31965797610438ced1cce",
+          "bytes": 34450
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-webkit/bulk-input-cycle_reason-0.json",
+          "sha256": "9f6042b6d13505073499e82a641dbd392be5a8447a6336e8e8da02be5fda6b24",
+          "bytes": 326
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-webkit/error-context.md",
+          "sha256": "f8763b0bde3aa62fd9ab658cd8b8e508a763ca16991a2d4da803b70a1b263d4a",
+          "bytes": 34742
+        },
+        {
+          "path": "receipt.json",
+          "sha256": "bea61f19125dea955ffdb5d5a0b939512988bc0467fc3ea1ff08fc1e841dbb05",
+          "bytes": 2079
+        },
+        {
+          "path": "result.json",
+          "sha256": "0a2e95834f6e9060a92932f62b0665d7f5b91290683cfb53cf27302f04364557",
+          "bytes": 44
+        },
+        {
+          "path": "spec.browser.ts",
+          "sha256": "d29c23c165028444d958307dad5a3f8a4df06a345d9bf28ea700678a41571795",
+          "bytes": 9134
+        }
+      ]
+    },
+    "baseline-facts-fixed": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "cycle reopening preserves a scalar-boundary reason, rejects overlength without history changes and persists one repair",
+            "status": "failed",
+            "duration_ms": 1010,
+            "failure": "cycle-update-scalar-inputs.browser.ts:19"
+          },
+          {
+            "browser": "chromium",
+            "check": "project update preserves 8000 scalars and its displayed count, rejects 8001 and publishes one immutable snapshot",
+            "status": "failed",
+            "duration_ms": 725,
+            "failure": "cycle-update-scalar-inputs.browser.ts:19"
+          },
+          {
+            "browser": "firefox",
+            "check": "cycle reopening preserves a scalar-boundary reason, rejects overlength without history changes and persists one repair",
+            "status": "failed",
+            "duration_ms": 1788,
+            "failure": "cycle-update-scalar-inputs.browser.ts:19"
+          },
+          {
+            "browser": "firefox",
+            "check": "project update preserves 8000 scalars and its displayed count, rejects 8001 and publishes one immutable snapshot",
+            "status": "failed",
+            "duration_ms": 1715,
+            "failure": "cycle-update-scalar-inputs.browser.ts:19"
+          },
+          {
+            "browser": "webkit",
+            "check": "cycle reopening preserves a scalar-boundary reason, rejects overlength without history changes and persists one repair",
+            "status": "failed",
+            "duration_ms": 1189,
+            "failure": "cycle-update-scalar-inputs.browser.ts:19"
+          },
+          {
+            "browser": "webkit",
+            "check": "project update preserves 8000 scalars and its displayed count, rejects 8001 and publishes one immutable snapshot",
+            "status": "failed",
+            "duration_ms": 1039,
+            "failure": "cycle-update-scalar-inputs.browser.ts:19"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "da5db27a488bd64f53ab887abb98cab74bebeeacb11df15dc5d0861d375faefe",
+      "spec_sha256": "4e26396ebc83a4cc42c6918ae2125fe6c9060dba4d8e85f55ae72f84511f4bba",
+      "caller_sha256": "3ddea5486ead262da918ff6185dbc5a562ab48253a48d84184bc8a5145f37c9e",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "artifacts": [
+        {
+          "path": "api.log",
+          "sha256": "2d2f11526ea446ea358dc097cea1c45cc4631336b2024ab3f4c6dc9cbd461a57",
+          "bytes": 366
+        },
+        {
+          "path": "browser.log",
+          "sha256": "f1eac02252a7a2189ea41cdffa4f4cc3f7fbef00e887a473b637131469fac090",
+          "bytes": 1103
+        },
+        {
+          "path": "caller.py",
+          "sha256": "3ddea5486ead262da918ff6185dbc5a562ab48253a48d84184bc8a5145f37c9e",
+          "bytes": 8744
+        },
+        {
+          "path": "cleanup.json",
+          "sha256": "8dbd52d51fd671df3f496745ceaaf6a273483ebd23a35170f7fd6b81e216a6de",
+          "bytes": 75
+        },
+        {
+          "path": "output/.last-run.json",
+          "sha256": "7ea84c569e35e0bb321c6b654bb3d5b34c0db648dc15e3d8d96a3ebbcaa79046",
+          "bytes": 341
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-chromium/bulk-input-project_update-0.json",
+          "sha256": "f83eec2149fbcb6a1e5434aa85d798f991cc27a2f20ef4058ead3a8c16a37174",
+          "bytes": 332
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-chromium/error-context.md",
+          "sha256": "8a8ac90aa31a2d85c874ddd725e680cdb3fe9052fac3ec8528d71d44b554bc2d",
+          "bytes": 93991
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-firefox/bulk-input-project_update-0.json",
+          "sha256": "434390bda6b1748c867fde53bb62e53d3e13f7eaa86e4175bf6d84a6c19b680c",
+          "bytes": 331
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-firefox/error-context.md",
+          "sha256": "aee885cf3b5c76e279efa5c8d74834bf0c6d68912c37e52a64d9b138d67465c0",
+          "bytes": 94851
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-webkit/bulk-input-project_update-0.json",
+          "sha256": "3678d5011081674d3dbfbf1f9f78c82b054156d9002d6d8c4e63c79a8eb89811",
+          "bytes": 330
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-webkit/error-context.md",
+          "sha256": "5c7e0ee05c17593ce6742c95c28d2db3030afd75f87df974d3f6049e6e81925b",
+          "bytes": 95028
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-chromium/bulk-input-cycle_reason-0.json",
+          "sha256": "0bbbbefc93b025f35a4228d1221eb9d4a9291e2e625f6cc20c5bba35875286e9",
+          "bytes": 328
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-chromium/cycle-reopen-facts.json",
+          "sha256": "e208762ab2346b29d5c06155bcce7dbc99acfbbee59f58d67de7a65ff27c83dc",
+          "bytes": 375
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-chromium/error-context.md",
+          "sha256": "7fa2b9d8b293efd10b5c365b3d4ad45be0071b0679e74f331be42603f91fd75d",
+          "bytes": 41157
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-firefox/bulk-input-cycle_reason-0.json",
+          "sha256": "b587ee4bbcefab7329a1fd819c30b15c723529d8f4a85edee6e37d7bb7bb7bcb",
+          "bytes": 327
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-firefox/cycle-reopen-facts.json",
+          "sha256": "0b3cc003d85f406399bb6a397b9e707ad308e6f60790e703f4ebaeee07a63ec5",
+          "bytes": 374
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-firefox/error-context.md",
+          "sha256": "a5f798f71403bd363ee535fc752b40ff2870d128595c92d87eafe213c7d139f8",
+          "bytes": 42017
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-webkit/bulk-input-cycle_reason-0.json",
+          "sha256": "9f6042b6d13505073499e82a641dbd392be5a8447a6336e8e8da02be5fda6b24",
+          "bytes": 326
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-webkit/cycle-reopen-facts.json",
+          "sha256": "b742dc9c8c5ba5ead708f03c062fb88e2467704d62a0bb29c03883f181d11136",
+          "bytes": 373
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-webkit/error-context.md",
+          "sha256": "2e8c77ca933ffe314094c668327cd4d141b335bcfc4d35c2dbff62db85371965",
+          "bytes": 42211
+        },
+        {
+          "path": "reason-proof.json",
+          "sha256": "a8ea9c2f212ba1763a281d044fdfb22b5bd249c211c3afd76237807b616b7c18",
+          "bytes": 279
+        },
+        {
+          "path": "reason-query-chromium.result.json",
+          "sha256": "36c8a35349756ad9996dd466cc7813faeef0e98ec6d182124543835000252b2d",
+          "bytes": 120
+        },
+        {
+          "path": "reason-query-chromium.sql",
+          "sha256": "a123dcc1d0bd8bf1ecc2197b3252785ce043c06476247cd2d4ebaca98d0fef34",
+          "bytes": 1022
+        },
+        {
+          "path": "reason-query-firefox.result.json",
+          "sha256": "36c8a35349756ad9996dd466cc7813faeef0e98ec6d182124543835000252b2d",
+          "bytes": 120
+        },
+        {
+          "path": "reason-query-firefox.sql",
+          "sha256": "3a255f3a331bcacd672a136acb41fbe8ba39790d97a1da2c4ca4d70c7335bb95",
+          "bytes": 1022
+        },
+        {
+          "path": "reason-query-webkit.result.json",
+          "sha256": "36c8a35349756ad9996dd466cc7813faeef0e98ec6d182124543835000252b2d",
+          "bytes": 120
+        },
+        {
+          "path": "reason-query-webkit.sql",
+          "sha256": "ab38a7af7feedd9e6cbd36bdeb85b4db537483f2f293067fa7d332da98ac224e",
+          "bytes": 1022
+        },
+        {
+          "path": "receipt.json",
+          "sha256": "da5db27a488bd64f53ab887abb98cab74bebeeacb11df15dc5d0861d375faefe",
+          "bytes": 2080
+        },
+        {
+          "path": "result.json",
+          "sha256": "daf1c17a5ad5811ce2c15317064bae362017fd2b87a185d8ea2d6c7a8e9608fb",
+          "bytes": 50
+        },
+        {
+          "path": "spec.browser.ts",
+          "sha256": "4e26396ebc83a4cc42c6918ae2125fe6c9060dba4d8e85f55ae72f84511f4bba",
+          "bytes": 9000
+        }
+      ]
+    },
+    "corrected": {
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "cycle reopening preserves a scalar-boundary reason, rejects overlength without history changes and persists one repair",
+            "status": "passed",
+            "duration_ms": 1993
+          },
+          {
+            "browser": "chromium",
+            "check": "project update preserves 8000 scalars and its displayed count, rejects 8001 and publishes one immutable snapshot",
+            "status": "passed",
+            "duration_ms": 1929
+          },
+          {
+            "browser": "firefox",
+            "check": "cycle reopening preserves a scalar-boundary reason, rejects overlength without history changes and persists one repair",
+            "status": "passed",
+            "duration_ms": 3877
+          },
+          {
+            "browser": "firefox",
+            "check": "project update preserves 8000 scalars and its displayed count, rejects 8001 and publishes one immutable snapshot",
+            "status": "passed",
+            "duration_ms": 2311
+          },
+          {
+            "browser": "webkit",
+            "check": "cycle reopening preserves a scalar-boundary reason, rejects overlength without history changes and persists one repair",
+            "status": "passed",
+            "duration_ms": 2108
+          },
+          {
+            "browser": "webkit",
+            "check": "project update preserves 8000 scalars and its displayed count, rejects 8001 and publishes one immutable snapshot",
+            "status": "passed",
+            "duration_ms": 1839
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "8373ba80b587ed0d63c9bf0ff25cb6edeb898e2b85b2b8dee044bef5b83c1fde",
+      "spec_sha256": "4e26396ebc83a4cc42c6918ae2125fe6c9060dba4d8e85f55ae72f84511f4bba",
+      "caller_sha256": "3ddea5486ead262da918ff6185dbc5a562ab48253a48d84184bc8a5145f37c9e",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "artifacts": [
+        {
+          "path": "api.log",
+          "sha256": "89c248488dae758302a48d99656fce8582e8c5b9d25aa4198365089cf213332c",
+          "bytes": 366
+        },
+        {
+          "path": "browser.log",
+          "sha256": "0d6e07b8124e58a2d4c006b26224e55024ee42bdfe9d0f03e935118127ce5517",
+          "bytes": 845
+        },
+        {
+          "path": "caller.py",
+          "sha256": "3ddea5486ead262da918ff6185dbc5a562ab48253a48d84184bc8a5145f37c9e",
+          "bytes": 8744
+        },
+        {
+          "path": "cleanup.json",
+          "sha256": "8dbd52d51fd671df3f496745ceaaf6a273483ebd23a35170f7fd6b81e216a6de",
+          "bytes": 75
+        },
+        {
+          "path": "output/.last-run.json",
+          "sha256": "91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903",
+          "bytes": 45
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-chromium/bulk-input-project_update-3.json",
+          "sha256": "55678445bb61f11d8376c9d60420b84936722a61341c7d12cf4b4df2232a4383",
+          "bytes": 333
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-chromium/bulk-input-project_update-4.json",
+          "sha256": "bf373e5497ef470d61f027861891efaedca3036982b8268575d381b00a217cd0",
+          "bytes": 333
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-chromium/bulk-input-project_update-5.json",
+          "sha256": "55678445bb61f11d8376c9d60420b84936722a61341c7d12cf4b4df2232a4383",
+          "bytes": 333
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-firefox/bulk-input-project_update-3.json",
+          "sha256": "3f7aefb15b6d2069e9fefb6c80319c4bd86dd131763c874053863251e8174381",
+          "bytes": 332
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-firefox/bulk-input-project_update-4.json",
+          "sha256": "0a1b27a9eebdb6464f27f38bd9fb50a92352d693adcf99b1a7d1077b7dda6bd5",
+          "bytes": 332
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-firefox/bulk-input-project_update-5.json",
+          "sha256": "3f7aefb15b6d2069e9fefb6c80319c4bd86dd131763c874053863251e8174381",
+          "bytes": 332
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-webkit/bulk-input-project_update-3.json",
+          "sha256": "0df0f43804169bd51e0f1cb919c876d88275b97b3c0fc233b7d361328db7d9d9",
+          "bytes": 331
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-webkit/bulk-input-project_update-4.json",
+          "sha256": "97503747fcf0f4c6f9e4662b7ddd7da0b853c10e66ef9e2bf5f1b189eac30214",
+          "bytes": 331
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-2eae0-shes-one-immutable-snapshot-webkit/bulk-input-project_update-5.json",
+          "sha256": "0df0f43804169bd51e0f1cb919c876d88275b97b3c0fc233b7d361328db7d9d9",
+          "bytes": 331
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-chromium/bulk-input-cycle_reason-0.json",
+          "sha256": "2538d77d68dfcb3ad1922d79f0a97e354d4cca3bf3c523a4698fc87869d1b4fe",
+          "bytes": 329
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-chromium/bulk-input-cycle_reason-1.json",
+          "sha256": "a76291d43968e451d78875d95c122287c3b523ceb23d449768c252a80f9a8fed",
+          "bytes": 329
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-chromium/bulk-input-cycle_reason-2.json",
+          "sha256": "2538d77d68dfcb3ad1922d79f0a97e354d4cca3bf3c523a4698fc87869d1b4fe",
+          "bytes": 329
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-chromium/cycle-reopen-facts.json",
+          "sha256": "0b820c173be54c3657c1b10f19d80c714f76416e1901fbd5fb0e86589dff673a",
+          "bytes": 375
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-firefox/bulk-input-cycle_reason-0.json",
+          "sha256": "4cc7fd06bac78427220a2cfe7e42f2b79fe33b8ee5c5025ea1de67df12c53229",
+          "bytes": 328
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-firefox/bulk-input-cycle_reason-1.json",
+          "sha256": "fca2066f4d4fbe432d09701ddce651bb52d59786dcb44f46ba41385f35a37aaa",
+          "bytes": 328
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-firefox/bulk-input-cycle_reason-2.json",
+          "sha256": "4cc7fd06bac78427220a2cfe7e42f2b79fe33b8ee5c5025ea1de67df12c53229",
+          "bytes": 328
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-firefox/cycle-reopen-facts.json",
+          "sha256": "2430c7010f1e29c538e2c1e04372d8d87db2e8dcbc111c646e8d5127a4730b98",
+          "bytes": 374
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-webkit/bulk-input-cycle_reason-0.json",
+          "sha256": "b456e2edeb53d9fcaec97244ba99ff3f483383196fd73f0f0e0e8f87686b3170",
+          "bytes": 327
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-webkit/bulk-input-cycle_reason-1.json",
+          "sha256": "33fb25127c803c59b7a59bfeae371d58851fac437c2c1dd82cadf4e79cf87e25",
+          "bytes": 327
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-webkit/bulk-input-cycle_reason-2.json",
+          "sha256": "b456e2edeb53d9fcaec97244ba99ff3f483383196fd73f0f0e0e8f87686b3170",
+          "bytes": 327
+        },
+        {
+          "path": "output/cycle-update-scalar-inputs-dfbd8-ges-and-persists-one-repair-webkit/cycle-reopen-facts.json",
+          "sha256": "9ececb55184bd06d3991cb1d72314eb6220372da1bd7cf7b615c84d0deef0b84",
+          "bytes": 373
+        },
+        {
+          "path": "reason-proof.json",
+          "sha256": "e5e5d636e2f97ea2b82916411666d8c0b901e7d7b8a97138c2307fe96d947339",
+          "bytes": 561
+        },
+        {
+          "path": "reason-query-chromium.result.json",
+          "sha256": "b64d8821a59ff8adc732c95ac50b292ec2b103678c6efc83c709955d096c6649",
+          "bytes": 4122
+        },
+        {
+          "path": "reason-query-chromium.sql",
+          "sha256": "d845b7a47c8435480568df0b5d646ee5a9791b5468e0ddda94333b3fdd2a4221",
+          "bytes": 1022
+        },
+        {
+          "path": "reason-query-firefox.result.json",
+          "sha256": "b64d8821a59ff8adc732c95ac50b292ec2b103678c6efc83c709955d096c6649",
+          "bytes": 4122
+        },
+        {
+          "path": "reason-query-firefox.sql",
+          "sha256": "df0497b827145b7fda9e6c82508647290bc3cba2d92d075cd2d7781a0a26602f",
+          "bytes": 1022
+        },
+        {
+          "path": "reason-query-webkit.result.json",
+          "sha256": "b64d8821a59ff8adc732c95ac50b292ec2b103678c6efc83c709955d096c6649",
+          "bytes": 4122
+        },
+        {
+          "path": "reason-query-webkit.sql",
+          "sha256": "d9ac97b44fc43d53fac4b9e72b0851f73cfa70e0bb6d5eb06993467af31f9564",
+          "bytes": 1022
+        },
+        {
+          "path": "receipt.json",
+          "sha256": "8373ba80b587ed0d63c9bf0ff25cb6edeb898e2b85b2b8dee044bef5b83c1fde",
+          "bytes": 1715
+        },
+        {
+          "path": "result.json",
+          "sha256": "55a18e8f7a1cdd822ecd909e79181387440ebf2c0d88bff3905b1de756f077d5",
+          "bytes": 39
+        },
+        {
+          "path": "spec.browser.ts",
+          "sha256": "4e26396ebc83a4cc42c6918ae2125fe6c9060dba4d8e85f55ae72f84511f4bba",
+          "bytes": 9000
+        }
+      ]
+    }
+  },
+  "corrected_native_facts": [
+    {
+      "kind": "native_bulk_input",
+      "engine": "chromium",
+      "control": "cycle_reason",
+      "expected_scalars": 1000,
+      "actual_scalars": 1000,
+      "expected_utf16": 2000,
+      "actual_utf16": 2000,
+      "expected_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d",
+      "actual_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "chromium",
+      "control": "cycle_reason",
+      "expected_scalars": 1000,
+      "actual_scalars": 1000,
+      "expected_utf16": 2000,
+      "actual_utf16": 2000,
+      "expected_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d",
+      "actual_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "chromium",
+      "control": "cycle_reason",
+      "expected_scalars": 1001,
+      "actual_scalars": 1001,
+      "expected_utf16": 2002,
+      "actual_utf16": 2002,
+      "expected_sha256": "30332e993026589f886dfbdd5898f76c24ac1200d1e72be384f7f3fb39849313",
+      "actual_sha256": "30332e993026589f886dfbdd5898f76c24ac1200d1e72be384f7f3fb39849313"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "chromium",
+      "control": "project_update",
+      "expected_scalars": 8000,
+      "actual_scalars": 8000,
+      "expected_utf16": 16000,
+      "actual_utf16": 16000,
+      "expected_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1",
+      "actual_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "chromium",
+      "control": "project_update",
+      "expected_scalars": 8001,
+      "actual_scalars": 8001,
+      "expected_utf16": 16002,
+      "actual_utf16": 16002,
+      "expected_sha256": "a8b10d43531af7c9a9f948eb22f84f893f4358bc5cf8334b9e96e910ebd2f91d",
+      "actual_sha256": "a8b10d43531af7c9a9f948eb22f84f893f4358bc5cf8334b9e96e910ebd2f91d"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "chromium",
+      "control": "project_update",
+      "expected_scalars": 8000,
+      "actual_scalars": 8000,
+      "expected_utf16": 16000,
+      "actual_utf16": 16000,
+      "expected_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1",
+      "actual_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "webkit",
+      "control": "cycle_reason",
+      "expected_scalars": 1000,
+      "actual_scalars": 1000,
+      "expected_utf16": 2000,
+      "actual_utf16": 2000,
+      "expected_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d",
+      "actual_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "webkit",
+      "control": "cycle_reason",
+      "expected_scalars": 1000,
+      "actual_scalars": 1000,
+      "expected_utf16": 2000,
+      "actual_utf16": 2000,
+      "expected_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d",
+      "actual_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "webkit",
+      "control": "cycle_reason",
+      "expected_scalars": 1001,
+      "actual_scalars": 1001,
+      "expected_utf16": 2002,
+      "actual_utf16": 2002,
+      "expected_sha256": "30332e993026589f886dfbdd5898f76c24ac1200d1e72be384f7f3fb39849313",
+      "actual_sha256": "30332e993026589f886dfbdd5898f76c24ac1200d1e72be384f7f3fb39849313"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "webkit",
+      "control": "project_update",
+      "expected_scalars": 8000,
+      "actual_scalars": 8000,
+      "expected_utf16": 16000,
+      "actual_utf16": 16000,
+      "expected_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1",
+      "actual_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "webkit",
+      "control": "project_update",
+      "expected_scalars": 8001,
+      "actual_scalars": 8001,
+      "expected_utf16": 16002,
+      "actual_utf16": 16002,
+      "expected_sha256": "a8b10d43531af7c9a9f948eb22f84f893f4358bc5cf8334b9e96e910ebd2f91d",
+      "actual_sha256": "a8b10d43531af7c9a9f948eb22f84f893f4358bc5cf8334b9e96e910ebd2f91d"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "webkit",
+      "control": "project_update",
+      "expected_scalars": 8000,
+      "actual_scalars": 8000,
+      "expected_utf16": 16000,
+      "actual_utf16": 16000,
+      "expected_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1",
+      "actual_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "firefox",
+      "control": "project_update",
+      "expected_scalars": 8000,
+      "actual_scalars": 8000,
+      "expected_utf16": 16000,
+      "actual_utf16": 16000,
+      "expected_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1",
+      "actual_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "firefox",
+      "control": "project_update",
+      "expected_scalars": 8001,
+      "actual_scalars": 8001,
+      "expected_utf16": 16002,
+      "actual_utf16": 16002,
+      "expected_sha256": "a8b10d43531af7c9a9f948eb22f84f893f4358bc5cf8334b9e96e910ebd2f91d",
+      "actual_sha256": "a8b10d43531af7c9a9f948eb22f84f893f4358bc5cf8334b9e96e910ebd2f91d"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "firefox",
+      "control": "project_update",
+      "expected_scalars": 8000,
+      "actual_scalars": 8000,
+      "expected_utf16": 16000,
+      "actual_utf16": 16000,
+      "expected_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1",
+      "actual_sha256": "8b914466b0f70c75a1dbe1b279e828bb71ed8a154b004671b1285ae499bf90a1"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "firefox",
+      "control": "cycle_reason",
+      "expected_scalars": 1000,
+      "actual_scalars": 1000,
+      "expected_utf16": 2000,
+      "actual_utf16": 2000,
+      "expected_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d",
+      "actual_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "firefox",
+      "control": "cycle_reason",
+      "expected_scalars": 1000,
+      "actual_scalars": 1000,
+      "expected_utf16": 2000,
+      "actual_utf16": 2000,
+      "expected_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d",
+      "actual_sha256": "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d"
+    },
+    {
+      "kind": "native_bulk_input",
+      "engine": "firefox",
+      "control": "cycle_reason",
+      "expected_scalars": 1001,
+      "actual_scalars": 1001,
+      "expected_utf16": 2002,
+      "actual_utf16": 2002,
+      "expected_sha256": "30332e993026589f886dfbdd5898f76c24ac1200d1e72be384f7f3fb39849313",
+      "actual_sha256": "30332e993026589f886dfbdd5898f76c24ac1200d1e72be384f7f3fb39849313"
+    }
+  ],
+  "reason_persistence": {
+    "method": "After verified browser namespace termination, parent validates exact fact UUIDs/engine/digest/count and reads only those own private-DB rows through API role, READ ONLY, bounded two rows, 3s statement/1s lock timeout. Node has no PG/database/service authority. Raw fact/query/result files stay private; public values are count/scalar length/digest only.",
+    "baseline": [
+      {
+        "engine": "chromium",
+        "rows": 0,
+        "scalar_lengths": [],
+        "sha256": []
+      },
+      {
+        "engine": "firefox",
+        "rows": 0,
+        "scalar_lengths": [],
+        "sha256": []
+      },
+      {
+        "engine": "webkit",
+        "rows": 0,
+        "scalar_lengths": [],
+        "sha256": []
+      }
+    ],
+    "corrected": [
+      {
+        "engine": "chromium",
+        "rows": 1,
+        "scalar_lengths": [
+          1000
+        ],
+        "sha256": [
+          "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d"
+        ]
+      },
+      {
+        "engine": "firefox",
+        "rows": 1,
+        "scalar_lengths": [
+          1000
+        ],
+        "sha256": [
+          "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d"
+        ]
+      },
+      {
+        "engine": "webkit",
+        "rows": 1,
+        "scalar_lengths": [
+          1000
+        ],
+        "sha256": [
+          "1de38ef75f6a7ffb2c39c1423cb0240c970ef9fd55dd91037bcf42582045435d"
+        ]
+      }
+    ],
+    "baseline_proof_sha256": "a8ea9c2f212ba1763a281d044fdfb22b5bd249c211c3afd76237807b616b7c18",
+    "corrected_proof_sha256": "e5e5d636e2f97ea2b82916411666d8c0b901e7d7b8a97138c2307fe96d947339"
+  },
+  "artifact_index": {
+    "root": "$OPENTRACK_DEV_STATE/cycle-update-scalar",
+    "file": "artifact-index.json",
+    "sha256": "b203fda4b7da177e929cf2ab35d63edb17a67ecd5ea55700e1b78db045c03c9b"
+  },
+  "frontends": {
+    "baseline": {
+      "checkout_relative_root": "work/cycle-update/baseline-frontend",
+      "retained_root": "$OPENTRACK_DEV_STATE/cycle-update-scalar/frontends/baseline",
+      "assets": [
+        {
+          "path": "assets/RichTextEditor-BedJvSKb.js",
+          "sha256": "a7b972c673d27a66d332a670742aee8d25a56d230d3feca5875b4937030a9178",
+          "bytes": 444281
+        },
+        {
+          "path": "assets/RichTextEditor-BedJvSKb.js.map",
+          "sha256": "aac381f9909ddeb395b739b59751d91c01c642a3c71a86a50370426d00a31705",
+          "bytes": 1964243
+        },
+        {
+          "path": "assets/index-B9yoYYJd.css",
+          "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+          "bytes": 90154
+        },
+        {
+          "path": "assets/index-CAeW4zFK.js",
+          "sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524",
+          "bytes": 689015
+        },
+        {
+          "path": "assets/index-CAeW4zFK.js.map",
+          "sha256": "c2364cee9fc4402a16c032a3ce46884116a599867a9bc8f51f9a54798f80f537",
+          "bytes": 2391632
+        },
+        {
+          "path": "assets/portability.worker-DEvlQVr4.js",
+          "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+          "bytes": 79037
+        },
+        {
+          "path": "assets/portability.worker-DEvlQVr4.js.map",
+          "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+          "bytes": 224663
+        },
+        {
+          "path": "index.html",
+          "sha256": "ca5c59a4af58df389a9d9cd627db02f17d33f573ef9c6735ce7a9a838137797b",
+          "bytes": 606
+        },
+        {
+          "path": "theme.js",
+          "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+          "bytes": 321
+        }
+      ]
+    },
+    "corrected": {
+      "checkout_relative_root": "web/dist",
+      "retained_root": "$OPENTRACK_DEV_STATE/cycle-update-scalar/frontends/corrected",
+      "assets": [
+        {
+          "path": "assets/RichTextEditor-isOR3bJ8.js",
+          "sha256": "e2e876fdc0c1779661f044ba595422b2f8045ccb551025387918e2c78f3f3646",
+          "bytes": 444281
+        },
+        {
+          "path": "assets/RichTextEditor-isOR3bJ8.js.map",
+          "sha256": "238fc5a0b3c7451de1371360f653ec540d988999e0d9fb181f1bfac262441bd9",
+          "bytes": 1964243
+        },
+        {
+          "path": "assets/index-B9yoYYJd.css",
+          "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+          "bytes": 90154
+        },
+        {
+          "path": "assets/index-e0dLfUp3.js",
+          "sha256": "d46f3678b33a53753dc04bfc63ce7e59287785b9d8d1e22d9988b6dca84d5d97",
+          "bytes": 688999
+        },
+        {
+          "path": "assets/index-e0dLfUp3.js.map",
+          "sha256": "26b8e8dbcf96954cc84c66ac04c73227188ad09d4e54d1c12618941f8f7a30f1",
+          "bytes": 2391610
+        },
+        {
+          "path": "assets/portability.worker-DEvlQVr4.js",
+          "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+          "bytes": 79037
+        },
+        {
+          "path": "assets/portability.worker-DEvlQVr4.js.map",
+          "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+          "bytes": 224663
+        },
+        {
+          "path": "index.html",
+          "sha256": "eb0f71591a8d238db74d0a88dab8381aa00ae9dca086aea8510d71d44cb753c9",
+          "bytes": 606
+        },
+        {
+          "path": "theme.js",
+          "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+          "bytes": 321
+        }
+      ]
+    }
+  },
+  "shutdown": {
+    "file": "shutdown-audit.json",
+    "sha256": "6b726a4036a55a7b341a08b38b3c9eea96b5ca876e4cf8b3f89f45efad95b930",
+    "body": {
+      "state": "stopped",
+      "data_preserved": true,
+      "own_api_and_browser_reaped": true,
+      "logs": [
+        {
+          "path": "db-stop.log",
+          "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d",
+          "bytes": 56
+        },
+        {
+          "path": "db-status.log",
+          "sha256": "e138ccb54fdb08283c6eb21159c53207bbbbf07077246e2804e18d22efe6e250",
+          "bytes": 26
+        }
+      ]
+    }
+  },
+  "previous_candidate_preservation": {
+    "candidate": "4707c9e2c6bacfe43a980a2913f42ab4cfb06c45",
+    "retained_root": "$OPENTRACK_DEV_STATE/qualified-workspace-team-4707c9e2/web-dist",
+    "asset_count": 9,
+    "relocation_file": "$OPENTRACK_DEV_STATE/qualified-workspace-team-4707c9e2/relocation.json",
+    "relocation_sha256": "fb3548044a21685b37b63f7475f73d73dae884c7e30f48a06e59575bf4c67521",
+    "unchanged_accepted_checks_not_rerun": true
+  },
+  "runtime": {
+    "same_frozen_backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+    "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+    "final_pair_caller_sha256": "3ddea5486ead262da918ff6185dbc5a562ab48253a48d84184bc8a5145f37c9e",
+    "browser_command": "source work/browser-env.sh; python3 work/run-cycle-update-browser.py <phase>; approved scope runs node node_modules/@playwright/test/cli.js test cycle-update-scalar-inputs.browser.ts",
+    "private_namespace_and_existing_db_reused": true,
+    "fresh_fixture_data_without_reset": true,
+    "directory_mode": "0700",
+    "file_mode": "0600",
+    "log_cap_each_stream": 2097152
+  },
+  "canonical_profile": {
+    "unchanged": true,
+    "config_sha256": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "origin": "http://127.0.0.1:18081",
+    "test_timeout_ms": 60000,
+    "action_expect_timeout_ms": 10000,
+    "workers": 1,
+    "retries": 0
+  },
+  "acceptance": [
+    "All three engines reproduce reason500/update4000 supplementary-scalar native cutoffs for attempted1000/8000 text.",
+    "Identical final spec preserves full1000/8000 native inputs; actual1001/8001 API requests receive422 with drafts and stored cycle/project state/history unchanged.",
+    "Repair performs exactly one reopen with one version increment, one reopened snapshot and one stored1000-scalar reason. Dates/timezone and original close report remain unchanged after reload.",
+    "One8000-scalar project update persists/reloads with correct8,000 display and exact state/health/progress snapshot. Project metadata/version stays unchanged under existing publication semantics.",
+    "Focused existing units preserve required/trim, permissions, dirty/conflict and uncertain-command behavior; new tests exercise reopen repair and scalar display/publication."
+  ],
+  "retained_discovery_failures": [
+    "Initial cycle fixture omitted required close Idempotency-Key; project cases already reproduced native update cutoff. Parent refused missing reason facts and retained cleanup/receipt/spec/output.",
+    "Second attempt reached both native cutoffs, but Playwright attachment path copying failed EPERM on the mounted checkout. Direct private JSON writes succeeded. Replaced only redundant attachment copying with explicit private test-output fact files, retained every original artifact, then ran the complete baseline/corrected pair. No product behavior, assertion or timeout was weakened."
+  ],
+  "migration_rollback": "No schema, API, Rust, dependency or policy change. Rollback frontend sources/assets; no durable data rewrite.",
+  "limits": [
+    "Focused6browser cases only, no globalCI.",
+    "Normal completion cleanup is proven; forced cancellation remains separately unqualified.",
+    "Browser-protocol bulk insertion does not qualify physical keyboard, OS IME, assistive technology or native desktop.",
+    "Broader cycle/project/planning/recovery and complete-product acceptance remain separate; lead owns hosted checks and integration."
+  ]
+}

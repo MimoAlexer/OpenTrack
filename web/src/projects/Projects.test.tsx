@@ -273,6 +273,13 @@ describe('independent project brief', () => {
 });
 
 describe('progress and updates', () => {
+  it('displays scalar counts and repairs a rejected supplementary update without duplicate publication', async () => {
+    const body = '🧭'.repeat(8000); const update = { id: 'scalar-update', author_id: 'owner', author_name: 'Example Owner', body, state: project.state, health: project.health, completed: 2, eligible: 5, created_at: project.updated_at }; let published = false; let posts = 0;
+    const fetch = vi.fn((_url: string, options: RequestInit) => { if (options.method === 'POST') { if (++posts === 1) return Promise.resolve(json({ code: 'invalid', detail: 'Project updates require 1–8000 characters' }, 422)); published = true; return Promise.resolve(json(update, 201)); } return Promise.resolve(json(page(published ? [update] : []))); }); vi.stubGlobal('fetch', fetch);
+    await render(<ProjectUpdates project={project} session={session} refresh={0} readOnly={false} denied={() => {}}/>); await input('textarea', body); expect(container.querySelector('.project-update-actions > span')?.textContent).toBe('8,000 / 8,000');
+    await input('textarea', body + '🧭'); await submit(); const writes = () => fetch.mock.calls.filter(([, options]) => options.method === 'POST'); expect(JSON.parse(writes()[0][1].body as string)).toEqual({ body: body + '🧭' }); expect(container.querySelector('textarea')?.value).toBe(body + '🧭'); expect(published).toBe(false); expect(hasUnsavedChanges()).toBe(true);
+    await input('textarea', ` ${body} `); await submit(); expect(JSON.parse(writes()[1][1].body as string)).toEqual({ body }); expect(writes()).toHaveLength(2); expect(published).toBe(true); expect(container.querySelector('textarea')?.value).toBe(''); expect(container.querySelectorAll('.project-update')).toHaveLength(1); expect(container.textContent).toContain('2 of 5 completed'); expect(hasUnsavedChanges()).toBe(false);
+  });
   it('uses the metadata validator and removes the embedded brief from full project responses', () => {
     expect(projectMetadata(fullProject())).toEqual(project);
     expect(projectMetadata(fullProject())).not.toHaveProperty('metadata_etag'); expect(projectMetadata(fullProject())).not.toHaveProperty('narrative');
