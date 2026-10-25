@@ -10,7 +10,7 @@ import { JoinWorkspace } from './JoinWorkspace';
 import { WorkspaceSettings } from './WorkspaceSettings';
 import { SettingsScreen } from './SettingsScreen';
 import { ApiError } from '../api';
-import { navigate } from '../router';
+import { hasUnsavedChanges, navigate } from '../router';
 import { Reauthenticate, SettingsError, useDirectory } from './shared';
 
 const workspace = { id: 'w', name: 'Workspace', slug: 'workspace', role: 'owner' };
@@ -39,6 +39,26 @@ async function input(element: HTMLInputElement | HTMLTextAreaElement | HTMLSelec
   });
 }
 async function submit(form: HTMLFormElement) { await act(async () => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); }
+
+it.each(['workspace', 'team'] as const)('repairs a rejected supplementary %s rename while preserving its draft and version precondition', async kind => {
+  let current = { ...workspace, organization_id: 'organization', version: '1', archived_at: null, ...(kind === 'team' ? { id: 't', workspace_id: 'w', key: 'NEW', private: true, can_manage: true } : {}) }; let reject = true; const changed = vi.fn(async () => {});
+  const fetch = vi.fn((url: string, options: RequestInit) => {
+    if (options.method === 'PATCH') { if (reject) return Promise.resolve(json({ code: 'invalid', detail: 'Name exceeds its scalar limit' }, 422)); current = { ...current, name: JSON.parse(options.body as string).name, version: '2' }; return Promise.resolve(json(current)); }
+    return Promise.resolve(json(url.includes('/members') ? page([]) : kind === 'team' && url.includes('/teams?') ? page([current]) : current));
+  }); vi.stubGlobal('fetch', fetch);
+  await render(kind === 'workspace' ? <WorkspaceSettings workspaceId="w" session={session} reauthenticate={() => {}} changed={changed}/> : <TeamSettings workspace={workspace} session={session} reauthenticate={() => {}} changed={changed}/>);
+  const field = container.querySelector<HTMLInputElement>(kind === 'workspace' ? '.settings-form input' : '.settings-team-detail input')!; const name = '🧭'.repeat(100); await input(field, name + '🧭'); await submit(field.closest('form')!);
+  const writes = () => fetch.mock.calls.filter(([, options]) => options.method === 'PATCH'); expect(JSON.parse(writes()[0][1].body as string)).toMatchObject({ name: name + '🧭' }); expect(field.value).toBe(name + '🧭'); expect(changed).not.toHaveBeenCalled(); expect(hasUnsavedChanges()).toBe(true); expect(current.version).toBe('1');
+  reject = false; await input(field, ` ${name} `); await submit(field.closest('form')!); expect(JSON.parse(writes()[1][1].body as string)).toMatchObject({ name }); expect(new Headers(writes()[1][1].headers).get('If-Match')).toBe(new Headers(writes()[0][1].headers).get('If-Match')); expect(writes()).toHaveLength(2); expect(changed).toHaveBeenCalledTimes(1); expect(current).toMatchObject({ name, version: '2' });
+});
+
+it('repairs a rejected supplementary team creation without changing the prefix or issuing another successful callback', async () => {
+  let posts = 0; const changed = vi.fn(async () => {}); const bodies: unknown[] = [];
+  vi.stubGlobal('fetch', vi.fn((_url: string, options: RequestInit = {}) => { if (options.method !== 'POST') return Promise.resolve(json(page([]))); bodies.push(JSON.parse(options.body as string)); return Promise.resolve(++posts === 1 ? json({ code: 'invalid', detail: 'Name exceeds its scalar limit' }, 422) : json({ id: 'created-team' }, 201)); }));
+  await render(<TeamSettings workspace={workspace} session={session} reauthenticate={() => {}} changed={changed}/>); await click('New team'); const form = container.querySelector<HTMLFormElement>('dialog form')!; const name = '😀'.repeat(100); const field = form.querySelector<HTMLInputElement>('input[name="name"]')!;
+  await input(field, name + '😀'); await input(form.querySelector<HTMLInputElement>('input[name="key"]')!, 'NEW'); await submit(form); expect(bodies[0]).toEqual({ name: name + '😀', key: 'NEW', private: false }); expect(field.value).toBe(name + '😀'); expect(changed).not.toHaveBeenCalled();
+  await input(field, name); await submit(form); expect(bodies[1]).toEqual({ name, key: 'NEW', private: false }); expect(posts).toBe(2); expect(changed).toHaveBeenCalledTimes(1); expect(container.querySelector('dialog')).toBeNull();
+});
 
 it('keeps drafts through incorrect password confirmation and replaces only the stale reauthentication error after success', async () => {
   const authenticated = vi.fn();

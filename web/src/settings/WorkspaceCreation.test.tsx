@@ -70,6 +70,17 @@ function expectFieldsLocked() {
   expect(inputs).toHaveLength(4); expect(inputs.every(item => item.matches(':disabled'))).toBe(true);
 }
 
+it.each(['name', 'team_name'])('preserves a rejected supplementary %s draft and repairs without an extra workspace handoff', async field => {
+  const created = vi.fn(async (_item: WorkspaceDetail) => {});
+  const posts = mockCreation(count => Promise.resolve(count === 1 ? json({ code: 'invalid', detail: 'Name exceeds its scalar limit' }, 422) : json(workspace, 201)));
+  await render(session, vi.fn(), created); await fill();
+  const input = container.querySelector<HTMLInputElement>(`input[name="${field}"]`)!; const name = '😀'.repeat(100);
+  await act(async () => { input.value = name + '😀'; input.dispatchEvent(new Event('input', { bubbles: true })); button('Create workspace').click(); });
+  expect(JSON.parse(posts[0].body)).toEqual({ ...fields, [field]: name + '😀', organization_id: 'organization' }); expect(input.value).toBe(name + '😀'); expect(created).not.toHaveBeenCalled(); expect(input.matches(':disabled')).toBe(false);
+  await act(async () => { input.value = name; input.dispatchEvent(new Event('input', { bubbles: true })); button('Create workspace').click(); });
+  expect(JSON.parse(posts[1].body)).toEqual({ ...fields, [field]: name, organization_id: 'organization' }); expect(posts).toHaveLength(2); expect(created).toHaveBeenCalledExactlyOnceWith(workspace); expectFieldsLocked();
+});
+
 it.each([
   ['network', false], ['408', false], ['500', false], ['network', true],
 ] as const)('retries a %s workspace outcome with the exact request (CSRF rotated: %s)', async (failure, rotate) => {
