@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { DocumentPortability } from './DocumentPortability';
-import { fromPlainText } from './model';
+import { fromPlainText, MAX_DOCUMENT_BYTES } from './model';
 import { exportNativeDocument } from './portability';
 import { importMarkdownDocument } from './portability-markdown';
 import { reviewMarkdownInWorker } from './portability-worker';
@@ -35,6 +35,19 @@ it('requires review and an explicit replace action, and never writes the documen
   await click('Replace current draft'); expect(apply).toHaveBeenCalledExactlyOnceWith(fromPlainText('Imported draft')); expect(fetch).not.toHaveBeenCalled(); expect(container.querySelector('dialog')).toBeNull();
 });
 
+it('appends reviewed blocks only after confirmation, preserving the current draft without saving', async () => {
+  const apply = vi.fn(); const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+  await render(apply); await click('Import / export text'); await action('import'); await input(exportNativeDocument(fromPlainText('Imported draft')).text);
+  expect(button('Append to draft')).toBeUndefined(); await click('Review import'); expect(apply).not.toHaveBeenCalled();
+  await click('Append to draft'); expect(apply).toHaveBeenCalledExactlyOnceWith({ type: 'doc', content: [...fromPlainText('Existing draft').content, ...fromPlainText('Imported draft').content] }); expect(fetch).not.toHaveBeenCalled();
+});
+
+it('retains the review and draft when their combined append exceeds the unchanged document limit', async () => {
+  const apply = vi.fn(); await act(async () => root.render(<DocumentPortability value={fromPlainText('a'.repeat(MAX_DOCUMENT_BYTES / 2))} onImport={apply}/>));
+  await click('Import / export text'); await action('import'); await input(exportNativeDocument(fromPlainText('b'.repeat(MAX_DOCUMENT_BYTES / 2))).text); await click('Review import'); await click('Append to draft');
+  expect(apply).not.toHaveBeenCalled(); expect(container.querySelector('[aria-label="Import preview"]')).not.toBeNull(); expect(container.querySelector('[role="alert"]')?.textContent).toContain('Your current draft is preserved');
+});
+
 it('invalidates the reviewed import after edits and preserves the draft on failure or cancellation', async () => {
   const apply = vi.fn(); await render(apply); await click('Import / export text'); await action('import');
   await input(exportNativeDocument(fromPlainText('Ready')).text); await click('Review import');
@@ -63,7 +76,7 @@ it('supports read-only export without offering import and keeps copy failure rec
 it('blocks import after write permission changes while the review is open', async () => {
   const apply = vi.fn(); await render(apply); await click('Import / export text'); await action('import');
   await input(exportNativeDocument(fromPlainText('Ready')).text); await click('Review import');
-  await render(apply, true); expect(button('Replace current draft').disabled).toBe(true); await click('Replace current draft'); expect(apply).not.toHaveBeenCalled();
+  await render(apply, true); expect(button('Replace current draft').disabled).toBe(true); expect(button('Append to draft').disabled).toBe(true); await click('Replace current draft'); await click('Append to draft'); expect(apply).not.toHaveBeenCalled();
 });
 
 it('renders a safe Markdown review with conversion warnings before replacing the draft', async () => {

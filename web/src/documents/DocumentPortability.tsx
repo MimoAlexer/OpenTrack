@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Modal } from '../components';
-import { plainText, type RichBody } from './model';
+import { canonicalBody, plainText, type RichBody } from './model';
 import { exportMarkdownDocument, exportNativeDocument, importNativeDocument, MAX_PORTABLE_DOCUMENT_BYTES, type NativeDocumentImport, type PortabilityWarning } from './portability';
 import { reviewMarkdownInWorker } from './portability-worker';
 import { DocumentView } from './DocumentView';
@@ -52,9 +52,9 @@ function TransferDialog({ value, onImport, disabled, close }: DocumentPortabilit
       if (reviewRequest.current === controller && !controller.signal.aborted) { setPreview(null); setError(cause instanceof Error ? cause.message : 'This document cannot be imported.'); }
     } finally { if (reviewRequest.current === controller) { reviewRequest.current = null; setReviewing(false); } }
   }
-  function replace() {
+  function apply(mode: 'replace' | 'append') {
     if (disabled || !onImport || !preview) return;
-    try { onImport(preview.body); close(); }
+    try { onImport(mode === 'append' ? canonicalBody({ type: 'doc', content: [...value.content, ...preview.body.content] }, true) : preview.body); close(); }
     catch { setError('This document could not be applied to the editor. Your current draft is preserved; review the imported structure and try again.'); }
   }
   return <Modal title="Import and export text" close={close}>
@@ -70,13 +70,13 @@ function TransferDialog({ value, onImport, disabled, close }: DocumentPortabilit
         {copied && <p role="status">Copied.</p>}
         <div className="modal-footer"><button type="button" className="button" disabled={disabled || !!exportError} onClick={copy}>Copy text</button><button type="button" className="button" onClick={close}>Done</button></div>
       </> : <>
-        <p>Paste document JSON or Markdown. Review the converted content before replacing your current draft. Your document is saved through its normal save controls.</p>
+        <p>Paste document JSON or Markdown. Review the converted content, then choose whether to replace your draft or append imported blocks. Your document is saved through its normal save controls.</p>
         <label className="field" htmlFor={`${id}-import-format`}>Import format<select id={`${id}-import-format`} value={importFormat} disabled={disabled} onChange={event => { resetReview(); setImportFormat(event.target.value as 'native' | 'markdown'); }}><option value="native">OpenTrack document JSON</option><option value="markdown">Markdown</option></select></label>
         {importFormat === 'markdown' && <p>HTML and unsupported blocks remain inert source text. Unsafe links are rejected. Plain @names and issue keys stay text and do not create mentions or references.</p>}
         <label className="field" htmlFor={`${id}-input`}>{importFormat === 'native' ? 'Document JSON' : 'Markdown'}<textarea id={`${id}-input`} value={input} rows={8} spellCheck={false} maxLength={MAX_PORTABLE_DOCUMENT_BYTES} disabled={disabled} onChange={event => { resetReview(); setInput(event.target.value); }} /></label>
         <button type="button" className="button" disabled={disabled || reviewing || !input.trim()} onClick={review}>{reviewing ? 'Reviewing…' : 'Review import'}</button>
         {reviewing && <p role="status">Checking Markdown…</p>}
-        {preview && <section aria-label="Import preview"><h3>Replacement preview</h3><p>{preview.body.content.length} top-level blocks. This replaces all text and reference nodes in your current draft.</p><Warnings warnings={preview.warnings} /><div className="document-import-preview">{importFormat === 'markdown' ? <DocumentView body={preview.body} /> : <pre>{plainText(preview.body) || 'This document contains no plain text.'}</pre>}</div><button type="button" className="button primary" disabled={disabled || !onImport} onClick={replace}>Replace current draft</button></section>}
+        {preview && <section aria-label="Import preview"><h3>Import preview</h3><p>{preview.body.content.length} imported top-level blocks. Replace removes your current text and reference nodes. Append keeps your draft and adds these blocks at the end.</p><Warnings warnings={preview.warnings} /><div className="document-import-preview">{importFormat === 'markdown' ? <DocumentView body={preview.body} /> : <pre>{plainText(preview.body) || 'This document contains no plain text.'}</pre>}</div><div className="button-row"><button type="button" className="button primary" disabled={disabled || !onImport} onClick={() => apply('replace')}>Replace current draft</button><button type="button" className="button" disabled={disabled || !onImport} onClick={() => apply('append')}>Append to draft</button></div></section>}
         <div className="modal-footer"><button type="button" className="button" onClick={close}>Cancel</button></div>
       </>}
       {error && <p role="alert">{error}</p>}

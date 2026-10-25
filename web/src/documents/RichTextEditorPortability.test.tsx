@@ -59,6 +59,15 @@ it('applies a reviewed JSON document through the actual editor with formatting i
   expect(changed).toHaveBeenLastCalledWith(fromPlainText('Original draft'));
 });
 
+it('appends through the actual editor as one undoable draft change without requesting a save', async () => {
+  const changed = vi.fn(); const saved = vi.fn();
+  function Harness() { const [body, setBody] = useState(fromPlainText('Unsaved original')); return <RichTextEditor value={body} label="Description" onChange={next => { changed(next); setBody(next); }} onSave={saved}/>; }
+  const imported = canonicalBody({ type: 'doc', content: [{ type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Imported heading' }] }, ...fromPlainText('Imported paragraph').content] }, true);
+  await act(async () => root.render(<Harness/>)); await prepareImport(imported); expect(changed).not.toHaveBeenCalled(); await click('Append to draft');
+  expect(changed).toHaveBeenCalledExactlyOnceWith({ type: 'doc', content: [...fromPlainText('Unsaved original').content, ...imported.content] }); expect(saved).not.toHaveBeenCalled();
+  await click('Undo'); expect(changed).toHaveBeenLastCalledWith(fromPlainText('Unsaved original'));
+});
+
 it('keeps the draft and review when editor defaults push a valid imported body over its size limit', async () => {
   const changed = vi.fn(); const saved = vi.fn();
   await act(async () => root.render(<RichTextEditor value={fromPlainText('Original draft')} label="Description" onChange={changed} onSave={saved} />));
