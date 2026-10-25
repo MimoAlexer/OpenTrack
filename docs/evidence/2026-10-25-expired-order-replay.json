@@ -1,0 +1,57 @@
+{
+  "date": "2026-10-25",
+  "qualified_test_head": "7f8e0aa3eb1a02f4257c080e21ff9f40bfab811e",
+  "source": "crates/opentrack-api/tests/issue_order_contract.rs",
+  "source_sha256": "91f231fbb303dab81ac1f482c066241a3326aea1a5c8f62a6d238c1346250265",
+  "case": "position_uses_full_group_adjacency_and_reauthorizes_matching_replays",
+  "passed": 1,
+  "failed": 0,
+  "ignored": 0,
+  "filtered_out": 8,
+  "kind": "In-process HTTP router and real restricted PostgreSQL, not TCP/native GUI",
+  "fixture_control": "Only the already-successful receipt expiry is moved into the past through the migration-owner fixture connection; no production TTL/config change or simulated server clock",
+  "observed": {
+    "original_success_acknowledgement_preserved": true,
+    "later_successful_positions_precede_expiry": true,
+    "same_original_key_body_if_match_replayed": true,
+    "response": "409 conflict",
+    "response_does_not_claim_applied_false": true,
+    "current_issue_order_versions_documents_activity_events_and_stream_snapshot_unchanged": true,
+    "entire_expired_receipt_row_retained": true,
+    "all_original_case_assertions_retained": true
+  },
+  "checks": [
+    {
+      "check": "format",
+      "exit_code": 0,
+      "elapsed_seconds": 9.711,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "expired-success-replay",
+      "exit_code": 0,
+      "elapsed_seconds": 15.354,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "72cacf13a3dfaa5c9c75f420114d7c6dfa84c48a23ec4e9459d6b287afcfb170"
+    },
+    {
+      "check": "expired-replay-clippy",
+      "exit_code": 0,
+      "elapsed_seconds": 6.487,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "1f5a88129bbadc8f5522dc49c6ac242f51946d026c2bab721a38155a39db1a86"
+    }
+  ],
+  "private_artifacts": {
+    "root": "$OPENTRACK_DEV_STATE/manual-order-expired-replay-v1",
+    "index_sha256": "15e83596a5ac188fb7a0b595786708e240560ce7f7347f7e00ac88f84009f9db",
+    "files": 4,
+    "raw_logs_published": false
+  },
+  "limits": [
+    "One strengthened case, not a new full-nine run",
+    "Pins existing backend semantics only; corrective UI runtime/data proof remains separate",
+    "No production, migration, role, profile or timeout change"
+  ]
+}

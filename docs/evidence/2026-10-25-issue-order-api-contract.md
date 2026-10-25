@@ -10,6 +10,14 @@ corrupted Unicode literals and omitted ETag header declarations; the
 their repair, the full domain suite and the new conditional HTTP checks. Statements
 below about the earlier run do not establish a full domain-suite or 304 runtime pass.
 
+The later [expired-success replay regression](2026-10-25-expired-order-replay.json)
+extends one existing case without changing production behavior. After a successful
+position and subsequent moves, replay of the original key/body/precondition against
+its expired stored receipt returns ordinary409 conflict. It does not assert that
+the original request was unapplied; the original acknowledgement, complete receipt
+row and current domain/history snapshot remain intact. The one strengthened case,
+formatting and strict affected Clippy pass; the other eight cases were not rerun.
+
 All nine current-head HTTP-router/PostgreSQL cases pass in one final run. They
 exercise source/version ordering, rank injection rejection, full-group adjacency,
 idempotent replay and no-op effects, manual cursor binding, inline500 and durable501
