@@ -32337,7 +32337,7 @@
             }
           },
           {
-            "description": "created (default) or priority; priority orders 1,2,3,4,0 then newest first",
+            "description": "created (default), priority or manual; priority orders 1,2,3,4,0 then newest first; manual requires an explicit active team and orders by workflow column and persisted position",
             "in": "query",
             "name": "sort",
             "required": false,

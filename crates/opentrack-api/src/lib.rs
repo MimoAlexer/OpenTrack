@@ -270,7 +270,7 @@ async fn bootstrap(
 ) -> Result<Json<opentrack_domain::Bootstrap>, ApiError> {
     Ok(Json(s.app.bootstrap(&a, w).await?))
 }
-#[utoipa::path(get,path="/api/v1/workspaces/{w}/issues",params(("w"=Uuid,Path),("team_id"=Option<Uuid>,Query),("status_id"=Option<Uuid>,Query),("assignee_id"=Option<Uuid>,Query),("priority"=Option<i16>,Query),("q"=Option<String>,Query),("archived"=Option<bool>,Query),("label_ids"=Option<Vec<Uuid>>,Query,style=Form,explode=false,max_items=50,description="Comma-separated visible label IDs; archived labels are allowed"),("label_mode"=Option<String>,Query,description="any (default) or all"),("sort"=Option<String>,Query,description="created (default) or priority; priority orders 1,2,3,4,0 then newest first"),("limit"=Option<i64>,Query),("cursor"=Option<String>,Query)),responses((status=200,body=opentrack_domain::IssuePage)))]
+#[utoipa::path(get,path="/api/v1/workspaces/{w}/issues",params(("w"=Uuid,Path),("team_id"=Option<Uuid>,Query),("status_id"=Option<Uuid>,Query),("assignee_id"=Option<Uuid>,Query),("priority"=Option<i16>,Query),("q"=Option<String>,Query),("archived"=Option<bool>,Query),("label_ids"=Option<Vec<Uuid>>,Query,style=Form,explode=false,max_items=50,description="Comma-separated visible label IDs; archived labels are allowed"),("label_mode"=Option<String>,Query,description="any (default) or all"),("sort"=Option<String>,Query,description="created (default), priority or manual; priority orders 1,2,3,4,0 then newest first; manual requires an explicit active team and orders by workflow column and persisted position"),("limit"=Option<i64>,Query),("cursor"=Option<String>,Query)),responses((status=200,body=opentrack_domain::IssuePage)))]
 async fn list_issues(
     State(s): State<ApiState>,
     Auth(a): Auth,

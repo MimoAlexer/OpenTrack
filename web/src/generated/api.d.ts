@@ -20034,7 +20034,7 @@ export interface operations {
                 label_ids?: string[];
                 /** @description any (default) or all */
                 label_mode?: string;
-                /** @description created (default) or priority; priority orders 1,2,3,4,0 then newest first */
+                /** @description created (default), priority or manual; priority orders 1,2,3,4,0 then newest first; manual requires an explicit active team and orders by workflow column and persisted position */
                 sort?: string;
                 limit?: number;
                 cursor?: string;
