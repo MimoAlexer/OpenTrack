@@ -181,6 +181,73 @@ BEGIN
 END $$;
 CREATE TRIGGER issue_rank_version_guard BEFORE UPDATE ON issues FOR EACH ROW EXECUTE FUNCTION issue_rank_version_guard();
 
+CREATE FUNCTION worker_issue_order_batch(w uuid,j uuid,actor uuid,worker uuid,fence bigint)
+ RETURNS text LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE operation issue_order_normalizations%ROWTYPE;item record;n bigint:=0;affected bigint;
+ last_rank numeric(38,18);last_issue uuid;enabled boolean;active boolean;
+BEGIN
+ enabled:=worker_lock_context(actor,w);
+ IF NOT EXISTS(SELECT 1 FROM jobs WHERE workspace_id=w AND id=j AND kind='issues.order_normalize'
+  AND requested_by=actor AND state='running' AND lease_owner=worker AND lease_token=fence
+  AND lease_expires_at>clock_timestamp() FOR UPDATE) THEN
+  RAISE EXCEPTION 'Issue order claim is no longer current' USING ERRCODE='40001';
+ END IF;
+ SELECT * INTO operation FROM issue_order_normalizations WHERE workspace_id=w AND id=j;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Required issue order operation is missing';END IF;
+ SELECT archived_at IS NULL INTO active FROM teams WHERE workspace_id=w AND id=operation.team_id FOR UPDATE;
+ IF NOT enabled OR NOT worker_assignee_eligible(w,operation.team_id,actor) THEN RETURN 'access_lost';END IF;
+ IF NOT coalesce(active,false) OR NOT EXISTS(SELECT 1 FROM workspaces WHERE id=w AND archived_at IS NULL) THEN RETURN 'parent_archived';END IF;
+ IF operation.phase='completed' THEN RETURN 'completed';END IF;
+ IF NOT EXISTS(SELECT 1 FROM issue_order_guards WHERE workspace_id=w AND team_id=operation.team_id
+  AND status_id=operation.status_id AND job_id=j)
+  OR NOT EXISTS(SELECT 1 FROM workflow_statuses WHERE workspace_id=w AND team_id=operation.team_id
+   AND id=operation.status_id AND archived_at IS NULL AND retiring_at IS NULL)
+  OR EXISTS(SELECT 1 FROM workflow_statuses WHERE workspace_id=w AND team_id=operation.team_id AND retiring_at IS NOT NULL
+   AND (id=operation.status_id OR replacement_status_id=operation.status_id)) THEN RETURN 'target_unavailable';END IF;
+ IF operation.phase='staging' THEN
+  last_rank:=operation.after_rank;last_issue:=operation.after_issue_id;
+  FOR item IN SELECT i.id,i.rank FROM issues i WHERE i.workspace_id=w AND i.team_id=operation.team_id
+   AND i.status_id=operation.status_id AND i.archived_at IS NULL AND i.deleted_at IS NULL
+   AND (i.rank,i.id)>(coalesce(operation.after_rank,-100000000000000000000::numeric),
+    coalesce(operation.after_issue_id,'00000000-0000-0000-0000-000000000000'::uuid))
+   ORDER BY i.rank,i.id LIMIT 100 FOR UPDATE LOOP
+   INSERT INTO issue_order_staging(workspace_id,job_id,ordinal,issue_id,original_rank)
+    VALUES(w,j,operation.staged_count+n+1,item.id,item.rank);
+   GET DIAGNOSTICS affected=ROW_COUNT;IF affected<>1 THEN RAISE EXCEPTION 'Required issue order staging row is missing';END IF;
+   n:=n+1;last_rank:=item.rank;last_issue:=item.id;
+  END LOOP;
+  UPDATE issue_order_normalizations SET staged_count=operation.staged_count+n,after_rank=last_rank,after_issue_id=last_issue,
+   phase=CASE WHEN n<100 THEN 'applying' ELSE 'staging' END,
+   total_count=CASE WHEN n<100 THEN operation.staged_count+n END WHERE workspace_id=w AND id=j;
+ ELSE
+  FOR item IN SELECT ordinal,issue_id,original_rank FROM issue_order_staging
+   WHERE workspace_id=w AND job_id=j AND ordinal>operation.applied_count ORDER BY ordinal LIMIT 100 FOR UPDATE LOOP
+   UPDATE issues SET rank=(item.ordinal::numeric*1024)::numeric(38,18)
+    WHERE workspace_id=w AND team_id=operation.team_id AND status_id=operation.status_id
+     AND id=item.issue_id AND rank=item.original_rank AND archived_at IS NULL AND deleted_at IS NULL;
+   GET DIAGNOSTICS affected=ROW_COUNT;IF affected<>1 THEN RAISE EXCEPTION 'Required issue order application row is missing';END IF;
+   n:=n+1;
+  END LOOP;
+  IF n=0 AND operation.applied_count<operation.total_count THEN RAISE EXCEPTION 'Required issue order staging suffix is missing';END IF;
+  UPDATE issue_order_normalizations SET applied_count=operation.applied_count+n,
+   phase=CASE WHEN operation.applied_count+n=operation.total_count THEN 'completed' ELSE 'applying' END
+   WHERE workspace_id=w AND id=j;
+ END IF;
+ GET DIAGNOSTICS affected=ROW_COUNT;IF affected<>1 THEN RAISE EXCEPTION 'Required issue order progress is missing';END IF;
+ IF EXISTS(SELECT 1 FROM issue_order_normalizations WHERE workspace_id=w AND id=j AND phase='completed') THEN
+  DELETE FROM issue_order_guards WHERE workspace_id=w AND team_id=operation.team_id AND status_id=operation.status_id AND job_id=j;
+  GET DIAGNOSTICS affected=ROW_COUNT;IF affected<>1 THEN RAISE EXCEPTION 'Required issue order marker is missing';END IF;
+  UPDATE teams SET ordering_version=ordering_version+1 WHERE workspace_id=w AND id=operation.team_id;
+  GET DIAGNOSTICS affected=ROW_COUNT;IF affected<>1 THEN RAISE EXCEPTION 'Required issue order completion generation is missing';END IF;
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM jobs WHERE workspace_id=w AND id=j AND kind='issues.order_normalize'
+  AND requested_by=actor AND state='running' AND lease_owner=worker AND lease_token=fence
+  AND lease_expires_at>clock_timestamp()) THEN
+  RAISE EXCEPTION 'Issue order claim expired before its batch committed' USING ERRCODE='40001';
+ END IF;
+ RETURN CASE WHEN operation.phase='applying' AND operation.applied_count+n=operation.total_count THEN 'completed' ELSE 'more' END;
+END $$;
+
 CREATE FUNCTION issue_ordering_changed() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE w uuid;scopes uuid[];t uuid;prior bigint;advanced bigint;
 BEGIN
@@ -208,7 +275,7 @@ CREATE TRIGGER issues_ordering_changed AFTER INSERT OR UPDATE OR DELETE ON issue
 DO $$ DECLARE p regprocedure;BEGIN
  FOREACH p IN ARRAY ARRAY['issue_rank_version_guard()'::regprocedure,'issue_ordering_changed()'::regprocedure,
   'issue_order_scope_guard()'::regprocedure,'issue_order_operation_guard()'::regprocedure,'workflow_issue_order_guard()'::regprocedure,
-  'issue_order_rebalance_inline(uuid,uuid,uuid)'::regprocedure] LOOP
+  'issue_order_rebalance_inline(uuid,uuid,uuid)'::regprocedure,'worker_issue_order_batch(uuid,uuid,uuid,uuid,bigint)'::regprocedure] LOOP
   EXECUTE format('ALTER FUNCTION %s SET search_path=pg_catalog,%I,pg_temp',p,current_schema());
   EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC',p);
  END LOOP;

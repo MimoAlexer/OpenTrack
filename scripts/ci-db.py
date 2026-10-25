@@ -66,6 +66,11 @@ statements += [
     f"ALTER ROLE {runtime} SET idle_in_transaction_session_timeout='5s';",
 ]
 for command in [
+    f'REVOKE ALL ON public.issue_order_staging FROM {runtime}',
+    f'REVOKE UPDATE,DELETE,TRUNCATE ON public.issue_order_normalizations,public.issue_order_guards FROM {runtime}',
+]:
+    statements.append("SELECT '" + command + "' WHERE to_regclass('public.issue_order_staging') IS NOT NULL\\gexec")
+for command in [
     f'REVOKE ALL ON public.jobs,public.job_attempts,public.worker_workspace_registry FROM {runtime}',
     f'GRANT SELECT,INSERT ON public.jobs TO {runtime}',
     f'GRANT UPDATE(requested_by,state,retry_count,error_code,available_at,finished_at,version,updated_at) ON public.jobs TO {runtime}',

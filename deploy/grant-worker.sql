@@ -65,6 +65,15 @@ BEGIN
   EXECUTE format('GRANT SELECT(assignee_id) ON %I.issues TO %I',schema_name,role_name);
   EXECUTE format('GRANT SELECT,UPDATE(after_team_id,after_issue_id,scanned_count,cleared_count) ON %I.assignment_reconciliations TO %I',schema_name,role_name);
  END IF;
+ IF to_regclass(format('%I.issue_order_normalizations',schema_name)) IS NOT NULL THEN
+  discovery:=to_regprocedure(format('%I.worker_issue_order_batch(uuid,uuid,uuid,uuid,bigint)',schema_name));
+  IF discovery IS NULL OR NOT EXISTS(SELECT 1 FROM pg_proc p WHERE p.oid=discovery AND p.prosecdef AND format('search_path=pg_catalog, %I, pg_temp',schema_name)=ANY(p.proconfig))
+   OR EXISTS(SELECT 1 FROM pg_proc p CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl WHERE p.oid=discovery AND acl.grantee=0 AND acl.privilege_type='EXECUTE') THEN
+   RAISE EXCEPTION 'Issue ordering requires a fixed-path definer capability without PUBLIC execution';
+  END IF;
+  EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO %I',discovery,role_name);
+  EXECUTE format('GRANT SELECT ON %I.issue_order_guards TO %I',schema_name,role_name);
+ END IF;
  IF to_regclass(format('%I.documents',schema_name)) IS NOT NULL THEN
   discovery:=to_regprocedure(format('%I.worker_prune_document_revisions(uuid,integer)',schema_name));
   IF discovery IS NULL OR NOT EXISTS(SELECT 1 FROM pg_proc p WHERE p.oid=discovery AND p.prosecdef AND format('search_path=pg_catalog, %I, pg_temp',schema_name)=ANY(p.proconfig))

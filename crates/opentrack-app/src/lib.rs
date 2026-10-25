@@ -2,6 +2,7 @@ mod activity;
 mod assignment_cleanup;
 mod attachments;
 mod cycles;
+mod issue_ordering;
 mod milestones;
 mod preferences;
 mod projects;
@@ -110,7 +111,7 @@ impl App {
             "SELECT EXISTS(SELECT 1 FROM pg_roles r CROSS JOIN pg_class c
              WHERE (r.rolname=current_user OR pg_has_role(current_user,r.oid,'MEMBER'))
                AND c.relnamespace=current_schema()::regnamespace AND c.relkind IN ('r','p')
-               AND c.relname IN ('assignment_reconciliations','consumer_registrations','consumer_checkpoints','consumer_receipts','consumer_dead_letters','consumer_alerts','event_retention_state','consumer_operations','document_retention_operations','attachment_storage_operations','document_mentions','mention_intents','discussion_sources')
+               AND c.relname IN ('assignment_reconciliations','consumer_registrations','consumer_checkpoints','consumer_receipts','consumer_dead_letters','consumer_alerts','event_retention_state','consumer_operations','document_retention_operations','attachment_storage_operations','issue_order_staging','document_mentions','mention_intents','discussion_sources')
                AND (has_any_column_privilege(r.oid,c.oid,'SELECT,INSERT,UPDATE,REFERENCES')
                  OR has_table_privilege(r.oid,c.oid,'DELETE,TRUNCATE,TRIGGER')))",
         )

@@ -2,6 +2,7 @@
 #[allow(dead_code)]
 mod support;
 
+use opentrack_app::worker::{Worker, WorkerOptions, WorkerTick};
 use opentrack_domain::Actor;
 use opentrack_store as store;
 use serde_json::{Value, json};
@@ -219,11 +220,20 @@ async fn exercise(h: &Harness) {
     let mut tx = runtime(h, &actor, w).await;
     let live: Uuid = sqlx::query_scalar("SELECT id FROM issues WHERE workspace_id=$1 AND team_id=$2 AND status_id=$3 AND archived_at IS NULL AND deleted_at IS NULL ORDER BY id LIMIT 1")
         .bind(w).bind(team).bind(status).fetch_one(&mut *tx).await.unwrap();
+    let requester = Uuid::new_v4();
+    sqlx::query("INSERT INTO users(id,email,display_name,password_hash) SELECT $1,'member@order-upgrade.example.test','Example Member',password_hash FROM users WHERE id=$2")
+        .bind(requester).bind(actor.user.id).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO workspace_members(workspace_id,user_id,role) VALUES($1,$2,'member')")
+        .bind(w)
+        .bind(requester)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
     let job = Uuid::new_v4();
     sqlx::query("INSERT INTO jobs(workspace_id,id,kind,requested_by,dedupe_key) VALUES($1,$2,'issues.order_normalize',$3,$2::text)")
-        .bind(w).bind(job).bind(actor.user.id).execute(&mut *tx).await.unwrap();
+        .bind(w).bind(job).bind(requester).execute(&mut *tx).await.unwrap();
     sqlx::query("INSERT INTO issue_order_normalizations(workspace_id,id,team_id,status_id,original_requested_by) VALUES($1,$2,$3,$4,$5)")
-        .bind(w).bind(job).bind(team).bind(status).bind(actor.user.id).execute(&mut *tx).await.unwrap();
+        .bind(w).bind(job).bind(team).bind(status).bind(requester).execute(&mut *tx).await.unwrap();
     sqlx::query(
         "INSERT INTO issue_order_guards(workspace_id,team_id,status_id,job_id) VALUES($1,$2,$3,$4)",
     )
@@ -270,6 +280,9 @@ async fn exercise(h: &Harness) {
         tx.rollback().await.unwrap();
     }
     let mut tx = runtime(h, &actor, w).await;
+    let isolated: bool = sqlx::query_scalar("SELECT NOT has_function_privilege(current_user,'worker_issue_order_batch(uuid,uuid,uuid,uuid,bigint)','EXECUTE')")
+        .fetch_one(&mut *tx).await.unwrap();
+    assert!(isolated);
     let error = sqlx::query("SELECT * FROM issue_order_staging")
         .fetch_all(&mut *tx)
         .await
@@ -288,4 +301,128 @@ async fn exercise(h: &Harness) {
             .unwrap();
     assert_eq!(hidden, 0);
     tx.commit().await.unwrap();
+    let worker = Worker::connect(&h.worker_url().await, WorkerOptions::default())
+        .await
+        .unwrap();
+    let limited: bool = sqlx::query_scalar("SELECT NOT has_column_privilege(current_user,'issues','rank','UPDATE') AND NOT has_column_privilege(current_user,'teams','ordering_version','UPDATE') AND NOT has_table_privilege(current_user,'issue_order_staging','SELECT,INSERT,UPDATE,DELETE') AND NOT has_function_privilege(current_user,'issue_order_rebalance_inline(uuid,uuid,uuid)','EXECUTE')")
+        .fetch_one(&worker.pool).await.unwrap();
+    assert!(limited);
+    let before_worker = snapshot(h, &actor, w).await;
+    let first = worker.claim(w).await.unwrap().unwrap();
+    assert_eq!(
+        worker.run_claim(&first).await.unwrap(),
+        WorkerTick::Progress
+    );
+    sqlx::query("UPDATE users SET disabled_at=clock_timestamp() WHERE id=$1")
+        .bind(requester)
+        .execute(&h.owner)
+        .await
+        .unwrap();
+    let denied = worker.claim(w).await.unwrap().unwrap();
+    assert_eq!(
+        worker.run_claim(&denied).await.unwrap(),
+        WorkerTick::Blocked
+    );
+    let mut tx = h.context(actor.user.id, w).await;
+    let blocked: (String, i64, i64, Uuid) = sqlx::query_as("SELECT j.state,n.staged_count,n.applied_count,n.original_requested_by FROM jobs j JOIN issue_order_normalizations n USING(workspace_id,id) JOIN issue_order_guards g ON g.workspace_id=n.workspace_id AND g.job_id=n.id WHERE n.workspace_id=$1 AND n.id=$2")
+        .bind(w).bind(job).fetch_one(&mut *tx).await.unwrap();
+    assert_eq!(blocked, ("blocked".into(), 100, 0, requester));
+    tx.commit().await.unwrap();
+    // Fixture requeue tests preserved storage; the manager-only resume API is separate.
+    sqlx::query("UPDATE users SET disabled_at=NULL WHERE id=$1")
+        .bind(requester)
+        .execute(&h.owner)
+        .await
+        .unwrap();
+    let mut tx = h.context(actor.user.id, w).await;
+    sqlx::query("UPDATE jobs SET state='queued',error_code=NULL,finished_at=NULL,available_at=clock_timestamp(),version=version+1 WHERE workspace_id=$1 AND id=$2")
+        .bind(w).bind(job).execute(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    let mut staged = 100;
+    let mut applied = 0;
+    let mut finished = false;
+    let mut previous_claim = None;
+    for _ in 0..14 {
+        let claim = worker.claim(w).await.unwrap().unwrap();
+        assert_eq!(claim.id, job);
+        if let Some(previous) = previous_claim.take() {
+            assert_eq!(
+                worker.run_claim(&previous).await.unwrap(),
+                WorkerTick::LostLease
+            );
+        }
+        let result = worker.run_claim(&claim).await.unwrap();
+        assert!(matches!(
+            result,
+            WorkerTick::Progress | WorkerTick::Completed
+        ));
+        let mut tx = h.context(actor.user.id, w).await;
+        let (phase, staged_now, applied_now, total): (String, i64, i64, Option<i64>) = sqlx::query_as("SELECT phase,staged_count,applied_count,total_count FROM issue_order_normalizations WHERE workspace_id=$1 AND id=$2")
+            .bind(w).bind(job).fetch_one(&mut *tx).await.unwrap();
+        assert!((0..=100).contains(&(staged_now - staged)));
+        assert!((0..=100).contains(&(applied_now - applied)));
+        assert!(staged_now == staged || applied_now == applied);
+        assert_eq!(total, (phase != "staging").then_some(501));
+        staged = staged_now;
+        applied = applied_now;
+        tx.commit().await.unwrap();
+        if result == WorkerTick::Completed {
+            finished = true;
+            break;
+        }
+        previous_claim = Some(claim);
+    }
+    assert!(finished);
+    assert_eq!((staged, applied), (501, 501));
+    assert!(
+        snapshot(h, &actor, w).await == before_worker,
+        "Worker normalization changed logical issue data or effects"
+    );
+    let mut tx = runtime(h, &actor, w).await;
+    let guards: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM issue_order_guards WHERE workspace_id=$1 AND job_id=$2",
+    )
+    .bind(w)
+    .bind(job)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    assert_eq!(guards, 0);
+    assert_eq!(
+        store::append_issue_rank(&mut tx, w, team, *status)
+            .await
+            .unwrap(),
+        Some("514048.000000000000000000".into())
+    );
+    tx.commit().await.unwrap();
+    worker.pool.close().await;
+    let fresh = opentrack_app::App::connect(&h.runtime_url(), &h.setup_token, 2, 1)
+        .await
+        .unwrap();
+    fresh.pool.close().await;
+    let role: String = sqlx::query_scalar("SELECT current_user::text")
+        .fetch_one(&h.app.pool)
+        .await
+        .unwrap();
+    let role = role.replace('"', "\"\"");
+    sqlx::query(AssertSqlSafe(format!(
+        "GRANT SELECT ON issue_order_staging TO \"{role}\""
+    )))
+    .execute(&h.owner)
+    .await
+    .unwrap();
+    let unsafe_runtime = opentrack_app::App::connect(&h.runtime_url(), &h.setup_token, 2, 1).await;
+    sqlx::query(AssertSqlSafe(format!(
+        "REVOKE SELECT ON issue_order_staging FROM \"{role}\""
+    )))
+    .execute(&h.owner)
+    .await
+    .unwrap();
+    match unsafe_runtime {
+        Ok(unexpected) => {
+            unexpected.pool.close().await;
+            panic!("Serving role must reject staging authority");
+        }
+        Err(error) => assert!(matches!(error, opentrack_domain::Error::Internal)),
+    }
 }

@@ -153,6 +153,24 @@ impl Harness {
             sqlx::query(AssertSqlSafe(format!("REVOKE UPDATE,DELETE,TRUNCATE ON {schema}.document_attachments,{schema}.document_attachment_revisions FROM \"{role}\"")))
                 .execute(&base_owner).await.unwrap();
         }
+        let ordering: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
+            .bind(format!("{schema}.issue_order_staging"))
+            .fetch_one(&base_owner)
+            .await
+            .unwrap();
+        if ordering {
+            for statement in [
+                format!("REVOKE ALL ON {schema}.issue_order_staging FROM \"{role}\""),
+                format!(
+                    "REVOKE UPDATE,DELETE,TRUNCATE ON {schema}.issue_order_normalizations,{schema}.issue_order_guards FROM \"{role}\""
+                ),
+            ] {
+                sqlx::query(AssertSqlSafe(statement))
+                    .execute(&base_owner)
+                    .await
+                    .unwrap();
+            }
+        }
         let templates: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
             .bind(format!("{schema}.issue_templates"))
             .fetch_one(&base_owner)
@@ -246,6 +264,12 @@ impl Harness {
             .await
             .expect("Set explicit fixture tenant context");
         tx
+    }
+
+    /// Provision a separate least-privileged worker only inside this isolated schema.
+    #[allow(dead_code)]
+    pub fn runtime_url(&self) -> String {
+        scoped_url(test_url("OPENTRACK_TEST_DATABASE_URL"), &self.schema).to_string()
     }
 
     /// Provision a separate least-privileged worker only inside this isolated schema.
