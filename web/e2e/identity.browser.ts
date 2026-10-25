@@ -31,7 +31,7 @@ test('rename retains saved issue URLs and switching replaces the previous worksp
   expect(response.ok(), 'Create a real second workspace').toBe(true);
   const workspace = await response.json() as WorkspaceDetail;
   const bootstrapResponse = await saved.http.get(`/api/v1/workspaces/${workspace.id}/bootstrap`); expect(bootstrapResponse.ok()).toBe(true);
-  const second = new SavedWorkspace(saved.http, { ...saved.session, workspaces: [workspace] }, await bootstrapResponse.json() as Bootstrap, saved.origin);
+  const second = new SavedWorkspace(saved.http, { ...saved.session, workspaces: [workspace] }, await bootstrapResponse.json() as Bootstrap, saved.origin, workspace.id);
   const title = `Scoped identity content ${randomUUID().slice(0, 8)}`;
   const issue = await second.create(title);
   const savedPath = `/w/${workspace.id}/issues/${issue.id}`;

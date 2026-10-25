@@ -4,13 +4,13 @@ import type { Bootstrap, Issue, Session } from '../src/types';
 import type { StructuredDocument } from '../src/documents/types';
 import type { RichBody } from '../src/documents/model';
 import type { SavedReadiness } from './receipt-reporter';
+import { selectSyntheticWorkspace } from './fixture-session';
 
 export const paragraph = (text: string): RichBody => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] });
 export const native = (body: RichBody) => JSON.stringify({ format: 'opentrack.document', format_version: 1, schema_version: 1, body });
 
 export class SavedWorkspace {
-  constructor(readonly http: APIRequestContext, readonly session: Session, readonly data: Bootstrap, readonly origin: string) {}
-  get workspace() { return this.session.workspaces[0].id; }
+  constructor(readonly http: APIRequestContext, readonly session: Session, readonly data: Bootstrap, readonly origin: string, readonly workspace: string) {}
   get team() { return this.data.teams[0]; }
   get path() { return `/api/v1/workspaces/${this.workspace}`; }
   async request<T>(path: string, method = 'GET', data?: unknown, headers: Record<string, string> = {}): Promise<T> {
@@ -103,11 +103,10 @@ export const test = base.extend<Record<never, never>, WorkerFixtures>({
         : login });
       if (!response.ok()) throw new Error(`Synthetic owner authentication failed: HTTP ${response.status()}`);
       const session = await response.json() as Session;
-      if (session.user.email !== 'owner@example.test' || session.user.display_name !== 'Example Owner'
-          || session.workspaces[0]?.name !== 'Browser acceptance') throw new Error('Only the synthetic acceptance workspace is eligible.');
-      const bootstrap = await http.get(`/api/v1/workspaces/${session.workspaces[0].id}/bootstrap`);
+      const workspace = selectSyntheticWorkspace(session);
+      const bootstrap = await http.get(`/api/v1/workspaces/${workspace.id}/bootstrap`);
       if (!bootstrap.ok()) throw new Error('Synthetic workspace bootstrap failed.');
-      await use(new SavedWorkspace(http, session, await bootstrap.json() as Bootstrap, origin));
+      await use(new SavedWorkspace(http, session, await bootstrap.json() as Bootstrap, origin, workspace.id));
     } finally { await http.dispose(); }
   }, { scope: 'worker' }],
   storageState: async ({ saved }, use) => { await use(await saved.http.storageState()); },

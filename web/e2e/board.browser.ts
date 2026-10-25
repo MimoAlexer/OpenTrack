@@ -11,7 +11,7 @@ async function fixture(owner: SavedWorkspace, count = 3, privateTeam = false) {
     private: privateTeam,
   }, { 'Idempotency-Key': randomUUID() });
   const bootstrap = await owner.request<Bootstrap>('/bootstrap');
-  const saved = new SavedWorkspace(owner.http, owner.session, { ...bootstrap, teams: [team] }, owner.origin);
+  const saved = new SavedWorkspace(owner.http, owner.session, { ...bootstrap, teams: [team] }, owner.origin, owner.workspace);
   const issues: Issue[] = [];
   for (let index = 0; index < count; index++) issues.push(await saved.request<Issue>('/issues', 'POST', {
     team_id: team.id, title: `Board work ${index} ${randomUUID()}`, priority: 2, estimate: 3, due_date: '2030-10-24',

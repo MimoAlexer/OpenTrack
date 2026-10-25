@@ -26,7 +26,7 @@ test('project creation and brief edits persist while metadata and body versions 
     private: false,
   }, { 'Idempotency-Key': randomUUID() });
   const bootstrap = await owner.request<Bootstrap>('/bootstrap');
-  const saved = new SavedWorkspace(owner.http, owner.session, { ...bootstrap, teams: [team] }, owner.origin);
+  const saved = new SavedWorkspace(owner.http, owner.session, { ...bootstrap, teams: [team] }, owner.origin, owner.workspace);
   const name = `Saved project ${randomUUID()}`;
   const briefText = 'Ship the reviewed onboarding journey';
   await saved.open(page);
@@ -252,7 +252,7 @@ test('competing project brief editors retain the rejected draft until an explici
 
 test('project brief references and file bytes persist while revision selection remains read-only and keyboard accessible', async ({ page, saved: owner, playwright }) => {
   const team = await owner.request<Team>('/teams', 'POST', { name: `Project mention selection ${randomUUID()}`, key: `P${randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase()}`, private: true }, { 'Idempotency-Key': randomUUID() });
-  const saved = new SavedWorkspace(owner.http, owner.session, { ...owner.data, teams: [team] }, owner.origin);
+  const saved = new SavedWorkspace(owner.http, owner.session, { ...owner.data, teams: [team] }, owner.origin, owner.workspace);
   const invitation = await saved.request<{ token: string }>('/invitations', 'POST', { email: `project-mention-${randomUUID()}@example.test`, role: 'member', team_ids: [team.id] }, { 'Idempotency-Key': randomUUID() });
   const member = await playwright.request.newContext({ baseURL: saved.origin, extraHTTPHeaders: { Origin: saved.origin }, storageState: { cookies: [], origins: [] } });
   try {

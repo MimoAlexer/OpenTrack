@@ -20,8 +20,14 @@
     "web/src/workflows/Workflow.test.tsx": "2f32cf2c51c5bd600ee4d2c4d59987fb567c90a16024017915f69e5a55cce9bb",
     "docs/REQUIREMENTS_STATUS.md": "29fb60420560b1c5d9068cb00e38b3e02bd13c8ac830d11db18b8b77d3e9208b",
     "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
-    "web/e2e/fixtures.ts": "97c8f8183457a7b4af966090b12fbe58166c0f7fa37822643c5511d4fb469445",
-    "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667"
+    "web/e2e/fixtures.ts": "231ed3b47c40321e2419cf1f122d1ece64767f93cab07d35e1462eed0f06d45b",
+    "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667",
+    "web/e2e/fixture-session.ts": "d8be4e0d00c0840998046b3e4572e941fd8cdca0b5fa666a13af4ebe59bea575",
+    "web/src/fixture-session.test.ts": "d03dd17ecdc645d0f646612b11aa1322218e3153b894c5c3393a3e38851df306",
+    "web/e2e/board.browser.ts": "3c3843928d08db2e895b1e772b19876d6b1ef2a358b72b82f3f0aaaee66b6364",
+    "web/e2e/projects.browser.ts": "8c8b4fab9693e009fc934e100f5b5272388d1e144b61eae5e427651969777c54",
+    "web/e2e/identity.browser.ts": "5f2de9f29cd99aa25e401e27f741937d55a6661b11513e0cbedfbbddf9d2494b",
+    "web/e2e/team-settings.browser.ts": "9384b4f73d50a88f12ee09f10c08a6f9784e76d6cc2ba00ee1aae12ed9044fc2"
   },
   "individual_browser_qualification": [
     {
@@ -105,5 +111,62 @@
     "Original native failures and selector-discovery failures are retained separately with final same-spec comparisons.",
     "Existing restore-name repair policy remains covered by focused tests; supplementary-scalar restore input was not separately exercised.",
     "No local global browser matrix, forced cancellation, native/physical/IME/assistive or broad milestone completion is claimed."
-  ]
+  ],
+  "fixture_selection_correction": {
+    "failed_head": "4d057cdb6a3f9825c5478a83eae6b1cdbefbf350",
+    "failed_run": 40193985715,
+    "failed_job": 121172490169,
+    "observed_ci": {
+      "passed": 63,
+      "total": 189,
+      "chromium_passed": 63,
+      "firefox_passed": 0,
+      "webkit_passed": 0,
+      "first_failure": "Firefox synthetic-session eligibility at fixtures.ts107",
+      "later_failures": "Fixture owner-authentication gate at fixtures.ts104; HTTP status not captured."
+    },
+    "private_failed_step_log_sha256": "890a7bba7a2e9e9a19d29691cec1c23cab3fe5226b03945343ad8196276d1f64",
+    "source_hazard": "Session workspaces are ordered by name and ID; the fixture incorrectly treated position zero as the canonical synthetic workspace.",
+    "observation_limit": "The CI receipt does not record session values or database collation; the controlled regression establishes the ordering hazard independently.",
+    "correction": "Select exactly one named synthetic workspace after validating the same synthetic owner, preserve server order, and pass its ID explicitly through every SavedWorkspace constructor.",
+    "safety": "Disposable-mode, fixed-origin and synthetic identity checks remain; ambiguous or missing canonical workspaces fail closed. No data cleanup, product ordering, auth limit, assertion, timeout or retry relaxation.",
+    "isolated_legacy_guard_regression": {
+      "scope": "Isolated extraction of the exact prior session-index guard, not a complete old-browser run.",
+      "legacy_source_commit": "4d057cdb6a3f9825c5478a83eae6b1cdbefbf350",
+      "legacy_extraction_sha256": "b8c45276f439c7477f4e70b372c598ce6bc3473bb88713ca719300beea270e58",
+      "corrected_selector_sha256": "d8be4e0d00c0840998046b3e4572e941fd8cdca0b5fa666a13af4ebe59bea575",
+      "expected_failures": 2,
+      "passed": 4,
+      "exit_code": 1,
+      "log_sha256": "e66e0a2e4b7f7ef3c2284888ec898b90cbc94c81b1e59ae4c7716ad3f2b68ad6"
+    },
+    "corrected_selector_tests": {
+      "passed": 6,
+      "failed": 0,
+      "checks": [
+        {
+          "check": "fixture-selection-units",
+          "exit_code": 0,
+          "elapsed_seconds": 0.859,
+          "owned_process_reaped": true,
+          "log_sha256": "bb8c76b5d0cbe0e9d60f44684a381ad47ad9602715ef45cb1eae6dc1f77f7938"
+        },
+        {
+          "check": "typescript-app",
+          "exit_code": 0,
+          "elapsed_seconds": 0.937,
+          "owned_process_reaped": true,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "check": "typescript-browser",
+          "exit_code": 0,
+          "elapsed_seconds": 0.438,
+          "owned_process_reaped": true,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    "runtime_limits": "Existing product UI bytes and compiled bundle are unchanged; local 74 units/build are not repeated. Fresh complete hosted verification at the corrected head remains required."
+  }
 }
