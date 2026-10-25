@@ -1,0 +1,505 @@
+{
+  "date": "2026-10-25",
+  "scope": "M05 planning text input Unicode scalar boundaries; F05/F14/F15 increment only",
+  "base": "8b730204089f0ce63c61e0615c9bb7a49ebeaa98",
+  "change": "Remove four native UTF-16 maxlength caps; preserve Rust scalar validation and existing form policy.",
+  "sources": [
+    {
+      "path": "web/src/projects/ProjectEditor.tsx",
+      "sha256": "d30f2b95b5ebc6901d1f67e55d563a6179f90c27bbbb9123c9a2267a4a133c77"
+    },
+    {
+      "path": "web/src/projects/Milestones.tsx",
+      "sha256": "cde128ac09a14bb6802367eb76e341232d9c0a56ab5af849ab96e327eb223aa6"
+    },
+    {
+      "path": "web/src/cycles/CycleEditor.tsx",
+      "sha256": "c34565af2d3a586ab4beee56962781dd4e495e690ea6305b526a19d0c86371ca"
+    },
+    {
+      "path": "web/src/projects/Projects.test.tsx",
+      "sha256": "0d40252577041c34209b0e4e46ebb5fdc780e517d2070eda8af46557e42ccc8b"
+    },
+    {
+      "path": "web/src/cycles/Planning.test.tsx",
+      "sha256": "9078f6b0e184bfa604d5f5530068ce8bb5dfa9cf5d528ce52484604e59c146c4"
+    },
+    {
+      "path": "web/e2e/planning-scalar-inputs.browser.ts",
+      "sha256": "b476a72bfeb7a490464d25a4ccd9725580865a727d6aec095d69015d1306c9ba"
+    }
+  ],
+  "baseline_sources": [
+    {
+      "sha256": "136b3b00798e979356e13869a0621937c88c3f5b82ac84b0cf5136a8bbb6c8ae",
+      "path": "web/src/projects/ProjectEditor.tsx"
+    },
+    {
+      "sha256": "6305b4a425bcc28c24831837c70ba4f9f1348c427989676fd072b378a9bc834b",
+      "path": "web/src/projects/Milestones.tsx"
+    },
+    {
+      "sha256": "d98818929c6e271a3721e98cb1ace59509c3ec89dfa6aa0be7a8b7ade9b19c12",
+      "path": "web/src/cycles/CycleEditor.tsx"
+    },
+    {
+      "sha256": "b476a72bfeb7a490464d25a4ccd9725580865a727d6aec095d69015d1306c9ba",
+      "path": "web/e2e/planning-scalar-inputs.browser.ts"
+    }
+  ],
+  "native_cutoffs": [
+    {
+      "engine": "chromium",
+      "field": "project_name",
+      "expected_scalars": 160,
+      "actual_scalars": 80
+    },
+    {
+      "engine": "chromium",
+      "field": "project_summary",
+      "expected_scalars": 500,
+      "actual_scalars": 250
+    },
+    {
+      "engine": "firefox",
+      "field": "project_name",
+      "expected_scalars": 160,
+      "actual_scalars": 80
+    },
+    {
+      "engine": "firefox",
+      "field": "project_summary",
+      "expected_scalars": 500,
+      "actual_scalars": 250
+    },
+    {
+      "engine": "webkit",
+      "field": "project_name",
+      "expected_scalars": 160,
+      "actual_scalars": 80
+    },
+    {
+      "engine": "webkit",
+      "field": "project_summary",
+      "expected_scalars": 500,
+      "actual_scalars": 250
+    },
+    {
+      "engine": "chromium",
+      "field": "milestone_title",
+      "expected_scalars": 160,
+      "actual_scalars": 80
+    },
+    {
+      "engine": "chromium",
+      "field": "cycle_name",
+      "expected_scalars": 160,
+      "actual_scalars": 80
+    },
+    {
+      "engine": "firefox",
+      "field": "milestone_title",
+      "expected_scalars": 160,
+      "actual_scalars": 80
+    },
+    {
+      "engine": "firefox",
+      "field": "cycle_name",
+      "expected_scalars": 160,
+      "actual_scalars": 80
+    },
+    {
+      "engine": "webkit",
+      "field": "milestone_title",
+      "expected_scalars": 160,
+      "actual_scalars": 80
+    },
+    {
+      "engine": "webkit",
+      "field": "cycle_name",
+      "expected_scalars": 160,
+      "actual_scalars": 80
+    }
+  ],
+  "checks": [
+    {
+      "command": "npm --prefix web test -- --maxWorkers=1 src/projects/Projects.test.tsx src/cycles/Planning.test.tsx",
+      "result": "60 passed in 2 files",
+      "log": "work/focused-unit.log",
+      "log_sha256": "5eaf2865bd89bc44a0d2f8db54910b4eed986b081fcf3e910b73bf9a3de66751"
+    },
+    {
+      "command": "npm --prefix web run typecheck",
+      "result": "application and e2e TypeScript targets passed",
+      "log": "work/typecheck-final.log",
+      "log_sha256": "50791af51b60280d7e513ca60ad69f0d2b8af76c3ac63034a5a590ae70375779"
+    },
+    {
+      "command": "npm --prefix web run build",
+      "result": "passed; existing chunk-size warning retained",
+      "log": "work/build-final.log",
+      "log_sha256": "7d72f5a6d4d8bc21333b86a57827ecbcdfa84821a71237f7fb748c45dadec75e"
+    }
+  ],
+  "browser_runs": {
+    "baseline": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "project supplementary names and summaries survive create, rejected writes, repair and reload",
+            "status": "failed",
+            "duration_ms": 1315,
+            "failure": "planning-scalar-inputs.browser.ts:16"
+          },
+          {
+            "browser": "chromium",
+            "check": "milestone and cycle supplementary text survives create, rejected writes, repair and reload",
+            "status": "failed",
+            "duration_ms": 1299,
+            "failure": "planning-scalar-inputs.browser.ts:16"
+          },
+          {
+            "browser": "firefox",
+            "check": "project supplementary names and summaries survive create, rejected writes, repair and reload",
+            "status": "failed",
+            "duration_ms": 2846,
+            "failure": "planning-scalar-inputs.browser.ts:16"
+          },
+          {
+            "browser": "firefox",
+            "check": "milestone and cycle supplementary text survives create, rejected writes, repair and reload",
+            "status": "failed",
+            "duration_ms": 3125,
+            "failure": "planning-scalar-inputs.browser.ts:16"
+          },
+          {
+            "browser": "webkit",
+            "check": "project supplementary names and summaries survive create, rejected writes, repair and reload",
+            "status": "failed",
+            "duration_ms": 2099,
+            "failure": "planning-scalar-inputs.browser.ts:16"
+          },
+          {
+            "browser": "webkit",
+            "check": "milestone and cycle supplementary text survives create, rejected writes, repair and reload",
+            "status": "failed",
+            "duration_ms": 1801,
+            "failure": "planning-scalar-inputs.browser.ts:16"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "c48b50d58156a4992564ed789e5ca98c32cac27ea60668be088240bb91b3cfae",
+      "spec_sha256": "b476a72bfeb7a490464d25a4ccd9725580865a727d6aec095d69015d1306c9ba",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "cleanup_sha256": "8dbd52d51fd671df3f496745ceaaf6a273483ebd23a35170f7fd6b81e216a6de",
+      "private_artifacts": [
+        {
+          "path": "api.log",
+          "sha256": "b29e31f6b1f74703f7dee25ed45570b545dace27c61c44146a703c7a0483c340",
+          "bytes": 366
+        },
+        {
+          "path": "browser.log",
+          "sha256": "3baf5022cea0145656451a2e9355180bf0575b16cc2dead9e2e0bed87c94d3b9",
+          "bytes": 935
+        },
+        {
+          "path": "cleanup.json",
+          "sha256": "8dbd52d51fd671df3f496745ceaaf6a273483ebd23a35170f7fd6b81e216a6de",
+          "bytes": 75
+        },
+        {
+          "path": "native-cutoffs.json",
+          "sha256": "e9e7aaa63222dabcfca96c65dc2af73b4261d4067cb6e9845590f29571d2ad80",
+          "bytes": 1422
+        },
+        {
+          "path": "output/.last-run.json",
+          "sha256": "06e5e74a61049d3e39212945079c41fa29e2b3340e3c91548b7f8781d8d3977f",
+          "bytes": 341
+        },
+        {
+          "path": "output/planning-scalar-inputs.bro-357a8-ed-writes-repair-and-reload-chromium/error-context.md",
+          "sha256": "ff003d83e15725ca624fee5ff75491f0cc8149ce6ce309508aa7da847714585a",
+          "bytes": 27212
+        },
+        {
+          "path": "output/planning-scalar-inputs.bro-357a8-ed-writes-repair-and-reload-firefox/error-context.md",
+          "sha256": "c5be696790e6827dd71be4fd890da6c82b614146c6614987fa69a3f92c00b1d3",
+          "bytes": 28062
+        },
+        {
+          "path": "output/planning-scalar-inputs.bro-357a8-ed-writes-repair-and-reload-webkit/error-context.md",
+          "sha256": "696bd93b458ac191af160ff1f4e2f6f6761ea565704c05e7a5df1c4183fa66b2",
+          "bytes": 28658
+        },
+        {
+          "path": "output/planning-scalar-inputs.bro-5aa53-ed-writes-repair-and-reload-chromium/error-context.md",
+          "sha256": "aea34167a3d886eecc6465db4625e81f8edc2f964abfb5cd1bff5e3644cc3445",
+          "bytes": 22336
+        },
+        {
+          "path": "output/planning-scalar-inputs.bro-5aa53-ed-writes-repair-and-reload-firefox/error-context.md",
+          "sha256": "b68a0539cc0ed0d6b5a4db33628a02f30e9495762a2bb5de004afb9bd639f275",
+          "bytes": 23198
+        },
+        {
+          "path": "output/planning-scalar-inputs.bro-5aa53-ed-writes-repair-and-reload-webkit/error-context.md",
+          "sha256": "4dedfb1b329ab3bb948a7dab58f6cf3f19aa576d230ad32e94b61aa88b1d8a89",
+          "bytes": 23792
+        },
+        {
+          "path": "receipt.json",
+          "sha256": "c48b50d58156a4992564ed789e5ca98c32cac27ea60668be088240bb91b3cfae",
+          "bytes": 1913
+        },
+        {
+          "path": "result.json",
+          "sha256": "ca93bc95660a4d2cd12e6369114a5791a1cfa83b998444e49288bea3d1e2b427",
+          "bytes": 38
+        },
+        {
+          "path": "spec.browser.ts",
+          "sha256": "b476a72bfeb7a490464d25a4ccd9725580865a727d6aec095d69015d1306c9ba",
+          "bytes": 12898
+        }
+      ]
+    },
+    "corrected": {
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "project supplementary names and summaries survive create, rejected writes, repair and reload",
+            "status": "passed",
+            "duration_ms": 7149
+          },
+          {
+            "browser": "chromium",
+            "check": "milestone and cycle supplementary text survives create, rejected writes, repair and reload",
+            "status": "passed",
+            "duration_ms": 5749
+          },
+          {
+            "browser": "firefox",
+            "check": "project supplementary names and summaries survive create, rejected writes, repair and reload",
+            "status": "passed",
+            "duration_ms": 12246
+          },
+          {
+            "browser": "firefox",
+            "check": "milestone and cycle supplementary text survives create, rejected writes, repair and reload",
+            "status": "passed",
+            "duration_ms": 9749
+          },
+          {
+            "browser": "webkit",
+            "check": "project supplementary names and summaries survive create, rejected writes, repair and reload",
+            "status": "passed",
+            "duration_ms": 10746
+          },
+          {
+            "browser": "webkit",
+            "check": "milestone and cycle supplementary text survives create, rejected writes, repair and reload",
+            "status": "passed",
+            "duration_ms": 7717
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "dba50a55c940a115fff870487aff82fb4d965301923dc822d064e904c7912c4e",
+      "spec_sha256": "b476a72bfeb7a490464d25a4ccd9725580865a727d6aec095d69015d1306c9ba",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "cleanup_sha256": "8dbd52d51fd671df3f496745ceaaf6a273483ebd23a35170f7fd6b81e216a6de",
+      "private_artifacts": [
+        {
+          "path": "api.log",
+          "sha256": "f5898ac90fc544e3f3d667cd50fe70b308152509bdcb1bf9576acc786463a45a",
+          "bytes": 366
+        },
+        {
+          "path": "browser.log",
+          "sha256": "09ce17b7d56360ccb71bd4bb4300b500a8804bda3a7dd228d6aaa17f0b6b2e85",
+          "bytes": 701
+        },
+        {
+          "path": "cleanup.json",
+          "sha256": "8dbd52d51fd671df3f496745ceaaf6a273483ebd23a35170f7fd6b81e216a6de",
+          "bytes": 75
+        },
+        {
+          "path": "receipt.json",
+          "sha256": "dba50a55c940a115fff870487aff82fb4d965301923dc822d064e904c7912c4e",
+          "bytes": 1573
+        },
+        {
+          "path": "result.json",
+          "sha256": "55a18e8f7a1cdd822ecd909e79181387440ebf2c0d88bff3905b1de756f077d5",
+          "bytes": 39
+        },
+        {
+          "path": "spec.browser.ts",
+          "sha256": "b476a72bfeb7a490464d25a4ccd9725580865a727d6aec095d69015d1306c9ba",
+          "bytes": 12898
+        }
+      ]
+    }
+  },
+  "browser_command_each_phase": "source work/browser-env.sh; python3 work/run-planning-browser.py <baseline|corrected> (approved PID namespace scope: node node_modules/@playwright/test/cli.js test planning-scalar-inputs.browser.ts)",
+  "browser_config": {
+    "sha256": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "unchanged": true,
+    "timeout_ms": 60000,
+    "action_expect_timeout_ms": 10000,
+    "workers": 1,
+    "retries": 0,
+    "origin": "http://127.0.0.1:18081"
+  },
+  "runtime": {
+    "environment": "isolated helper network namespace and private PostgreSQL 18 cluster with synthetic workspace/teams",
+    "same_backend_sha256_before_after": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+    "browser_scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+    "orchestrator_sha256": "662d1c204c14dd48dbb398ecf730ac42ac9406fd811c3a50ff090e622eb250a4",
+    "browser_service_authority_removed": true,
+    "log_byte_cap_per_stream": 2097152,
+    "fixtures": "separate new synthetic team per journey and phase; retained database without reset",
+    "private_artifact_root": "$OPENTRACK_DEV_STATE/planning-scalar",
+    "private_directory_mode": "0700",
+    "private_file_mode": "0600"
+  },
+  "prepared_frontends": {
+    "baseline": [
+      {
+        "path": "assets/RichTextEditor-BedJvSKb.js",
+        "sha256": "a7b972c673d27a66d332a670742aee8d25a56d230d3feca5875b4937030a9178",
+        "bytes": 444281
+      },
+      {
+        "path": "assets/RichTextEditor-BedJvSKb.js.map",
+        "sha256": "aac381f9909ddeb395b739b59751d91c01c642a3c71a86a50370426d00a31705",
+        "bytes": 1964243
+      },
+      {
+        "path": "assets/index-B9yoYYJd.css",
+        "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+        "bytes": 90154
+      },
+      {
+        "path": "assets/index-CAeW4zFK.js",
+        "sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524",
+        "bytes": 689015
+      },
+      {
+        "path": "assets/index-CAeW4zFK.js.map",
+        "sha256": "c2364cee9fc4402a16c032a3ce46884116a599867a9bc8f51f9a54798f80f537",
+        "bytes": 2391632
+      },
+      {
+        "path": "assets/portability.worker-DEvlQVr4.js",
+        "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+        "bytes": 79037
+      },
+      {
+        "path": "assets/portability.worker-DEvlQVr4.js.map",
+        "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+        "bytes": 224663
+      },
+      {
+        "path": "index.html",
+        "sha256": "ca5c59a4af58df389a9d9cd627db02f17d33f573ef9c6735ce7a9a838137797b",
+        "bytes": 606
+      },
+      {
+        "path": "theme.js",
+        "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+        "bytes": 321
+      }
+    ],
+    "corrected": [
+      {
+        "path": "assets/RichTextEditor-e6NNqS_v.js",
+        "sha256": "84c3767f6256607fac2e76a268f03e06b725e294ad4d0c13583b9961b6899a39",
+        "bytes": 444281
+      },
+      {
+        "path": "assets/RichTextEditor-e6NNqS_v.js.map",
+        "sha256": "70eac36d36dc6b9dcbcdda240a4d41074af5a73410ed71193b78fddaac6c0185",
+        "bytes": 1964243
+      },
+      {
+        "path": "assets/index-B9yoYYJd.css",
+        "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+        "bytes": 90154
+      },
+      {
+        "path": "assets/index-Dr2k26dg.js",
+        "sha256": "e8fe72699a6b50f9c071ec1f9e8e28d7cf743eafc77c50cdec015e28c2825605",
+        "bytes": 688959
+      },
+      {
+        "path": "assets/index-Dr2k26dg.js.map",
+        "sha256": "41129b88e03c5f52e40d3378099db5a46da19e6d1cfc90c06738387dc60f45ff",
+        "bytes": 2391528
+      },
+      {
+        "path": "assets/portability.worker-DEvlQVr4.js",
+        "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+        "bytes": 79037
+      },
+      {
+        "path": "assets/portability.worker-DEvlQVr4.js.map",
+        "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+        "bytes": 224663
+      },
+      {
+        "path": "index.html",
+        "sha256": "27b3dc0aac2ddec711fe031200381ab5c47ed47ffe8172a6a7f885fbd3c177c1",
+        "bytes": 606
+      },
+      {
+        "path": "theme.js",
+        "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+        "bytes": 321
+      }
+    ]
+  },
+  "acceptance": [
+    "All three engines reproduce the four original native cutoffs using sequential input.",
+    "Identical spec bytes preserve name/title/cycle 160 and project summary 500 supplementary scalars across create/edit/reload.",
+    "All four overlong fields reach actual Rust API as 161/501 scalars and return 422 during create and edit; drafts remain intact.",
+    "Rejected creates leave no extra entity; rejected edits preserve stored text/version, including the milestone parent project.",
+    "Each repaired edit advances its entity version exactly once; repaired create yields one entity.",
+    "Existing focused tests preserve required/trim/empty-summary, date ordering, project state, permissions, dirty navigation, conflict and uncertain-command paths. Browser cycle dates/timezone span DST unchanged."
+  ],
+  "migration_rollback": "No schema, Rust, API or dependency changes. Rollback is a frontend source/build rollback; no data rewrite.",
+  "limitations": [
+    "Focused browser journeys only; global browser/CI matrices were not run by this helper.",
+    "Synthetic automated browser input does not qualify physical keyboard, OS IME, assistive technology or native desktop interaction.",
+    "No whole planning, board ordering, F05/F14/F15 or whole-product completion claim.",
+    "Hosted checks and main integration remain the lead responsibility."
+  ],
+  "preparation_diagnostics": [
+    "Initial Cargo package selection was incorrect; corrected to opentrack-server and own build passed.",
+    "Initial Vite invocation used the repository root; corrected to the web directory and original frontend built. Original diagnostics retained privately."
+  ]
+}
