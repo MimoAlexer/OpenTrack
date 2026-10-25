@@ -1,0 +1,1018 @@
+{
+  "date": "2026-10-25",
+  "scope": "Command-palette issue-query scalar input; bounded F22 increment",
+  "base_commit": "8b730204089f0ce63c61e0615c9bb7a49ebeaa98",
+  "branch": "codex/worker-a-palette-query-scalars",
+  "change": "Remove only the native UTF-16 maxlength120 palette cap. The ordinary issue endpoint existing256-scalar query bound remains authoritative; no new client validator or hook/registry/backend/IssueList/router change.",
+  "source_and_check_sha256": {
+    "web/src/commands/CommandPalette.tsx": "0ec9800e1f1e35bce168b3e56a8a60d96651eb8df253d6650d944c4df293cee0",
+    "web/src/commands/palette-issues.test.tsx": "21596dd9f7a19f8abf7e274b478e7149a02ba24ea3fc84e5b4f5cf931f2e3b6a",
+    "web/src/commands/commands.test.tsx": "99895b21d621a3688d2d65c9dd4813da34ef36cdfbaaff838fc58a3cf1140729",
+    "web/src/commands/usePaletteIssues.ts": "93d07260845c02fc0b759dca9590fa57a645be7cbc581e8626cdd0c1891bd3c7",
+    "web/e2e/palette-query-scalar-inputs.browser.ts": "9aaa41ff6a068427130e571ad0c9db75490149cafd2cadb404c889c7b8219f9d",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "web/e2e/fixtures.ts": "97c8f8183457a7b4af966090b12fbe58166c0f7fa37822643c5511d4fb469445",
+    "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667",
+    "work/palette-query-scalars/unit.log": "2c2172c8f85b9b28bc49b9632b1d0df20c48c052fd230de1ab63fda11779224f",
+    "work/palette-query-scalars/production-build.log": "bafc92af6ada19d0aaef1911d499d435055d6fcc915d1f4b2177832232c14efb",
+    "work/palette-query-contained-lf.py": "d69588b5eae6809f17069d7158891bc5cb7f8010471e6c5de9d0bf879c4c1510",
+    "work/palette-query-scalars/typecheck-lf.log": "50791af51b60280d7e513ca60ad69f0d2b8af76c3ac63034a5a590ae70375779"
+  },
+  "executed_checks": [
+    {
+      "command": "cd web; npm test -- src/commands/palette-issues.test.tsx src/commands/commands.test.tsx --maxWorkers=1",
+      "status": "passed",
+      "files": 2,
+      "tests": 22
+    },
+    {
+      "command": "cd web; npm run typecheck",
+      "status": "passed",
+      "targets": [
+        "tsconfig.json",
+        "tsconfig.e2e.json"
+      ]
+    },
+    {
+      "command": "npm run build --prefix web",
+      "status": "passed",
+      "candidate_production_builds": 1
+    }
+  ],
+  "browser_command": "node node_modules/@playwright/test/cli.js test palette-query-scalar-inputs.browser.ts",
+  "profile": {
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "journeys_per_engine": 1,
+    "workers": 1,
+    "retries": 0,
+    "test_timeout_ms": 60000,
+    "expect_timeout_ms": 10000,
+    "action_timeout_ms": 10000,
+    "origin": "http://127.0.0.1:18081",
+    "trace": false,
+    "screenshot": false,
+    "video": false,
+    "unchanged_palette_debounce_ms": 150,
+    "unchanged_result_limit": 20
+  },
+  "private_reporters": "Original CRLF before/after pair retained; final LF before/after pair binds the exact committed spec. Same three cases only, unchanged assertions/profile, compiled frontend/backend reused. Both use existing receipt and standard JSON reporters with indexed private output and approved PID containment.",
+  "fixture_isolation": "Fresh private owner team with unique256-scalar target and60-scalar-prefix distractor. A second synthetic admin creates another private team/issue to which the original owner has no membership; direct owner read404 and exclusion are verified. Existing own database/data/backend/scope are reused without reset or old task reruns.",
+  "runtime_artifact_root": "$OPENTRACK_DEV_STATE/palette-query-scalars",
+  "frontend_roots": {
+    "baseline": "$OPENTRACK_DEV_STATE/workflow-label-scalars/baseline-frontend",
+    "corrected": "$OPENTRACK_DEV_STATE/palette-query-scalars/corrected-frontend"
+  },
+  "private_artifact_index": {
+    "path": "$OPENTRACK_DEV_STATE/palette-query-scalars/artifact-index-final.json",
+    "sha256": "f607be2c4a6353d9ed0f8213f4c16cfa49a9a896fbd9f8736c7407246225d94c"
+  },
+  "format_correction": {
+    "reason": "Final staged whitespace check found CRLF introduced by Windows text rewrite; source normalized to repository LF.",
+    "only_line_endings_changed": true,
+    "crlf_sequences_removed": 124,
+    "original_spec_path": "$OPENTRACK_DEV_STATE/palette-query-scalars/original-spec.browser.ts",
+    "original_spec_sha256": "179a3efb4a049e1be0c806e6fb6076134f56f0402662baee2a50b04ff7e23d91",
+    "final_spec_path": "$OPENTRACK_DEV_STATE/palette-query-scalars/final-spec.browser.ts",
+    "final_spec_sha256": "9aaa41ff6a068427130e571ad0c9db75490149cafd2cadb404c889c7b8219f9d",
+    "assertions_timeouts_and_profile_unchanged": true,
+    "same_compiled_frontends_backend_reused": true,
+    "original_phases": [
+      "baseline",
+      "corrected"
+    ],
+    "final_phases": [
+      "baseline-lf",
+      "corrected-lf"
+    ]
+  },
+  "runs": {
+    "baseline": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
+            "status": "failed",
+            "duration_ms": 13893,
+            "failure": "palette-query-scalar-inputs.browser.ts:72"
+          },
+          {
+            "browser": "firefox",
+            "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
+            "status": "failed",
+            "duration_ms": 14020,
+            "failure": "palette-query-scalar-inputs.browser.ts:72"
+          },
+          {
+            "browser": "webkit",
+            "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
+            "status": "failed",
+            "duration_ms": 13732,
+            "failure": "palette-query-scalar-inputs.browser.ts:72"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "baseline",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "179a3efb4a049e1be0c806e6fb6076134f56f0402662baee2a50b04ff7e23d91",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 1,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 60,
+              "input_utf16_units": 120,
+              "requested_query_scalars": 60,
+              "limit": "20",
+              "result_count": 2,
+              "target_present": true,
+              "partial_distractor_present": true,
+              "private_control_present": false,
+              "private_control_direct_read_status": 404
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 60,
+              "input_utf16_units": 120,
+              "requested_query_scalars": 60,
+              "limit": "20",
+              "result_count": 2,
+              "target_present": true,
+              "partial_distractor_present": true,
+              "private_control_present": false,
+              "private_control_direct_read_status": 404
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 60,
+              "input_utf16_units": 120,
+              "requested_query_scalars": 60,
+              "limit": "20",
+              "result_count": 2,
+              "target_present": true,
+              "partial_distractor_present": true,
+              "private_control_present": false,
+              "private_control_direct_read_status": 404
+            }
+          }
+        }
+      ]
+    },
+    "corrected": {
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
+            "status": "passed",
+            "duration_ms": 5052
+          },
+          {
+            "browser": "firefox",
+            "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
+            "status": "passed",
+            "duration_ms": 6268
+          },
+          {
+            "browser": "webkit",
+            "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
+            "status": "passed",
+            "duration_ms": 6624
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "corrected",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "179a3efb4a049e1be0c806e6fb6076134f56f0402662baee2a50b04ff7e23d91",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 0,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 256,
+              "input_utf16_units": 512,
+              "requested_query_scalars": 256,
+              "limit": "20",
+              "result_count": 1,
+              "target_present": true,
+              "partial_distractor_present": false,
+              "private_control_present": false,
+              "private_control_direct_read_status": 404
+            },
+            "query-resolution-receipt": {
+              "query_scalars": [
+                256,
+                257,
+                256
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "target_only_for_full_query": true,
+              "no_stale_result_or_unfiltered_fallback": true,
+              "private_control_direct_read_status": 404,
+              "private_control_excluded": true,
+              "current_resolve_status": 200,
+              "keyboard_opened_same_issue": true,
+              "saved_issue_version": "1"
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 256,
+              "input_utf16_units": 512,
+              "requested_query_scalars": 256,
+              "limit": "20",
+              "result_count": 1,
+              "target_present": true,
+              "partial_distractor_present": false,
+              "private_control_present": false,
+              "private_control_direct_read_status": 404
+            },
+            "query-resolution-receipt": {
+              "query_scalars": [
+                256,
+                257,
+                256
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "target_only_for_full_query": true,
+              "no_stale_result_or_unfiltered_fallback": true,
+              "private_control_direct_read_status": 404,
+              "private_control_excluded": true,
+              "current_resolve_status": 200,
+              "keyboard_opened_same_issue": true,
+              "saved_issue_version": "1"
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 256,
+              "input_utf16_units": 512,
+              "requested_query_scalars": 256,
+              "limit": "20",
+              "result_count": 1,
+              "target_present": true,
+              "partial_distractor_present": false,
+              "private_control_present": false,
+              "private_control_direct_read_status": 404
+            },
+            "query-resolution-receipt": {
+              "query_scalars": [
+                256,
+                257,
+                256
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "target_only_for_full_query": true,
+              "no_stale_result_or_unfiltered_fallback": true,
+              "private_control_direct_read_status": 404,
+              "private_control_excluded": true,
+              "current_resolve_status": 200,
+              "keyboard_opened_same_issue": true,
+              "saved_issue_version": "1"
+            }
+          }
+        }
+      ]
+    },
+    "baseline-lf": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
+            "status": "failed",
+            "duration_ms": 13227,
+            "failure": "palette-query-scalar-inputs.browser.ts:72"
+          },
+          {
+            "browser": "firefox",
+            "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
+            "status": "failed",
+            "duration_ms": 14478,
+            "failure": "palette-query-scalar-inputs.browser.ts:72"
+          },
+          {
+            "browser": "webkit",
+            "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
+            "status": "failed",
+            "duration_ms": 13755,
+            "failure": "palette-query-scalar-inputs.browser.ts:72"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "baseline-lf",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "9aaa41ff6a068427130e571ad0c9db75490149cafd2cadb404c889c7b8219f9d",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 1,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 60,
+              "input_utf16_units": 120,
+              "requested_query_scalars": 60,
+              "limit": "20",
+              "result_count": 2,
+              "target_present": true,
+              "partial_distractor_present": true,
+              "private_control_present": false,
+              "private_control_direct_read_status": 404
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 60,
+              "input_utf16_units": 120,
+              "requested_query_scalars": 60,
+              "limit": "20",
+              "result_count": 2,
+              "target_present": true,
+              "partial_distractor_present": true,
+              "private_control_present": false,
+              "private_control_direct_read_status": 404
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 60,
+              "input_utf16_units": 120,
+              "requested_query_scalars": 60,
+              "limit": "20",
+              "result_count": 2,
+              "target_present": true,
+              "partial_distractor_present": true,
+              "private_control_present": false,
+              "private_control_direct_read_status": 404
+            }
+          }
+        }
+      ]
+    },
+    "corrected-lf": {
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
+            "status": "passed",
+            "duration_ms": 4977
+          },
+          {
+            "browser": "firefox",
+            "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
+            "status": "passed",
+            "duration_ms": 7226
+          },
+          {
+            "browser": "webkit",
+            "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
+            "status": "passed",
+            "duration_ms": 6092
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "corrected-lf",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "9aaa41ff6a068427130e571ad0c9db75490149cafd2cadb404c889c7b8219f9d",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 0,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 256,
+              "input_utf16_units": 512,
+              "requested_query_scalars": 256,
+              "limit": "20",
+              "result_count": 1,
+              "target_present": true,
+              "partial_distractor_present": false,
+              "private_control_present": false,
+              "private_control_direct_read_status": 404
+            },
+            "query-resolution-receipt": {
+              "query_scalars": [
+                256,
+                257,
+                256
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "target_only_for_full_query": true,
+              "no_stale_result_or_unfiltered_fallback": true,
+              "private_control_direct_read_status": 404,
+              "private_control_excluded": true,
+              "current_resolve_status": 200,
+              "keyboard_opened_same_issue": true,
+              "saved_issue_version": "1"
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 256,
+              "input_utf16_units": 512,
+              "requested_query_scalars": 256,
+              "limit": "20",
+              "result_count": 1,
+              "target_present": true,
+              "partial_distractor_present": false,
+              "private_control_present": false,
+              "private_control_direct_read_status": 404
+            },
+            "query-resolution-receipt": {
+              "query_scalars": [
+                256,
+                257,
+                256
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "target_only_for_full_query": true,
+              "no_stale_result_or_unfiltered_fallback": true,
+              "private_control_direct_read_status": 404,
+              "private_control_excluded": true,
+              "current_resolve_status": 200,
+              "keyboard_opened_same_issue": true,
+              "saved_issue_version": "1"
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 256,
+              "input_utf16_units": 512,
+              "requested_query_scalars": 256,
+              "limit": "20",
+              "result_count": 1,
+              "target_present": true,
+              "partial_distractor_present": false,
+              "private_control_present": false,
+              "private_control_direct_read_status": 404
+            },
+            "query-resolution-receipt": {
+              "query_scalars": [
+                256,
+                257,
+                256
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "target_only_for_full_query": true,
+              "no_stale_result_or_unfiltered_fallback": true,
+              "private_control_direct_read_status": 404,
+              "private_control_excluded": true,
+              "current_resolve_status": 200,
+              "keyboard_opened_same_issue": true,
+              "saved_issue_version": "1"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "frontend_source_provenance": [
+    {
+      "phase": "baseline",
+      "source": "web/src/commands/CommandPalette.tsx",
+      "source_sha256": "27065db71dd75e7fd2001a4b9ecfa82ad6552527c6a404d4d139685871c2fb65",
+      "sourcemap": "assets/index-CAeW4zFK.js.map",
+      "sourcemap_sha256": "516821d4467f467480c14e14fbbe529915bcca9679c49ec03554a27d8d7ecb41",
+      "bundle_sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524"
+    },
+    {
+      "phase": "corrected",
+      "source": "web/src/commands/CommandPalette.tsx",
+      "source_sha256": "0ec9800e1f1e35bce168b3e56a8a60d96651eb8df253d6650d944c4df293cee0",
+      "sourcemap": "assets/index-B_nclJrZ.js.map",
+      "sourcemap_sha256": "75b00f5d280874bd557b5cf774909a2e8b308dae1c0fc4491796db4e9e08cf08",
+      "bundle_sha256": "735e8dc518c6fe5b2f3da9665490a66abfdd14240a5e9cdbbb1f692ff57fe66f"
+    }
+  ],
+  "retained_frontend_assets": [
+    {
+      "phase": "baseline",
+      "path": "assets/RichTextEditor-BedJvSKb.js",
+      "sha256": "a7b972c673d27a66d332a670742aee8d25a56d230d3feca5875b4937030a9178",
+      "bytes": 444281,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/RichTextEditor-BedJvSKb.js.map",
+      "sha256": "67e888af9e6fdec5c8153941ea5aa1f1e1fcc4126da5e66158230c442c8e3d46",
+      "bytes": 1964893,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/index-B9yoYYJd.css",
+      "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+      "bytes": 90154,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/index-CAeW4zFK.js",
+      "sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524",
+      "bytes": 689015,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/index-CAeW4zFK.js.map",
+      "sha256": "516821d4467f467480c14e14fbbe529915bcca9679c49ec03554a27d8d7ecb41",
+      "bytes": 2393652,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/portability.worker-DEvlQVr4.js",
+      "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+      "bytes": 79037,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/portability.worker-DEvlQVr4.js.map",
+      "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+      "bytes": 224663,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "index.html",
+      "sha256": "ca5c59a4af58df389a9d9cd627db02f17d33f573ef9c6735ce7a9a838137797b",
+      "bytes": 606,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "theme.js",
+      "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+      "bytes": 321,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/RichTextEditor-Gh4lagqm.js",
+      "sha256": "6aafb38f9ad39b650f31249665dbed4a56a6eda58276a59cde335e787a27c9d2",
+      "bytes": 444281,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/RichTextEditor-Gh4lagqm.js.map",
+      "sha256": "712bdd81fcad0cc66f59b6145f433c4d99a4086f46679941ae555cc250d59e99",
+      "bytes": 1964243,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/index-B9yoYYJd.css",
+      "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+      "bytes": 90154,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/index-B_nclJrZ.js",
+      "sha256": "735e8dc518c6fe5b2f3da9665490a66abfdd14240a5e9cdbbb1f692ff57fe66f",
+      "bytes": 689001,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/index-B_nclJrZ.js.map",
+      "sha256": "75b00f5d280874bd557b5cf774909a2e8b308dae1c0fc4491796db4e9e08cf08",
+      "bytes": 2391606,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/portability.worker-DEvlQVr4.js",
+      "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+      "bytes": 79037,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/portability.worker-DEvlQVr4.js.map",
+      "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+      "bytes": 224663,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "index.html",
+      "sha256": "8eb97f5736b054e0d93bcd4dc83a271cee96cdf755f9cb30928dc2a3ce7d4f72",
+      "bytes": 606,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "theme.js",
+      "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+      "bytes": 321,
+      "mode": "0o600"
+    }
+  ],
+  "private_runtime_artifacts": [
+    {
+      "phase": "baseline",
+      "path": "api.log",
+      "sha256": "1cb91e22d69990f3da71b134a26102dcaa862212b5379c19fe682e002f59b455",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "migration.log",
+      "sha256": "48322d7f5d6f0e95905674495f9c113e0e758476e205a96bc40caf1680924ac6",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/.last-run.json",
+      "sha256": "79984804a98e9d1f02522012b9733430ebf489b847a9724e6198719407c2e6ae",
+      "bytes": 194,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/palette-query-scalar-input-a0d79--before-keyboard-navigation-chromium/error-context.md",
+      "sha256": "4db218b68b27b1d426399151a01171daf3726b7c2c87cdb76c3326586cbf512d",
+      "bytes": 13705,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/palette-query-scalar-input-a0d79--before-keyboard-navigation-firefox/error-context.md",
+      "sha256": "971927d489c29eb36b936a65d68b603ce3a3437d4c52eceba5eeffb82e787f91",
+      "bytes": 13705,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/palette-query-scalar-input-a0d79--before-keyboard-navigation-webkit/error-context.md",
+      "sha256": "2e30719767c46cec2f72ed348dee13a6c1635e27d5d8fd3b1ee695dc09c7d00d",
+      "bytes": 13705,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "private-results.json",
+      "sha256": "d5839586267f5fac051538348c9c96684e6d73a6a5f191d5cf177ac6995758d0",
+      "bytes": 47474,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "receipt.json",
+      "sha256": "7960b015ab4c166cdd0cc9d20c7950d5ad590697298bb95e194ef0ac9c9b7580",
+      "bytes": 1265,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "runner.log",
+      "sha256": "d87faae7350551dbebc01e989e0129fa279b111d522ca85f1aa3af95c2b00593",
+      "bytes": 620,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "scope-receipt.json",
+      "sha256": "4ecac6f0f97097ce25e23fe1fec393e7de8d3afbb502772bf052b00b3c939c78",
+      "bytes": 473,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "api.log",
+      "sha256": "24221816f0baba87620dcf66428a380a703346eaba4d9507023d0aa7a1092c5f",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "migration.log",
+      "sha256": "a0282e2824a135004b61b24ee4f25a43fd667caecf1445181728ad495bd2284e",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "output/.last-run.json",
+      "sha256": "91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903",
+      "bytes": 45,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "private-results.json",
+      "sha256": "a5ff30f35fd0d5edd8b7b404020e7004cfcb783debec13e2e0820cc5c3f89177",
+      "bytes": 14583,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "receipt.json",
+      "sha256": "e3f686055d52f617cbdf9a8b189e78f3059f78c05a13d329f7a6037c8a4aa1e0",
+      "bytes": 1076,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "runner.log",
+      "sha256": "4b779da634d985dc677818f5227a4ce113018026360bdc8f906f2fa9b3ab4460",
+      "bytes": 488,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "scope-receipt.json",
+      "sha256": "94848b01673af81b1e733d2db03ac2d2cd4c80f9494ab50f2820e57433f19dfd",
+      "bytes": 474,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-lf",
+      "path": "api.log",
+      "sha256": "012e007c547a992209f38861f43f88b503c0540aaef87bb75c6c6478391aa5ae",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-lf",
+      "path": "migration.log",
+      "sha256": "abfe27b419ec043387030a1ffc604e4eb9370ccaab787ed652fd70b9425d215c",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-lf",
+      "path": "output/.last-run.json",
+      "sha256": "79984804a98e9d1f02522012b9733430ebf489b847a9724e6198719407c2e6ae",
+      "bytes": 194,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-lf",
+      "path": "output/palette-query-scalar-input-a0d79--before-keyboard-navigation-chromium/error-context.md",
+      "sha256": "7e7238fec882809f52cd5469ecbf3d0750c1a698fa3ee77146e39487ae426484",
+      "bytes": 13581,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-lf",
+      "path": "output/palette-query-scalar-input-a0d79--before-keyboard-navigation-firefox/error-context.md",
+      "sha256": "f103f8bcf2aa1fa340a2f8022a4b95ad931fa7e8a58d93451dc446acd18041e7",
+      "bytes": 13581,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-lf",
+      "path": "output/palette-query-scalar-input-a0d79--before-keyboard-navigation-webkit/error-context.md",
+      "sha256": "f9b3d043741b72ad349f9019cb5ca54779ff42f70e66789ad5892c7aff5bd5c5",
+      "bytes": 13581,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-lf",
+      "path": "private-results.json",
+      "sha256": "a617a43e39b5d65924a84f1c297ee9c8448deac0c6d913b70e934573127e4763",
+      "bytes": 47503,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-lf",
+      "path": "receipt.json",
+      "sha256": "2b72caf727adc242921311f3d4f4bde4faf4ff393242e83de030ce86cdefe4ec",
+      "bytes": 1265,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-lf",
+      "path": "runner.log",
+      "sha256": "d87faae7350551dbebc01e989e0129fa279b111d522ca85f1aa3af95c2b00593",
+      "bytes": 620,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-lf",
+      "path": "scope-receipt.json",
+      "sha256": "bea2999e958ab579b71728732f393ddedb5f303cb07d7d61a17d4d20c3288baa",
+      "bytes": 476,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected-lf",
+      "path": "api.log",
+      "sha256": "5c85a7fa3c7e449da0589afa8bc35775b03d9a5588a41c6a53c0b6fb7919968f",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected-lf",
+      "path": "migration.log",
+      "sha256": "3a14f65aaa28de8839fce1315151d916e1a17f51cec2f2df71c9f164ff287af1",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected-lf",
+      "path": "output/.last-run.json",
+      "sha256": "91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903",
+      "bytes": 45,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected-lf",
+      "path": "private-results.json",
+      "sha256": "2e11ac7433248dbc6952922552de9c69b90018abf20087a0a034bc5b4c5877b6",
+      "bytes": 14604,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected-lf",
+      "path": "receipt.json",
+      "sha256": "71f6d262b3f22b633895f2f06618735f9fe9036b200b3c3aaeb37ccfcc3a9925",
+      "bytes": 1076,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected-lf",
+      "path": "runner.log",
+      "sha256": "4b779da634d985dc677818f5227a4ce113018026360bdc8f906f2fa9b3ab4460",
+      "bytes": 488,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected-lf",
+      "path": "scope-receipt.json",
+      "sha256": "7c0e88e3fafafa8e878d64d586b0db8681dee77a3c6872571c5af061513dcce9",
+      "bytes": 477,
+      "mode": "0o600"
+    }
+  ],
+  "shutdown": {
+    "same_namespace_extra_processes": [],
+    "postmaster_pid_absent": true,
+    "database_data_retained": true
+  },
+  "shutdown_receipt": {
+    "path": "$OPENTRACK_DEV_STATE/palette-query-scalars/shutdown-audit-final.json",
+    "sha256": "ccbaea8ae3e0ab7df0f8208f921543c105cdfb51bd830e9118903394ec612f76"
+  },
+  "database_stop_log": {
+    "path": "$OPENTRACK_DEV_STATE/palette-query-scalars/database-stop-lf.log",
+    "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+  },
+  "prior_candidate_preservation_receipt": {
+    "path": "$OPENTRACK_DEV_STATE/palette-query-scalars/prior-candidate-preservation.json",
+    "sha256": "65ec72924020dc934b8d0a0e2b3827b26a97636e0449f6422267aa644bf8b7d1"
+  },
+  "asserted_behavior": [
+    "Native input proves baseline60 versus corrected256 supplementary scalars with identical spec bytes and exact captured API query.",
+    "Baseline partial query returns both accessible target and prefix distractor; corrected full query returns only the intended target with limit20.",
+    "257 scalars reach Rust HTTP422 validation_failed with typed query retained, old suggestions removed and no unfiltered/truncated query fallback.",
+    "Enter on the rejected empty result does not resolve or navigate. Repair restores the valid256 result.",
+    "Keyboard activation performs a current authorized GET200 before closing/navigating to the same issue, whose title persists after reload.",
+    "The other private issue identity/key remains excluded and direct owner read404 before and after; target/distractor saved records remain unchanged.",
+    "Focused existing units retain stale/revoked/scope/debounce/resolve/focus/IME behavior; new scalar unit checks full query/rejection/repair/current resolution."
+  ],
+  "migration_rollback": "No schema, Rust or wire change. Frontend rollback restores native truncation; existing issue query policy remains authoritative.",
+  "limits": [
+    "This qualifies only a bounded F22 query-input correction, not whole search/palette/milestone/product acceptance.",
+    "Normal contained completion and namespace emptiness are verified; no forced interruption drill was performed.",
+    "Physical IME/keyboard, native desktop, assistive technology, screenshots, global matrices and broader performance remain separate gates.",
+    "Independent exact-head review, hosted checks and integration remain lead-owned. No push, PR, merge or issue closure was performed.",
+    "The ongoing worker Goal continues for scoped findings and the next explicit assignment."
+  ]
+}

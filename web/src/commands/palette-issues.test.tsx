@@ -26,6 +26,29 @@ async function query(value: string) {
 }
 async function enter() { await act(async () => container.querySelector('input')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))); }
 
+it('sends full supplementary queries, preserves rejected text without fallback and resolves only the repaired result', async () => {
+  const text = '\u{1F680}'.repeat(256); const overlong = text + '\u{1F680}'; const queries: string[] = [];
+  const options = source(); const close = vi.fn(); const frames: FrameRequestCallback[] = [];
+  vi.stubGlobal('requestAnimationFrame', (frame: FrameRequestCallback) => { frames.push(frame); return frames.length; });
+  const fetch = vi.fn((url: string) => {
+    if (url.endsWith('/issues/full')) return Promise.resolve(json(issue('full', text)));
+    const request = new URL(url, 'https://example.test'); const value = request.searchParams.get('q')!;
+    expect(request.searchParams.get('limit')).toBe('20'); queries.push(value);
+    if (value === overlong) return Promise.resolve(json({ code: 'validation_failed', detail: 'Invalid issue filter or page size' }, 422));
+    expect(value).toBe(text); return Promise.resolve(json(page(issue('full', text))));
+  });
+  vi.stubGlobal('fetch', fetch);
+  await render(options, close); await query(text); await tick(149); expect(fetch).not.toHaveBeenCalled(); await tick(1);
+  expect(queries).toEqual([text]); expect(container.querySelector('[role="option"]')?.textContent).toContain(text);
+  await query(overlong); expect(container.querySelectorAll('[role="option"]')).toHaveLength(0); await tick();
+  expect(container.querySelector('input')!.value).toBe(overlong); expect(container.textContent).toContain('Invalid issue filter or page size');
+  expect(queries).toEqual([text, overlong]); await enter(); expect(close).not.toHaveBeenCalled(); expect(options.open).not.toHaveBeenCalled();
+  await query(text); await tick(); expect(container.querySelectorAll('[role="option"]')).toHaveLength(1);
+  await enter(); expect(fetch.mock.calls.at(-1)![0]).toBe('/api/v1/workspaces/workspace/issues/full');
+  expect(close).toHaveBeenCalledOnce(); expect(options.open).not.toHaveBeenCalled(); expect(frames).toHaveLength(1);
+  frames[0](0); expect(options.open).toHaveBeenCalledExactlyOnceWith('full'); expect(queries).toEqual([text, overlong, text]);
+});
+
 it('debounces remote search, bounds the request, and rejects out-of-order responses even when transport ignores abort', async () => {
   const older = deferred(); const newer = deferred();
   const fetch = vi.fn().mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise); vi.stubGlobal('fetch', fetch);

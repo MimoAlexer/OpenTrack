@@ -35,7 +35,7 @@ export function CommandPalette({ commands, close, charactersEnabled = true, issu
   }
   return <Modal title="Commands" close={close}>
     <div className="command-palette">
-      <label className="command-search"><Search aria-hidden="true" /><span className="sr-only">Search commands</span><input data-autofocus role="combobox" aria-label="Search commands" aria-autocomplete="list" aria-expanded="true" aria-controls={`${id}-results`} aria-activedescendant={active ? `${id}-${active.id}` : undefined} value={query} placeholder="Search actions or go to…" autoComplete="off" maxLength={120} onChange={event => { setQuery(event.target.value); setSelected(null); }} onKeyDown={event => {
+      <label className="command-search"><Search aria-hidden="true" /><span className="sr-only">Search commands</span><input data-autofocus role="combobox" aria-label="Search commands" aria-autocomplete="list" aria-expanded="true" aria-controls={`${id}-results`} aria-activedescendant={active ? `${id}-${active.id}` : undefined} value={query} placeholder="Search actions or go to…" autoComplete="off" onChange={event => { setQuery(event.target.value); setSelected(null); }} onKeyDown={event => {
         if (event.nativeEvent.isComposing || event.keyCode === 229 || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.getModifierState('AltGraph')) return;
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
           event.preventDefault();
