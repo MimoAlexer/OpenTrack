@@ -35,6 +35,15 @@ async function submit() { await act(async () => container.querySelector('form')!
 const resource = (items: MilestoneOverview[]) => ({ items, loading: false, error: null, retry: vi.fn() });
 
 describe('milestone planning', () => {
+  it.each(['create', 'edit'] as const)('retains a rejected supplementary milestone draft and repairs it during %s', async mode => {
+    let reject = true; const changed = vi.fn(); const denied = vi.fn();
+    const fetch = vi.fn((_url: string, options: RequestInit) => Promise.resolve(json(options.method === 'POST' || options.method === 'PATCH' ? reject ? { code: 'invalid', detail: 'Milestone title exceeds its limit' } : milestone : project, reject && (options.method === 'POST' || options.method === 'PATCH') ? 422 : 200))); vi.stubGlobal('fetch', fetch);
+    await render(<Milestones project={project} session={session} resource={resource(mode === 'edit' ? [{ milestone, progress }] : [])} readOnly={false} changed={changed} denied={denied}/>); await click(mode === 'create' ? 'New milestone' : 'Edit First outcome');
+    const title = '😀'.repeat(160); await input('input[name="milestone-title"]', title + '😀'); await submit();
+    const writes = () => fetch.mock.calls.filter(([, options]) => options.method === 'POST' || options.method === 'PATCH');
+    expect(JSON.parse(writes()[0][1].body as string).title).toBe(title + '😀'); expect(container.querySelector<HTMLInputElement>('input[name="milestone-title"]')!.value).toBe(title + '😀'); expect(changed).not.toHaveBeenCalled(); expect(denied).not.toHaveBeenCalled(); expect(hasUnsavedChanges()).toBe(true);
+    reject = false; await input('input[name="milestone-title"]', ` ${title} `); await submit(); expect(JSON.parse(writes()[1][1].body as string).title).toBe(title); expect(writes()).toHaveLength(2); expect(changed).toHaveBeenCalledTimes(1); expect(hasUnsavedChanges()).toBe(false);
+  });
   it('shows manual milestone state independently and never invents empty completion', async () => {
     await render(<Milestones project={project} session={session} resource={resource([{ milestone: { ...milestone, state: 'completed' }, progress }])} readOnly changed={() => {}} denied={() => {}}/>);
     expect(container.textContent).toContain('Manually completed'); expect(container.textContent).toContain('No eligible issue scope'); expect(container.textContent).not.toContain('% complete'); expect(container.querySelector('progress')).toBeNull(); expect(container.querySelector('button')).toBeNull();
@@ -60,6 +69,15 @@ describe('milestone planning', () => {
   });
 });
 describe('cycle planning screens', () => {
+  it.each(['create', 'edit'] as const)('retains a rejected supplementary cycle draft and repairs it during %s', async mode => {
+    let reject = true; const saved = vi.fn(); const denied = vi.fn();
+    const fetch = vi.fn((_url: string, _options: RequestInit) => Promise.resolve(reject ? json({ code: 'invalid', detail: 'Cycle name exceeds its limit' }, 422) : json(cycle))); vi.stubGlobal('fetch', fetch);
+    await render(<CycleEditor workspace="workspace" team="team" session={session} cycle={mode === 'edit' ? cycle : undefined} close={() => {}} saved={saved} denied={denied}/>);
+    const name = '🧭'.repeat(160); await input('input:not([type])', name + '🧭');
+    const dates = container.querySelectorAll<HTMLInputElement>('input[type="date"]'); await act(async () => { for (const [index, value] of ['2026-03-28', '2026-03-31'].entries()) { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(dates[index], value); dates[index].dispatchEvent(new Event('input', { bubbles: true })); } });
+    await submit(); expect(JSON.parse(fetch.mock.calls[0][1].body as string)).toMatchObject({ name: name + '🧭', start_date: '2026-03-28', end_date_exclusive: '2026-03-31' }); expect(container.querySelector<HTMLInputElement>('input:not([type])')!.value).toBe(name + '🧭'); expect(saved).not.toHaveBeenCalled(); expect(denied).not.toHaveBeenCalled(); expect(hasUnsavedChanges()).toBe(true);
+    reject = false; await input('input:not([type])', ` ${name} `); await submit(); expect(JSON.parse(fetch.mock.calls[1][1].body as string).name).toBe(name); expect(fetch).toHaveBeenCalledTimes(2); expect(saved).toHaveBeenCalledTimes(1); expect(hasUnsavedChanges()).toBe(false);
+  });
   it('routes list and detail while rejecting nested unknown paths', () => {
     expect(parseRoute('/w/workspace/cycles/cycle?team_id=team')).toMatchObject({ area: 'cycles', cycleId: 'cycle', valid: true }); expect(parseRoute('/w/workspace/cycles/cycle/nope').valid).toBe(false);
   });

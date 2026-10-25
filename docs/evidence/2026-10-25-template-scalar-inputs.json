@@ -1,0 +1,668 @@
+{
+  "date": "2026-10-25",
+  "scope": "Worker A: template Unicode input boundaries; bounded F23 / M04 increment",
+  "base_commit": "8b730204089f0ce63c61e0615c9bb7a49ebeaa98",
+  "implementation": "Remove only native UTF-16 maxlength caps from template name and issue-title inputs; existing Rust scalar validation remains authoritative.",
+  "source_and_check_sha256": {
+    "web/src/templates/TemplateSettings.tsx": "b3f58fb283bd2aaa927b9af83e99fad5a284635da650f18326c5c699ecbb90e3",
+    "web/src/templates/TemplateSettings.test.tsx": "da2466e92f41c01f36696b7099820ee9fe9c956277e0401dd8a7fe7c34126688",
+    "web/e2e/template-scalar-inputs.browser.ts": "b4f22dcd46f22bed0b32c8c6899de93a00f854dd43c35481db2147a8ecc793c1",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "web/e2e/fixtures.ts": "97c8f8183457a7b4af966090b12fbe58166c0f7fa37822643c5511d4fb469445",
+    "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667",
+    "work/template-scalars/baseline-TemplateSettings.exact.tsx": "3b475fb33ddf0094189bdf72dc74696ed8428b4798a09fa51e1f54881cc50296",
+    "work/template-unit.log": "31b8c8a6f7d5ef874884455a01f1f23e550f0a0d4e6bd12181055bd782e549af",
+    "work/template-typecheck.log": "50791af51b60280d7e513ca60ad69f0d2b8af76c3ac63034a5a590ae70375779",
+    "work/template-production-build.log": "50903612a504421dca916308de17b2e58443554f7c771f278aa596489c5120b0",
+    "work/template-contained.py": "f12f89d8eb73e4460492bc1b197ebbf3cef6af1974984aedf35170f8265fe7e0"
+  },
+  "executed_checks": [
+    {
+      "command": "cd web; npm test -- src/templates --maxWorkers=1",
+      "status": "passed",
+      "test_files": 4,
+      "tests": 39
+    },
+    {
+      "command": "cd web; npm run typecheck",
+      "status": "passed",
+      "targets": [
+        "tsconfig.json",
+        "tsconfig.e2e.json"
+      ]
+    },
+    {
+      "command": "npm run build --prefix web",
+      "status": "passed",
+      "final_candidate_builds": 1
+    },
+    {
+      "command": "cd web; node node_modules/vite/bin/vite.js build --outDir ../work/template-scalars/baseline-dist",
+      "status": "passed",
+      "purpose": "Retain the unchanged baseline frontend independently of the corrected build."
+    },
+    {
+      "command": "work/wsl.ps1 -Build: cargo build --locked -p opentrack-server -j 1",
+      "status": "passed",
+      "purpose": "One private pinned backend compilation; identical frozen binary used for all before/after runs."
+    }
+  ],
+  "browser_command": "node node_modules/@playwright/test/cli.js test template-scalar-inputs.browser.ts",
+  "browser_profile": {
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "workers": 1,
+    "retries": 0,
+    "test_timeout_ms": 60000,
+    "expect_timeout_ms": 10000,
+    "action_timeout_ms": 10000,
+    "origin": "http://127.0.0.1:18081",
+    "traces": false,
+    "screenshots": false,
+    "videos": false
+  },
+  "browser_receipt_options": "Contained runs additionally used the existing receipt reporter plus the standard JSON reporter, with output confined to private runtime directories.",
+  "fixture_isolation": "Each invocation creates a fresh synthetic private team in this helper database; no retained fixture data was reset. Browser processes receive only dedicated fixture authentication, with all database/operator/worker/setup service authority absent.",
+  "runs": {
+    "baseline": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "template supplementary scalars survive create, edit and reload while rejected writes preserve drafts and saved versions",
+            "status": "failed",
+            "duration_ms": 1135,
+            "failure": "template-scalar-inputs.browser.ts:34"
+          },
+          {
+            "browser": "firefox",
+            "check": "template supplementary scalars survive create, edit and reload while rejected writes preserve drafts and saved versions",
+            "status": "failed",
+            "duration_ms": 3203,
+            "failure": "template-scalar-inputs.browser.ts:34"
+          },
+          {
+            "browser": "webkit",
+            "check": "template supplementary scalars survive create, edit and reload while rejected writes preserve drafts and saved versions",
+            "status": "failed",
+            "duration_ms": 1849,
+            "failure": "template-scalar-inputs.browser.ts:34"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment_limit": "Normal completion under session cleanup; forced cancellation of detached browsers was not qualified."
+    },
+    "corrected": {
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "template supplementary scalars survive create, edit and reload while rejected writes preserve drafts and saved versions",
+            "status": "passed",
+            "duration_ms": 4862
+          },
+          {
+            "browser": "firefox",
+            "check": "template supplementary scalars survive create, edit and reload while rejected writes preserve drafts and saved versions",
+            "status": "passed",
+            "duration_ms": 7967
+          },
+          {
+            "browser": "webkit",
+            "check": "template supplementary scalars survive create, edit and reload while rejected writes preserve drafts and saved versions",
+            "status": "passed",
+            "duration_ms": 6183
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment_limit": "Normal completion under session cleanup; forced cancellation of detached browsers was not qualified."
+    },
+    "baseline-contained": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "template supplementary scalars survive create, edit and reload while rejected writes preserve drafts and saved versions",
+            "status": "failed",
+            "duration_ms": 1096,
+            "failure": "template-scalar-inputs.browser.ts:34"
+          },
+          {
+            "browser": "firefox",
+            "check": "template supplementary scalars survive create, edit and reload while rejected writes preserve drafts and saved versions",
+            "status": "failed",
+            "duration_ms": 2602,
+            "failure": "template-scalar-inputs.browser.ts:34"
+          },
+          {
+            "browser": "webkit",
+            "check": "template supplementary scalars survive create, edit and reload while rejected writes preserve drafts and saved versions",
+            "status": "failed",
+            "duration_ms": 1538,
+            "failure": "template-scalar-inputs.browser.ts:34"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "baseline-contained",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "b4f22dcd46f22bed0b32c8c6899de93a00f854dd43c35481db2147a8ecc793c1",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 1,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-counts": {
+              "name": {
+                "scalars": 50,
+                "utf16_units": 100
+              },
+              "title": {
+                "scalars": 128,
+                "utf16_units": 256
+              }
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-counts": {
+              "name": {
+                "scalars": 50,
+                "utf16_units": 100
+              },
+              "title": {
+                "scalars": 128,
+                "utf16_units": 256
+              }
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-counts": {
+              "name": {
+                "scalars": 50,
+                "utf16_units": 100
+              },
+              "title": {
+                "scalars": 128,
+                "utf16_units": 256
+              }
+            }
+          }
+        }
+      ]
+    },
+    "corrected-contained": {
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "template supplementary scalars survive create, edit and reload while rejected writes preserve drafts and saved versions",
+            "status": "passed",
+            "duration_ms": 4576
+          },
+          {
+            "browser": "firefox",
+            "check": "template supplementary scalars survive create, edit and reload while rejected writes preserve drafts and saved versions",
+            "status": "passed",
+            "duration_ms": 7775
+          },
+          {
+            "browser": "webkit",
+            "check": "template supplementary scalars survive create, edit and reload while rejected writes preserve drafts and saved versions",
+            "status": "passed",
+            "duration_ms": 6605
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "corrected-contained",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "b4f22dcd46f22bed0b32c8c6899de93a00f854dd43c35481db2147a8ecc793c1",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 0,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-counts": {
+              "name": {
+                "scalars": 100,
+                "utf16_units": 200
+              },
+              "title": {
+                "scalars": 256,
+                "utf16_units": 512
+              }
+            },
+            "persisted-scalar-receipt": {
+              "created_scalars": {
+                "name": 100,
+                "title": 256
+              },
+              "edited_scalars": {
+                "name": 100,
+                "title": 256
+              },
+              "created_version": "1",
+              "edited_version": "2",
+              "writes": [
+                {
+                  "method": "POST",
+                  "status": 422
+                },
+                {
+                  "method": "POST",
+                  "status": 422
+                },
+                {
+                  "method": "POST",
+                  "status": 201
+                },
+                {
+                  "method": "PATCH",
+                  "status": 422
+                },
+                {
+                  "method": "PATCH",
+                  "status": 422
+                },
+                {
+                  "method": "PATCH",
+                  "status": 200
+                }
+              ]
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-counts": {
+              "name": {
+                "scalars": 100,
+                "utf16_units": 200
+              },
+              "title": {
+                "scalars": 256,
+                "utf16_units": 512
+              }
+            },
+            "persisted-scalar-receipt": {
+              "created_scalars": {
+                "name": 100,
+                "title": 256
+              },
+              "edited_scalars": {
+                "name": 100,
+                "title": 256
+              },
+              "created_version": "1",
+              "edited_version": "2",
+              "writes": [
+                {
+                  "method": "POST",
+                  "status": 422
+                },
+                {
+                  "method": "POST",
+                  "status": 422
+                },
+                {
+                  "method": "POST",
+                  "status": 201
+                },
+                {
+                  "method": "PATCH",
+                  "status": 422
+                },
+                {
+                  "method": "PATCH",
+                  "status": 422
+                },
+                {
+                  "method": "PATCH",
+                  "status": 200
+                }
+              ]
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-counts": {
+              "name": {
+                "scalars": 100,
+                "utf16_units": 200
+              },
+              "title": {
+                "scalars": 256,
+                "utf16_units": 512
+              }
+            },
+            "persisted-scalar-receipt": {
+              "created_scalars": {
+                "name": 100,
+                "title": 256
+              },
+              "edited_scalars": {
+                "name": 100,
+                "title": 256
+              },
+              "created_version": "1",
+              "edited_version": "2",
+              "writes": [
+                {
+                  "method": "POST",
+                  "status": 422
+                },
+                {
+                  "method": "POST",
+                  "status": 422
+                },
+                {
+                  "method": "POST",
+                  "status": 201
+                },
+                {
+                  "method": "PATCH",
+                  "status": 422
+                },
+                {
+                  "method": "PATCH",
+                  "status": 422
+                },
+                {
+                  "method": "PATCH",
+                  "status": 200
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "private_artifact_root": "$OPENTRACK_DEV_STATE/template-scalar-inputs",
+  "private_artifacts": [
+    {
+      "phase": "baseline",
+      "path": "api.log",
+      "sha256": "7aabeef775b37fe8cc2b1a87a15b14c50993faa07878369955151c82e4db85dc",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "migrate.log",
+      "sha256": "d9e20c91e23efe1d6d9b5089415be3b42a616519d7d99dc5feff9fa8df4ba01d",
+      "bytes": 32,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/.last-run.json",
+      "sha256": "866bc33c9c7b404107a9126d9dea893bf923876eabdde2d966b4128b1dbf9ecd",
+      "bytes": 194,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/template-scalar-inputs.bro-3b703-e-drafts-and-saved-versions-chromium/error-context.md",
+      "sha256": "7b237dda44f8813d7249156054d2daf74f8571a29a6823de491483c71bf247e3",
+      "bytes": 28070,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/template-scalar-inputs.bro-3b703-e-drafts-and-saved-versions-firefox/error-context.md",
+      "sha256": "ae8cdccf4cca74bae5a9f1245a0e7a061e3aefd49ce35e00a90741f789b30b75",
+      "bytes": 28606,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/template-scalar-inputs.bro-3b703-e-drafts-and-saved-versions-webkit/error-context.md",
+      "sha256": "9cee7864bac7ecd0ca889ebe28c753cd10ee068496e895bbd3e124b9254c3f71",
+      "bytes": 28847,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "receipt.json",
+      "sha256": "5485ca25997febbbd6d9b111fd262c6c4bc3f6cbcfec3c1a8a03081e27bccab0",
+      "bytes": 1217,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "runner.log",
+      "sha256": "e54bc8153128c0610ba4176524b90d382f5420a7aa4d64db36d18c8fd311f3d4",
+      "bytes": 575,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "api.log",
+      "sha256": "7b2046c22c0bdc3c30151d30a35ddcacd99b607883b1814ccd2a0a9d1308c823",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "migrate.log",
+      "sha256": "d8f11f7d37e7fa7d7952222d1eb207f27baecf2efa1577a8dbb7cd2ce2f21d3d",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "output/.last-run.json",
+      "sha256": "91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903",
+      "bytes": 45,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "receipt.json",
+      "sha256": "9a14e00d604d488f4187449bf8603ee044c57d77c0be0e9140b96e3c36480bea",
+      "bytes": 1046,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "runner.log",
+      "sha256": "c6340c389431b35a6f8d0d62c7f23bff991001c33b501bc46ba61544c840db78",
+      "bytes": 458,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-contained",
+      "path": "api.log",
+      "sha256": "5e2795365f93fc32619ca99eb325a6ce01d242ff4b6311b7ceda899a50eb1900",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-contained",
+      "path": "migration.log",
+      "sha256": "269876d2cd2a009291da19e5ee7cbf01fa8de40785d71a11b80c93aad4d22063",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-contained",
+      "path": "output/.last-run.json",
+      "sha256": "866bc33c9c7b404107a9126d9dea893bf923876eabdde2d966b4128b1dbf9ecd",
+      "bytes": 194,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-contained",
+      "path": "output/template-scalar-inputs.bro-3b703-e-drafts-and-saved-versions-chromium/error-context.md",
+      "sha256": "256cc430bd11ff3adcf98e5277b3fd112e92f73403226ba9baf235fd205f084e",
+      "bytes": 31230,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-contained",
+      "path": "output/template-scalar-inputs.bro-3b703-e-drafts-and-saved-versions-firefox/error-context.md",
+      "sha256": "08a3fe597f0ceb9e6cb8e0ff10d726cc9d73865394628419cbd2d058f35863fa",
+      "bytes": 31759,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-contained",
+      "path": "output/template-scalar-inputs.bro-3b703-e-drafts-and-saved-versions-webkit/error-context.md",
+      "sha256": "564a6920f634906fe1aed31fc3fbd28cc6625d7bb5244424dbf889e43fddad08",
+      "bytes": 31909,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-contained",
+      "path": "private-results.json",
+      "sha256": "293a4a870fb8690664e705e6c6936b18b8e64dd124a6a777632c0143755c857b",
+      "bytes": 57187,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-contained",
+      "path": "receipt.json",
+      "sha256": "05af4255f94909da1c13714bb8e7e3b84931c51cfc1c3d6e802e8090b2c44ab0",
+      "bytes": 1217,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-contained",
+      "path": "runner.log",
+      "sha256": "e54bc8153128c0610ba4176524b90d382f5420a7aa4d64db36d18c8fd311f3d4",
+      "bytes": 575,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-contained",
+      "path": "scope-receipt.json",
+      "sha256": "fbe3cf15f9e15d342bd942c42c40ea5e4986bf07b6cf11b09892e8502c17f1b6",
+      "bytes": 483,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected-contained",
+      "path": "api.log",
+      "sha256": "5ef40e8b17168114874f6e8af2465a4f584e668d140128a60ec63d8a113da707",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected-contained",
+      "path": "migration.log",
+      "sha256": "e483471ea3fee2b2c3d103442d601e74fe4f21ba51e59f419a187591e05dbe8e",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected-contained",
+      "path": "output/.last-run.json",
+      "sha256": "91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903",
+      "bytes": 45,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected-contained",
+      "path": "private-results.json",
+      "sha256": "566b62b9803b855f5bf6a23312243bb1b21012ada0386f1642ba0b784a0a5021",
+      "bytes": 14102,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected-contained",
+      "path": "receipt.json",
+      "sha256": "13c7cda9e19e205e1cda2d91d90fd9756157ba18376a5e7e8916b7dd3f8b1532",
+      "bytes": 1046,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected-contained",
+      "path": "runner.log",
+      "sha256": "c6340c389431b35a6f8d0d62c7f23bff991001c33b501bc46ba61544c840db78",
+      "bytes": 458,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected-contained",
+      "path": "scope-receipt.json",
+      "sha256": "e6f91929dfcb91910b3fd8f063146b2d0ec5ba8f31e20e4d38926723d9e78be8",
+      "bytes": 484,
+      "mode": "0o600"
+    }
+  ],
+  "asserted_behavior": [
+    "Native sequential supplementary input preserves name100/title256 through create, edit and full reload.",
+    "Name101 and title257 each reach Rust on create and edit and receive validation_failed HTTP422.",
+    "Rejected creates preserve both draft fields and leave the new team template directory empty.",
+    "Rejected edits preserve both draft fields and leave the full saved definition/version unchanged.",
+    "Repair produces exactly one successful create and one successful edit, with one template and version1 to2.",
+    "Existing focused tests retain literal/pattern diagnostics, title-mode opt-in, conflict review, uncertain same-key retry, authority and required/trim behavior."
+  ],
+  "migration_rollback": "No schema, API, storage or Rust changes. Rolling back the frontend restores the native cutoff; persisted scalar-valid definitions remain supported by the unchanged server.",
+  "limits": [
+    "This is a bounded template editor input correction; issue24, F23, M04 and whole-product completion are not claimed.",
+    "Normal completion and namespace emptiness were verified. Forced cancellation was not exercised in these feature journeys.",
+    "Physical IME, native desktop, assistive technology, screenshots, global browser matrices and broader template expansion acceptance were not executed.",
+    "All four hosted checks, independent review and main integration remain lead-owned gates. No push, PR, merge or issue closure was performed.",
+    "Original uncontained and containment-qualified before/after runs are all retained separately; later passes do not erase earlier evidence limits."
+  ]
+}

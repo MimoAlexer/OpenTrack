@@ -10,6 +10,8 @@ The user resumed the complete-product goal on 20 October 2026 and requested para
 
 Planning implementation: schemas 0022–0024 add single-team projects, ordered milestones and team cycles; schema `0026` adds independent rich project documents and revisions. [Projects evidence](evidence/2026-10-20-projects.md), [project briefs](evidence/2026-10-22-agent-2-issue-26-project-briefs.md), [milestone verification](MILESTONES.md#verification), [cycle evidence](evidence/2026-10-22-cycles.md) and [planning screen qualification](evidence/2026-10-22-planning-ui.md) record their exact scope. Boards, timelines, automatic recurrence and broader planning/expansion acceptance remain unfinished.
 
+Unicode input alignment: [templates](evidence/2026-10-25-template-scalar-inputs.md) and [planning editors](evidence/2026-10-25-planning-scalar-inputs.md) preserve the existing Rust scalar limits without native UTF-16 truncation. Identical focused browser specs record the original cutoff and nine corrected API-backed journeys across three engines, using separate retained candidate bundles. Rejected writes preserve drafts and saved versions; repaired writes persist exactly. The [combined candidate checks](evidence/2026-10-25-scalar-input-union.json) pass 99 focused units, both TypeScript targets and a production build. Hosted verification of the combined source remains a separate integration gate. These input corrections do not close broader F23/M04/M05, native, physical-input or assistive-technology acceptance.
+
 ## Status rules
 
 - **Unverified**: no adequate implementation/runtime evidence recorded here. This is the initial status, not a claim about files another worker may currently be editing.

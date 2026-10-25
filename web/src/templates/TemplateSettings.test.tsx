@@ -35,6 +35,43 @@ function input(label: string) { return [...container.querySelectorAll('label')].
 async function fill(label: string, value: string) { const element = input(label); await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, value); element.dispatchEvent(new Event('input', { bubbles: true })); }); }
 async function submit() { await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); }
 
+it.each(['create', 'edit'])('preserves supplementary template %s drafts after server rejection and submits repaired scalar boundaries once', async mode => {
+  const name = '\u{1F680}'.repeat(100); const title = '\u{1F30D}'.repeat(256);
+  await render(); await click(mode === 'create' ? 'New template' : 'Edit Bug report');
+  await fill('Template name', name); await fill('Issue title', title);
+  const original = structuredClone(current);
+  for (const field of ['name', 'title'] as const) {
+    const label = field === 'name' ? 'Template name' : 'Issue title';
+    const value = (field === 'name' ? name : title) + '\u{1F31F}';
+    await fill(label, value);
+    command = async options => {
+      expect(JSON.parse(options.body as string)).toMatchObject({ name, title, [field]: value, title_mode: 'literal' });
+      return json({ code: 'validation_failed', detail: `${label} must contain fewer characters` }, 422);
+    };
+    await submit();
+    expect(input(label).value).toBe(value); expect(input(field === 'name' ? 'Issue title' : 'Template name').value).toBe(field === 'name' ? title : name);
+    expect(container.textContent).toContain(`${label} must contain fewer characters`);
+    expect(hasUnsavedChanges()).toBe(true); expect(container.querySelector('form')).not.toBeNull(); expect(current).toEqual(original);
+    await fill(label, field === 'name' ? name : title);
+  }
+  command = async options => {
+    expect(JSON.parse(options.body as string)).toMatchObject({ name, title, title_mode: 'literal' });
+    return json({ ...current, name, title, version: mode === 'create' ? '1' : '2' });
+  };
+  await submit(); expect(container.querySelector('form')).toBeNull(); expect(hasUnsavedChanges()).toBe(false);
+  const writes = fetchMock.mock.calls.filter(([, options]) => (options as RequestInit).method === (mode === 'create' ? 'POST' : 'PATCH'));
+  expect(writes).toHaveLength(3);
+  if (mode === 'edit') for (const [, options] of writes) expect(new Headers((options as RequestInit).headers).get('If-Match')).toBe(original.etag);
+});
+
+it('keeps whitespace-only names unsaveable and trims a valid name while allowing an empty literal title', async () => {
+  await render(); await click('New template'); await fill('Template name', '   ');
+  expect(button('Create template').disabled).toBe(true);
+  await fill('Template name', '  Checklist  '); expect(button('Create template').disabled).toBe(false);
+  command = async options => { expect(JSON.parse(options.body as string)).toMatchObject({ name: 'Checklist', title: '', title_mode: 'literal' }); return json(current); };
+  await submit(); expect(container.querySelector('form')).toBeNull(); expect(hasUnsavedChanges()).toBe(false);
+});
+
 it('uses server management flags, loads the body lazily, and exposes only preview to a reader', async () => {
   current = { ...current, can_manage: false }; await render(false); expect(button('New template')).toBeUndefined(); expect(button('Edit Bug report')).toBeUndefined(); expect(fetchMock.mock.calls.every(([url]) => !String(url).endsWith('/preview'))).toBe(true);
   await click('Preview Bug report'); expect(container.textContent).toContain('Original body'); expect(container.querySelector('form')).toBeNull();

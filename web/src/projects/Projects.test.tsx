@@ -87,6 +87,22 @@ describe('project navigation and scope', () => {
 });
 
 describe('project edits', () => {
+  it.each(['create', 'edit'] as const)('retains scalar-boundary drafts and repairs server rejections during %s', async mode => {
+    const saved = vi.fn(); const denied = vi.fn(); let reject = true;
+    const fetch = vi.fn((_url: string, _options: RequestInit) => Promise.resolve(reject ? json({ code: 'invalid', detail: 'Project text exceeds its limit' }, 422) : json(mode === 'create' ? fullProject() : project))); vi.stubGlobal('fetch', fetch);
+    await render(editor({ project: mode === 'create' ? undefined : project, saved, denied }));
+    const name = '😀'.repeat(160); const summary = '🧭'.repeat(500);
+    await input('input[name="project-name"]', name + '😀'); await input('input[name="project-summary"]', summary + '🧭'); await submit();
+    expect(JSON.parse(fetch.mock.calls[0][1].body as string)).toMatchObject({ name: name + '😀', summary: summary + '🧭' });
+    expect(container.querySelector<HTMLInputElement>('input[name="project-name"]')!.value).toBe(name + '😀'); expect(container.querySelector<HTMLInputElement>('input[name="project-summary"]')!.value).toBe(summary + '🧭'); expect(saved).not.toHaveBeenCalled(); expect(denied).not.toHaveBeenCalled(); expect(hasUnsavedChanges()).toBe(true);
+    reject = false; await input('input[name="project-name"]', ` ${name} `); await input('input[name="project-summary"]', ` ${summary} `); await submit();
+    expect(JSON.parse(fetch.mock.calls[1][1].body as string)).toMatchObject({ name, summary }); expect(fetch).toHaveBeenCalledTimes(2); expect(saved).toHaveBeenCalledTimes(1); expect(hasUnsavedChanges()).toBe(false);
+  });
+  it('keeps names required and normalizes an empty project summary', async () => {
+    const fetch = vi.fn((_url: string, _options: RequestInit) => Promise.resolve(json(project))); vi.stubGlobal('fetch', fetch);
+    await render(editor()); await input('input[name="project-name"]', '   '); await input('input[name="project-summary"]', '   '); await submit(); expect(fetch).not.toHaveBeenCalled(); expect(button('Save project').disabled).toBe(true);
+    await input('input[name="project-name"]', ' Valid name '); await submit(); expect(JSON.parse(fetch.mock.calls[0][1].body as string)).toMatchObject({ name: 'Valid name', summary: '' });
+  });
   const editor = (props: Partial<Parameters<typeof ProjectEditor>[0]> = {}) => <ProjectEditor workspaceId="workspace" team={team} session={session} project={project} close={() => {}} saved={() => {}} denied={() => {}} {...props}/>;
   it('preserves a historical unavailable lead when changing unrelated project fields', async () => {
     const historical = { ...project, lead_id: 'former-lead', lead: { id: 'former-lead', display_name: 'Former Lead', assignable: false } };
