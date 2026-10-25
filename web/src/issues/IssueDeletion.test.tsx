@@ -153,6 +153,32 @@ it('hides previous filter results before the next Trash page arrives', async () 
   expect(container.textContent).not.toContain(issue.title); await act(async () => resolve(json(page([])))); expect(container.textContent).toContain('No deleted issues match.');
 });
 
+it('sends full supplementary Trash queries and preserves rejected text without stale rows or an unfiltered retry', async () => {
+  vi.useFakeTimers(); history.replaceState({ otIndex: 0 }, '', '/w/w/trash');
+  const query = '\u{1F680}'.repeat(256); const overlong = query + '\u{1F680}'; const queries: string[] = [];
+  const record = { ...tombstone, issue: { ...tombstone.issue, title: query } };
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    const params = new URL(url, 'https://example.test').searchParams; const text = params.get('q') ?? '';
+    expect(params.get('limit')).toBe('50'); queries.push(text);
+    return Promise.resolve(text === overlong ? json({ code: 'validation_failed', detail: 'Invalid trash search or page size' }, 422) : json(page(text === query ? [record] : [])));
+  }));
+  function RoutedTrash() {
+    const route = parseRoute(useLocation());
+    return <Trash workspaceId="w" data={data} session={session} params={route.search} refresh={0} restored={() => {}}/>;
+  }
+  await render(<RoutedTrash/>); const search = container.querySelector<HTMLInputElement>('[aria-label="Search Trash by title or key"]')!;
+  await input(search, query); await act(async () => vi.advanceTimersByTime(279)); expect(queries).toEqual(['']);
+  await act(async () => vi.advanceTimersByTime(1)); expect(queries.at(-1)).toBe(query);
+  expect(new URLSearchParams(location.search).get('q')).toBe(query); expect(container.querySelectorAll('.trash-row')).toHaveLength(1);
+  const beforeError = queries.length;
+  await input(search, overlong); await act(async () => vi.advanceTimersByTime(280));
+  expect(search.value).toBe(overlong); expect(new URLSearchParams(location.search).get('q')).toBe(overlong);
+  expect(container.textContent).toContain('Invalid trash search or page size'); expect(container.querySelectorAll('.trash-row')).toHaveLength(0);
+  expect(queries.slice(beforeError)).toEqual([overlong]);
+  await input(search, query); await act(async () => vi.advanceTimersByTime(280));
+  expect(queries.at(-1)).toBe(query); expect(container.querySelectorAll('.trash-row')).toHaveLength(1); expect(container.textContent).toContain(query);
+});
+
 it('pauses a pending Trash search while a restore detail is open without losing repairs', async () => {
   vi.useFakeTimers();
   history.replaceState({ otIndex: 0 }, '', '/w/w/trash');
