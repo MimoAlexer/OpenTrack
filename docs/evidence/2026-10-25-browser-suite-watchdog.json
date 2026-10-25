@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-25",
+  "authorization": "Human explicitly approved the whole browser-suite watchdog increase from600 to900 seconds",
+  "base_head": "71718f0d89b4fdd872b84ae8428c2b838142c902",
+  "change": {
+    "path": "scripts/browser-acceptance.py",
+    "old_suite_watchdog_seconds": 600,
+    "new_suite_watchdog_seconds": 900,
+    "old_sha256": "299eca3442daaaa43f5d5d62eebeb3bac7960d622b8e8fc696eae134c7b0ea7a",
+    "new_sha256": "059b61600722a073431d02317624d4c263a9e8f3f4b79ccf0c30e463f61a1e50",
+    "executable_delta": "One timeout keyword value only; normalized AST equals the original"
+  },
+  "unchanged": {
+    "per_test_seconds": 60,
+    "expect_seconds": 10,
+    "action_seconds": 10,
+    "workers": 1,
+    "retries": 0,
+    "playwright_config_sha256": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "e2e_tree": "4d4f67a0bc61cd40bbce8d9377644809c80c5d71",
+    "frontend_source_tree": "3b162c24bc781cc18f746cbda3c881b738fa9791",
+    "assertions_and_case_selection": true
+  },
+  "executed": {
+    "existing_pure_boundary_tests": 3,
+    "exit_code": 0,
+    "log_sha256": "383a12fba9b5b327054a24ce7e5739569c4f0b6621facd981f2d6a4271063b3c",
+    "no_services_started": true
+  },
+  "retained_ci": [
+    {
+      "head": "f1817e71f09b92eb933b425885d3655f6d8e2283",
+      "passes": 191,
+      "reported_failures": 2,
+      "completions": 193,
+      "unreported": 20,
+      "suite_watchdog_seconds": 600,
+      "log_sha256": "e5a199d5674dc1a675339000691d33625f799c0dc56eadab3283f583bf241a20"
+    },
+    {
+      "head": "71718f0d89b4fdd872b84ae8428c2b838142c902",
+      "passes": 201,
+      "reported_failures": 0,
+      "completions": 201,
+      "unreported": 12,
+      "suite_watchdog_seconds": 600,
+      "end_receipt": false,
+      "log_sha256": "f79065e61c206780ddf66e427fe14a7c77af9b522b3770a2911f56ca7a775582"
+    }
+  ],
+  "limits": [
+    "This authorization does not make either historical incomplete matrix successful",
+    "Fresh all-four exact-head checks, all213 saved cases accounted for, independent delta review, resolved conversations and current-main tree checks remain required",
+    "Setup acceptance remains its separate three-case qualification, outside the saved-workspace213 matrix"
+  ]
+}
