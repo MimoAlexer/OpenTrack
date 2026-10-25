@@ -201,7 +201,7 @@ class Boundaries(unittest.TestCase):
             runner = module.BrowserAcceptance(self.project, "http://localhost:18081")
         runner.preflight = Mock(return_value=self.config)
         runner.validate_live_resources = Mock()
-        runner.validate_cleanup_resources = Mock(return_value=([], [], []))
+        runner.validate_cleanup_resources = Mock(return_value=None)
         runner.create_claim = Mock()
         services = {name for name, value in self.config["services"].items() if not value.get("profiles")} | {"credentials"}
         claim = {"project": self.project, "services": sorted(services), "creation_volumes": sorted({
@@ -209,6 +209,7 @@ class Boundaries(unittest.TestCase):
         runner.claim_contents = Mock(return_value=claim)
         runner.claim_path = Mock()
         runner.claim_path.exists.return_value = True
+        runner.claim_path.unlink.side_effect = lambda: setattr(runner.claim_path.exists, "return_value", False)
         runner.claim_path.lstat.return_value = SimpleNamespace(st_mode=module.stat.S_IFREG | 0o600, st_uid=0, st_size=100)
         runner.claim_path.read_bytes.return_value = json.dumps(claim).encode()
         runner.dc = Mock(return_value="a" * 64)
@@ -218,6 +219,7 @@ class Boundaries(unittest.TestCase):
 
     def container_for(self, service):
         return {"Name": "/" + self.project + "-" + service + "-1",
+                "Id": f"{1:064x}", "HostConfig": {"AutoRemove": False},
                 "Config": {"Labels": {"com.docker.compose.project": self.project,
                            "com.docker.compose.service": service}, "Cmd": [service], "Env": []},
                 "State": {"Running": True}, "NetworkSettings": {"Networks": {}}, "Mounts": [
@@ -332,6 +334,8 @@ class Boundaries(unittest.TestCase):
                                     if call.args[0][1:3] == ["container", "ls"]))
 
     def cleanup_runner(self, runner, containers, volumes, networks=()):
+        for index, container in enumerate(containers, 1):
+            container["Id"] = f"{index:064x}"
         ids = "\n".join(f"{index:064x}" for index in range(1, len(containers) + 1))
         names = "\n".join(volume["Name"] for volume in volumes)
         network_ids = "\n".join(network["Id"] for network in networks)
@@ -342,8 +346,30 @@ class Boundaries(unittest.TestCase):
             replies.append(json.dumps(containers))
         if networks:
             replies.append(json.dumps(networks))
-        replies.extend([""] * (bool(containers) * 2 + bool(volumes) + bool(networks)))
-        runner.command = Mock(side_effect=replies)
+        runner.cleanup_model = {"present": {container["Id"] for container in containers},
+                                "automatic": {container["Id"] for container in containers if container["HostConfig"]["AutoRemove"]},
+                                "pending": {}, "auto_delay": 0}
+
+        def execute(arguments, **kwargs):
+            if replies:
+                return replies.pop(0)
+            identifier = arguments[-1]
+            if arguments[1:3] == ["container", "ls"]:
+                identifier = identifier.removeprefix("id=")
+                pending = runner.cleanup_model["pending"]
+                if identifier in pending:
+                    if pending[identifier]:
+                        pending[identifier] -= 1
+                    else:
+                        runner.cleanup_model["present"].discard(identifier)
+                return identifier if identifier in runner.cleanup_model["present"] else ""
+            if arguments[1:3] == ["container", "stop"] and identifier in runner.cleanup_model["automatic"]:
+                runner.cleanup_model["pending"].setdefault(identifier, runner.cleanup_model["auto_delay"])
+            if arguments[1:3] == ["container", "rm"]:
+                runner.cleanup_model["present"].discard(identifier)
+            return ""
+
+        runner.command = Mock(side_effect=execute)
         runner.validate_cleanup_resources = lambda: module.BrowserAcceptance.validate_cleanup_resources(runner)
 
     def volume_for(self, name):
@@ -447,7 +473,7 @@ class Boundaries(unittest.TestCase):
         self.assertIn(["docker", "network", "rm", network["Id"]], [call.args[0] for call in runner.command.call_args_list])
         self.cleanup_runner(runner, [], [])
         runner.cleanup()
-        self.assertEqual(runner.command.call_count, 6)
+        self.assertEqual(runner.command.call_count, 0)
         runner.dc.assert_not_called()
 
     def test_partial_created_container_with_already_missing_network_remains_cleanable(self):
@@ -519,7 +545,140 @@ class Boundaries(unittest.TestCase):
         self.cleanup_runner(runner, [], [])
         runner.cleanup()
         self.assertEqual(runner.command.call_count, 6)
+        runner.claim_path.unlink.assert_called_once()
+        runner.command.reset_mock()
+        runner.cleanup()
+        runner.command.assert_not_called()
+        runner.claim_path.unlink.assert_called_once()
         runner.dc.assert_not_called()
+
+    def test_success_consumes_claim_before_later_matching_name_resources_can_be_swept(self):
+        runner = self.runner()
+        self.cleanup_runner(runner, [], [self.volume_for("blobs")])
+        runner.cleanup()
+        runner.claim_path.unlink.assert_called_once()
+        runner.command = Mock(side_effect=AssertionError("A successful old claim must authorize no later inventory or deletion"))
+        runner.cleanup()
+        runner.command.assert_not_called()
+
+    def test_cleanup_retains_claim_on_validation_and_real_deletion_failures(self):
+        for phase in ("validation", "stop", "rm", "network", "volume"):
+            runner = self.runner()
+            container = self.container_for("worker")
+            network = self.network_for()
+            network["Containers"] = {f"{1:064x}": {}}
+            container["NetworkSettings"]["Networks"] = {network["Name"]: {"NetworkID": network["Id"]}}
+            volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+            if phase == "validation":
+                volumes[0]["Labels"]["com.docker.compose.project"] = "foreign"
+            self.cleanup_runner(runner, [container], volumes, [network])
+            command = runner.command.side_effect
+            target = {"stop": ["container", "stop"], "rm": ["container", "rm"],
+                      "network": ["network", "rm"], "volume": ["volume", "rm"]}.get(phase)
+
+            def fail(arguments, **kwargs):
+                if arguments[1:3] == target:
+                    raise RuntimeError("Mock real Docker deletion failure")
+                return command(arguments, **kwargs)
+
+            runner.command.side_effect = fail
+            with self.subTest(phase=phase), self.assertRaises(RuntimeError):
+                runner.cleanup()
+            runner.claim_path.unlink.assert_not_called()
+            self.assertTrue(runner.claim_path.exists())
+
+    def test_autoremove_after_stop_finishes_networks_volumes_and_consumes_claim(self):
+        for delay in (0, 2):
+            runner = self.runner()
+            container = self.container_for("worker")
+            container["HostConfig"]["AutoRemove"] = True
+            container["Config"]["Cmd"] = ["worker", "--once"]
+            network = self.network_for()
+            network["Containers"] = {f"{1:064x}": {}}
+            container["NetworkSettings"]["Networks"] = {network["Name"]: {"NetworkID": network["Id"]}}
+            volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+            self.cleanup_runner(runner, [container], volumes, [network])
+            runner.cleanup_model["auto_delay"] = delay
+            with patch.object(module.time, "sleep") as sleep:
+                runner.cleanup()
+            mutations = [call.args[0] for call in runner.command.call_args_list if call.args[0][2] in ("stop", "rm")]
+            self.assertEqual(mutations, [["docker", "container", "stop", "--time", "35", f"{1:064x}"],
+                                         ["docker", "network", "rm", network["Id"]],
+                                         ["docker", "volume", "rm", *sorted(volume["Name"] for volume in volumes)]])
+            self.assertEqual(sleep.call_count, delay)
+            runner.claim_path.unlink.assert_called_once()
+
+    def test_naturally_missing_exact_container_before_stop_does_not_block_volume_cleanup(self):
+        runner = self.runner()
+        container = self.container_for("worker")
+        volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+        self.cleanup_runner(runner, [container], volumes)
+        runner.cleanup_model["present"].clear()
+        runner.cleanup()
+        self.assertFalse(any(call.args[0][1:3] in (["container", "stop"], ["container", "rm"])
+                             for call in runner.command.call_args_list))
+        self.assertIn(["docker", "volume", "rm", *sorted(volume["Name"] for volume in volumes)],
+                      [call.args[0] for call in runner.command.call_args_list])
+        runner.claim_path.unlink.assert_called_once()
+
+    def test_disappearance_during_stop_or_remove_requires_healthy_exact_id_reconciliation(self):
+        for phase in ("stop", "rm"):
+            runner = self.runner()
+            container = self.container_for("worker")
+            volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+            self.cleanup_runner(runner, [container], volumes)
+            command = runner.command.side_effect
+
+            def disappear(arguments, **kwargs):
+                if arguments[1:3] == ["container", phase]:
+                    runner.cleanup_model["present"].clear()
+                    raise RuntimeError("Mock exact container disappeared naturally")
+                return command(arguments, **kwargs)
+
+            runner.command.side_effect = disappear
+            runner.cleanup()
+            runner.claim_path.unlink.assert_called_once()
+
+    def test_reconciliation_docker_errors_and_replacement_ids_retain_claim(self):
+        for outcome in (RuntimeError("Mock daemon error"), "f" * 64):
+            runner = self.runner()
+            container = self.container_for("worker")
+            volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+            self.cleanup_runner(runner, [container], volumes)
+            command = runner.command.side_effect
+
+            def reconcile(arguments, **kwargs):
+                if arguments[-1] == f"id={1:064x}":
+                    if isinstance(outcome, Exception):
+                        raise outcome
+                    return outcome
+                return command(arguments, **kwargs)
+
+            runner.command.side_effect = reconcile
+            with self.assertRaises(RuntimeError):
+                runner.cleanup()
+            runner.claim_path.unlink.assert_not_called()
+
+    def test_autoremove_cleanup_expiry_retains_claim_and_does_not_delete_other_targets(self):
+        runner = self.runner()
+        container = self.container_for("worker")
+        container["HostConfig"]["AutoRemove"] = True
+        volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+        self.cleanup_runner(runner, [container], volumes)
+        command = runner.command.side_effect
+        clock = [1000]
+
+        def expire(arguments, **kwargs):
+            result = command(arguments, **kwargs)
+            if arguments[1:3] == ["container", "stop"]:
+                clock[0] += 121
+            return result
+
+        runner.command.side_effect = expire
+        with patch.object(module.time, "monotonic", side_effect=lambda: clock[0]), self.assertRaises(RuntimeError):
+            runner.cleanup()
+        runner.claim_path.unlink.assert_not_called()
+        self.assertFalse(any("rm" in call.args[0] for call in runner.command.call_args_list))
 
     def test_browser_environment_excludes_parent_secrets_and_controls(self):
         parent = {**self.env, "PATH": "tooling", "HOME": "cache", "DOCKER_HOST": "forbidden",

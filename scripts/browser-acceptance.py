@@ -221,7 +221,7 @@ class BrowserAcceptance:
 
     def validate_cleanup_resources(self):
         if not self.claim_path.exists():
-            return [], [], []
+            return None
         information = self.claim_path.lstat()
         require(stat.S_ISREG(information.st_mode) and stat.S_IMODE(information.st_mode) == 0o600
                 and information.st_uid == os.getuid() and information.st_size <= 16384,
@@ -254,13 +254,16 @@ class BrowserAcceptance:
         if containers:
             inspected = json.loads(self.command(["docker", "inspect", *sorted(containers)],
                                                 timeout=remaining(deadline, 55)))
-            require(len(inspected) == len(containers), "Browser cleanup container inspection was incomplete")
+            require(len(inspected) == len(containers) and {actual.get("Id") for actual in inspected} == containers,
+                    "Browser cleanup container inspection was incomplete")
             for actual in inspected:
                 service = (actual["Config"].get("Labels") or {}).get("com.docker.compose.service")
                 require(service in claim["services"] and actual.get("Name", "").startswith(
                     ("/" + self.project + "-", "/" + self.project + "_")),
                     "Browser cleanup found an unexpected service container")
                 validate_container(actual, config, self.project, service, default_worker=False)
+                require(isinstance(actual["HostConfig"].get("AutoRemove"), bool),
+                        "Browser cleanup container removal policy was ambiguous")
                 require(all(mount["Name"] in names for mount in actual["Mounts"]),
                         "Browser cleanup did not verify every mounted volume")
         network_ids = existing["network"]
@@ -289,18 +292,43 @@ class BrowserAcceptance:
                             or (not actual["State"]["Running"] and not attachment.get("NetworkID"))))
                         for name, attachment in actual["NetworkSettings"]["Networks"].items()),
                     "Browser cleanup did not verify every attached network")
-        return sorted(containers), sorted(owned_networks.values()), sorted(names)
+        return {actual["Id"]: actual["HostConfig"]["AutoRemove"] for actual in inspected}, sorted(owned_networks.values()), sorted(names)
+
+    def cleanup_container_present(self, identifier, deadline):
+        present = self.command(["docker", "container", "ls", "--all", "--no-trunc", "--quiet", "--filter", f"id={identifier}"],
+                               timeout=remaining(deadline, 120))
+        require(present in ("", identifier), "Browser cleanup container identity changed")
+        return bool(present)
 
     def cleanup(self):
-        containers, networks, volumes = self.validate_cleanup_resources()
+        inventory = self.validate_cleanup_resources()
+        if inventory is None:
+            return
+        containers, networks, volumes = inventory
         deadline = time.monotonic() + 120
-        if containers:
-            self.command(["docker", "container", "stop", "--time", "35", *containers], timeout=remaining(deadline, 120))
-            self.command(["docker", "container", "rm", *containers], timeout=remaining(deadline, 120))
+        for identifier, automatic in containers.items():
+            if not self.cleanup_container_present(identifier, deadline):
+                continue
+            try:
+                self.command(["docker", "container", "stop", "--time", "35", identifier], timeout=remaining(deadline, 120))
+            except RuntimeError:
+                if self.cleanup_container_present(identifier, deadline):
+                    raise
+                continue
+            if automatic:
+                while self.cleanup_container_present(identifier, deadline):
+                    time.sleep(remaining(deadline, 0.1))
+            elif self.cleanup_container_present(identifier, deadline):
+                try:
+                    self.command(["docker", "container", "rm", identifier], timeout=remaining(deadline, 120))
+                except RuntimeError:
+                    if self.cleanup_container_present(identifier, deadline):
+                        raise
         if networks:
             self.command(["docker", "network", "rm", *networks], timeout=remaining(deadline, 120))
         if volumes:
             self.command(["docker", "volume", "rm", *volumes], timeout=remaining(deadline, 120))
+        self.claim_path.unlink()
 
     def run(self):
         config = self.preflight()
