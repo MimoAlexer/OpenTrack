@@ -49,6 +49,8 @@ pub enum Error {
     NotFound,
     #[error("{0}")]
     Conflict(String),
+    #[error("Issue order maintenance is active; this change was not applied")]
+    IssueOrderMaintenance(Vec<IssueOrderMaintenance>),
     #[error("This item changed since you opened it")]
     Stale(Box<Issue>),
     #[error("This item changed since you opened it")]

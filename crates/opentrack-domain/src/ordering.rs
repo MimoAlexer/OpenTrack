@@ -79,13 +79,12 @@ pub struct IssueOrderMaintenance {
     #[schema(required = true, value_type = Option<WorkflowJobError>)]
     pub error_code: Option<String>,
     pub can_resume: bool,
+    #[schema(read_only = true)]
+    pub etag: String,
 }
 impl IssueOrderMaintenance {
-    pub fn etag(&self) -> String {
-        format!(
-            "\"issue-order-maintenance:{}:{}:{}\"",
-            self.id, self.version, self.can_resume
-        )
+    pub fn etag(id: Uuid, version: &str, can_resume: bool, authorization: &str) -> String {
+        format!("\"issue-order-maintenance:{id}:{version}:{can_resume}:{authorization}\"")
     }
 }
 
@@ -154,25 +153,20 @@ mod tests {
 
     #[test]
     fn maintenance_etag_changes_with_resume_authority() {
-        let mut value = IssueOrderMaintenance {
-            id: Uuid::new_v4(),
-            team_id: Uuid::new_v4(),
-            status_id: Uuid::new_v4(),
-            state: "blocked".into(),
-            phase: IssueOrderPhase::Staging,
-            staged_count: "100".into(),
-            applied_count: "0".into(),
-            total_count: None,
-            version: "2".into(),
-            error_code: Some("access_lost".into()),
-            can_resume: false,
-        };
-        let before = value.etag();
-        value.can_resume = true;
-        assert_ne!(before, value.etag());
-        let before = value.etag();
-        value.version = "3".into();
-        assert_ne!(before, value.etag());
+        let id = Uuid::new_v4();
+        let before = IssueOrderMaintenance::etag(id, "2", false, "first-authority");
+        assert_ne!(
+            before,
+            IssueOrderMaintenance::etag(id, "2", true, "first-authority")
+        );
+        assert_ne!(
+            before,
+            IssueOrderMaintenance::etag(id, "3", false, "first-authority")
+        );
+        assert_ne!(
+            before,
+            IssueOrderMaintenance::etag(id, "2", false, "new-authority")
+        );
     }
 
     #[test]

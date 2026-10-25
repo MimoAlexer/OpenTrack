@@ -11,6 +11,7 @@ mod credentials;
 mod deletion;
 mod documents;
 mod graph;
+mod issue_ordering;
 mod management;
 mod mentions;
 mod native;
@@ -84,6 +85,7 @@ pub fn router(state: ApiState) -> Router {
         .merge(documents::routes())
         .merge(attachments::routes())
         .merge(workflows::routes())
+        .merge(issue_ordering::routes())
         .fallback(not_found)
         .layer(middleware::from_fn(problem::normalize))
         .layer(middleware::from_fn_with_state(
@@ -369,6 +371,7 @@ async fn problem_documentation(Path(code): Path<String>) -> Result<Json<Value>, 
         "method_not_allowed",
         "request_timeout",
         "conflict",
+        "issue_order_maintenance",
         "version_conflict",
         "payload_too_large",
         "unsupported_media_type",

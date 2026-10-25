@@ -235,6 +235,14 @@ impl App {
                 "A selected label is unavailable for this team".into(),
             ));
         }
+        let rank =
+            match crate::issue_ordering::append(&mut tx, actor, w, req.team_id, status).await? {
+                crate::issue_ordering::RankAllocation::Ready(rank) => rank,
+                crate::issue_ordering::RankAllocation::Maintenance(progress) => {
+                    tx.commit().await.map_err(db_error)?;
+                    return Err(Error::IssueOrderMaintenance(vec![progress]));
+                }
+            };
         let number:i64=sqlx::query_scalar("UPDATE teams SET next_issue_number=next_issue_number+1 WHERE workspace_id=$1 AND id=$2 RETURNING next_issue_number-1").bind(w).bind(req.team_id).fetch_one(&mut *tx).await.map_err(db_error)?;
         let id = Uuid::new_v4();
         sqlx::query("SELECT set_config('opentrack.initial_document',$1,true)")
@@ -242,7 +250,7 @@ impl App {
             .execute(&mut *tx)
             .await
             .map_err(db_error)?;
-        required(sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,description,status_id,priority,assignee_id,estimate,due_date,parent_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)").bind(id).bind(w).bind(req.team_id).bind(actor.user.id).bind(number).bind(&req.title).bind(&initial_plain_text).bind(status).bind(req.priority).bind(req.assignee_id).bind(req.estimate).bind(req.due_date).bind(req.parent_id).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
+        required(sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,description,status_id,priority,assignee_id,estimate,due_date,parent_id,rank) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::numeric)").bind(id).bind(w).bind(req.team_id).bind(actor.user.id).bind(number).bind(&req.title).bind(&initial_plain_text).bind(status).bind(req.priority).bind(req.assignee_id).bind(req.estimate).bind(req.due_date).bind(req.parent_id).bind(rank).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
         if let Some((template, version, hash)) = template_source {
             required(sqlx::query("INSERT INTO issue_template_sources(workspace_id,issue_id,source_team_id,template_id,template_version,definition_sha256) VALUES($1,$2,$3,$4,$5,$6)").bind(w).bind(id).bind(req.team_id).bind(template).bind(version).bind(hash).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
         }

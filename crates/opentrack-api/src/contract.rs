@@ -287,6 +287,8 @@ pub(crate) struct IssuePatch {
         super::workflows::replace_status,
         super::workflows::replacement,
         super::workflows::resume_replacement,
+        super::issue_ordering::issue_order_maintenance,
+        super::issue_ordering::resume_issue_order_maintenance,
         super::taxonomy::labels,
         super::taxonomy::label,
         super::taxonomy::create_label,
