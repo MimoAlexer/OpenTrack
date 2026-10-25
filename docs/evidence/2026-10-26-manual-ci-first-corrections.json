@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-26",
+  "failed_head": "1915aadb00b4b35c65771790261fc46c020414d7",
+  "verify_failure": {
+    "run": 40244057533,
+    "job": 121321881690,
+    "raw_log_sha256": "49aa8134e2a64edd88fadb36636028003ad7a7b3af5dce7619d9486cfbc51043",
+    "cause": "Strict Clippy found shared Harness.lock_team unused in the team_search_contract compilation unit",
+    "correction": "One target-local shared-fixture dead_code annotation, matching projects/cycles targets; no product logic or CI command changes",
+    "corrective_commit": "c2033ee",
+    "targeted_clippy_exit": 0,
+    "targeted_clippy_log_sha256": "36017ab95bf94a53c4f68048bfba2221a22e490446da2ab1c2eaa0f0710666cf"
+  },
+  "amd64_failure": {
+    "run": 40244057500,
+    "job": 121321838281,
+    "raw_log_sha256": "6c78d7ba88c91670ea8e5705bb783788ee13e518cb07dba28b11ae686e913ca8",
+    "actual_error": "Browser acceptance stopped: Browser Compose service roles changed",
+    "browser_cases_executed": 0,
+    "cause": "Default Compose configuration profile projection omits inactive roles required by strict inspection",
+    "correction": "Read-only preflight selects all profiles; actual startup/run profiles remain empty and ownership guards unchanged",
+    "original_correction": "d80224d59a77aa3d0b64d941b3b0f069cc4bc2f8",
+    "private_import": "1694f58",
+    "root_union_mocked_exit": 0,
+    "root_union_mocked_tests": 51,
+    "root_union_mocked_log_sha256": "6c556060defda837dcd0b63cfa70086008a8bfc02c536264857394bff2c542d3"
+  },
+  "preservation": "Both original failed-job logs retained privately; other1915 check outcomes remain separately recorded, not relabelled as new-head acceptance",
+  "limits": [
+    "Read-only local configuration probe unavailable because local WSL Docker CLI is absent; no daemon/runtime started",
+    "Pure tests and targeted Clippy do not establish actual configured runtime success",
+    "Fresh all-four exact-head checks and full240 browser accounting remain mandatory",
+    "No product, migration, role, timeout, worker, retry, case-selection or assertion weakening"
+  ]
+}
