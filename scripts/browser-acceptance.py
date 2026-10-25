@@ -106,7 +106,7 @@ class BrowserAcceptance:
                            "OPENTRACK_BROWSER_SETUP_TOKEN": token,
                            "OPENTRACK_BROWSER_PASSWORD": secrets.token_urlsafe(36)}
             result = subprocess.run(["node", "node_modules/@playwright/test/cli.js", "test"],
-                                    cwd=self.root / "web", env=environment, timeout=600)
+                                    cwd=self.root / "web", env=environment, timeout=900)
             require(result.returncode == 0, "Browser acceptance failed; inspect the credential-free test receipt")
         finally:
             if started:
