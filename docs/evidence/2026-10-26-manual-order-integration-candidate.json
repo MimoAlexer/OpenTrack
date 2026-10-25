@@ -1,0 +1,143 @@
+{
+  "date": "2026-10-26",
+  "status": "Stable integration candidate ready for first configured full CI; not accepted on main",
+  "code_head": "c88fb5802b9304b14c5356a21bb792d2be8f5652",
+  "base_main": "8cd9f0879750a6658f78822ff671aee1ca603913",
+  "source_sha256": {
+    "crates/opentrack-store/migrations/0027_manual_issue_order.sql": "30afd8a7ff4158f4969dd4860490c2e4cdbbfb386f0814db36fb37b7fe9f33c3",
+    "crates/opentrack-app/src/issue_ordering.rs": "68f6d050fd9287ce5c92d31623d76af4012a1eaa54845012d1507b6470208e4d",
+    "crates/opentrack-app/src/worker.rs": "603e5c3b82ae380cfd2e70bc849a45b325eb43cbdec516678275370eca5954d6",
+    "crates/opentrack-api/src/issue_ordering.rs": "dea0e088d96ff477720f01a5154e4283a2c09d9001c700beba4181f17642a540",
+    "crates/opentrack-api/src/lib.rs": "8613d03284e9bbaf0637b5690a7c962a8c6cdaed9f9e480f8cc134b1dfb61fb4",
+    "crates/opentrack-api/tests/issue_order_contract.rs": "91f231fbb303dab81ac1f482c066241a3326aea1a5c8f62a6d238c1346250265",
+    "desktop/src/protocol.rs": "e1dbe6d09f0cce517b6ce68d2e6bb8ba51839a34e7ec1893fd585144ab4c088c",
+    "scripts/browser-acceptance.py": "c738f7c9dac35373d74be6db08d231dcffe8b2b2705418e8bc89f26fe4b9ccdc",
+    "scripts/browser_order_fixtures.py": "5e5cedb8e6aba8b951594cd2318d108b6c16ed009778356870c59612e560b4fa",
+    "scripts/test-browser-acceptance.py": "f2d0121aa4fc49355151e5bd6c95d72c5fc37a136821258cc7ad92c5d19d6eec",
+    "web/src/App.tsx": "9da64de97632da8fda0f52bee9a4331874eeacb8f22959183a648076809a27f1",
+    "web/src/issues/IssueOrdering.tsx": "14b94692e3ab415d28f8c961067b02c9a2bb3f838912952f6e51790b096c0341",
+    "web/src/issues/CreateIssue.tsx": "6afcb096430256ede0ccfe3ac4be0ab0e486236858fc9027c8d2d7a0a83d0304",
+    "web/src/issues/IssueList.tsx": "8b28c8acccd0d46ad4e368d6eb5780780b95b6cc36cd836fee143ccb201765da",
+    "web/src/issues/IssueBoard.tsx": "579bb2de399b60873dafa5adcbd4a8524d5c01a2c155cb45ff0904af1751a902",
+    "web/src/documents/RichTextEditor.tsx": "f1608b7e866642edb34276f8c20a9390520ac5ac31dc8a194817b8c38d890dcd",
+    "web/e2e/manual-issue-order.browser.ts": "41b6673041c0bcd967e46166772a5895be0a9a1d528253ae4a0ae21bc94e59bd",
+    "docs/api/openapi.json": "e84082d4a1112f2662b27cda1c9159bae3983cfd924e1a908a91488e422b732f",
+    "web/src/generated/api.d.ts": "c4935c20635a032425c5e41f79e522824826e975c1cef6e6945b0f566a424cdf"
+  },
+  "cleared_components": {
+    "backend": "ab00/e82 source/evidence/privacy; domain25 andHTTP9 with real restrictedPG",
+    "ingress": "7e/489c3 cases",
+    "fixtures": "4df/a24c14 cases",
+    "worker_faults": "0cb source reused/current635 two actual cases",
+    "default_daemon": "7d bounded501/default2000ms60s5+explicitretry",
+    "planning_parity": "b248/e8df one strengthenedfiveissuecase",
+    "expired_success_replay": "7f/10ef one strengthenedcase,8filtered,originalsuccessretained after ordinary409",
+    "ui": "f29/02724372 bounded source/runtime/data/privacy CLEAR, six earlierbff +three fresha40/e169 paths with separatebundleidentities",
+    "combined_frontend": "e013186/13+bothTS/build/maps/assets source/evidence CLEAR",
+    "ci_runner": "af778de source/pure-evidence CLEAR, original50output independentlybound; no actualDocker/API/fixture/browser/CI execution yet"
+  },
+  "combined_frontend": {
+    "qualified_head": "e013f8a7e0f1a0c52de737e1111b1110e94e31d2",
+    "checks": [
+      {
+        "check": "focused-units",
+        "exit_code": 0,
+        "elapsed_seconds": 27.093,
+        "owned_process_reaped": true,
+        "log_sha256": "783d5a7588e7874ca329c7be561a3c0021db26da88d48205bf81198282315653",
+        "passed": 186,
+        "files": 13
+      },
+      {
+        "check": "typescript-app",
+        "exit_code": 0,
+        "elapsed_seconds": 1.438,
+        "owned_process_reaped": true,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "check": "typescript-browser",
+        "exit_code": 0,
+        "elapsed_seconds": 0.437,
+        "owned_process_reaped": true,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "check": "production-bundle",
+        "exit_code": 0,
+        "elapsed_seconds": 1.281,
+        "owned_process_reaped": true,
+        "log_sha256": "eb16a0ade6878d3b1c2127bfba9ffd14d91b8decd52f41ea4bb97d49662a2433"
+      }
+    ],
+    "frontend_sha256": "d0a8d32102bf69b35b9537267a0436ed3433ca99970a2c9aebca9a2f254589f7",
+    "asset_files": 9,
+    "private_index_sha256": "8c3fb7d592d106142844d5187afc434342d1ab2c470a81b72d1dcb20a9cea436",
+    "spec_only_followup": "e169 exactimport9d, appsourceunchanged, browserTS passed"
+  },
+  "browser_listing": {
+    "source_head": "c88fb5802b9304b14c5356a21bb792d2be8f5652",
+    "listed_only": true,
+    "total": 240,
+    "files": 29,
+    "by_engine": {
+      "chromium": 80,
+      "firefox": 80,
+      "webkit": 80
+    },
+    "all_expected_passed": true,
+    "no_browser_or_services_started": true,
+    "elapsed_seconds": 1.468,
+    "listing_sha256": "5c5c11591c9ed5b0752a0d7c55cad597e279d782563bc43da8c54911a2386c57"
+  },
+  "forward_privacy_intake": {
+    "source_head": "c88fb5802b9304b14c5356a21bb792d2be8f5652",
+    "new_commits_checked": 50,
+    "non_neutral_metadata_count": 0,
+    "identifying_profile_path_hits": 0,
+    "added_diff_sha256": "136649339432de26e856f80351dd888b5d449d3092cbf2ca30b9c5b67fc26282",
+    "scope": "Forward candidate metadata/profile-path intake only; not a whole-history/secret/hosted-cache cleanup claim"
+  },
+  "migration": {
+    "version": 27,
+    "sha256": "30afd8a7ff4158f4969dd4860490c2e4cdbbfb386f0814db36fb37b7fe9f33c3",
+    "retained_application_database_upgraded": false,
+    "rollback": "Prior application requires matching pre-upgrade snapshot; no silent rank default"
+  },
+  "profile": {
+    "shared_entire_suite_seconds": 900,
+    "parent_preparation_max_seconds": 300,
+    "node_uses_only_remaining_suite_budget": true,
+    "per_test_seconds": 60,
+    "expect_action_seconds": 10,
+    "workers": 1,
+    "retries": 0,
+    "worker_idle_poll_ms": 2000,
+    "worker_lease_seconds": 60,
+    "worker_connections": 5
+  },
+  "cleanup": "Fresh name+label absence, private run/attempt claim, validated exact-target cleanup, consume-on-success/retain-on-failure, healthy exact-ID disappearance reconciliation; all source/pure only until actualCI",
+  "limits": [
+    "All four configured fresh exact-head checks and complete240case accounting remain mandatory",
+    "No fresh combined browser matrix or full workspace runtime claimed locally",
+    "Earlier passing/failing/partial runs remain tied to their exact sources and bundles",
+    "No nativeGUI/OSIME/physicaldevice/assistive acceptance or issue30/31/productcompletion",
+    "M06 structured-query body/fragment contract is target-only and unimplemented"
+  ],
+  "actual_union_ci_pure": {
+    "passed": 50,
+    "mocked_only": true,
+    "check": {
+      "check": "mocked-browser-boundaries",
+      "exit_code": 0,
+      "elapsed_seconds": 1.467,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "7fcaa7ac20379cd961cd865945914942ccfc35c7fdda4ab5ecd203ff3aeaba6b",
+      "services_started": false
+    },
+    "private_root": "$OPENTRACK_DEV_STATE/manual-ci-fixture-union-v2",
+    "private_index_sha256": "34d4e87e9c7d2360ea3077dd0a4657bb26d9333fd6fb5b0e3682f18af255e386",
+    "original_files": 2,
+    "no_docker_http_database_or_browser_runtime": true
+  }
+}
