@@ -6,7 +6,7 @@ import type { TemplateDiagnostic, TemplatePreview, TemplateSelection } from '../
 import { DiscardUploadDraft } from '../attachments/DiscardUploadDraft';
 import { AttachmentProvider } from '../attachments/context';
 import type { AttachmentDraftState } from '../attachments/types';
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useUnsavedChanges } from '../router';
 import { StructuredEditor } from '../documents/Editor';
 import { EMPTY_BODY, hasContent, attachmentIds, type RichBody } from '../documents/model';
@@ -18,6 +18,7 @@ import { useScopedRequest } from '../settings/shared';
 import { IssueFields } from './IssueFields';
 import { useIssueWorkflow } from '../workflows/useIssueWorkflow';
 import { defaultStatus, selectable } from '../workflows/model';
+import { IssueOrderProgress, orderMaintenance, type OrderMaintenance } from './IssueOrdering';
 import type { Workflow, WorkflowStatus } from '../workflows/types';
 
 export function CreateIssue({ workspaceId, data, session, initialTeam, close, created, workflowChanged, parent }: {
@@ -46,7 +47,10 @@ export function CreateIssue({ workspaceId, data, session, initialTeam, close, cr
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [uncertain, setUncertain] = useState(false);
-  const pending = useRef<{ key: string; body: Omit<IssueDraft, 'status_id' | 'description'> & { document: { schema_version: number; body: RichBody }; status_id?: string; team_id: string; template?: TemplateSelection; parent_id?: string; parent_etag?: string } } | null>(null);
+  const [maintenance, setMaintenance] = useState<OrderMaintenance[] | null>(null);
+  const fingerprint = JSON.stringify([draft, body, useDefault, teamId, template, parentIssue?.id, parentIssue?.etag]);
+  const pending = useRef<{ key: string; fingerprint: string; body: Omit<IssueDraft, 'status_id' | 'description'> & { document: { schema_version: number; body: RichBody }; status_id?: string; team_id: string; template?: TemplateSelection; parent_id?: string; parent_etag?: string } } | null>(null);
+  useEffect(() => { if (maintenance && pending.current?.fingerprint !== fingerprint) setMaintenance(null); }, [fingerprint]);
   const unresolved = templateDiagnostics.filter(item => item.field === 'title' ? !draft.title.trim() || Array.from(draft.title.trim()).length > 256 : item.field === 'label_ids' ? !!item.reference_id && draft.label_ids.includes(item.reference_id) : item.field === 'status_id' ? !draft.status_id || draft.status_id === item.reference_id : true);
   const templateEdited = !!draft.title || hasContent(body) || editedFields.current.size > 0 || draft.assignee_id !== null || draft.estimate !== null || draft.due_date !== null || draft.label_ids.length > 0 || draft.priority !== 0;
   function changeFields(value: IssueDraft) {
@@ -76,13 +80,16 @@ export function CreateIssue({ workspaceId, data, session, initialTeam, close, cr
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (committed.current || busy || uploads?.pending || composing || unavailable || parentReview || templateReview || unresolved.length > 0 || (!uncertain && !useDefault && !validExplicitStatus)) return;
-    if (!pending.current || !uncertain) { const { status_id, description: _description, ...fields } = draft; pending.current = { key: crypto.randomUUID(), body: { ...fields, document: { schema_version: 1, body }, ...(template ? { template, status_id: useDefault ? currentDefault?.id ?? '' : status_id } : !useDefault ? { status_id } : {}), title: draft.title.trim(), team_id: teamId, ...(parentIssue ? { parent_id: parentIssue.id, parent_etag: parentIssue.etag } : {}) } }; }
+    if (!pending.current || !uncertain && (!maintenance || pending.current.fingerprint !== fingerprint)) { const { status_id, description: _description, ...fields } = draft; pending.current = { key: crypto.randomUUID(), fingerprint, body: { ...fields, document: { schema_version: 1, body }, ...(template ? { template, status_id: useDefault ? currentDefault?.id ?? '' : status_id } : !useDefault ? { status_id } : {}), title: draft.title.trim(), team_id: teamId, ...(parentIssue ? { parent_id: parentIssue.id, parent_etag: parentIssue.etag } : {}) } }; }
     setBusy(true); setError(null);
     let issue: Issue;
     try {
       issue = await request<Issue>(`/workspaces/${workspaceId}/issues`, { method: 'POST', body: pending.current.body, csrf: session.csrf_token, headers: { 'Idempotency-Key': pending.current.key } });
     } catch (error) {
       setError(error);
+      const jobs = orderMaintenance(error, pending.current.body.team_id);
+      if (jobs) { setMaintenance(jobs); setUncertain(false); return; }
+      if (error instanceof ApiError && error.code === 'issue_order_maintenance') { setUncertain(true); return; }
       const changedTemplate = template && error instanceof ApiError && (error.status === 412 && (error.details?.current as { id?: string })?.id === template.id || [404, 409].includes(error.status));
       if (changedTemplate) setTemplateReview(true);
       else if (parentIssue && error instanceof ApiError && [409, 412].includes(error.status)) setParentReview(true);
@@ -100,6 +107,7 @@ export function CreateIssue({ workspaceId, data, session, initialTeam, close, cr
       {parentReview && <div className="workflow-conflict" role="alert"><strong>Review the parent issue.</strong><p>Your draft is preserved. Refresh the parent before trying again.</p><button type="button" className="button compact" disabled={busy} onClick={refreshParent}>Refresh parent</button></div>}
       {scopeNotice && <p className="notice" role="status">{scopeNotice}</p>}
       {uncertain && <div className="notice" role="status">The response was interrupted, so this issue may already exist. Retry safely to recover the result without creating a duplicate. Keep this dialog open until the request is resolved.</div>}
+      {maintenance && <><div className="notice" role="status">No issue was created by this request. Your draft and attachments are preserved. Retry the unchanged draft with the same request after order preparation, or edit or cancel this draft.</div><IssueOrderProgress workspaceId={workspaceId} session={session} initial={maintenance}/></>}
       <TemplateChooser workspaceId={workspaceId} teamId={teamId} session={session} selection={template} selectedName={templateName} disabled={busy || uncertain || unavailable} pendingUploads={!!uploads?.pending} edited={templateEdited} needsReview={templateReview} apply={acceptTemplate} review={reviewTemplate} clear={() => { setTemplate(null); setTemplateName(''); setTemplateDiagnostics([]); setTemplateReview(false); setError(null); }}/>
       <TemplateDiagnostics diagnostics={unresolved}/>
       <fieldset disabled={busy || uncertain || unavailable}>
@@ -108,7 +116,7 @@ export function CreateIssue({ workspaceId, data, session, initialTeam, close, cr
         <section className="create-document"><h3>Description</h3><StructuredEditor attachmentTarget={{ team_id: teamId }} attachmentsChanged={setUploads} value={body} onChange={value => { editedFields.current.add('body'); setBody(value); }} label="Description" disabled={busy || uncertain || unavailable} onCompositionChange={setComposing} compact /></section>
         <IssueFields workspaceId={workspaceId} session={session} disabled={busy || uncertain || unavailable} draft={draft} change={changeFields} data={data} teamId={teamId} statuses={workflow.statuses} currentStatusIds={workflow.currentIds} defaultMode={useDefault} defaultId={currentDefault?.id} chooseStatus={() => setUseDefault(false)} />
       </fieldset>
-      <footer className="modal-footer"><span className="keyboard-hint">⌘ / Ctrl + Enter to create</span><button type="button" className="button" onClick={dismiss} disabled={busy || uncertain}>Cancel</button><button type="submit" className="button primary" disabled={busy || !!uploads?.pending || composing || unavailable || parentReview || templateReview || unresolved.length > 0 || !teamId || !draft.title.trim() || (!uncertain && !useDefault && !validExplicitStatus)}>{busy && <LoaderCircle className="spinner" aria-hidden="true" />}{busy ? 'Creating…' : uncertain ? 'Retry safely' : parentIssue ? 'Create subissue' : 'Create issue'}</button></footer>
+      <footer className="modal-footer"><span className="keyboard-hint">⌘ / Ctrl + Enter to create</span><button type="button" className="button" onClick={dismiss} disabled={busy || uncertain}>Cancel</button><button type="submit" className="button primary" disabled={busy || !!uploads?.pending || composing || unavailable || parentReview || templateReview || unresolved.length > 0 || !teamId || !draft.title.trim() || (!uncertain && !useDefault && !validExplicitStatus)}>{busy && <LoaderCircle className="spinner" aria-hidden="true" />}{busy ? 'Creating…' : uncertain ? 'Retry safely' : maintenance ? 'Retry create' : parentIssue ? 'Create subissue' : 'Create issue'}</button></footer>
     </form>
   </Modal>{discarding && <DiscardUploadDraft title="Discard this issue draft?" description="Your unsaved title and description will be lost." action="Discard draft" uploads={uploads} close={() => setDiscarding(false)} discard={close} />}</ReferenceProvider></AttachmentProvider>;
 }
