@@ -42,13 +42,14 @@ async function position(page: Page, saved: SavedWorkspace, issue: Issue, target:
   expect(body.order_version).toMatch(/^[1-9][0-9]*:[1-9][0-9]*$/); expect(response.request().headers()['if-match']).toBe(current.etag); expect(response.request().headers()['idempotency-key']).toBeTruthy();
   await expect(page.getByRole('dialog')).toHaveCount(0); return saved.issue(issue.id);
 }
-async function drag(page: Page, handle: Locator, destination: Locator, placement: 'before' | 'after' | 'append') {
+async function drag(page: Page, handle: Locator, destination: Locator, placement: 'before' | 'after' | 'append', held?: () => Promise<void>) {
   await handle.scrollIntoViewIfNeeded(); const from = await handle.boundingBox(); expect(from).not.toBeNull();
   await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2); await page.mouse.down();
   try {
     await page.mouse.move(from!.x + from!.width / 2 + 10, from!.y + from!.height / 2, { steps: 3 });
     await destination.scrollIntoViewIfNeeded(); const to = await destination.boundingBox(); expect(to).not.toBeNull();
     await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height * (placement === 'before' ? .25 : placement === 'after' ? .75 : .5), { steps: 8 });
+    await held?.();
   } finally { await page.mouse.up(); }
 }
 async function keyboardSelect(page: Page, control: Locator, value: string) {
@@ -57,13 +58,13 @@ async function keyboardSelect(page: Page, control: Locator, value: string) {
   for (let index = 0; index < values.indexOf(value); index++) await page.keyboard.press('ArrowDown');
   await expect(control).toHaveValue(value);
 }
-async function keyboardMove(page: Page, issue: Issue, status: string, placement: 'append' | 'before', anchor?: Issue) {
+async function keyboardMove(page: Page, issue: Issue, status: string, placement: 'append' | 'before' | 'after', anchor?: Issue, reviewed?: () => Promise<void>) {
   const opener = page.getByRole('button', { name: `Position ${issue.key}`, exact: true }); await expect(opener).toBeEnabled(); await opener.focus(); await page.keyboard.press('Enter');
   const dialog = page.getByRole('dialog', { name: `Position ${issue.key}`, exact: true }); await expect(dialog).toBeVisible();
   await keyboardSelect(page, dialog.getByRole('combobox', { name: 'Position status', exact: true }), status);
   await keyboardSelect(page, dialog.getByRole('combobox', { name: 'Position placement', exact: true }), placement);
   if (anchor) await keyboardSelect(page, dialog.getByRole('combobox', { name: 'Position reference issue', exact: true }), anchor.id);
-  const apply = dialog.getByRole('button', { name: 'Apply reviewed position', exact: true }); await expect(apply).toBeEnabled(); await apply.focus(); await page.keyboard.press('Enter');
+  const apply = dialog.getByRole('button', { name: 'Apply reviewed position', exact: true }); await expect(apply).toBeEnabled(); await reviewed?.(); await apply.focus(); await page.keyboard.press('Enter');
 }
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
 async function raw<T>(http: APIRequestContext, path: string) { const response = await http.get(path); try { expect(response.status()).toBe(200); return { body: await response.json() as T, etag: response.headers().etag }; } finally { await response.dispose(); } }
@@ -87,6 +88,36 @@ test('manual list and board use one full-group reference for pointer and keyboar
   expect((await manual(saved, team.id, status.id)).data.map(item => item.id)).toEqual([c.id, a.id, h.id]); expect(await saved.issue(h.id)).toEqual(h);
   await page.reload(); await expect(page.locator('.issue-groups a.issue-row')).toHaveCount(2);
   expect(await page.locator('.issue-groups a.issue-row').evaluateAll(nodes => nodes.map(node => node.id))).toEqual([`row-${c.id}`, `row-${a.id}`]);
+  for (const input of ['pointer', 'keyboard'] as const) for (const conflict of [412, 409]) {
+    await page.goto(url(saved, team.id, input === 'pointer' ? 'board' : 'list', token)); await expect(page.locator(`#row-${c.id}`)).toBeVisible();
+    const current = await saved.issue(c.id); const snapshot = await manual(saved, team.id, status.id); let authoritative: ManualPage | undefined; let canonical: Issue | undefined;
+    const concurrent = async () => {
+      if (conflict === 412) canonical = await saved.patch(current, { priority: current.priority === 1 ? 2 : 1 });
+      else {
+        const other = await saved.issue(h.id); const group = await manual(saved, team.id, status.id);
+        await saved.request(`/issues/${h.id}/position`, 'POST', { order_version: group.order_version, status_id: status.id, ...(group.data[0].id === h.id ? {} : { before_id: c.id }) }, { 'If-Match': other.etag, 'Idempotency-Key': randomUUID() });
+        canonical = await saved.issue(c.id); expect(canonical).toEqual(current);
+      }
+      authoritative = await manual(saved, team.id, status.id);
+      expect(authoritative.order_version).not.toBe(snapshot.order_version);
+    };
+    const pending = positionResponse(page, saved, c); void pending.catch(() => {});
+    if (input === 'pointer') await drag(page, handle(), reference, 'after', concurrent);
+    else await keyboardMove(page, c, status.id, 'after', a, concurrent);
+    const rejected = await pending; expect(rejected.status()).toBe(conflict);
+    expect(rejected.request().postDataJSON()).toEqual({ order_version: snapshot.order_version, status_id: status.id, after_id: a.id });
+    expect(rejected.request().headers()['if-match']).toBe(current.etag); expect(rejected.request().headers()['idempotency-key']).toBeTruthy();
+    const review = page.getByRole('dialog', { name: `Position ${c.key}`, exact: true });
+    await expect(review).toContainText('The requested move was not applied.'); await expect(review.getByRole('button', { name: 'Apply reviewed position', exact: true })).toBeEnabled();
+    await expect(review.getByRole('combobox', { name: 'Position status', exact: true })).toHaveValue(status.id);
+    await expect(review.getByRole('combobox', { name: 'Position placement', exact: true })).toHaveValue('after');
+    await expect(review.getByRole('combobox', { name: 'Position reference issue', exact: true })).toHaveValue(a.id);
+    expect(await manual(saved, team.id, status.id)).toEqual(authoritative); expect(await saved.issue(c.id)).toEqual(canonical);
+    const rows = input === 'pointer' ? page.locator(`[data-order-status="${status.id}"] [data-order-issue] a.issue-row`) : page.locator('.issue-groups a.issue-row');
+    await expect.poll(() => rows.evaluateAll(nodes => nodes.map(node => node.id))).toEqual(authoritative!.data.filter(issue => issue.id !== h.id).map(issue => `row-${issue.id}`));
+    await review.getByRole('button', { name: 'Discard local move', exact: true }).click(); await expect(review).toHaveCount(0);
+    expect(await manual(saved, team.id, status.id)).toEqual(authoritative);
+  }
   await page.goto(`/w/${saved.workspace}/issues/${c.id}?${new URLSearchParams({ team_id: team.id, sort: 'manual' })}`);
   await expect(page.getByRole('region', { name: 'Activity', exact: true })).toContainText('changed position.');
 });

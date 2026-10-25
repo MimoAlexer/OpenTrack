@@ -163,10 +163,10 @@ it('ignores late maintenance progress from the previous session without restorin
   expect(container.textContent).toContain('total not known yet'); expect(container.textContent).not.toContain('Applied 100 of 501'); expect([...container.querySelectorAll('button')].some(item => item.textContent === 'Resume order preparation')).toBe(false);
 });
 
-function Dragging({ config }: { config: Options }) {
+function Dragging({ config, issue = source, orderVersion = '1:1' }: { config: Options; issue?: Issue; orderVersion?: string }) {
   const order = useIssueOrdering(config); const target = { ...anchor, status_id: targetStatus.id };
-  const drag = useIssueOrderDrag({ enabled: true, controller: order, teamId: 'team', orderVersion: '1:1', items: [source, target] });
-  return <><section data-order-status={status.id}><article data-order-issue={source.id}><button onPointerDown={event => drag.pointerDown(event, source)} onPointerMove={drag.pointerMove} onPointerUp={drag.pointerUp}>Drag source</button></article></section>
+  const drag = useIssueOrderDrag({ enabled: true, controller: order, teamId: 'team', orderVersion, items: [issue, target] });
+  return <><section data-order-status={status.id}><article data-order-issue={issue.id}><button onPointerDown={event => drag.pointerDown(event, issue)} onPointerMove={drag.pointerMove} onPointerUp={drag.pointerUp}>Drag source</button></article></section>
     <section data-order-status={targetStatus.id}><article data-order-issue={target.id}>Reference row</article><div data-testid="empty-target">Empty column area</div></section><output>{drag.drag ? 'Drag active' : 'No drag'}</output></>;
 }
 async function pointer(target: Element, type: string, y: number) {
@@ -195,4 +195,17 @@ it('cancels a lifted pointer move with Escape before any position request is dis
   await pointer(handle, 'pointerdown', 0); await pointer(handle, 'pointermove', 100); expect(container.textContent).toContain('Drag active');
   const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }); await act(async () => { window.dispatchEvent(escape); });
   await pointer(handle, 'pointerup', 100); expect(escape.defaultPrevented).toBe(true); expect(container.textContent).toContain('No drag'); expect(fetch).not.toHaveBeenCalled();
+});
+
+it('keeps the pointer-down source and order snapshot when enabled drag props refresh', async () => {
+  const canonical = { ...source, status_id: targetStatus.id, version: '9', etag: '"issue:issue:9"' };
+  const fetch = vi.fn((url: string, init: RequestInit) => Promise.resolve(init.method === 'POST' ? json({ issue: canonical, order_version: '9:1' }) : readFixture(url, canonical, '9:1')));
+  vi.stubGlobal('fetch', fetch); const config = options(); await render(<Dragging config={config} />);
+  const handle = button('Drag source'); await pointer(handle, 'pointerdown', 0);
+  await render(<Dragging config={config} issue={{ ...source, title: 'Fresh list title', version: '8', etag: '"issue:issue:8"' }} orderVersion="8:1" />);
+  const row = container.querySelector('[data-order-issue="anchor"]')!; vi.spyOn(row, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 100, 100, 100)); hit = row;
+  await pointer(handle, 'pointermove', 110); await pointer(handle, 'pointerup', 110);
+  const writes = fetch.mock.calls.filter(([, init]) => init.method === 'POST'); expect(writes).toHaveLength(1);
+  expect(writes[0][0]).toBe('/api/v1/workspaces/workspace/issues/issue/position'); expect(new Headers(writes[0][1].headers).get('If-Match')).toBe(source.etag);
+  expect(JSON.parse(writes[0][1].body as string)).toEqual({ order_version: '1:1', status_id: targetStatus.id, before_id: anchor.id });
 });

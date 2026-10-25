@@ -261,13 +261,13 @@ export function IssueOrderingDialog({ controller, workspaceId, session, teamDeni
 }
 
 export function useIssueOrderDrag({ enabled, controller, teamId, orderVersion, items }: { enabled: boolean; controller?: IssueOrderingController; teamId: string; orderVersion?: string | null; items: Issue[] }) {
-  type Drag = { pointer: number; issue: Issue; handle: HTMLButtonElement; x: number; y: number; active: boolean; timer?: number; target?: Choice };
+  type Drag = { pointer: number; issue: Issue; teamId: string; orderVersion: string; handle: HTMLButtonElement; x: number; y: number; active: boolean; timer?: number; target?: Choice };
   const active = useRef<Drag | null>(null); const [drag, setDrag] = useState<{ issue: string; target?: string; placement?: Placement } | null>(null);
   function stop() { const value = active.current; active.current = null; if (value?.timer !== undefined) window.clearTimeout(value.timer); if (value?.handle.hasPointerCapture?.(value.pointer)) value.handle.releasePointerCapture(value.pointer); setDrag(null); return value; }
   function lift(value: Drag) { if (active.current !== value || !enabled) return; value.active = true; setDrag({ issue: value.issue.id }); }
   function pointerDown(event: PointerEvent<HTMLButtonElement>, issue: Issue) {
     if (!enabled || !controller || controller.state || !orderVersion || event.button !== 0 || event.isPrimary === false) return;
-    const value: Drag = { pointer: event.pointerId, issue, handle: event.currentTarget, x: event.clientX, y: event.clientY, active: false }; active.current = value;
+    const value: Drag = { pointer: event.pointerId, issue, teamId, orderVersion, handle: event.currentTarget, x: event.clientX, y: event.clientY, active: false }; active.current = value;
     value.handle.setPointerCapture?.(value.pointer);
     if (event.pointerType === 'touch') value.timer = window.setTimeout(() => lift(value), 180);
   }
@@ -281,8 +281,8 @@ export function useIssueOrderDrag({ enabled, controller, teamId, orderVersion, i
     value.target = issue && issue.id !== value.issue.id && column?.dataset.orderStatus ? { statusId: column.dataset.orderStatus, placement: event.clientY < row!.getBoundingClientRect().top + row!.getBoundingClientRect().height / 2 ? 'before' : 'after', anchorId: issue.id } : !row && column?.dataset.orderStatus ? { statusId: column.dataset.orderStatus, placement: 'append' } : undefined;
     setDrag({ issue: value.issue.id, target: value.target?.anchorId ?? value.target?.statusId, placement: value.target?.placement });
   }
-  function pointerUp(event: PointerEvent<HTMLButtonElement>) { const value = active.current; if (!value || value.pointer !== event.pointerId) return; stop(); if (value.active && value.target && controller && orderVersion) controller.begin(value.issue, teamId, orderVersion, value.target, true); }
-  useEffect(() => { if (!enabled) stop(); }, [enabled]);
+  function pointerUp(event: PointerEvent<HTMLButtonElement>) { const value = active.current; if (!value || value.pointer !== event.pointerId) return; stop(); if (value.active && value.target && controller) controller.begin(value.issue, value.teamId, value.orderVersion, value.target, true); }
+  useEffect(() => { if (!enabled || active.current?.teamId !== teamId) stop(); }, [enabled, teamId]);
   useEffect(() => { const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && active.current) { event.preventDefault(); stop(); } }; window.addEventListener('keydown', escape, true); return () => { window.removeEventListener('keydown', escape, true); stop(); }; }, []);
   return { drag, pointerDown, pointerMove, pointerUp, cancel: stop };
 }
