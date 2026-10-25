@@ -696,7 +696,7 @@ async fn position_uses_full_group_adjacency_and_reauthorizes_matching_replays() 
             source,
             original.etag(),
             "between-live-neighbors",
-            body,
+            body.clone(),
         )
         .await;
     replay.expect(StatusCode::OK);
@@ -763,6 +763,33 @@ async fn position_uses_full_group_adjacency_and_reauthorizes_matching_replays() 
             .expect(StatusCode::OK);
         assert_eq!(row_ids(&f.manual(&f.member, f.team).await), expected);
     }
+    let route = format!("issues.position:{source}");
+    let key_hash = format!("{:x}", Sha256::digest(b"between-live-neighbors"));
+    let mut tx = h.context(f.owner.id, f.workspace).await;
+    let expired_receipt: Value = sqlx::query_scalar("UPDATE idempotency_records SET expires_at=clock_timestamp()-interval '1 second' WHERE workspace_id=$1 AND principal_id=$2 AND route=$3 AND key_hash=$4 RETURNING to_jsonb(idempotency_records)")
+        .bind(f.workspace).bind(f.member.id).bind(&route).bind(&key_hash)
+        .fetch_one(&mut *tx).await.unwrap();
+    assert_eq!(expired_receipt["response_body"], moved.json());
+    tx.commit().await.unwrap();
+    let before_expired_retry = f.snapshot(&h, true).await;
+    let expired = f
+        .position(
+            &f.member,
+            source,
+            original.etag(),
+            "between-live-neighbors",
+            body,
+        )
+        .await;
+    expired.problem(StatusCode::CONFLICT, "conflict");
+    assert_ne!(expired.json()["details"]["applied"], json!(false));
+    assert_eq!(f.snapshot(&h, true).await, before_expired_retry);
+    let mut tx = h.context(f.owner.id, f.workspace).await;
+    let retained: Value = sqlx::query_scalar("SELECT to_jsonb(r) FROM idempotency_records r WHERE workspace_id=$1 AND principal_id=$2 AND route=$3 AND key_hash=$4")
+        .bind(f.workspace).bind(f.member.id).bind(&route).bind(&key_hash)
+        .fetch_one(&mut *tx).await.unwrap();
+    assert_eq!(retained, expired_receipt);
+    tx.commit().await.unwrap();
     let private = f.seed(&h, f.private_team, f.private_statuses[0], 3).await;
     let private_source = private[2];
     let issue = get(&f.router, &f.member, &f.issue_path(private_source)).await;
