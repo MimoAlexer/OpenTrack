@@ -1,55 +1,132 @@
 {
-  "status": "Contract target compiled; handler acceptance pending",
-  "base": "29b156c7f545cec1e20ab0cafa2a9c16a3234030",
-  "test": "crates/opentrack-api/tests/issue_order_contract.rs",
-  "test_sha256": "fbb7a7d4e3490b29e0c9a83ddc9a37b90d84841686587a1ce4e4a6f5a9058616",
-  "scope": "New HTTP/PostgreSQL contract target and evidence only; production, shared harness, schema and generated contracts unchanged",
-  "checks": {
-    "format": "rustfmt --edition 2024 --config skip_children=true crates/opentrack-api/tests/issue_order_contract.rs",
-    "compile": "cargo test --locked -p opentrack-api --test issue_order_contract --no-run",
-    "compile_exit": 0,
-    "compiled_cases": 7,
-    "runtime_selected_case": "position_rejects_rank_injection_and_enforces_source_authority_first",
-    "runtime_exit": 101,
-    "runtime_passed": 0,
-    "runtime_failed": 1,
-    "runtime_filtered_out": 6,
-    "retained_failure": "First position request with an untrusted rank received 404 instead of the required 422; the position route is absent at this base",
-    "repeated_missing_route_runs": 0,
-    "functional_acceptance": "Not established; remaining assertions and six other cases await the implemented handler head",
-    "baseline_test_sha256": "e500adce12eed2f05b315ad32c85391ec2c8f04541dabf1139e80b00d9647cae",
-    "final_test_only_review": "Required idempotency header and stale-claim no-effect assertions added; compare unchanged business fields across different authorized principals. Final target recompiled; missing-route baseline not repeated."
+  "date": "2026-10-25",
+  "status": "Private backend contract qualified; connected UI and integrated acceptance remain open",
+  "qualified_code_head": "8a5c25f14df0f13cd5bd8560851598e05378e476",
+  "schema_version": 27,
+  "source_sha256": {
+    "crates/opentrack-store/migrations/0027_manual_issue_order.sql": "30afd8a7ff4158f4969dd4860490c2e4cdbbfb386f0814db36fb37b7fe9f33c3",
+    "crates/opentrack-store/src/ordering.rs": "b84eaf0cec71adc30fd912d80ccfdc15f7f84c50a8dc0c3064c559c02cbfeae6",
+    "crates/opentrack-store/src/lib.rs": "9d035bbaeca43afe41d6017f10c6848a5c47473c34efdbbbbcdc1c41f5089275",
+    "crates/opentrack-domain/src/lib.rs": "754a695dae5690cc68b7da7fcb46df6985b7c11910bdbfbc1a4a6c1be4a46f5f",
+    "crates/opentrack-domain/src/ordering.rs": "367b784049ad41d8c7dce6d29b54bfe7faa9605e1d993298bfabd2e16b0fd6b7",
+    "crates/opentrack-app/src/issue_ordering.rs": "68f6d050fd9287ce5c92d31623d76af4012a1eaa54845012d1507b6470208e4d",
+    "crates/opentrack-app/src/tracking.rs": "bc97aa962796110607988bd880c99fceb42f3229c9f69c4f8ce477aad8b02aef",
+    "crates/opentrack-app/src/issue_deletion.rs": "8706e0546503873481a6ade1d42add58a935ac323c949b13b618114d8cadd1a8",
+    "crates/opentrack-app/src/issue_moves.rs": "789828d7f42c0e940d0fdc1297eda87f5b4c588e9095f1ca43749b18e2abe18a",
+    "crates/opentrack-app/src/worker.rs": "603e5c3b82ae380cfd2e70bc849a45b325eb43cbdec516678275370eca5954d6",
+    "crates/opentrack-api/src/issue_ordering.rs": "dea0e088d96ff477720f01a5154e4283a2c09d9001c700beba4181f17642a540",
+    "crates/opentrack-api/src/lib.rs": "307020af00b16b7d25c3a9a901854d9ef58399f1a454ff380a1b3aaedb3e1351",
+    "crates/opentrack-api/src/problem.rs": "3501c7c34786fe77377a4de260c8b8b0eae4558eb86552da3a59fa2ad9c36e1f",
+    "crates/opentrack-api/src/contract.rs": "b9ee701b70ac698eaa226a9b7a5ccf137789b1cdbf57b1af3babe6be4f8cd712",
+    "crates/opentrack-api/tests/issue_order_contract.rs": "71108635b94ef855a632195c83b3c6f26b894f59c1db06d1da1773c052d0de9f",
+    "crates/opentrack-api/tests/support/mod.rs": "4d5154856b66a4ea9a69d7a1a19a17e80269b49e662b4b650f4331059128ca9e",
+    "crates/opentrack-app/tests/support/mod.rs": "56e99d21a9d18ab23f4bdf34d2634ec2e98e23fb79fecb653023c1a7164aaacd",
+    "deploy/grant-worker.sql": "a5004cb18f9c5a31d2a8b40a292d33c0437b8225935c8583129a10026e4fb0fb",
+    "desktop/src/protocol.rs": "e1dbe6d09f0cce517b6ce68d2e6bb8ba51839a34e7ec1893fd585144ab4c088c",
+    "docs/api/openapi.json": "0714303c90b39cb6c716ec49f7162edcaaeee94b83fb0ccec5ac15f142498381",
+    "web/src/generated/api.d.ts": "136780f508ee589d154408a6e9776b890278b67186cdf0d2a4c121211c107c9f"
   },
-  "compiled_scenarios": [
-    "Rank injection and malformed position rejection, private/viewer/wrong-tenant/CSRF/session authority, source 412 before stale generation or neighbor conflict",
-    "Live unfiltered adjacency excluding source, successor-only/predecessor-only/append, no-op without logical effects, matching and changed-body replay, current and recorded-team reauthorization",
-    "Numeric rank/UUID pagination, manual query constraints, query/principal/tenant/workflow/ordering/permission cursor binding",
-    "500-row inline normalization without changing other issues or creating their history",
-    "501-row create exhaustion with one typed intent, confirmed nonapplication, retained NULL receipt and no counter/issue/document/effect change",
-    "Required event suppression rolls back a position; same-key retry and replay remain safe",
-    "501-row position intent, maintenance array and nonapplication, readable ordinary sorts, bounded worker progress, access loss after 100 applied ranks, manager resume with actual private access and current permission-bound ETag, immutable original provenance and fresh reviewed retry"
+  "executed_current_head": {
+    "api_target": "opentrack-api/issue_order_contract",
+    "passed": 9,
+    "failed": 0,
+    "filtered_out": 0,
+    "kind": "In-process HTTP router plus real restricted PostgreSQL; not TCP/native GUI",
+    "checks": [
+      {
+        "check": "api-current-head",
+        "exit_code": 0,
+        "elapsed_seconds": 118.983,
+        "owned_session_cleanup_confirmed": true,
+        "log_sha256": "643815e2016038bc7f88aaa5494e621a114d9458e0f81dc205502cd2aca22310"
+      },
+      {
+        "check": "native-published-parity",
+        "exit_code": 0,
+        "elapsed_seconds": 10.966,
+        "owned_session_cleanup_confirmed": true,
+        "log_sha256": "da75f1c8a8e7485d815cf807566971b0dd657f4d3b71b20f7d6a86ee024f1562"
+      }
+    ]
+  },
+  "other_qualification": {
+    "domain_ordering_tests": 4,
+    "native_exact_route_test": 1,
+    "native_published_operation_parity": 1,
+    "workspace_targets_compile_only": true,
+    "workspace_runtime_suite": false,
+    "affected_api_clippy": "passed",
+    "normalizer_worker_source": "330d component/fault audit reused; unchanged storage/capability production behavior"
+  },
+  "scope": [
+    "Source authorization and If-Match before generation/neighbors; untrusted rank and null/ambiguous anchors rejected.",
+    "Full live unfiltered adjacency, one-anchor/append and status transition validation.",
+    "Mandatory idempotency, matching replay reauthorization, canonical current state and no-op effect suppression.",
+    "Generation/workflow/principal/workspace/filter/limit-bound signed manual cursor with team shared lock.",
+    "500-row physical inline normalization without Issue history;501-row typed intent with confirmed nonapplication.",
+    "Create exhaustion preserves counter/row/document state and NULL successful receipt.",
+    "Required-event failure rollback and safe same-key retry.",
+    "HTTP progress/authority-bound ETag/manager resume after partial applying and access loss; original/current requester separation.",
+    "Title edits remain allowed during maintenance; status/archive/delete/restore changes return typed409.",
+    "Fresh HTTP Harness keeps private staging inaccessible and grants only the inline capability."
   ],
-  "execution_boundary": {
-    "fixture": "Unchanged shared application Harness::new and the existing workflow HTTP router pattern; fresh schema at migration 27",
-    "database_roles": "Existing separate runtime, migration owner, worker and operator test configuration; no role or database recreation",
-    "seed": "Owner-scoped synthetic accounts and explicit numeric issue ranks; HTTP setup/login/current issue reads precede the first missing position route",
-    "startup": "Fresh migration-27 runtime startup and explicit private-staging grant denial reached successfully before the missing-route assertion",
-    "namespace": "Verified existing private namespace and original database cluster identity",
-    "shutdown": "Private test process exited, database stopped successfully, existing data and the failed fresh schema retained"
+  "snapshot_scope": "Exact issue/team/document/revision/subscription/activity/issue-audit/event/stream/label state; only known typed maintenance request/resume audits targeting actual operation rows are separated, with exact audit count/actor assertions. Physical comparison may separately exclude private rank/ordering generation where specified.",
+  "retained_failure_history": {
+    "original_preparation": {
+      "base": "29b156c7f545cec1e20ab0cafa2a9c16a3234030",
+      "test_sha256": "fbb7a7d4e3490b29e0c9a83ddc9a37b90d84841686587a1ce4e4a6f5a9058616",
+      "checks": {
+        "format": "rustfmt --edition 2024 --config skip_children=true crates/opentrack-api/tests/issue_order_contract.rs",
+        "compile": "cargo test --locked -p opentrack-api --test issue_order_contract --no-run",
+        "compile_exit": 0,
+        "compiled_cases": 7,
+        "runtime_selected_case": "position_rejects_rank_injection_and_enforces_source_authority_first",
+        "runtime_exit": 101,
+        "runtime_passed": 0,
+        "runtime_failed": 1,
+        "runtime_filtered_out": 6,
+        "retained_failure": "First position request with an untrusted rank received 404 instead of the required 422; the position route is absent at this base",
+        "repeated_missing_route_runs": 0,
+        "functional_acceptance": "Not established; remaining assertions and six other cases await the implemented handler head",
+        "baseline_test_sha256": "e500adce12eed2f05b315ad32c85391ec2c8f04541dabf1139e80b00d9647cae",
+        "final_test_only_review": "Required idempotency header and stale-claim no-effect assertions added; compare unchanged business fields across different authorized principals. Final target recompiled; missing-route baseline not repeated."
+      },
+      "private_evidence": {
+        "root": "$OPENTRACK_DEV_STATE/issue-order-api",
+        "index": "artifact-index.json",
+        "index_sha256": "09bf7f490baaee2b67b6a1f6b2f0746974a1401d83f5e477b8f3d2de529abd55",
+        "files": 13,
+        "compile_log_sha256": "42b1878b006a74e6578475aef72190385922a9e92eda85a134e6ab27af07163b",
+        "missing_route_log_sha256": "d75bb36b50e84d9538b2a72b2cabae5b86148651b9d7c1a72f9608dc937cea9e"
+      }
+    },
+    "first_new_api_run": {
+      "passed": 0,
+      "failed": 7,
+      "cause": "Missing outer workflow-status join in manual query; full issue-state snapshot also initially treated the required maintenance-intent audit as an Issue effect.",
+      "log_sha256": "73dc9ee4872ad1cf58eb87fbf07a3cd9950fc07b1f6b729f3e118e536ee0b07b"
+    },
+    "earlier_migration_failures": "Deferred issue trigger events before ALTER were explicitly flushed; the new typed kind was added to the requester-shape migration constraint. The numeric text-order problem was test-only. Original failed schemas, exact source and logs remain retained."
   },
-  "private_evidence": {
-    "root": "$OPENTRACK_DEV_STATE/issue-order-api",
-    "index": "artifact-index.json",
-    "index_sha256": "09bf7f490baaee2b67b6a1f6b2f0746974a1401d83f5e477b8f3d2de529abd55",
-    "files": 13,
-    "compile_log_sha256": "42b1878b006a74e6578475aef72190385922a9e92eda85a134e6ab27af07163b",
-    "missing_route_log_sha256": "d75bb36b50e84d9538b2a72b2cabae5b86148651b9d7c1a72f9608dc937cea9e"
+  "private_index": {
+    "path": "work/manual-order-qualification/artifact-index.json",
+    "sha256": "a029283b6183a5887422b7429355a9dd28798c88338c83f7b3710353a1d3f2b2",
+    "entries": 26,
+    "original_runtime_modes": "0600 files/0700 directories",
+    "workspace_copies": "Hashes and sizes bound; original runtime mode attestation remains separate."
   },
+  "frozen_server": {
+    "source_head": "8a5c25f14df0f13cd5bd8560851598e05378e476",
+    "binary_sha256": "9ee24a562cb109d525d985e0ca878e35222884899ea025365c3204c02af6ee8e",
+    "bytes": 56088264,
+    "mode": "0700",
+    "source_context_sha256": "f0bd0e4c2c893e7433ba51ab1877b2d8bb4f48913f294beaa742de719b160edf"
+  },
+  "migration_rollback": "Migration27 is reserved and unpublished. It was applied only to fresh isolated qualification schemas, not the retained application database. Do not edit accepted earlier migrations or force checksum metadata. Prior-source rollback requires its matched database snapshot; rank has no silent default.",
   "limits": [
-    "A successful compile is not HTTP behavior acceptance. The sole executed case is retained as a failure, not a pass.",
-    "Raw fixture account/grant/rank changes and recorded-team relocation isolate authorization and replay contracts; they do not qualify the management or issue-move APIs.",
-    "Existing worker and populated-upgrade evidence is not rerun or promoted to API/UI acceptance.",
-    "Full API/UI integration, hosted checks, native, physical-input, assistive-technology, performance and whole-product gates remain open."
-  ],
-  "migration_rollback": "No new migration or production behavior; removing the new target and evidence reverts this slice. The retained failed schema belongs only to its generated test fixture."
+    "No connected manual-order UI, OS/native GUI, physical pointer/keyboard/IME, assistive-technology or performance acceptance.",
+    "No full workspace runtime suite; legacy fixture compatibility is a separate explicit pending check.",
+    "No all-four hosted checks/current-main integration for this private backend; #30/#31 remain open.",
+    "Prior input PR166 is independent and still gated by its current exact-head CI and review."
+  ]
 }
