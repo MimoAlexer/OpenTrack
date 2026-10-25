@@ -50,9 +50,12 @@ describe('milestone planning', () => {
   });
   it('uses full persisted milestone order and stale project validator without optimistic movement', async () => {
     const changed = vi.fn(); const retry = vi.fn(); const items = [{ milestone, progress }, { milestone: { ...milestone, id: 'second', title: 'Second outcome', rank: '2' }, progress }];
-    const fetch = vi.fn((_url: string, options: RequestInit) => Promise.resolve(options.method === 'PUT' ? json({ code: 'version_conflict', detail: 'Order changed' }, 412) : json({ ...project, version: '2', etag: '"project:2"' }))); vi.stubGlobal('fetch', fetch);
+    const latest = { ...project, version: '2', etag: '"project-metadata:2"' };
+    const full = { ...latest, metadata_etag: latest.etag, etag: '"project-full:2"', narrative_version: '1', narrative: { body: { type: 'doc', content: [{ type: 'paragraph' }] }, plain_text: '', schema_version: 1, schema_supported: true } };
+    const fetch = vi.fn((url: string, options: RequestInit) => Promise.resolve(options.method === 'PUT' ? json({ code: 'version_conflict', detail: 'Order changed' }, 412) : url.endsWith('/metadata') ? json(latest) : url.includes('/milestones?') ? json({ ...page(items), project_etag: full.etag }) : json(full))); vi.stubGlobal('fetch', fetch);
     await render(<Milestones project={project} session={session} resource={{ ...resource(items), retry }} readOnly={false} changed={changed} denied={() => {}}/>); await click('Move Second outcome up');
     const write = fetch.mock.calls.find(([, options]) => options.method === 'PUT')![1]; expect(JSON.parse(write.body as string)).toEqual({ milestone_ids: ['second', 'first'] }); expect(new Headers(write.headers).get('If-Match')).toBe(project.etag); expect(changed).toHaveBeenCalledWith(expect.objectContaining({ version: '2' })); expect(retry).toHaveBeenCalled(); expect(container.textContent).toContain('review it before moving again');
+    expect(container.querySelector('dialog[open]')?.textContent).toContain('Your intended move is preserved'); expect(button('Apply reviewed move').disabled).toBe(false); expect(fetch.mock.calls.filter(([, options]) => options.method === 'PUT')).toHaveLength(1);
   });
   it('assigns and clears milestone through the authoritative project version', async () => {
     const issue = { id: 'issue', key: 'EXA-1', title: 'First issue', status_name: 'Ready', status_category: 'unstarted', milestone_id: null };

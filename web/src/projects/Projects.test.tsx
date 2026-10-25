@@ -303,9 +303,11 @@ describe('progress and updates', () => {
   });
   it('uses the project version when removing an issue and reports stale scope without replay', async () => {
     const issue = { id: 'issue', key: 'ENG-8', title: 'A useful step', status_id: 'ready', status_name: 'Ready', status_category: 'unstarted', priority: 0, archived_at: null };
-    const fetch = vi.fn((url: string, options: RequestInit) => Promise.resolve(options.method === 'PUT' ? json({ code: 'version_conflict', detail: 'Scope changed.' }, 412) : url.includes('/issues') ? json(page([issue])) : json({ ...project, etag: '"project:project:2"', version: '2' })));
+    const latest = { ...project, etag: '"project-metadata:project:2"', version: '2' };
+    const live = { ...issue, workspace_id: project.workspace_id, team_id: project.team_id, etag: '"issue:issue:1"', version: '1', description: '', body_version: '1', assignee_id: null, assignee: null, label_ids: [], labels: [], estimate: null, due_date: null, created_at: project.created_at, updated_at: project.updated_at };
+    const fetch = vi.fn((url: string, options: RequestInit) => Promise.resolve(options.method === 'PUT' ? json({ code: 'version_conflict', detail: 'Scope changed.' }, 412) : url.endsWith('/workspaces/workspace/issues/issue') ? json(live) : url.includes('/issues?') ? json(page([issue])) : json(latest)));
     vi.stubGlobal('fetch', fetch); const changed = vi.fn(); await render(<ProjectIssues project={project} session={session} refresh={0} readOnly={false} changed={changed} denied={() => {}}/>); await click('Remove ENG-8 from project');
-    const writes = fetch.mock.calls.filter(([, options]) => options.method === 'PUT'); expect(writes).toHaveLength(1); expect(new Headers(writes[0][1].headers).get('If-Match')).toBe(project.etag); expect(JSON.parse(writes[0][1].body as string)).toEqual({ included: false }); expect(changed).toHaveBeenCalledWith(expect.objectContaining({ version: '2' })); expect(container.textContent).toContain('review its issues before trying again');
+    const writes = fetch.mock.calls.filter(([, options]) => options.method === 'PUT'); expect(writes).toHaveLength(1); expect(new Headers(writes[0][1].headers).get('If-Match')).toBe(project.etag); expect(JSON.parse(writes[0][1].body as string)).toEqual({ included: false }); expect(changed).toHaveBeenCalledWith(expect.objectContaining({ version: '2' })); expect(container.textContent).toContain('Your selection is preserved for review'); expect(container.querySelector('dialog[open]')?.textContent).toContain('Current state: in this project'); expect(button('Apply reviewed assignment').disabled).toBe(false);
     expect(fetch.mock.calls.some(([url]) => url.endsWith('/projects/project/metadata'))).toBe(true);
   });
 });
