@@ -240,7 +240,10 @@ test('typed large-group maintenance preserves an editable create draft and attac
     try {
       await dialog.getByRole('button', { name: 'Retry create', exact: true }).click();
       await expect(dialog).toContainText('this issue may already exist'); await expect(dialog).not.toContainText('No issue was created by this request');
-      await expect(dialog.getByRole('textbox', { name: 'Title', exact: true })).toBeDisabled(); await expect(description).not.toBeEditable(); await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
+      await expect(dialog.getByRole('textbox', { name: 'Title', exact: true })).toBeDisabled(); await expect(description).toHaveAttribute('contenteditable', 'false');
+      expect(await description.evaluate(element => (element as HTMLElement).isContentEditable)).toBe(false);
+      const lockedBody = await description.innerHTML(); await description.click(); await page.keyboard.type('Blocked uncertain edit'); expect(await description.innerHTML()).toBe(lockedBody);
+      await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
       await expect(dialog.getByRole('button', { name: 'Retry safely', exact: true })).toBeEnabled(); expect(creates).toHaveLength(3);
     } finally { await page.unroute(createEndpoint, loseCreate); }
     const last = await create('Retry safely'); expect(last.status()).toBe(201); const issue = await last.json() as Issue; expect(issue).toEqual(committed); expect(creates).toHaveLength(4);
