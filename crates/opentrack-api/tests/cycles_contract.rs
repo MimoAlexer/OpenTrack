@@ -7,8 +7,10 @@ use axum::{
     http::{HeaderMap, Request, StatusCode},
 };
 use serde_json::{Value, json};
+use std::collections::{BTreeMap, BTreeSet};
 use support::{Harness, ORIGIN};
 use tower::ServiceExt;
+use url::form_urlencoded;
 
 #[derive(Clone)]
 struct Client {
@@ -187,6 +189,142 @@ async fn attach(h: &Harness, c: &Client, url: &str, p: &Reply, i: &Reply) -> Rep
     r.expect(StatusCode::OK);
     r
 }
+async fn live_issue_pages(
+    h: &Harness,
+    c: &Client,
+    base: &str,
+    team: &str,
+    sort: &str,
+    status: Option<&str>,
+) -> (Vec<Value>, Option<String>) {
+    let mut rows = Vec::new();
+    let mut ids = BTreeSet::new();
+    let mut cursors = BTreeSet::new();
+    let mut cursor: Option<String> = None;
+    let mut order = None;
+    for _ in 0..6 {
+        let path = {
+            let mut query = form_urlencoded::Serializer::new(String::new());
+            query
+                .append_pair("team_id", team)
+                .append_pair("sort", sort)
+                .append_pair("limit", "1");
+            if let Some(status) = status {
+                query.append_pair("status_id", status);
+            }
+            if let Some(cursor) = &cursor {
+                query.append_pair("cursor", cursor);
+            }
+            format!("{base}/issues?{}", query.finish())
+        };
+        let page = get(h, c, &path).await;
+        let data = page.body["data"].as_array().unwrap();
+        assert!(data.len() <= 1);
+        if sort == "manual" {
+            let token = page.body["order_version"].as_str().unwrap().to_owned();
+            if let Some(previous) = &order {
+                assert_eq!(previous, &token);
+            }
+            order = Some(token);
+        }
+        for row in data {
+            assert!(
+                ids.insert(row["id"].as_str().unwrap().to_owned()),
+                "Bounded pages repeated an issue"
+            );
+            assert!(row["archived_at"].is_null());
+            if let Some(status) = status {
+                assert_eq!(row["status_id"], status);
+            }
+            rows.push(row.clone());
+        }
+        if !page.body["has_more"].as_bool().unwrap() {
+            assert!(page.body["next_cursor"].is_null());
+            return (rows, order);
+        }
+        let next = page.body["next_cursor"].as_str().unwrap().to_owned();
+        assert!(
+            !next.is_empty() && cursors.insert(next.clone()),
+            "Bounded cursor did not advance"
+        );
+        cursor = Some(next);
+    }
+    panic!("Five-issue parity fixture exceeded its bounded page budget")
+}
+
+fn issue_rows_by_id(rows: &[Value]) -> BTreeMap<String, Value> {
+    rows.iter()
+        .map(|row| (row["id"].as_str().unwrap().to_owned(), row.clone()))
+        .collect()
+}
+
+async fn live_board_parity(
+    h: &Harness,
+    c: &Client,
+    project: &str,
+    scope: &Value,
+    counts: [i64; 3],
+) {
+    let (base, tail) = project.split_once("/teams/").unwrap();
+    let team = tail.split('/').next().unwrap();
+    let workflow = get(h, c, &format!("{base}/teams/{team}/workflow")).await;
+    let statuses = workflow.body["statuses"].as_array().unwrap();
+    let (created, _) = live_issue_pages(h, c, base, team, "created", None).await;
+    let (manual, _) = live_issue_pages(h, c, base, team, "manual", None).await;
+    assert_eq!(issue_rows_by_id(&created), issue_rows_by_id(&manual));
+    let expected: BTreeSet<_> = scope["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|item| !item["excluded"].as_bool().unwrap())
+        .map(|item| item["issue_id"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(
+        created
+            .iter()
+            .map(|row| row["id"].as_str().unwrap().to_owned())
+            .collect::<BTreeSet<_>>(),
+        expected
+    );
+    let mut observed = [0, 0, 0];
+    let mut board_ids = BTreeSet::new();
+    for status in statuses {
+        let status_id = status["id"].as_str().unwrap();
+        let (created_column, _) =
+            live_issue_pages(h, c, base, team, "created", Some(status_id)).await;
+        let (manual_column, _) =
+            live_issue_pages(h, c, base, team, "manual", Some(status_id)).await;
+        assert_eq!(
+            issue_rows_by_id(&created_column),
+            issue_rows_by_id(&manual_column)
+        );
+        let expected: BTreeMap<_, _> = issue_rows_by_id(&created)
+            .into_iter()
+            .filter(|(_, row)| row["status_id"] == status_id)
+            .collect();
+        assert_eq!(issue_rows_by_id(&manual_column), expected);
+        let category = match status["category"].as_str().unwrap() {
+            "completed" => 0,
+            "canceled" => 1,
+            _ => 2,
+        };
+        observed[category] += manual_column.len() as i64;
+        for row in manual_column {
+            assert!(
+                board_ids.insert(row["id"].as_str().unwrap().to_owned()),
+                "Issue appeared in two board columns"
+            );
+        }
+    }
+    assert_eq!(board_ids, expected);
+    assert_eq!(observed, counts);
+}
+
+async fn consumer_facts(tx: &mut opentrack_store::Tx, workspace: uuid::Uuid) -> Value {
+    sqlx::query_scalar("SELECT jsonb_build_object('registrations',(SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY consumer_name,consumer_version),'[]'::jsonb) FROM consumer_registrations r WHERE workspace_id=$1),'checkpoints',(SELECT coalesce(jsonb_agg(to_jsonb(c) ORDER BY consumer_name,consumer_version),'[]'::jsonb) FROM consumer_checkpoints c WHERE workspace_id=$1),'receipts',(SELECT count(*) FROM consumer_receipts WHERE workspace_id=$1))")
+        .bind(workspace).fetch_one(&mut **tx).await.unwrap()
+}
+
 async fn current_planning_counts(
     h: &Harness,
     c: &Client,
@@ -217,6 +355,7 @@ async fn current_planning_counts(
     assert_eq!(scope.body["completed_count"], completed);
     assert_eq!(scope.body["canceled_count"], canceled);
     assert_eq!(scope.body["unfinished_count"], unfinished);
+    live_board_parity(h, c, project, &scope.body, counts).await;
     scope
 }
 
@@ -225,10 +364,10 @@ async fn current_scope_matches_project_and_milestone_without_rewriting_daily_sna
     let h = Harness::new().await;
     let copy = h.clone();
     let run = tokio::spawn(async move { reporting_parity(&copy).await }).await;
-    h.cleanup().await;
     if let Err(e) = run {
         std::panic::resume_unwind(e.into_panic());
     }
+    h.cleanup().await;
 }
 async fn reporting_parity(h: &Harness) {
     let (c, base, t, boot) = setup(h).await;
@@ -348,7 +487,94 @@ async fn reporting_parity(h: &Harness) {
     .fetch_one(&mut *tx)
     .await
     .unwrap();
+    let consumers = consumer_facts(&mut tx, w).await;
     tx.rollback().await.unwrap();
+    let open_id = open.body["id"].as_str().unwrap();
+    let open_url = format!("{base}/issues/{open_id}");
+    let (before, order) =
+        live_issue_pages(h, &c, &base, &t, "manual", Some(status("unstarted"))).await;
+    assert_eq!(
+        before.iter().map(|row| &row["id"]).collect::<Vec<_>>(),
+        vec![&open.body["id"], &archived.body["id"], &deleted.body["id"]]
+    );
+    let current = get(h, &c, &open_url).await;
+    let reordered = request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &format!("{open_url}/position"),
+        Some(json!({"order_version":order.unwrap(),"after_id":deleted.body["id"]})),
+        &[
+            ("if-match", current.etag()),
+            ("idempotency-key", "parity-manual-reorder"),
+        ],
+    )
+    .await;
+    reordered.expect(StatusCode::OK);
+    assert_eq!(
+        reordered.body["issue"]["version"]
+            .as_str()
+            .unwrap()
+            .parse::<u64>()
+            .unwrap(),
+        current.body["version"]
+            .as_str()
+            .unwrap()
+            .parse::<u64>()
+            .unwrap()
+            + 1
+    );
+    let (after, _) = live_issue_pages(h, &c, &base, &t, "manual", Some(status("unstarted"))).await;
+    assert_eq!(
+        after.iter().map(|row| &row["id"]).collect::<Vec<_>>(),
+        vec![&archived.body["id"], &deleted.body["id"], &open.body["id"]]
+    );
+    current_planning_counts(h, &c, &project_url, milestone_url, &cycle_url, [1, 1, 3]).await;
+    let current = get(h, &c, &open_url).await;
+    let (_, order) = live_issue_pages(h, &c, &base, &t, "manual", None).await;
+    let movement = json!({"order_version":order.unwrap(),"status_id":status("completed"),"after_id":done.body["id"]});
+    let moved = request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &format!("{open_url}/position"),
+        Some(movement.clone()),
+        &[
+            ("if-match", current.etag()),
+            ("idempotency-key", "parity-position-complete"),
+        ],
+    )
+    .await;
+    moved.expect(StatusCode::OK);
+    assert_eq!(moved.body["issue"]["status_id"], status("completed"));
+    current_planning_counts(h, &c, &project_url, milestone_url, &cycle_url, [2, 1, 2]).await;
+    let (_, settled_order) = live_issue_pages(h, &c, &base, &t, "manual", None).await;
+    let replay = request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &format!("{open_url}/position"),
+        Some(movement),
+        &[
+            ("if-match", current.etag()),
+            ("idempotency-key", "parity-position-complete"),
+        ],
+    )
+    .await;
+    replay.expect(StatusCode::OK);
+    assert_eq!(replay.body, moved.body);
+    assert_eq!(
+        live_issue_pages(h, &c, &base, &t, "manual", None).await.1,
+        settled_order
+    );
+    assert_eq!(get(h, &c, &open_url).await.body, moved.body["issue"]);
+    current_planning_counts(h, &c, &project_url, milestone_url, &cycle_url, [2, 1, 2]).await;
+    let current = get(h, &c, &open_url).await;
+    let returned = request(&h.router,Some(&c),"POST",&format!("{open_url}/position"),
+        Some(json!({"order_version":settled_order.unwrap(),"status_id":status("unstarted"),"before_id":archived.body["id"]})),
+        &[("if-match",current.etag()),("idempotency-key","parity-position-return")]).await;
+    returned.expect(StatusCode::OK);
+    current_planning_counts(h, &c, &project_url, milestone_url, &cycle_url, [1, 1, 3]).await;
     for (task, change, counts, excluded) in [
         (
             &open,
@@ -444,6 +670,7 @@ async fn reporting_parity(h: &Harness) {
     .await
     .unwrap();
     assert_eq!(preserved, saved);
+    assert_eq!(consumer_facts(&mut tx, w).await, consumers);
     tx.rollback().await.unwrap();
 }
 
