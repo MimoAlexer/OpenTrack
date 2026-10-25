@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-25",
+  "scope": "Disposable browser creation ownership and exact cleanup correction",
+  "parent_candidate": "93c3bffb84bf94639854e51921d24c52b89bb401",
+  "preserved_candidates": [
+    "4c6bf8032996168b48e7cba8e2537905a9447062",
+    "93c3bffb84bf94639854e51921d24c52b89bb401"
+  ],
+  "preserved_evidence": [
+    "docs/evidence/2026-10-25-browser-order-ci-fixtures.json",
+    "docs/evidence/2026-10-25-browser-order-ci-deadline.json"
+  ],
+  "finding": "Confirmed resource hold: project-label freshness did not reject an existing foreign physical volume name before Compose; config-only broad cleanup could target unowned resources, including inactive operator_output.",
+  "source_sha256": {
+    "scripts/browser-acceptance.py": "7882b74292dd2e51ef305692ee90fedc2a204d053908922bb86be1db88710420",
+    "scripts/browser_order_fixtures.py": "5e5cedb8e6aba8b951594cd2318d108b6c16ed009778356870c59612e560b4fa",
+    "scripts/test-browser-acceptance.py": "2c77063adcd8798ef95f283ab0b068ac2e968c6e3d5cf6fc3d3ea7ac9ed2960c"
+  },
+  "creation": {
+    "freshness": "Before claim or up: label and name inventories for containers including stopped containers, all eight declared project volume names, and both exact project networks must be absent.",
+    "claim": "Exclusive private file mode0600 in private directory0700, scoped to project/run/attempt, Docker engine hash, resolved configuration hash, all absent names and the exact eligible service/volume closure. No credentials or raw engine identity.",
+    "persistence": "Claim survives for the separate workflow cleanup invocation; an existing claim is never overwritten.",
+    "eligible_closure": "Only default services plus the explicit credentials helper, their seven named volumes, and the two project networks. Inactive operator services and operator_output are not creation/deletion authority."
+  },
+  "cleanup": {
+    "claim_guard": "Missing claim performs no sweep. Foreign, malformed, symlink, shared-permission, wrong-owner or oversized claims fail before resource mutation.",
+    "resource_guard": "Name and label inventories, exact volume role/driver/options, container role/name/mounts, network name/label/driver/internal state and attached-container closure are verified before any deletion.",
+    "targets": "Stop owned full container IDs with35-second grace, remove those exact IDs, remove verified full network IDs, then remove only verified named volumes. No compose down, --volumes, --remove-orphans or force deletion.",
+    "partial_and_missing": "Partial startup and cancelled owned helper containers remain cleanable. Already-missing resources are skipped; retained valid claim permits idempotent later cleanup.",
+    "bounds": "Read/ownership validation deadline55 seconds; deletion phase deadline120 seconds. Cleanup is separate from qualification time and does not grant additional suite time."
+  },
+  "qualification_unchanged": {
+    "shared_suite_seconds": 900,
+    "preparation_cap_seconds": 300,
+    "test_seconds": 60,
+    "action_seconds": 10,
+    "workers": 1,
+    "retries": 0,
+    "default_worker": {
+      "poll_interval_ms": 2000,
+      "lease_seconds": 60,
+      "max_connections": 5
+    }
+  },
+  "verification": {
+    "command": "python scripts/test-browser-acceptance.py",
+    "pure_tests_passed": 43,
+    "failed": 0,
+    "docker_http": "mocked only",
+    "key_cases": [
+      "Every declared volume/network name collision rejects before up, claim, credentials, preparation, Node and deletion",
+      "Missing/foreign/private-file claim guards",
+      "Partial startup, cancelled credentials/worker-once helper, empty project and already-missing resources",
+      "Foreign expected-name volumes including operator_output",
+      "Foreign container names/labels/mounts and network labels/attached containers",
+      "Exact verified network-ID and volume-name deletion",
+      "All prior shared-deadline, secrecy, variable staging, baseline and restoration checks retained"
+    ],
+    "compose_source_contract": "PASS after local YAML normalization of generated resource names and published port; no Docker invoked",
+    "whitespace": "git diff --check PASS",
+    "prior_assertion_change": "Obsolete broad-compose-down assertions replaced by cleanup-entry checks plus dedicated exact-ID/name deletion and fail-closed tests, matching the required cleanup implementation.",
+    "prior_proof": "Original26 and corrected30 evidence preserved unchanged; no failed runtime evidence replaced."
+  },
+  "reference_pattern": "scripts/docker-smoke.py cleanup_recovery: verify exact owned resource inventory before mutations and remove named volumes explicitly; this candidate adds a private fresh-creation claim for independent cleanup.",
+  "not_executed": [
+    "Docker commands",
+    "real HTTP/database preparation",
+    "browser acceptance",
+    "configured GitHub CI",
+    "full repository test matrix"
+  ],
+  "acceptance": "Source and pure boundary evidence only. Confirmed reviewer resource HOLD remains until independent exact-head review; no self-clear, runtime acceptance or product completion claim.",
+  "rollback": "No schema or production changes. Focused runner/test revert; previous candidates retain documented ownership/deadline limitations and are not independently qualified."
+}

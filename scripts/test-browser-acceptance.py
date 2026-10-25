@@ -136,6 +136,9 @@ class PreparationHarness:
 
 class Boundaries(unittest.TestCase):
     def setUp(self):
+        uid_patch = patch.object(module.os, "getuid", return_value=0, create=True)
+        uid_patch.start()
+        self.addCleanup(uid_patch.stop)
         self.env = {"GITHUB_ACTIONS": "true", "RUNNER_OS": "Linux", "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "2"}
         self.project = "opentrack-browser-123-2-amd64"
         names = {source for mounts in module.SERVICE_MOUNTS.values() for source, _, _ in mounts}
@@ -144,7 +147,13 @@ class Boundaries(unittest.TestCase):
                                                          for source, target, readonly in sorted(mounts)]}
                                     for name, mounts in module.SERVICE_MOUNTS.items()}}
         self.config["services"]["app"]["ports"] = [{"host_ip": "127.0.0.1", "published": "18081", "target": 8080}]
+        self.config["networks"] = {name: {"name": self.project + "_" + name, "internal": name == "database"}
+                                   for name in ("database", "web")}
         for name, service in self.config["services"].items():
+            if name in ("initialize", "credentials", "operator-output-init"):
+                service["network_mode"] = "none"
+            else:
+                service["networks"] = {network: {} for network in (("database", "web") if name == "app" else ("database",))}
             if name == "credentials":
                 service["profiles"] = ["tools"]
             elif name.startswith("operator"):
@@ -174,6 +183,10 @@ class Boundaries(unittest.TestCase):
                    lambda c: c["services"]["credentials"]["volumes"][0].update(read_only=False),
                    lambda c: c["services"]["worker"]["volumes"][1].update(source="migration_secrets"),
                    lambda c: c["services"]["credentials"].update(profiles=[]),
+                   lambda c: c["networks"]["database"].update(external=True),
+                   lambda c: c["networks"]["web"].update(name="other_web"),
+                   lambda c: c["services"]["worker"].update(network_mode="host"),
+                   lambda c: c["services"]["credentials"].update(networks={"web": {}}),
                    lambda c: c["services"]["app"]["ports"][0].update(host_ip="0.0.0.0"),
                    lambda c: c["services"]["database"].update(ports=[5432]),
                    lambda c: c["services"]["app"].update(volumes=[{"type": "bind", "source": "/tmp"}])]
@@ -188,15 +201,26 @@ class Boundaries(unittest.TestCase):
             runner = module.BrowserAcceptance(self.project, "http://localhost:18081")
         runner.preflight = Mock(return_value=self.config)
         runner.validate_live_resources = Mock()
+        runner.validate_cleanup_resources = Mock(return_value=([], [], []))
+        runner.create_claim = Mock()
+        services = {name for name, value in self.config["services"].items() if not value.get("profiles")} | {"credentials"}
+        claim = {"project": self.project, "services": sorted(services), "creation_volumes": sorted({
+            self.project + "_" + mount["source"] for name in services for mount in self.config["services"][name]["volumes"]})}
+        runner.claim_contents = Mock(return_value=claim)
+        runner.claim_path = Mock()
+        runner.claim_path.exists.return_value = True
+        runner.claim_path.lstat.return_value = SimpleNamespace(st_mode=module.stat.S_IFREG | 0o600, st_uid=0, st_size=100)
+        runner.claim_path.read_bytes.return_value = json.dumps(claim).encode()
         runner.dc = Mock(return_value="a" * 64)
         self.container = self.container_for("worker")
         runner.command = Mock(side_effect=lambda *args, **kwargs: json.dumps([self.container]))
         return runner
 
     def container_for(self, service):
-        return {"Config": {"Labels": {"com.docker.compose.project": self.project,
+        return {"Name": "/" + self.project + "-" + service + "-1",
+                "Config": {"Labels": {"com.docker.compose.project": self.project,
                            "com.docker.compose.service": service}, "Cmd": [service], "Env": []},
-                "State": {"Running": True}, "Mounts": [
+                "State": {"Running": True}, "NetworkSettings": {"Networks": {}}, "Mounts": [
                     {"Type": "volume", "Name": self.project + "_" + mount["source"],
                      "Destination": mount["target"], "RW": not mount["read_only"]}
                     for mount in self.config["services"][service]["volumes"]]}
@@ -267,7 +291,7 @@ class Boundaries(unittest.TestCase):
 
     def test_all_resource_failure_precedes_credential_reads_and_preparation(self):
         runner = self.runner()
-        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", ""])
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
         runner.dc.side_effect = lambda *args, **kwargs: "127.0.0.1:18081" if args[0] == "port" else ""
         runner.validate_live_resources.side_effect = RuntimeError("Mock secret volume ownership mismatch")
         with patch.object(module, "prepare") as preparation, patch.object(module.subprocess, "run") as node:
@@ -276,7 +300,7 @@ class Boundaries(unittest.TestCase):
         self.assertFalse(any("credentials" in call.args for call in runner.dc.call_args_list))
         preparation.assert_not_called()
         node.assert_not_called()
-        self.assertEqual(runner.dc.call_args.args[0], "down")
+        runner.validate_cleanup_resources.assert_called_once()
 
     def test_existing_project_rejected_before_start_setup_or_cleanup(self):
         runner = self.runner()
@@ -287,6 +311,215 @@ class Boundaries(unittest.TestCase):
         runner.dc.assert_not_called()
         preparation.assert_not_called()
         child.assert_not_called()
+
+    def test_name_collisions_rejected_before_start_even_without_project_labels(self):
+        targets = {"container": ["collision"], "volume": [item["name"] for item in self.config["volumes"].values()],
+                   "network": [item["name"] for item in self.config["networks"].values()]}
+        for index, (kind, names) in enumerate(targets.items()):
+            for name in names:
+                runner = self.runner()
+                version = json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"})
+                runner.command = Mock(side_effect=[version] + [""] * (index * 2 + 1) + [name])
+                with self.subTest(kind=kind, name=name), patch.object(module, "prepare") as preparation, \
+                        patch.object(module.subprocess, "run") as node, self.assertRaises(RuntimeError):
+                    runner.run()
+                runner.dc.assert_not_called()
+                runner.create_claim.assert_not_called()
+                runner.validate_cleanup_resources.assert_not_called()
+                preparation.assert_not_called()
+                node.assert_not_called()
+                self.assertTrue(all("--all" in call.args[0] for call in runner.command.call_args_list
+                                    if call.args[0][1:3] == ["container", "ls"]))
+
+    def cleanup_runner(self, runner, containers, volumes, networks=()):
+        ids = "\n".join(f"{index:064x}" for index in range(1, len(containers) + 1))
+        names = "\n".join(volume["Name"] for volume in volumes)
+        network_ids = "\n".join(network["Id"] for network in networks)
+        replies = [ids, ids, names, names, network_ids, network_ids]
+        if volumes:
+            replies.append(json.dumps(volumes))
+        if containers:
+            replies.append(json.dumps(containers))
+        if networks:
+            replies.append(json.dumps(networks))
+        replies.extend([""] * (bool(containers) * 2 + bool(volumes) + bool(networks)))
+        runner.command = Mock(side_effect=replies)
+        runner.validate_cleanup_resources = lambda: module.BrowserAcceptance.validate_cleanup_resources(runner)
+
+    def volume_for(self, name):
+        return {"Name": self.project + "_" + name, "Driver": "local", "Options": None,
+                "Labels": {"com.docker.compose.project": self.project, "com.docker.compose.volume": name}}
+
+    def network_for(self, name="database"):
+        return {"Name": self.project + "_" + name, "Id": f"{11 if name == 'database' else 12:064x}",
+                "Driver": "bridge", "Options": {}, "Internal": name == "database", "Containers": {},
+                "Labels": {"com.docker.compose.project": self.project, "com.docker.compose.network": name}}
+
+    def test_private_creation_claim_records_exact_absent_and_eligible_resources(self):
+        runner = self.runner()
+        runner.command = Mock(return_value="synthetic-engine-id")
+        claim = module.BrowserAcceptance.claim_contents(runner, self.config)
+        self.assertEqual(len(claim["absent_volumes"]), 8)
+        self.assertEqual(len(claim["absent_networks"]), 2)
+        self.assertEqual(len(claim["creation_volumes"]), 7)
+        self.assertNotIn(self.project + "_operator_output", claim["creation_volumes"])
+        self.assertNotIn("operator", claim["services"])
+        self.assertEqual((claim["run"], claim["attempt"]), ("123", "2"))
+        self.assertNotIn("synthetic-engine-id", json.dumps(claim))
+        runner.claim_contents.return_value = claim
+        with module.tempfile.TemporaryDirectory() as directory:
+            runner.claim_path = Path(directory) / "ownership.json"
+            with patch.object(module.os, "open", wraps=os.open) as opened:
+                module.BrowserAcceptance.create_claim(runner, self.config)
+            self.assertEqual(json.loads(runner.claim_path.read_bytes()), claim)
+            self.assertTrue(opened.call_args.args[1] & os.O_EXCL)
+            self.assertEqual(opened.call_args.args[2], 0o600)
+            with self.assertRaises(FileExistsError):
+                module.BrowserAcceptance.create_claim(runner, self.config)
+            self.assertEqual(json.loads(runner.claim_path.read_bytes()), claim)
+
+    def test_claim_is_created_only_after_absence_checks_and_before_start(self):
+        runner = self.runner()
+        events = []
+        runner.command = Mock(side_effect=lambda args, **kwargs: events.append(args) or (
+            json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}) if args[1] == "version" else ""))
+        runner.create_claim.side_effect = lambda config: events.append("claim")
+        runner.dc.side_effect = RuntimeError("Mock interrupted startup")
+        with self.assertRaises(RuntimeError):
+            runner.run()
+        self.assertEqual(len(events), 8)
+        self.assertEqual(events[-1], "claim")
+        self.assertEqual(runner.dc.call_args.args[0], "up")
+        runner.validate_cleanup_resources.assert_called_once()
+
+    def test_missing_or_foreign_claim_never_sweeps(self):
+        runner = self.runner()
+        runner.claim_path.exists.return_value = False
+        runner.validate_cleanup_resources = lambda: module.BrowserAcceptance.validate_cleanup_resources(runner)
+        runner.cleanup()
+        runner.command.assert_not_called()
+        runner.dc.assert_not_called()
+        for field in ("project", "run", "attempt", "engine_sha256", "config_sha256"):
+            runner = self.runner()
+            stored = {**runner.claim_contents.return_value, field: "foreign"}
+            runner.claim_path.read_bytes.return_value = json.dumps(stored).encode()
+            runner.validate_cleanup_resources = lambda: module.BrowserAcceptance.validate_cleanup_resources(runner)
+            with self.subTest(field=field), self.assertRaises(RuntimeError):
+                runner.cleanup()
+            runner.command.assert_not_called()
+            runner.dc.assert_not_called()
+
+    def test_claim_symlink_shared_permissions_owner_and_size_are_rejected(self):
+        for changes in ({"st_mode": module.stat.S_IFLNK | 0o600}, {"st_mode": module.stat.S_IFREG | 0o644},
+                        {"st_uid": 1}, {"st_size": 16385}):
+            runner = self.runner()
+            for key, value in changes.items():
+                setattr(runner.claim_path.lstat.return_value, key, value)
+            runner.validate_cleanup_resources = lambda: module.BrowserAcceptance.validate_cleanup_resources(runner)
+            with self.assertRaises(RuntimeError):
+                runner.cleanup()
+            runner.command.assert_not_called()
+
+    def test_network_closure_rejects_foreign_networks_and_attached_containers(self):
+        changes = [lambda n: n.update(Name="other_database"),
+                   lambda n: n["Labels"].update({"com.docker.compose.project": "other"}),
+                   lambda n: n["Labels"].update({"com.docker.compose.network": "web"}),
+                   lambda n: n.update(Containers={"f" * 64: {}}),
+                   lambda n: n.update(Internal=False), lambda n: n.update(Driver="other")]
+        for change in changes:
+            runner = self.runner()
+            network = self.network_for()
+            change(network)
+            self.cleanup_runner(runner, [], [], [network])
+            with self.assertRaises(RuntimeError):
+                runner.cleanup()
+            self.assertFalse(any("rm" in call.args[0] or "stop" in call.args[0] for call in runner.command.call_args_list))
+
+    def test_exact_network_cleanup_and_already_missing_targets_are_idempotent(self):
+        runner = self.runner()
+        container = self.container_for("worker")
+        network = self.network_for()
+        network["Containers"] = {f"{1:064x}": {}}
+        container["NetworkSettings"]["Networks"] = {network["Name"]: {"NetworkID": network["Id"]}}
+        volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+        self.cleanup_runner(runner, [container], volumes, [network])
+        runner.cleanup()
+        self.assertIn(["docker", "network", "rm", network["Id"]], [call.args[0] for call in runner.command.call_args_list])
+        self.cleanup_runner(runner, [], [])
+        runner.cleanup()
+        self.assertEqual(runner.command.call_count, 6)
+        runner.dc.assert_not_called()
+
+    def test_partial_created_container_with_already_missing_network_remains_cleanable(self):
+        runner = self.runner()
+        container = self.container_for("worker")
+        container["State"]["Running"] = False
+        container["NetworkSettings"]["Networks"] = {self.project + "_database": {"NetworkID": ""}}
+        volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+        self.cleanup_runner(runner, [container], volumes)
+        runner.cleanup()
+        self.assertIn(["docker", "container", "rm", f"{1:064x}"], [call.args[0] for call in runner.command.call_args_list])
+
+    def test_cleanup_never_removes_a_foreign_expected_name_volume(self):
+        for name in self.config["volumes"]:
+            runner = self.runner()
+            foreign = self.volume_for(name)
+            foreign["Labels"]["com.docker.compose.project"] = "other"
+            self.cleanup_runner(runner, [], [foreign])
+            with self.subTest(volume=name), self.assertRaises(RuntimeError):
+                runner.cleanup()
+            runner.dc.assert_not_called()
+
+    def test_cleanup_accepts_partial_owned_stacks_and_cancelled_helper_containers(self):
+        for service in ("credentials", "worker"):
+            runner = self.runner()
+            container = self.container_for(service)
+            if service == "worker":
+                container["Config"]["Cmd"] = ["worker", "--once"]
+                with self.assertRaises(RuntimeError):
+                    module.validate_container(container, self.config, self.project, service)
+            volumes = [self.volume_for(mount["source"]) for mount in self.config["services"][service]["volumes"]]
+            self.cleanup_runner(runner, [container], volumes)
+            runner.cleanup()
+            removals = [call.args[0] for call in runner.command.call_args_list if "rm" in call.args[0]]
+            self.assertEqual(removals, [["docker", "container", "rm", f"{1:064x}"],
+                                       ["docker", "volume", "rm", *sorted(volume["Name"] for volume in volumes)]])
+            runner.dc.assert_not_called()
+
+    def test_cleanup_rejects_foreign_container_labels_names_or_mounts(self):
+        changes = [lambda c: c["Config"]["Labels"].update({"com.docker.compose.project": "other"}),
+                   lambda c: c.update(Name="/other-worker-1"),
+                   lambda c: c["Mounts"][0].update(Name="other_blobs"),
+                   lambda c: c["Mounts"][0].update(RW=not c["Mounts"][0]["RW"])]
+        for change in changes:
+            runner = self.runner()
+            container = self.container_for("worker")
+            change(container)
+            volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+            self.cleanup_runner(runner, [container], volumes)
+            with self.assertRaises(RuntimeError):
+                runner.cleanup()
+            runner.dc.assert_not_called()
+
+    def test_cleanup_rejects_incomplete_volume_inventory_or_inspection_failure(self):
+        runner = self.runner()
+        self.cleanup_runner(runner, [self.container_for("worker")], [])
+        with self.assertRaises(RuntimeError):
+            runner.cleanup()
+        runner.dc.assert_not_called()
+        runner = self.runner()
+        runner.validate_cleanup_resources = lambda: module.BrowserAcceptance.validate_cleanup_resources(runner)
+        runner.command = Mock(side_effect=RuntimeError("Mock Docker inventory failure"))
+        with self.assertRaises(RuntimeError):
+            runner.cleanup()
+        runner.dc.assert_not_called()
+
+    def test_cleanup_empty_project_is_idempotent(self):
+        runner = self.runner()
+        self.cleanup_runner(runner, [], [])
+        runner.cleanup()
+        self.assertEqual(runner.command.call_count, 6)
+        runner.dc.assert_not_called()
 
     def test_browser_environment_excludes_parent_secrets_and_controls(self):
         parent = {**self.env, "PATH": "tooling", "HOME": "cache", "DOCKER_HOST": "forbidden",
@@ -302,7 +535,7 @@ class Boundaries(unittest.TestCase):
         for outcome in (0, 1, subprocess.TimeoutExpired("node", 900)):
             with self.subTest(outcome=type(outcome).__name__):
                 runner = self.runner()
-                runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", ""])
+                runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
                 runner.dc.side_effect = lambda *args, **kwargs: "127.0.0.1:18081" if args[0] == "port" else "a" * 64
                 observed = []
 
@@ -328,11 +561,11 @@ class Boundaries(unittest.TestCase):
                     self.assertTrue(any(call.args[-1] == 0o700 for call in mode.call_args_list))
                 self.assertEqual(len(observed), 1)
                 self.assertFalse(observed[0].exists())
-                self.assertEqual(runner.dc.call_args.args, ("down", "--volumes", "--remove-orphans", "--timeout", "35"))
+                runner.validate_cleanup_resources.assert_called_once()
 
     def test_incomplete_preparation_cannot_launch_node_and_still_cleans_owned_project(self):
         runner = self.runner()
-        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", ""])
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
         runner.dc.side_effect = lambda *args, **kwargs: "127.0.0.1:18081" if args[0] == "port" else "a" * 64
         incomplete = manifest()
         del incomplete["maintenance"]["webkit"]
@@ -340,18 +573,18 @@ class Boundaries(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 runner.run()
         node.assert_not_called()
-        self.assertEqual(runner.dc.call_args.args[0], "down")
+        runner.validate_cleanup_resources.assert_called_once()
 
     def test_preparation_or_restore_failure_cannot_launch_node_and_still_cleans_project(self):
         runner = self.runner()
-        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", ""])
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
         runner.dc.side_effect = lambda *args, **kwargs: "127.0.0.1:18081" if args[0] == "port" else "a" * 64
         with patch.object(module, "prepare", side_effect=RuntimeError("Worker restoration failed")), \
                 patch.object(module.subprocess, "run") as node:
             with self.assertRaisesRegex(RuntimeError, "Worker restoration failed"):
                 runner.run()
         node.assert_not_called()
-        self.assertEqual(runner.dc.call_args.args[0], "down")
+        runner.validate_cleanup_resources.assert_called_once()
 
     def test_command_failure_withholds_all_captured_credentials(self):
         with patch.dict(os.environ, self.env, clear=True):
@@ -364,7 +597,7 @@ class Boundaries(unittest.TestCase):
 
     def test_preparation_consumes_the_single_suite_budget_before_node(self):
         runner = self.runner()
-        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", ""])
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
         clock = [1000]
 
         def compose(*args, **kwargs):
@@ -385,11 +618,11 @@ class Boundaries(unittest.TestCase):
             runner.run()
         node.assert_called_once()
         self.assertEqual(node.call_args.kwargs["timeout"], 763)
-        self.assertEqual(runner.dc.call_args.args[0], "down")
+        runner.validate_cleanup_resources.assert_called_once()
 
     def test_exhausted_suite_budget_never_starts_node_and_still_cleans_up(self):
         runner = self.runner()
-        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", ""])
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
         runner.dc.side_effect = lambda *args, **kwargs: "127.0.0.1:18081" if args[0] == "port" else "a" * 64
         clock = [1000]
 
@@ -402,7 +635,7 @@ class Boundaries(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "bounded deadline"):
                 runner.run()
         node.assert_not_called()
-        self.assertEqual(runner.dc.call_args.args, ("down", "--volumes", "--remove-orphans", "--timeout", "35"))
+        runner.validate_cleanup_resources.assert_called_once()
 
 
 class FixturePreparation(unittest.TestCase):

@@ -6,11 +6,13 @@ No application runtime is started unless the CI identity and Compose project pas
 the guards below. Cleanup can only address this run's distinct browser project.
 """
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import secrets
+import stat
 import subprocess
 import sys
 import tempfile
@@ -68,10 +70,21 @@ def validate_compose(config, project):
         require(not volume.get("external") and volume.get("name") == project + "_" + name
                 and volume.get("driver", "local") == "local" and not volume.get("driver_opts"),
                 "Every test volume must belong only to the disposable browser project")
+    require(set(config.get("networks", {})) == {"database", "web"}
+            and all(network.get("name") == project + "_" + name and not network.get("external")
+                    and network.get("driver", "bridge") == "bridge" and not network.get("driver_opts")
+                    and bool(network.get("internal")) == (name == "database")
+                    for name, network in config["networks"].items()),
+            "Browser acceptance requires only its dedicated project networks")
     require(set(config["services"]) == set(SERVICE_MOUNTS), "Browser Compose service roles changed")
     for name, service in config["services"].items():
         profiles = ["tools"] if name == "credentials" else ["operator"] if name.startswith("operator") else []
         require(service.get("profiles", []) == profiles, "Browser Compose service profiles changed")
+        disconnected = name in ("initialize", "credentials", "operator-output-init")
+        require((service.get("network_mode") == "none" and not service.get("networks")) if disconnected
+                else (not service.get("network_mode") and set(service.get("networks", {}))
+                      == ({"database", "web"} if name == "app" else {"database"})),
+                "Browser Compose service network roles changed")
         mounts = service.get("volumes", [])
         require(all(mount.get("type") == "volume" and mount.get("source") in config["volumes"] for mount in mounts)
                 and {(mount["source"], mount["target"], mount.get("read_only", False)) for mount in mounts}
@@ -92,7 +105,7 @@ def browser_environment(environment, url, token, password, manifest):
             "OPENTRACK_BROWSER_PASSWORD": password, "OPENTRACK_BROWSER_ORDER_FIXTURES_FILE": str(manifest)}
 
 
-def validate_container(actual, config, project, service, running=None):
+def validate_container(actual, config, project, service, running=None, *, default_worker=True):
     labels = actual["Config"].get("Labels") or {}
     mounts = {(config["volumes"][mount["source"]]["name"], mount["target"], not mount.get("read_only", False))
               for mount in config["services"][service]["volumes"]}
@@ -104,10 +117,19 @@ def validate_container(actual, config, project, service, running=None):
             and {(mount.get("Name"), mount.get("Destination"), mount.get("RW"))
                  for mount in actual["Mounts"]} == mounts,
             "Browser fixture service or volume ownership did not match this project")
-    if service == "worker":
+    if service == "worker" and default_worker:
         require(actual["Config"].get("Cmd") == ["worker"] and not any(
             item.startswith("OPENTRACK__WORKER__") for item in actual["Config"].get("Env", [])),
             "Browser fixture requires the unchanged default worker profile")
+
+
+def validate_volumes(volumes, expected, project):
+    require(len(volumes) == len(expected) and {item.get("Name") for item in volumes} == set(expected)
+            and all(item.get("Driver") == "local" and not item.get("Options")
+                    and (item.get("Labels") or {}).get("com.docker.compose.project") == project
+                    and (item.get("Labels") or {}).get("com.docker.compose.volume") == expected[item["Name"]]
+                    for item in volumes),
+            "Browser fixture secret, blob or data volume belongs to a different project")
 
 
 class BrowserAcceptance:
@@ -119,6 +141,7 @@ class BrowserAcceptance:
                             "OPENTRACK_HTTP_PORT": "18081"}
         self.compose = ["docker", "compose", "--project-name", project,
                         "--file", str(self.root / "compose.yaml")]
+        self.claim_path = self.root / "work" / "browser-acceptance" / (project + "-ownership.json")
 
     def command(self, arguments, timeout=120):
         result = subprocess.run(arguments, cwd=self.root, env=self.environment,
@@ -165,12 +188,7 @@ class BrowserAcceptance:
         expected = {self.project + "_" + name: name for name in names}
         volumes = json.loads(self.command(["docker", "volume", "inspect", *sorted(expected)],
                                           timeout=remaining(deadline, 55)))
-        require(len(volumes) == len(expected) and {item.get("Name") for item in volumes} == set(expected)
-                and all(item.get("Driver") == "local" and not item.get("Options")
-                        and (item.get("Labels") or {}).get("com.docker.compose.project") == self.project
-                        and (item.get("Labels") or {}).get("com.docker.compose.volume") == expected[item["Name"]]
-                        for item in volumes),
-                "Browser fixture secret, blob or data volume belongs to a different project")
+        validate_volumes(volumes, expected, self.project)
 
     def owned_sql(self, statement, timeout):
         deadline = time.monotonic() + timeout
@@ -180,20 +198,124 @@ class BrowserAcceptance:
                        "-U", "postgres", "-d", "opentrack", "-tAc", statement,
                        timeout=remaining(deadline, 20))
 
+    def claim_contents(self, config, timeout=120):
+        engine = self.command(["docker", "info", "--format", "{{.ID}}"], timeout=timeout)
+        require(re.fullmatch(r"[A-Za-z0-9:_-]{8,256}", engine), "Browser ownership requires a concrete Docker engine")
+        services = {name for name, service in config["services"].items() if not service.get("profiles")} | {"credentials"}
+        volumes = {mount["source"] for name in services for mount in config["services"][name]["volumes"]}
+        return {"version": 1, "project": self.project,
+                "run": self.environment["GITHUB_RUN_ID"], "attempt": self.environment["GITHUB_RUN_ATTEMPT"],
+                "engine_sha256": hashlib.sha256(engine.encode()).hexdigest(),
+                "config_sha256": hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest(),
+                "services": sorted(services), "creation_volumes": sorted(config["volumes"][name]["name"] for name in volumes),
+                "absent_volumes": sorted(volume["name"] for volume in config["volumes"].values()),
+                "absent_networks": sorted(network["name"] for network in config["networks"].values())}
+
+    def create_claim(self, config):
+        claim = self.claim_contents(config)
+        self.claim_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(self.claim_path.parent, 0o700)
+        descriptor = os.open(self.claim_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(claim, stream)
+
+    def validate_cleanup_resources(self):
+        if not self.claim_path.exists():
+            return [], [], []
+        information = self.claim_path.lstat()
+        require(stat.S_ISREG(information.st_mode) and stat.S_IMODE(information.st_mode) == 0o600
+                and information.st_uid == os.getuid() and information.st_size <= 16384,
+                "Browser cleanup requires its private run-owned creation claim")
+        deadline = time.monotonic() + 55
+        config = self.preflight(timeout=remaining(deadline, 55))
+        claim = self.claim_contents(config, timeout=remaining(deadline, 55))
+        require(json.loads(self.claim_path.read_bytes()) == claim,
+                "Browser cleanup creation claim does not match this run, engine and configuration")
+        expected = {volume["name"]: name for name, volume in config["volumes"].items()
+                    if volume["name"] in claim["creation_volumes"]}
+        existing = {}
+        for kind in ("container", "volume", "network"):
+            flags = ["--all", "--no-trunc"] if kind == "container" else []
+            found = set()
+            for criterion in (f"name={self.project}", f"label=com.docker.compose.project={self.project}"):
+                found.update(self.command(["docker", kind, "ls", *flags, "--quiet", "--filter", criterion],
+                                          timeout=remaining(deadline, 55)).splitlines())
+            existing[kind] = found
+        names = existing["volume"]
+        require(names <= set(expected), "Browser cleanup found an unexpected project volume")
+        if names:
+            volumes = json.loads(self.command(["docker", "volume", "inspect", *sorted(names)],
+                                              timeout=remaining(deadline, 55)))
+            validate_volumes(volumes, {name: expected[name] for name in names}, self.project)
+        containers = existing["container"]
+        require(all(re.fullmatch(r"[0-9a-f]{64}", item) for item in containers),
+                "Browser cleanup found an ambiguous container")
+        inspected = []
+        if containers:
+            inspected = json.loads(self.command(["docker", "inspect", *sorted(containers)],
+                                                timeout=remaining(deadline, 55)))
+            require(len(inspected) == len(containers), "Browser cleanup container inspection was incomplete")
+            for actual in inspected:
+                service = (actual["Config"].get("Labels") or {}).get("com.docker.compose.service")
+                require(service in claim["services"] and actual.get("Name", "").startswith(
+                    ("/" + self.project + "-", "/" + self.project + "_")),
+                    "Browser cleanup found an unexpected service container")
+                validate_container(actual, config, self.project, service, default_worker=False)
+                require(all(mount["Name"] in names for mount in actual["Mounts"]),
+                        "Browser cleanup did not verify every mounted volume")
+        network_ids = existing["network"]
+        require(all(re.fullmatch(r"[0-9a-f]{12,64}", item) for item in network_ids),
+                "Browser cleanup found an ambiguous network")
+        networks = []
+        expected_networks = {network["name"]: name for name, network in config["networks"].items()}
+        if network_ids:
+            networks = json.loads(self.command(["docker", "network", "inspect", *sorted(network_ids)],
+                                               timeout=remaining(deadline, 55)))
+            require(len(networks) == len(network_ids) and all(
+                network.get("Name") in expected_networks
+                and re.fullmatch(r"[0-9a-f]{64}", network.get("Id", ""))
+                and (network.get("Labels") or {}).get("com.docker.compose.project") == self.project
+                and (network.get("Labels") or {}).get("com.docker.compose.network") == expected_networks[network["Name"]]
+                and network.get("Driver") == "bridge" and not network.get("Options")
+                and bool(network.get("Internal")) == (expected_networks[network["Name"]] == "database")
+                and set(network.get("Containers") or {}) <= containers for network in networks),
+                "Browser cleanup found a foreign network or attached container")
+        owned_networks = {network["Name"]: network["Id"] for network in networks}
+        for actual in inspected:
+            service = actual["Config"]["Labels"]["com.docker.compose.service"]
+            require(all((name == "none" and service in ("initialize", "credentials"))
+                        or (name in expected_networks and (
+                            (name in owned_networks and owned_networks[name] == attachment.get("NetworkID"))
+                            or (not actual["State"]["Running"] and not attachment.get("NetworkID"))))
+                        for name, attachment in actual["NetworkSettings"]["Networks"].items()),
+                    "Browser cleanup did not verify every attached network")
+        return sorted(containers), sorted(owned_networks.values()), sorted(names)
+
     def cleanup(self):
-        self.preflight()
-        self.dc("down", "--volumes", "--remove-orphans", "--timeout", "35")
+        containers, networks, volumes = self.validate_cleanup_resources()
+        deadline = time.monotonic() + 120
+        if containers:
+            self.command(["docker", "container", "stop", "--time", "35", *containers], timeout=remaining(deadline, 120))
+            self.command(["docker", "container", "rm", *containers], timeout=remaining(deadline, 120))
+        if networks:
+            self.command(["docker", "network", "rm", *networks], timeout=remaining(deadline, 120))
+        if volumes:
+            self.command(["docker", "volume", "rm", *volumes], timeout=remaining(deadline, 120))
 
     def run(self):
-        self.preflight()
+        config = self.preflight()
         version = json.loads(self.command(["docker", "version", "--format", "{{json .Server}}"] ))
         require(version.get("Os") == "linux" and version.get("Arch") == "amd64"
                 and int(version["Version"].split(".")[0]) >= 28,
                 "Browser CI needs a native Linux amd64 Docker Engine 28 or newer")
-        for kind in ("container", "volume"):
-            existing = self.command(["docker", kind, "ls", "--quiet", "--filter",
+        for kind in ("container", "volume", "network"):
+            flags = ["--all"] if kind == "container" else []
+            existing = self.command(["docker", kind, "ls", *flags, "--quiet", "--filter",
                                      f"label=com.docker.compose.project={self.project}"])
             require(not existing, "Browser acceptance requires a new project with no existing containers or volumes")
+            named = self.command(["docker", kind, "ls", *flags, "--quiet", "--filter", f"name={self.project}"])
+            require(not named, "Browser acceptance found a pre-existing project name collision")
+        self.create_claim(config)
         started = False
         try:
             started = True
