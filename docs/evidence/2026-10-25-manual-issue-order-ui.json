@@ -1,0 +1,709 @@
+{
+  "date": "2026-10-25",
+  "scope": "Connected versioned manual issue ordering in list/board, immutable replay recovery, and actual ordering maintenance/resume/create workflows for issue30/M05-T05.",
+  "ui_commit": "8179c9b6f277d84962b66a44ca9bf04c09d5f15c",
+  "ui_source_base": "8a5c25f14df0f13cd5bd8560851598e05378e476",
+  "prerequisite": {
+    "original_commit": "448d7b99cfbe832b03ed02dafb17b993dabafa23",
+    "local_cherry_pick": "508558bbbe3a17032abb4aeaeb6911bd395d35b5",
+    "qualification": "Already-reviewed picker option-height/strict-diagnostic slice; imported exactly, old proof not rerun."
+  },
+  "backend": {
+    "source_commit": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+    "binary_sha256": "f9725a64b91ef8df2847abfb7ededf8dd31566caa5601812a8d4b39801c01622",
+    "bytes": 56088456,
+    "source_context_sha256": "d8cfccd8ab888caa8a1bca0d54254686183e5da01aa77e622fee79abf088e35b",
+    "migration27_sha256": "30afd8a7ff4158f4969dd4860490c2e4cdbbfb386f0814db36fb37b7fe9f33c3",
+    "provenance": "Lead-built corrected immutable artifact. Frontend base and backend provenance are separate; no backend rebuild or backend/domain/serializer/schema/dependency/generated-file edits by this worker."
+  },
+  "source_sha256": {
+    "web/e2e/manual-issue-order.browser.ts": "bceaea2746a52a623107d1e9aa74baffb7bb5f4960758d81c6ba73aa161b4f7a",
+    "web/src/App.tsx": "9da64de97632da8fda0f52bee9a4331874eeacb8f22959183a648076809a27f1",
+    "web/src/issues/CreateIssue.tsx": "869dc0cdda2a4e417bef537b0c47c858afe3ab00afd7c80e5509e23228a7cfbf",
+    "web/src/issues/IssueBoard.tsx": "579bb2de399b60873dafa5adcbd4a8524d5c01a2c155cb45ff0904af1751a902",
+    "web/src/issues/IssueList.tsx": "40438e030b16a1ba890e357be21f6cb24122b2178f64ebc466ee2d959284e011",
+    "web/src/issues/IssueOrdering.css": "3ffc47d0bcfc99c439a6bd433ad5b4bec5c1798c153a977fd8f0897950375ffa",
+    "web/src/issues/IssueOrdering.test.tsx": "7b2f2bf5720c8c36fcc079657fd5a94412e3eeb814419adcda6a9ba3254713a6",
+    "web/src/issues/IssueOrdering.tsx": "165f74adf98b417aa99c60f6a3241cf3e4b46797481a22744a69988b16cd2f82",
+    "web/src/issues/IssueOrderingCreate.test.tsx": "235ce704be15a83a20e0e5458740161943157c603311a48c167c6adcb2af0df3",
+    "web/src/issues/IssueOrderingViews.test.tsx": "fa76ab092a9205b4ab9e9e27ab7f8fb750f2ff6ae93de239d8d1150b38517076",
+    "web/src/issues/activity-model.test.ts": "9f2b1cd9d4edb9e09492f736c1bbe335d1ed4eb63c723d43eb21bba94824912a",
+    "web/src/issues/activity-model.ts": "3b57ae9f8f8be4cc47514a88e73338d528aae8b9f9ec680327f9b6603fb69e98",
+    "web/src/generated/api.d.ts": "136780f508ee589d154408a6e9776b890278b67186cdf0d2a4c121211c107c9f",
+    "web/src/types.ts": "3de082414e9365fc3e44d4157d327971e5a8bc6a17221e74f0026c38032ca4c0",
+    "web/src/api.ts": "6030abc0142d297f4fc5341bb0b30d9a7e94aa5266098b5304e5e63596587858",
+    "web/src/desktop/context.tsx": "f5e7faf27783674c6ba4244e6bce4073d309ae1f3d823e96e76710ca6060d21b",
+    "web/src/router.tsx": "af9b74a29f67de9b7757fe8cd6ae68d75bcb4d65de669a08e0839b01956e1e16",
+    "web/src/components.tsx": "97fa54265f395b59728fa2236de22a907c8fc8258151c35a9dcfed61700ff30e",
+    "web/src/workflows/useIssueWorkflow.ts": "29a1e57393f2af15dcd2c1d337fcd2f4cb022ba4ab402944eadd56f1c4a8298c",
+    "web/src/workflows/model.ts": "e867a10e2a443d1a99a8ea081dddfa627d7bf2b29eff98c3781d2437ed197076",
+    "web/e2e/fixtures.ts": "231ed3b47c40321e2419cf1f122d1ece64767f93cab07d35e1462eed0f06d45b",
+    "web/e2e/receipt-reporter.ts": "cbbc4061b3b4d00fd22f7bd803e9f3ba056c95e5eabc9b9528def2f23ca441ea",
+    "web/e2e/receipt-reporter-privacy.mjs": "669d95ccabef123ff6f027897f52cf7b89cb561a5ac21e92c272dd8937bc272e",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "web/src/taxonomy/taxonomy.css": "e9eec762503ed759577cc98b551992be9093147d98320d1ee08efb311b6eaa91"
+  },
+  "behavior": [
+    "Manual sort requires an explicit accessible active team and active issues. Invalid manual/no-team or manual/archived states remain visible and cannot silently broaden the query. Created/priority board behavior is retained.",
+    "Pointer and keyboard controls position within or between statuses. A request contains exactly one before_id/after_id reference or no anchor for append, with opaque server order_version, source If-Match and Idempotency-Key. No client rank or inferred filtered-neighbor pair exists.",
+    "WorkspaceScreen owns the reference-only position intent. Authority refresh hides old facts while preserving an unknown request key/body/validator. Hard principal/server/workspace boundaries destroy it; no titles or request data are persisted to browser storage.",
+    "Unknown Check resends the same position request with current credentials. Every successful acknowledgment, including cached historical receipt, is followed by canonical issue/order reads. Historical acknowledgment payload is never installed as the current issue; newer local versions are fenced.",
+    "Known stale-source/order conflicts fetch current canonical facts for explicit review and a new request key. Maintenance applied:false retains intent and never automoves. Source/private denial removes facts; a missing job reauthorizes its canonical team before treating the team as lost.",
+    "Progress displays real staged/applied/total counts, with unknown total explicit. Normal polling is2000ms. Resume uses current server can_resume and a fresh canonical job ETag; no frontend manager inference or automatic resume replay.",
+    "Create maintenance confirms no issue creation, preserves draft/attachments and unchanged key/body for explicit retry, while allowing edit/cancel. An edited confirmed-noncreated draft uses a new key. Malformed maintenance remains uncertain and frozen; template/parent conflicts are not substituted.",
+    "Position activity is intelligible after the existing safe event projection strips raw position fields; status facts and grouping barriers remain intact, without rank/neighbor facts.",
+    "IssueList native query maxlength200 is removed within this vertical; full256-scalar forwarding is tested and Rust remains authoritative. No other cap wave is included."
+  ],
+  "checks": {
+    "focused_units": {
+      "passed": 192,
+      "files": 13,
+      "log_sha256": "5fa3ff7ba1022d8b1d68805480c8127d79a7ba57e2bd5c4caf5b4536a4d7506a",
+      "scope": "New controller/create/view/activity cases plus directly affected IssueList/IssueBoard/CreateIssueTemplates and all six existing App authority/draft/keyboard/menu/creation files.",
+      "execution_binding": "Initial e50 source. Corrective source reran only all three affected ordering files, 33 passing cases including one new regression."
+    },
+    "typescript_application": {
+      "passed": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "typescript_browser": {
+      "passed": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "production_frontend": {
+      "passed": true,
+      "build_count": 1,
+      "log_sha256": "f5758339695121cbb0f425eeea4e6290899f40d2dbe6f3f4b9b71a505de1a911",
+      "files": {
+        "index.html": "e8639f3a1f3fe3bc6caf8e2e1790d6e29c9d73228e99b9b391173cc56e5f00e6",
+        "theme.js": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+        "assets/portability.worker-DEvlQVr4.js": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+        "assets/index-DRU0M1UZ.js": "4c3c2f267225401f57a8bf75c245ae2a6c8ab152470b9d8fac4f95ed7034de04",
+        "assets/RichTextEditor-Br8ZIlxB.js": "58d99218e2abb86d0817806a70c597bfbd149a926d8763698b629b20d4c528b8",
+        "assets/portability.worker-DEvlQVr4.js.map": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+        "assets/index-bam2-7vJ.css": "b6822f7f5efb642c8c52ed70cda6606e6dd4fbf25cd361c46bb7f50ce2e4f4b4",
+        "assets/index-DRU0M1UZ.js.map": "e2df28fbd2b9f660e72007777101fc24880a61ed579d1235fa254371c417883e",
+        "assets/RichTextEditor-Br8ZIlxB.js.map": "05617b36edac6ed7f7de231d7102c2b418b036e36cdde82132d97499c764c109"
+      },
+      "execution_binding": "Initial e50 bundle; corrected source has one separate necessary build and manifest in correction.",
+      "total_builds_with_necessary_correction": 2
+    },
+    "diff_privacy_utf8_lf": "clear"
+  },
+  "runtime": {
+    "one_fresh_database_four_roles": true,
+    "metadata_proof": {
+      "cluster_guards_passed": true,
+      "owned_fresh_fixture_verified": true,
+      "migration_history_verified": true,
+      "role_boundaries_verified": true,
+      "forced_scope_relations_verified": true,
+      "existing_credentials_unchanged": true,
+      "fresh_credentials_unchanged": true,
+      "original_evidence_unchanged": true,
+      "original_backend_artifacts_unchanged": true
+    },
+    "schema": "Exact27 successful SHA384 migration records in the one fresh qualification database; existing retained public26 databases and all prior credentials remain unchanged.",
+    "scope": "Existing verified namespace/cluster, sysID/port/owner/absent-name guards before one bootstrap. Migration/runtime/worker/operator identities are distinct restricted roles. Serving has no staging/worker/operator authority; worker uses only its fixed capability and cannot directly mutate ranks/staging.",
+    "old_config_failure": {
+      "backend_source": "8a5c25f14df0f13cd5bd8560851598e05378e476",
+      "binary_sha256": "9ee24a562cb109d525d985e0ca878e35222884899ea025365c3204c02af6ee8e",
+      "cause": "Clean migrate environment inherited compiled production/empty public URL defaults; startup config rejected it before connection. Read-only metadata proved the fresh schema was empty. Failure/marker/old artifacts remain retained.",
+      "continuation": "Only the already-created fresh DB migrated under corrected pinned v2 using explicit development/public origin. No bootstrap rerun, password rotation, schema reset or environment recreation."
+    },
+    "fixture_preparation": {
+      "raw_fixture_scope": "Only the fresh database migration role seeds501 explicit max-rank/version7 issues andcounter502 in each fresh private team. No raw jobs/claims/leases DML or test gate is used.",
+      "real_api_steps": "Contributor create returns actual typed409/applied:false; default --once polls reach an actual unknown-total staging checkpoint. Real membership revocation follows; further bounded default --once polls block the same job without advancing its progress. Actual manager can_resume is verified.",
+      "once_limit_per_checkpoint": 12,
+      "actual_once_children": 13,
+      "all_once_owned_reaped": true,
+      "profile_boundary": "Once preparation is one bounded CLI round. Continuous UI execution uses the unchanged normal worker.2000ms is an idle wait, not a guaranteed delay between active batches; no timing-sensitive100/400 state was forced.",
+      "engines": {
+        "chromium": {
+          "initial_staged_count": "100",
+          "initial_applied_count": "0",
+          "initial_total_count": null,
+          "stage_default_once_polls": 1,
+          "block_default_once_polls": 2,
+          "initial_state": "blocked",
+          "initial_error": "access_lost",
+          "actual_private_read_denial": 404,
+          "post_checks": {
+            "same_job": true,
+            "original_requester_retained": true,
+            "current_manager_requester": true,
+            "staged_applied_total": "501",
+            "normalized_exact": true,
+            "guard_removed": true,
+            "original501_metadata_documents_history_unchanged": true,
+            "one_created_issue": true,
+            "new_number": "502",
+            "counter": "503",
+            "real_resume_audit_count": 1,
+            "original_private_access_still_absent": true
+          }
+        },
+        "firefox": {
+          "initial_staged_count": "100",
+          "initial_applied_count": "0",
+          "initial_total_count": null,
+          "stage_default_once_polls": 2,
+          "block_default_once_polls": 3,
+          "initial_state": "blocked",
+          "initial_error": "access_lost",
+          "actual_private_read_denial": 404,
+          "post_checks": {
+            "same_job": true,
+            "original_requester_retained": true,
+            "current_manager_requester": true,
+            "staged_applied_total": "501",
+            "normalized_exact": true,
+            "guard_removed": true,
+            "original501_metadata_documents_history_unchanged": true,
+            "one_created_issue": true,
+            "new_number": "502",
+            "counter": "503",
+            "real_resume_audit_count": 1,
+            "original_private_access_still_absent": true
+          }
+        },
+        "webkit": {
+          "initial_staged_count": "100",
+          "initial_applied_count": "0",
+          "initial_total_count": null,
+          "stage_default_once_polls": 2,
+          "block_default_once_polls": 3,
+          "initial_state": "blocked",
+          "initial_error": "access_lost",
+          "actual_private_read_denial": 404,
+          "post_checks": {
+            "same_job": true,
+            "original_requester_retained": true,
+            "current_manager_requester": true,
+            "staged_applied_total": "501",
+            "normalized_exact": true,
+            "guard_removed": true,
+            "original501_metadata_documents_history_unchanged": true,
+            "one_created_issue": true,
+            "new_number": "502",
+            "counter": "503",
+            "real_resume_audit_count": 1,
+            "original_private_access_still_absent": true
+          }
+        }
+      }
+    },
+    "actual_continuous_worker_profile": {
+      "poll_interval_ms": 2000,
+      "lease_seconds": 60,
+      "max_connections": 5
+    },
+    "node_authority": "Fixture HTTP only. All PG/database/worker/operator/setup-service variables and credential-file paths are excluded. The fixture setup guard is inert; the actual setup-service token is absent. A complete reference-only manifest and authoritative initialized setup status are required, with no cache-bootstrap fallback."
+  },
+  "browser": {
+    "passed": 9,
+    "failed": 0,
+    "journeys_per_engine": 3,
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "checks": [
+      {
+        "browser": "chromium",
+        "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+        "status": "passed",
+        "duration_ms": 3285
+      },
+      {
+        "browser": "chromium",
+        "check": "an unknown position survives authority refresh with its exact request and conceals an actually denied private source",
+        "status": "passed",
+        "duration_ms": 3781
+      },
+      {
+        "browser": "chromium",
+        "check": "typed large-group maintenance preserves an editable create draft and attachment through reviewed manager resume",
+        "status": "passed",
+        "duration_ms": 6287
+      },
+      {
+        "browser": "firefox",
+        "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+        "status": "passed",
+        "duration_ms": 4634
+      },
+      {
+        "browser": "firefox",
+        "check": "an unknown position survives authority refresh with its exact request and conceals an actually denied private source",
+        "status": "passed",
+        "duration_ms": 4409
+      },
+      {
+        "browser": "firefox",
+        "check": "typed large-group maintenance preserves an editable create draft and attachment through reviewed manager resume",
+        "status": "passed",
+        "duration_ms": 4729
+      },
+      {
+        "browser": "webkit",
+        "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+        "status": "passed",
+        "duration_ms": 3623
+      },
+      {
+        "browser": "webkit",
+        "check": "an unknown position survives authority refresh with its exact request and conceals an actually denied private source",
+        "status": "passed",
+        "duration_ms": 4729
+      },
+      {
+        "browser": "webkit",
+        "check": "typed large-group maintenance preserves an editable create draft and attachment through reviewed manager resume",
+        "status": "passed",
+        "duration_ms": 6894
+      }
+    ],
+    "receipt_sha256": "568e786b3ddc1037c34f25eba4ba983bf553dce6a8aaae11a57ac6076bd84197",
+    "spec_sha256": "4ad1c20a44e7cc6e552e73291470e6025246e8424e950081ba1b00d17cf459b3",
+    "actual_scenarios": [
+      "Filtered board pointer placement resolves one anchor against full API order, retaining a hidden middle issue; pointer within/between statuses and list keyboard within/cross placement, append, exact token/If-Match, reload and position activity are verified.",
+      "A real successful position response is relayed as loss. A later canonical title/version edit and real unrelated-member epoch change trigger authority/session/bootstrap refresh; the identical Check receives historical success but current canonical data remains latest. Actual source/private denial strips labels/options through canonical team reauthorization without silently changing the manual/team URL.",
+      "The actual501 blocked job exposes unknown staging counts. Create retains a ready attachment through typed noncreation, edit/cancel review and a new edited request; real server-capability/ETag manager resume preserves job identity/provenance and finishes normalization. No autoPOST occurs. Explicit identical edited-draft retry creates exactly one issue, with saved document/attachment bytes and reload."
+    ],
+    "profile": {
+      "workers": 1,
+      "retries": 0,
+      "test_timeout_ms": 60000,
+      "expect_action_timeout_ms": 10000,
+      "focused_driver_timeout_ms": 600000,
+      "locale": "en-US",
+      "timezone": "UTC",
+      "trace_screenshot_video": false
+    },
+    "cleanup": {
+      "mode": "browser",
+      "phase": "candidate-01",
+      "backend_source": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+      "backend_sha256": "f9725a64b91ef8df2847abfb7ededf8dd31566caa5601812a8d4b39801c01622",
+      "api_reaped": true,
+      "worker_reaped": true,
+      "seed_reaped": true,
+      "monitor_reaped": true,
+      "scope_verified": true,
+      "namespace_zero": true,
+      "continuous_worker_started": true,
+      "browser_scope_started": true,
+      "api_ready": true,
+      "actual_worker_profile": {
+        "poll_interval_ms": 2000,
+        "lease_seconds": 60,
+        "max_connections": 5
+      },
+      "browser_service_authority_absent": true,
+      "fixture_guard_has_no_setup_service_authority": true,
+      "spec_sha256": "4ad1c20a44e7cc6e552e73291470e6025246e8424e950081ba1b00d17cf459b3",
+      "worker_exit_code": 0,
+      "api_exit_code": 0,
+      "exit_code": 0,
+      "cleanup_failures": []
+    },
+    "initial_execution_binding": "All original nine passes executed against e50 candidate-01 and ab00/f972. Retained without reset or repeat.",
+    "corrective_coverage": {
+      "fresh_corrected_bundle_passes": 3,
+      "retained_equivalent_original_passes": 6,
+      "execution_boundary": "Only the extended first journey was rerun, once per engine. The other two journey bodies are byte-identical; optional helper callbacks are absent from their calls and the sole product correction affects pointer drag only. Their six passes remain original-bundle evidence, not fresh corrected-bundle execution.",
+      "unchanged_journey_bodies_sha256": "bfc8ade124d770e29e2aa04f54beff9ec3842515fda3db1b015e53a3b2624a0a",
+      "actual_rejections_per_engine": [
+        "pointer/source412",
+        "pointer/order-generation409",
+        "keyboard/source412",
+        "keyboard/order-generation409"
+      ],
+      "snapshot_timing": "Concurrent real HTTP mutation occurs while pointer is down before release, or after dialog status/placement/reference review and before keyboard Apply.",
+      "source412": "PATCH source priority after snapshot; old source If-Match is sent. Priority also advances generation, but source precondition failure takes precedence.",
+      "generation409": "POST another hidden issue position after snapshot, proving source canonical Issue/ETag unchanged while generation changes.",
+      "rejection_assertions": "Exact original request token/source ETag/one anchor, actual HTTP412/409, authoritative full order and canonical source unchanged by rejected request, visible canonical rows restored, original proposal retained in enabled explicit review, discard causes no mutation.",
+      "spec_sha256": "bceaea2746a52a623107d1e9aa74baffb7bb5f4960758d81c6ba73aa161b4f7a",
+      "runs": {
+        "concurrency-01": {
+          "runtime": {
+            "mode": "browser",
+            "phase": "concurrency-01",
+            "backend_source": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+            "backend_sha256": "f9725a64b91ef8df2847abfb7ededf8dd31566caa5601812a8d4b39801c01622",
+            "api_reaped": true,
+            "worker_reaped": true,
+            "seed_reaped": true,
+            "monitor_reaped": true,
+            "scope_verified": true,
+            "namespace_zero": true,
+            "continuous_worker_started": true,
+            "browser_scope_started": true,
+            "frontend_phase": "candidate-01",
+            "selection": "first-placement-journey-only",
+            "api_ready": true,
+            "actual_worker_profile": {
+              "poll_interval_ms": 2000,
+              "lease_seconds": 60,
+              "max_connections": 5
+            },
+            "browser_service_authority_absent": true,
+            "fixture_guard_has_no_setup_service_authority": true,
+            "spec_sha256": "c6187c0f67ef5b1784733187091002e957202d2dba5870c421db03988dfa5188",
+            "worker_exit_code": 0,
+            "api_exit_code": 0,
+            "exit_code": 1,
+            "cleanup_failures": []
+          },
+          "runtime_sha256": "3c57bbe4f577500280567e4ee386566d1c0739235ea4e81d70bb5d79f4054039",
+          "private_results_sha256": "caaf211e4750575046404c461302527ff8d992f8d4f0833dc581bf9765ce8eba",
+          "stats": {
+            "startTime": "2026-10-25T21:28:38.393Z",
+            "duration": 422.9380000000001,
+            "expected": 0,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          }
+        },
+        "concurrency-02": {
+          "runtime": {
+            "mode": "browser",
+            "phase": "concurrency-02",
+            "backend_source": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+            "backend_sha256": "f9725a64b91ef8df2847abfb7ededf8dd31566caa5601812a8d4b39801c01622",
+            "api_reaped": true,
+            "worker_reaped": true,
+            "seed_reaped": true,
+            "monitor_reaped": true,
+            "scope_verified": true,
+            "namespace_zero": true,
+            "continuous_worker_started": true,
+            "browser_scope_started": true,
+            "frontend_phase": "candidate-01",
+            "selection": "first-placement-journey-only",
+            "api_ready": true,
+            "actual_worker_profile": {
+              "poll_interval_ms": 2000,
+              "lease_seconds": 60,
+              "max_connections": 5
+            },
+            "browser_service_authority_absent": true,
+            "fixture_guard_has_no_setup_service_authority": true,
+            "spec_sha256": "c6187c0f67ef5b1784733187091002e957202d2dba5870c421db03988dfa5188",
+            "worker_exit_code": 0,
+            "api_exit_code": 0,
+            "exit_code": 1,
+            "cleanup_failures": []
+          },
+          "runtime_sha256": "856e66f49e5531bee144ea05e3bc19359e64e06bd0555de2f9417d11f3043f2e",
+          "private_results_sha256": "2c33847eb7afc8193f6dbb1bdb9cfd06af259df3f40c9956347efa03c2fe2711",
+          "stats": {
+            "startTime": "2026-10-25T21:29:05.516Z",
+            "duration": 34171.769,
+            "expected": 0,
+            "skipped": 0,
+            "unexpected": 3,
+            "flaky": 0
+          }
+        },
+        "concurrency-03": {
+          "runtime": {
+            "mode": "browser",
+            "phase": "concurrency-03",
+            "backend_source": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+            "backend_sha256": "f9725a64b91ef8df2847abfb7ededf8dd31566caa5601812a8d4b39801c01622",
+            "api_reaped": true,
+            "worker_reaped": true,
+            "seed_reaped": true,
+            "monitor_reaped": true,
+            "scope_verified": true,
+            "namespace_zero": true,
+            "continuous_worker_started": true,
+            "browser_scope_started": true,
+            "frontend_phase": "candidate-01",
+            "selection": "first-placement-journey-only",
+            "api_ready": true,
+            "actual_worker_profile": {
+              "poll_interval_ms": 2000,
+              "lease_seconds": 60,
+              "max_connections": 5
+            },
+            "browser_service_authority_absent": true,
+            "fixture_guard_has_no_setup_service_authority": true,
+            "spec_sha256": "bceaea2746a52a623107d1e9aa74baffb7bb5f4960758d81c6ba73aa161b4f7a",
+            "worker_exit_code": 0,
+            "api_exit_code": 0,
+            "exit_code": 0,
+            "cleanup_failures": []
+          },
+          "runtime_sha256": "f0b797e73e328b6858ea6fcce403ba152c2c9dc962fe959beab1cf5e4cdfc17a",
+          "private_results_sha256": "5013ffb51be2bdcf162dca4c150d1a5c7279e91d7a4b8cae6fdae07f4c56c80e",
+          "stats": {
+            "startTime": "2026-10-25T21:29:59.494Z",
+            "duration": 50486.911,
+            "expected": 3,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "checks": [
+            {
+              "browser": "chromium",
+              "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+              "status": "passed",
+              "duration_ms": 6888
+            },
+            {
+              "browser": "firefox",
+              "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+              "status": "passed",
+              "duration_ms": 8553
+            },
+            {
+              "browser": "webkit",
+              "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+              "status": "passed",
+              "duration_ms": 7242
+            }
+          ],
+          "receipt_sha256": "10a946588f945235a76eb2743d2b5983a7375a82b24076141dbc82f5ccb9a246"
+        },
+        "concurrency-04": {
+          "runtime": {
+            "mode": "browser",
+            "phase": "concurrency-04",
+            "backend_source": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+            "backend_sha256": "f9725a64b91ef8df2847abfb7ededf8dd31566caa5601812a8d4b39801c01622",
+            "api_reaped": true,
+            "worker_reaped": true,
+            "seed_reaped": true,
+            "monitor_reaped": true,
+            "scope_verified": true,
+            "namespace_zero": true,
+            "continuous_worker_started": true,
+            "browser_scope_started": true,
+            "frontend_phase": "candidate-02",
+            "selection": "first-placement-journey-only",
+            "api_ready": true,
+            "actual_worker_profile": {
+              "poll_interval_ms": 2000,
+              "lease_seconds": 60,
+              "max_connections": 5
+            },
+            "browser_service_authority_absent": true,
+            "fixture_guard_has_no_setup_service_authority": true,
+            "spec_sha256": "bceaea2746a52a623107d1e9aa74baffb7bb5f4960758d81c6ba73aa161b4f7a",
+            "worker_exit_code": 0,
+            "api_exit_code": 0,
+            "exit_code": 0,
+            "cleanup_failures": []
+          },
+          "runtime_sha256": "8751cab027e2bd809a01364942507193c565dcb41a1995ef4c17d3f318944ee9",
+          "private_results_sha256": "4c43248cd48bd13e652248f65ca6bc527a4a1b8f9ec8e664f656159f29a440f1",
+          "stats": {
+            "startTime": "2026-10-25T21:31:53.231Z",
+            "duration": 46131.756,
+            "expected": 3,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          "checks": [
+            {
+              "browser": "chromium",
+              "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+              "status": "passed",
+              "duration_ms": 6348
+            },
+            {
+              "browser": "firefox",
+              "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+              "status": "passed",
+              "duration_ms": 8707
+            },
+            {
+              "browser": "webkit",
+              "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+              "status": "passed",
+              "duration_ms": 7198
+            }
+          ],
+          "receipt_sha256": "a88702774e75c03f8fb0322a7080d1973841902f393657c9dd6ac614602e6549"
+        }
+      }
+    }
+  },
+  "post_ui_sql_proof": {
+    "status": "passed",
+    "engines": {
+      "chromium": {
+        "initial_staged_count": "100",
+        "initial_applied_count": "0",
+        "initial_total_count": null,
+        "stage_default_once_polls": 1,
+        "block_default_once_polls": 2,
+        "initial_state": "blocked",
+        "initial_error": "access_lost",
+        "actual_private_read_denial": 404,
+        "post_checks": {
+          "same_job": true,
+          "original_requester_retained": true,
+          "current_manager_requester": true,
+          "staged_applied_total": "501",
+          "normalized_exact": true,
+          "guard_removed": true,
+          "original501_metadata_documents_history_unchanged": true,
+          "one_created_issue": true,
+          "new_number": "502",
+          "counter": "503",
+          "real_resume_audit_count": 1,
+          "original_private_access_still_absent": true
+        }
+      },
+      "firefox": {
+        "initial_staged_count": "100",
+        "initial_applied_count": "0",
+        "initial_total_count": null,
+        "stage_default_once_polls": 2,
+        "block_default_once_polls": 3,
+        "initial_state": "blocked",
+        "initial_error": "access_lost",
+        "actual_private_read_denial": 404,
+        "post_checks": {
+          "same_job": true,
+          "original_requester_retained": true,
+          "current_manager_requester": true,
+          "staged_applied_total": "501",
+          "normalized_exact": true,
+          "guard_removed": true,
+          "original501_metadata_documents_history_unchanged": true,
+          "one_created_issue": true,
+          "new_number": "502",
+          "counter": "503",
+          "real_resume_audit_count": 1,
+          "original_private_access_still_absent": true
+        }
+      },
+      "webkit": {
+        "initial_staged_count": "100",
+        "initial_applied_count": "0",
+        "initial_total_count": null,
+        "stage_default_once_polls": 2,
+        "block_default_once_polls": 3,
+        "initial_state": "blocked",
+        "initial_error": "access_lost",
+        "actual_private_read_denial": 404,
+        "post_checks": {
+          "same_job": true,
+          "original_requester_retained": true,
+          "current_manager_requester": true,
+          "staged_applied_total": "501",
+          "normalized_exact": true,
+          "guard_removed": true,
+          "original501_metadata_documents_history_unchanged": true,
+          "one_created_issue": true,
+          "new_number": "502",
+          "counter": "503",
+          "real_resume_audit_count": 1,
+          "original_private_access_still_absent": true
+        }
+      }
+    },
+    "claims": "All1503 original issue metadata/document/revision/history/subscription digests remain unchanged excluding physical rank. Every original rank equals its staging ordinal*1024 after completion. Same job ID/original requester remain, current execution requester is the real manager, guard is absent, real resume audit count1, original contributor access remains absent. Each team has exactly one new issue numbered502 andcounter503."
+  },
+  "retained_history": {
+    "controller_initial": {
+      "passed": 15,
+      "failed": 1,
+      "log_sha256": "67bda456f96979d918add54426836f874f9126b45fe121f8e1bd3d9041639921",
+      "cause": "Unit mock incorrectly returned manual200 while maintenance active; fixture corrected to the real409 contract, preserving all assertions."
+    },
+    "prior_candidates": [
+      "200c2efb447018fae2b1f3379c860a7392b931bf",
+      "c3190bddc2cfd6cdee034e9dedc2f6d7d6747198",
+      "0cb1f9bf0979ef9949aa4888e92729bc6992e8c5",
+      "f0a0de6eb6b6d1487ec95d2057c3ae0d4abb8841"
+    ],
+    "pointer_snapshot_failure": {
+      "failed": 1,
+      "log_sha256": "84b71f3e8b4c591813deb40881243e21dee58236637289277cf177687603539b",
+      "production_defect_corrected": true
+    },
+    "concurrency_selection_failure": {
+      "cases_executed": 0,
+      "cause": "Overanchored grep matched no tests; corrected selection without changing configured bounds.",
+      "runtime_sha256": "3c57bbe4f577500280567e4ee386566d1c0739235ea4e81d70bb5d79f4054039"
+    },
+    "concurrency_fixture_assumption_failure": {
+      "failed": 3,
+      "cause": "Spec incorrectly expected priority PATCH to preserve order generation. Corrected assertion requires the changed token and still verifies actual412 precedence.",
+      "results_sha256": "2c33847eb7afc8193f6dbb1bdb9cfd06af259df3f40c9956347efa03c2fe2711"
+    }
+  },
+  "rollback": "Frontend-only product delta on an already qualified backend contract; no new migration or stored-format change. Rolling back this UI hides its controls without reverting stored ranks. The dedicated qualification DB/roles/blobs and all older data/artifacts are retained, not recreated or reset.",
+  "limits": [
+    "Private browser/shared-client qualification only; pending independent whole-candidate review and actual changed-union/integrated-main/hosted gates controlled by the lead.",
+    "Native exact-route tests/backend qualification supplied by the lead are separate. No native GUI/package, physical input/layout, OS IME, assistive technology, general performance, recovery or release acceptance is claimed.",
+    "Position maintenance error/review and job-not-found/team reauthorization also have focused unit coverage; browser maintenance uses actual manual-read/create409 and real manager resume.",
+    "No worker merge/push/PR/issue closure or wholeF17/M05/product completion is claimed."
+  ],
+  "initial_ui_commit": "e50f1b87ff6e37573d024c09ff7a0bf2a1dd7a8d",
+  "correction": {
+    "commit": "8179c9b6f277d84962b66a44ca9bf04c09d5f15c",
+    "parent": "e50f1b87ff6e37573d024c09ff7a0bf2a1dd7a8d",
+    "problem": "Pointer-down retained the source Issue but drop read a newer render team/order token. An enabled rerender could combine the old source ETag with a new order generation.",
+    "change": "Freeze source/team/order token at pointer-down, use that snapshot on drop, cancel on team context change.",
+    "regression_failed_before_fix": true,
+    "regression_log_sha256": "84b71f3e8b4c591813deb40881243e21dee58236637289277cf177687603539b",
+    "affected_units_passed": 33,
+    "affected_unit_files": 3,
+    "affected_unit_log_sha256": "c7a777b4fbac144cd301e86cb0d8e5389aaa7ee45a8d4d0111e51d2f7583690e",
+    "unique_unit_cases_across_initial_and_corrective_selections": 193,
+    "application_typecheck_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "browser_typecheck_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "corrected_build_log_sha256": "da292067dc5cd2593977aedd9459b729e58b5b71a8590de8dcbd692bc4039a62",
+    "frontend_manifest_sha256": "5ff6b8265d1149617444b185ec325a36ed6c12156d3092ed961b4e84be0429e2",
+    "frontend_files": {
+      "assets/RichTextEditor-BI-AjIVi.js": "46834b565ca234dc0c6b869a81eb2561f8685e19c304a43474ef4a0d90ba6229",
+      "assets/RichTextEditor-BI-AjIVi.js.map": "82382f391c3afd041ffae8e7e3a0676fbf387e0eaa9445740d82ae74abfc3ba3",
+      "assets/index-BIPrLt5A.js": "c14333a11d66b9c6ae3f62640c9947195544ffc64e7432e7aec213f0aed0981a",
+      "assets/index-BIPrLt5A.js.map": "90d80629fb9311361b800595d89262adb7d44c8e2d5a31d3d5642e87465c66cc",
+      "assets/index-bam2-7vJ.css": "b6822f7f5efb642c8c52ed70cda6606e6dd4fbf25cd361c46bb7f50ce2e4f4b4",
+      "assets/portability.worker-DEvlQVr4.js": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+      "assets/portability.worker-DEvlQVr4.js.map": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+      "index.html": "a96af738888eb6861016f949297e5995fae30b8a549d5df8621c681cf18aa21f",
+      "theme.js": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e"
+    }
+  },
+  "initial_source_sha256": {
+    "web/e2e/manual-issue-order.browser.ts": "4ad1c20a44e7cc6e552e73291470e6025246e8424e950081ba1b00d17cf459b3",
+    "web/src/App.tsx": "9da64de97632da8fda0f52bee9a4331874eeacb8f22959183a648076809a27f1",
+    "web/src/issues/CreateIssue.tsx": "869dc0cdda2a4e417bef537b0c47c858afe3ab00afd7c80e5509e23228a7cfbf",
+    "web/src/issues/IssueBoard.tsx": "579bb2de399b60873dafa5adcbd4a8524d5c01a2c155cb45ff0904af1751a902",
+    "web/src/issues/IssueList.tsx": "40438e030b16a1ba890e357be21f6cb24122b2178f64ebc466ee2d959284e011",
+    "web/src/issues/IssueOrdering.css": "3ffc47d0bcfc99c439a6bd433ad5b4bec5c1798c153a977fd8f0897950375ffa",
+    "web/src/issues/IssueOrdering.test.tsx": "388c59f12cf0c7c928de9b6dceb36182280c7e127694b49e132557d0f0a7cda6",
+    "web/src/issues/IssueOrdering.tsx": "e21d8108c1833433f67903c07d4212fb3bb71d0e7fade14da4707f2599bd668a",
+    "web/src/issues/IssueOrderingCreate.test.tsx": "235ce704be15a83a20e0e5458740161943157c603311a48c167c6adcb2af0df3",
+    "web/src/issues/IssueOrderingViews.test.tsx": "fa76ab092a9205b4ab9e9e27ab7f8fb750f2ff6ae93de239d8d1150b38517076",
+    "web/src/issues/activity-model.test.ts": "9f2b1cd9d4edb9e09492f736c1bbe335d1ed4eb63c723d43eb21bba94824912a",
+    "web/src/issues/activity-model.ts": "3b57ae9f8f8be4cc47514a88e73338d528aae8b9f9ec680327f9b6603fb69e98",
+    "web/src/generated/api.d.ts": "136780f508ee589d154408a6e9776b890278b67186cdf0d2a4c121211c107c9f",
+    "web/src/types.ts": "3de082414e9365fc3e44d4157d327971e5a8bc6a17221e74f0026c38032ca4c0",
+    "web/src/api.ts": "6030abc0142d297f4fc5341bb0b30d9a7e94aa5266098b5304e5e63596587858",
+    "web/src/desktop/context.tsx": "f5e7faf27783674c6ba4244e6bce4073d309ae1f3d823e96e76710ca6060d21b",
+    "web/src/router.tsx": "af9b74a29f67de9b7757fe8cd6ae68d75bcb4d65de669a08e0839b01956e1e16",
+    "web/src/components.tsx": "97fa54265f395b59728fa2236de22a907c8fc8258151c35a9dcfed61700ff30e",
+    "web/src/workflows/useIssueWorkflow.ts": "29a1e57393f2af15dcd2c1d337fcd2f4cb022ba4ab402944eadd56f1c4a8298c",
+    "web/src/workflows/model.ts": "e867a10e2a443d1a99a8ea081dddfa627d7bf2b29eff98c3781d2437ed197076",
+    "web/e2e/fixtures.ts": "231ed3b47c40321e2419cf1f122d1ece64767f93cab07d35e1462eed0f06d45b",
+    "web/e2e/receipt-reporter.ts": "cbbc4061b3b4d00fd22f7bd803e9f3ba056c95e5eabc9b9528def2f23ca441ea",
+    "web/e2e/receipt-reporter-privacy.mjs": "669d95ccabef123ff6f027897f52cf7b89cb561a5ac21e92c272dd8937bc272e",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "web/src/taxonomy/taxonomy.css": "e9eec762503ed759577cc98b551992be9093147d98320d1ee08efb311b6eaa91"
+  },
+  "private_artifact_locator": "$OPENTRACK_DEV_STATE/manual-issue-order-ui/artifact-index-final.json in the existing assigned helper namespace"
+}
