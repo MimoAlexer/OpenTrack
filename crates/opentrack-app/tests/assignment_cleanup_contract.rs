@@ -163,9 +163,25 @@ async fn seed(
     .fetch_one(&mut *tx)
     .await
     .unwrap();
-    let ids: Vec<Uuid> = sqlx::query_scalar("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id,assignee_id) SELECT gen_random_uuid(),$1,$2,$3,$5+n,'Bounded cleanup fixture',s.id,$4 FROM generate_series(0,$6-1) n CROSS JOIN workflow_statuses s WHERE s.workspace_id=$1 AND s.team_id=$2 AND s.is_default RETURNING id")
-        .bind(workspace).bind(team).bind(actor.user.id).bind(user).bind(start).bind(count)
-        .fetch_all(&mut *tx).await.unwrap();
+    let version: i64 = sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations")
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    let sql = if version >= 27 {
+        "INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id,assignee_id,rank) SELECT gen_random_uuid(),$1,$2,$3,$5+n,'Bounded cleanup fixture',s.id,$4,($5+n)::numeric*1024 FROM generate_series(0,$6-1) n CROSS JOIN workflow_statuses s WHERE s.workspace_id=$1 AND s.team_id=$2 AND s.is_default RETURNING id"
+    } else {
+        "INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id,assignee_id) SELECT gen_random_uuid(),$1,$2,$3,$5+n,'Bounded cleanup fixture',s.id,$4 FROM generate_series(0,$6-1) n CROSS JOIN workflow_statuses s WHERE s.workspace_id=$1 AND s.team_id=$2 AND s.is_default RETURNING id"
+    };
+    let ids: Vec<Uuid> = sqlx::query_scalar(sql)
+        .bind(workspace)
+        .bind(team)
+        .bind(actor.user.id)
+        .bind(user)
+        .bind(start)
+        .bind(count)
+        .fetch_all(&mut *tx)
+        .await
+        .unwrap();
     sqlx::query(
         "UPDATE teams SET next_issue_number=next_issue_number+$3 WHERE workspace_id=$1 AND id=$2",
     )
@@ -321,10 +337,10 @@ async fn real_postgres_assignment_cleanup_contract() {
     let h = Harness::with_connections(8).await;
     let copy = h.clone();
     let run = tokio::spawn(async move { exercise(&copy).await }).await;
-    h.cleanup().await;
     if let Err(error) = run {
         std::panic::resume_unwind(error.into_panic());
     }
+    h.cleanup().await;
 }
 
 async fn exercise(h: &Harness) {
@@ -778,10 +794,10 @@ async fn real_postgres_assignment_effect_rollback() {
     let h = Harness::with_connections(6).await;
     let copy = h.clone();
     let run = tokio::spawn(async move { rollback(&copy).await }).await;
-    h.cleanup().await;
     if let Err(error) = run {
         std::panic::resume_unwind(error.into_panic());
     }
+    h.cleanup().await;
 }
 
 async fn rollback(h: &Harness) {
@@ -967,10 +983,10 @@ async fn real_postgres_assignment_0014_upgrade_backfill() {
     let h = Harness::with_version(6, 14).await;
     let copy = h.clone();
     let run = tokio::spawn(async move { upgrade(&copy).await }).await;
-    h.cleanup().await;
     if let Err(error) = run {
         std::panic::resume_unwind(error.into_panic());
     }
+    h.cleanup().await;
 }
 
 async fn upgrade(h: &Harness) {
@@ -1014,12 +1030,22 @@ async fn upgrade(h: &Harness) {
         old,
         "Migration must not perform unbounded assignment updates"
     );
+    let mut tx = h.context(owner.user.id, workspace).await;
+    let ranks: Vec<(Uuid,i64)> = sqlx::query_as("SELECT id,row_number() OVER(PARTITION BY team_id,status_id ORDER BY created_at DESC,id DESC)*1024 FROM issues WHERE workspace_id=$1")
+        .bind(workspace).fetch_all(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
     store::MIGRATOR.run(&h.owner).await.unwrap();
     // 0016 adds the canonical initial document projection. Preserve a full-row
     // comparison so no unrelated assignment or issue changes are hidden.
     let mut expected_current = old.clone();
     for issue in &mut expected_current {
         issue["body_version"] = json!(1);
+        let rank = ranks
+            .iter()
+            .find(|(id, _)| issue["id"] == id.to_string())
+            .unwrap()
+            .1;
+        issue["rank"] = serde_json::from_str(&format!("{rank}.000000000000000000")).unwrap();
     }
     assert_eq!(rows(h, &owner, workspace, &ids).await, expected_current);
     let worker = worker(h).await;

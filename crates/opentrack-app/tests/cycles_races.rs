@@ -41,10 +41,10 @@ async fn postgres_exclusion_serializes_direct_overlapping_inserts() {
     let h = Harness::with_connections(8).await;
     let copy = h.clone();
     let run = tokio::spawn(async move { exclusion(&copy).await }).await;
-    h.cleanup().await;
     if let Err(e) = run {
         std::panic::resume_unwind(e.into_panic());
     }
+    h.cleanup().await;
 }
 async fn exclusion(h: &Harness) {
     let (a, w, t) = setup(h).await;
@@ -91,10 +91,10 @@ async fn closing_waits_for_issue_write_and_rejects_the_stale_preview() {
     let h = Harness::with_connections(8).await;
     let copy = h.clone();
     let run = tokio::spawn(async move { close_race(&copy).await }).await;
-    h.cleanup().await;
     if let Err(e) = run {
         std::panic::resume_unwind(e.into_panic());
     }
+    h.cleanup().await;
 }
 async fn close_race(h: &Harness) {
     let (a, w, t) = setup(h).await;
@@ -205,11 +205,11 @@ async fn close_race(h: &Harness) {
 async fn cycle_upgrade_preserves_existing_issue_data() {
     let h = Harness::with_version(5, 22).await;
     let copy = h.clone();
-    let run=tokio::spawn(async move{let(a,w,t)=setup(&copy).await;let i=graph_support::issue(&copy,&a,w,t,json!({})).await;store::MIGRATOR.run(&copy.owner).await.unwrap();assert_eq!(copy.app.get_issue(&a,w,i.id).await.unwrap().title,i.title);let c=copy.app.create_cycle(&a,w,t,"upgraded-cycle-create",req(json!({"name":"Upgraded interval","start_date":"2026-07-01","end_date_exclusive":"2026-07-08","timezone":"UTC"}))).await.unwrap();assert_eq!(c.state,CycleState::Planned);}).await;
-    h.cleanup().await;
+    let run=tokio::spawn(async move{let(a,w,t)=setup(&copy).await;let i=graph_support::historical_issue(&copy,&a,w,t,json!({}),None).await;store::MIGRATOR.run(&copy.owner).await.unwrap();assert_eq!(copy.app.get_issue(&a,w,i.id).await.unwrap().title,i.title);let c=copy.app.create_cycle(&a,w,t,"upgraded-cycle-create",req(json!({"name":"Upgraded interval","start_date":"2026-07-01","end_date_exclusive":"2026-07-08","timezone":"UTC"}))).await.unwrap();assert_eq!(c.state,CycleState::Planned);}).await;
     if let Err(e) = run {
         std::panic::resume_unwind(e.into_panic());
     }
+    h.cleanup().await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -233,10 +233,10 @@ async fn historical_cycle_facts_and_receipts_reauthorize_private_moved_sources()
     let h = Harness::with_connections(8).await;
     let copy = h.clone();
     let run = tokio::spawn(async move { historical_privacy(&copy).await }).await;
-    h.cleanup().await;
     if let Err(e) = run {
         std::panic::resume_unwind(e.into_panic());
     }
+    h.cleanup().await;
 }
 async fn historical_privacy(h: &Harness) {
     let (a, w, t) = setup(h).await;
@@ -477,10 +477,10 @@ async fn bounded_cycle_history_projects_fifty_ten_thousand_issue_snapshots() {
     let h = Harness::with_connections(8).await;
     let copy = h.clone();
     let run = tokio::spawn(async move { bounded_history(&copy).await }).await;
-    h.cleanup().await;
     if let Err(e) = run {
         std::panic::resume_unwind(e.into_panic());
     }
+    h.cleanup().await;
 }
 async fn bounded_history(h: &Harness) {
     let (a, w, t) = setup(h).await;
@@ -500,7 +500,7 @@ async fn bounded_history(h: &Harness) {
         .execute(&mut *tx)
         .await
         .unwrap();
-    sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id,estimate) SELECT gen_random_uuid(),$1,$2,$3,n,'Bounded work',$4,1 FROM generate_series(1,10000) n").bind(w).bind(t).bind(a.user.id).bind(status).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id,estimate,rank) SELECT gen_random_uuid(),$1,$2,$3,n,'Bounded work',$4,1,n::numeric*1024 FROM generate_series(1,10000) n").bind(w).bind(t).bind(a.user.id).bind(status).execute(&mut *tx).await.unwrap();
     sqlx::query("INSERT INTO cycle_issues(workspace_id,team_id,cycle_id,issue_id) SELECT $1,$2,$3,id FROM issues WHERE workspace_id=$1 AND team_id=$2").bind(w).bind(t).bind(c.id).execute(&mut *tx).await.unwrap();
     sqlx::query("WITH facts AS(SELECT jsonb_agg(jsonb_build_object('issue_id',id,'issue_version',version::text,'category','unstarted','excluded',false,'estimate',estimate) ORDER BY id) AS items FROM issues WHERE workspace_id=$1 AND team_id=$2) INSERT INTO cycle_snapshots(id,workspace_id,team_id,cycle_id,local_date,captured_at,kind,definition_version,scope_count,completed_count,canceled_count,unfinished_count,excluded_count,estimate_total,items) SELECT gen_random_uuid(),$1,$2,$3,'2026-01-01'::date+n,clock_timestamp()+n*interval '1 second','daily',1,10000,0,0,10000,0,10000,items FROM facts CROSS JOIN generate_series(0,49) n").bind(w).bind(t).bind(c.id).execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
@@ -570,8 +570,8 @@ async fn cycle_index_extension_does_not_expand_runtime_or_worker_authority() {
         worker.capture(w).await.unwrap();
         let mut tx=copy.context(a.user.id,w).await;let captured:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM consumer_checkpoints c JOIN workspace_stream_heads h USING(workspace_id) WHERE c.workspace_id=$1 AND c.last_seq=h.last_seq)").bind(w).fetch_one(&mut *tx).await.unwrap();assert!(captured);tx.rollback().await.unwrap();worker.pool.close().await;
     }).await;
-    h.cleanup().await;
     if let Err(e) = run {
         std::panic::resume_unwind(e.into_panic());
     }
+    h.cleanup().await;
 }

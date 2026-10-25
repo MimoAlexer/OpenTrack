@@ -3,6 +3,7 @@ use crate::support::Harness;
 use opentrack_domain::*;
 use opentrack_store as store;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use sqlx::AssertSqlSafe;
 use uuid::Uuid;
 pub const PASSWORD: &str = "Graph contract password 482!";
@@ -68,6 +69,124 @@ pub async fn issue(h: &Harness, a: &Actor, w: Uuid, t: Uuid, extra: Value) -> Is
         .create_issue(a, w, &Uuid::new_v4().to_string(), req(body))
         .await
         .unwrap()
+}
+pub async fn historical_issue(
+    h: &Harness,
+    a: &Actor,
+    w: Uuid,
+    t: Uuid,
+    extra: Value,
+    key: Option<&str>,
+) -> Issue {
+    let mut body = json!({"team_id":t,"title":format!("Graph issue {}",Uuid::new_v4())});
+    body.as_object_mut()
+        .unwrap()
+        .extend(extra.as_object().unwrap().clone());
+    let mut request: CreateIssue = req(body);
+    request.validate().unwrap();
+    assert_eq!(request.team_id, t);
+    assert!(request.document.is_none() && request.template.is_none());
+    let key = key
+        .map(str::to_owned)
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    let key_hash = format!("{:x}", Sha256::digest(key.as_bytes()));
+    let request_hash = format!(
+        "{:x}",
+        Sha256::digest(serde_json::to_vec(&request).unwrap())
+    );
+    let document = DocumentWrite::from_plain_text(&request.description);
+    let plain = document.validate().unwrap();
+    let mut tx = h.context(a.user.id, w).await;
+    let schema: i64 = sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations")
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    assert!(
+        matches!(schema, 13 | 22),
+        "Historical seeding is limited to its explicit upgrade drivers"
+    );
+    let status = match request.status_id {
+        Some(status) => status,
+        None => sqlx::query_scalar(
+            "SELECT id FROM workflow_statuses WHERE workspace_id=$1 AND team_id=$2 AND is_default",
+        )
+        .bind(w)
+        .bind(t)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap(),
+    };
+    let number: i64 = sqlx::query_scalar("UPDATE teams SET next_issue_number=next_issue_number+1 WHERE workspace_id=$1 AND id=$2 RETURNING next_issue_number-1")
+        .bind(w).bind(t).fetch_one(&mut *tx).await.unwrap();
+    sqlx::query("SELECT set_config('opentrack.initial_document',$1,true)")
+        .bind(document.body.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let id = Uuid::new_v4();
+    assert_eq!(sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,description,status_id,priority,assignee_id,estimate,due_date,parent_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)")
+        .bind(id).bind(w).bind(t).bind(a.user.id).bind(number).bind(&request.title).bind(plain).bind(status).bind(request.priority).bind(request.assignee_id).bind(request.estimate).bind(request.due_date).bind(request.parent_id)
+        .execute(&mut *tx).await.unwrap().rows_affected(),1);
+    sqlx::query("SELECT set_config('opentrack.initial_document','',true)")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    store::set_issue_labels(&mut tx, w, id, &request.label_ids)
+        .await
+        .unwrap();
+    let issue = store::issue(&mut tx, w, a.user.id, id, false)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(sqlx::query("INSERT INTO idempotency_records(workspace_id,principal_id,route,key_hash,request_hash,response_body) VALUES($1,$2,'issues.create',$3,$4,$5)")
+        .bind(w).bind(a.user.id).bind(key_hash).bind(request_hash).bind(serde_json::to_value(&issue).unwrap()).execute(&mut *tx).await.unwrap().rows_affected(),1);
+    let mutation = request.mutation_id.unwrap_or_else(Uuid::new_v4);
+    let mut events = Vec::new();
+    if let Some(parent) = request.parent_id {
+        let version: i64 = sqlx::query_scalar("UPDATE issues SET version=version+1,updated_at=clock_timestamp() WHERE workspace_id=$1 AND team_id=$2 AND id=$3 RETURNING version")
+            .bind(w).bind(t).bind(parent).fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(
+            sqlx::query(
+                "UPDATE teams SET graph_version=graph_version+1 WHERE workspace_id=$1 AND id=$2"
+            )
+            .bind(w)
+            .bind(t)
+            .execute(&mut *tx)
+            .await
+            .unwrap()
+            .rows_affected(),
+            1
+        );
+        events.push(store::Event {
+            workspace: w,
+            team: t,
+            entity: parent,
+            version,
+            actor: a.user.id,
+            kind: "issue.parent_changed",
+            mutation,
+            changes: json!({"source":"manual","action":"child_created"}),
+        });
+    }
+    if schema >= 16 {
+        let document: Uuid =
+            sqlx::query_scalar("SELECT id FROM documents WHERE workspace_id=$1 AND issue_id=$2")
+                .bind(w)
+                .bind(id)
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+        assert_eq!(sqlx::query("INSERT INTO audit_entries(id,workspace_id,actor_id,action,target_id) VALUES($1,$2,$3,'document.created',$4)")
+            .bind(Uuid::new_v4()).bind(w).bind(a.user.id).bind(document).execute(&mut *tx).await.unwrap().rows_affected(),1);
+    }
+    events.push(store::Event {workspace:w,team:t,entity:id,version:1,actor:a.user.id,kind:"issue.created",mutation,
+        changes:json!({"label_ids":{"before":[],"after":request.label_ids},"assignee_id":{"before":null,"after":request.assignee_id},"source":"manual"})});
+    for event in &events {
+        store::append_activity(&mut tx, event).await.unwrap();
+    }
+    store::append_stream_events(&mut tx, &events).await.unwrap();
+    tx.commit().await.unwrap();
+    issue
 }
 pub async fn fresh(h: &Harness, a: &Actor, w: Uuid, id: Uuid) -> Issue {
     h.app.get_issue(a, w, id).await.unwrap()

@@ -49,10 +49,10 @@ async fn real_postgres_workflow_contract() {
     let h = Harness::with_connections(6).await;
     let copy = h.clone();
     let result = tokio::spawn(async move { exercise(&copy).await }).await;
-    h.cleanup().await;
     if let Err(e) = result {
         std::panic::resume_unwind(e.into_panic())
     }
+    h.cleanup().await;
 }
 async fn exercise(h: &Harness) {
     let (session,cookie)=h.app.setup(req(json!({"setup_token":h.setup_token,"email":"workflow@example.invalid","password":"workflow contract password 729!","display_name":"Workflow owner","workspace_name":"Workflow contract","team_name":"Engineering","team_key":"ENG"}))).await.unwrap();
@@ -190,7 +190,7 @@ async fn bounded_replacement(h: &Harness, a: &Actor, w: Uuid, t: Uuid) {
         .id;
     let mut tx = h.context(a.user.id, w).await;
     let number:i64=sqlx::query_scalar("UPDATE teams SET next_issue_number=next_issue_number+205 WHERE workspace_id=$1 AND id=$2 RETURNING next_issue_number-205").bind(w).bind(t).fetch_one(&mut *tx).await.unwrap();
-    sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id,archived_at,deleted_at) SELECT gen_random_uuid(),$1,$2,$3,$4+n,'Batch issue '||n,$5,CASE WHEN n%3=0 THEN clock_timestamp() END,CASE WHEN n%7=0 THEN clock_timestamp() END FROM generate_series(0,204) n").bind(w).bind(t).bind(a.user.id).bind(number).bind(source).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id,rank,archived_at,deleted_at) SELECT gen_random_uuid(),$1,$2,$3,$4+n,'Batch issue '||n,$5,($4+n)::numeric*1024,CASE WHEN n%3=0 THEN clock_timestamp() END,CASE WHEN n%7=0 THEN clock_timestamp() END FROM generate_series(0,204) n").bind(w).bind(t).bind(a.user.id).bind(number).bind(source).execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
     let preview = h
         .app

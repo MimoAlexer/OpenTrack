@@ -13,10 +13,10 @@ async fn real_postgres_graph_contract() {
     let h = Harness::with_connections(6).await;
     let copy = h.clone();
     let run = tokio::spawn(async move { exercise(&copy).await }).await;
-    h.cleanup().await;
     if let Err(e) = run {
         std::panic::resume_unwind(e.into_panic());
     }
+    h.cleanup().await;
 }
 async fn exercise(h: &Harness) {
     let (a, w, t) = setup(h).await;
@@ -628,7 +628,7 @@ async fn capacity(h: &Harness, a: &Actor, w: Uuid) {
         .execute(&mut *tx)
         .await
         .unwrap();
-    let ids:Vec<Uuid>=sqlx::query_scalar("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id) SELECT gen_random_uuid(),$1,$2,$3,100+n,'Capacity '||n,$4 FROM generate_series(0,10000)n ORDER BY n RETURNING id").bind(w).bind(t).bind(a.user.id).bind(sentinel.status_id).fetch_all(&mut *tx).await.unwrap();
+    let ids:Vec<Uuid>=sqlx::query_scalar("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id,rank) SELECT gen_random_uuid(),$1,$2,$3,100+n,'Capacity '||n,$4,(100+n)::numeric*1024 FROM generate_series(0,10000)n ORDER BY n RETURNING id").bind(w).bind(t).bind(a.user.id).bind(sentinel.status_id).fetch_all(&mut *tx).await.unwrap();
     sqlx::query("INSERT INTO issue_relations(id,workspace_id,team_id,source_id,target_id,kind,created_by) SELECT gen_random_uuid(),$1,$2,ids[n],ids[n+1],'blocks',$3 FROM (SELECT $4::uuid[] AS ids)x CROSS JOIN generate_series(1,10000)n ORDER BY n").bind(w).bind(t).bind(a.user.id).bind(&ids).execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
     let target = fresh(h, a, w, ids[0]).await;

@@ -22,39 +22,37 @@ async fn real_postgres_deletion_atomicity_and_upgrade() {
     let h = Harness::with_version(8, 13).await;
     let copy = h.clone();
     let run = tokio::spawn(async move { exercise(&copy).await }).await;
-    h.cleanup().await;
     if let Err(e) = run {
         std::panic::resume_unwind(e.into_panic());
     }
+    h.cleanup().await;
 }
 async fn exercise(h: &Harness) {
     let (a, w, t) = setup(h).await;
     let body = json!({"team_id":t,"title":"Retained create receipt"});
-    let source = h
-        .app
-        .create_issue(&a, w, "before-deletion-upgrade", req(body.clone()))
-        .await
-        .unwrap();
-    let parent_issue = issue(h, &a, w, t, json!({})).await;
+    let source = historical_issue(h, &a, w, t, body.clone(), Some("before-deletion-upgrade")).await;
+    let parent_issue = historical_issue(h, &a, w, t, json!({}), None).await;
     parent(h, &a, w, source.id, Some(parent_issue.id)).await;
-    let child = issue(
+    let child = historical_issue(
         h,
         &a,
         w,
         t,
         json!({"parent_id":source.id,"parent_etag":fresh(h,&a,w,source.id).await.etag()}),
+        None,
     )
     .await;
-    let historical = issue(
+    let historical = historical_issue(
         h,
         &a,
         w,
         t,
         json!({"parent_id":source.id,"parent_etag":fresh(h,&a,w,source.id).await.etag()}),
+        None,
     )
     .await;
-    let peer = issue(h, &a, w, t, json!({})).await;
-    let incoming = issue(h, &a, w, t, json!({})).await;
+    let peer = historical_issue(h, &a, w, t, json!({}), None).await;
+    let incoming = historical_issue(h, &a, w, t, json!({}), None).await;
     relate(h, &a, w, source.id, peer.id, "related").await;
     relate(h, &a, w, incoming.id, source.id, "blocks").await;
     // Seed a pre-0014 tombstone still linked to its parent; new commands must repair
@@ -83,6 +81,10 @@ async fn exercise(h: &Harness) {
         14
     );
     assert_eq!(snapshot(h, &a, w).await, before_upgrade);
+    let mut tx = h.context(a.user.id, w).await;
+    let ranks: Vec<(Uuid,i64)> = sqlx::query_as("SELECT id,row_number() OVER(PARTITION BY team_id,status_id ORDER BY created_at DESC,id DESC)*1024 FROM issues WHERE workspace_id=$1")
+        .bind(w).fetch_all(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
     store::MIGRATOR.run(&h.owner).await.unwrap();
     // 0015 adds explicit attribution/schema defaults without rewriting history.
     // Compare the complete new snapshot, not a projection that would conceal
@@ -90,6 +92,15 @@ async fn exercise(h: &Harness) {
     let mut expected_current = before_upgrade.clone();
     for issue in expected_current["issues"].as_array_mut().unwrap() {
         issue["body_version"] = json!(1);
+        let rank = ranks
+            .iter()
+            .find(|(id, _)| issue["id"] == id.to_string())
+            .unwrap()
+            .1;
+        issue["rank"] = serde_json::from_str(&format!("{rank}.000000000000000000")).unwrap();
+    }
+    for team in expected_current["teams"].as_array_mut().unwrap() {
+        team["ordering_version"] = json!(1);
     }
     for activity in expected_current["activity"].as_array_mut().unwrap() {
         activity["actor_kind"] = json!("account");
@@ -353,7 +364,7 @@ async fn fanout_chunks(h: &Harness, a: &Actor, w: Uuid, t: Uuid) {
     let source = issue(h, a, w, t, json!({})).await;
     let mut tx = h.context(a.user.id, w).await;
     let number:i64=sqlx::query_scalar("UPDATE teams SET next_issue_number=next_issue_number+105 WHERE id=$1 RETURNING next_issue_number-105").bind(t).fetch_one(&mut *tx).await.unwrap();
-    sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id,parent_id) SELECT gen_random_uuid(),$1,$2,$3,$4+n,'Deletion fanout',$5,$6 FROM generate_series(0,104) n").bind(w).bind(t).bind(a.user.id).bind(number).bind(source.status_id).bind(source.id).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id,parent_id,rank) SELECT gen_random_uuid(),$1,$2,$3,$4+n,'Deletion fanout',$5,$6,($4+n)::numeric*1024 FROM generate_series(0,104) n").bind(w).bind(t).bind(a.user.id).bind(number).bind(source.status_id).bind(source.id).execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
     let preview = h.app.issue_deletion_preview(a, w, source.id).await.unwrap();
     assert_eq!(preview.child_count, 105);
@@ -389,7 +400,7 @@ async fn limit(h: &Harness, a: &Actor, w: Uuid, t: Uuid) {
         .await
         .unwrap();
     let number:i64=sqlx::query_scalar("UPDATE teams SET next_issue_number=next_issue_number+10001 WHERE id=$1 RETURNING next_issue_number-10001").bind(t).fetch_one(&mut *tx).await.unwrap();
-    sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id) SELECT gen_random_uuid(),$1,$2,$3,$4+n,'Large incident graph',$5 FROM generate_series(0,10000) n").bind(w).bind(t).bind(a.user.id).bind(number).bind(source.status_id).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id,rank) SELECT gen_random_uuid(),$1,$2,$3,$4+n,'Large incident graph',$5,($4+n)::numeric*1024 FROM generate_series(0,10000) n").bind(w).bind(t).bind(a.user.id).bind(number).bind(source.status_id).execute(&mut *tx).await.unwrap();
     sqlx::query("INSERT INTO issue_relations(id,workspace_id,team_id,source_id,target_id,kind,created_by) SELECT gen_random_uuid(),$1,$2,least(id,$3),greatest(id,$3),'related',$4 FROM issues WHERE workspace_id=$1 AND team_id=$2 AND number>=$5 AND number<$5+10001").bind(w).bind(t).bind(source.id).bind(a.user.id).bind(number).execute(&mut *tx).await.unwrap();
     sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
         .execute(&mut *tx)

@@ -26,7 +26,7 @@ async fn job(h: &Harness, a: &Actor, w: Uuid, count: i32) -> (Uuid, Uuid, Uuid, 
     let source = flow.statuses.iter().find(|s| s.is_default).unwrap().id;
     let target = flow.statuses.iter().find(|s| !s.is_default).unwrap().id;
     let mut tx = fixture(h, a.user.id, w).await;
-    sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id) SELECT gen_random_uuid(),$1,$2,$3,n,'Worker fixture',$4 FROM generate_series(1,$5) n").bind(w).bind(team.id).bind(a.user.id).bind(source).bind(count).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id,rank) SELECT gen_random_uuid(),$1,$2,$3,n,'Worker fixture',$4,n::numeric*1024 FROM generate_series(1,$5) n").bind(w).bind(team.id).bind(a.user.id).bind(source).bind(count).execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
     let result = h
         .app
@@ -71,10 +71,10 @@ async fn real_postgres_worker_contracts() {
     let h = Harness::with_connections(6).await;
     let r = h.clone();
     let result = tokio::spawn(async move { exercise(&r).await }).await;
-    h.cleanup().await;
     if let Err(e) = result {
         std::panic::resume_unwind(e.into_panic());
     }
+    h.cleanup().await;
 }
 async fn exercise(h: &Harness) {
     let (session,cookie)=h.app.setup(req(json!({"setup_token":h.setup_token,"email":"owner@worker.invalid","password":"worker contract password 840!","display_name":"Worker owner","workspace_name":"Worker contracts","team_name":"Start","team_key":"START"}))).await.unwrap();
