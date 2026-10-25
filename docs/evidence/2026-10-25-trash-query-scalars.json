@@ -1,45 +1,86 @@
 {
   "date": "2026-10-25",
-  "scope": "Trash title/key query scalar input; bounded deletion-interface increment",
-  "base_commit": "8b730204089f0ce63c61e0615c9bb7a49ebeaa98",
-  "branch": "codex/worker-a-trash-query-scalars",
-  "change": "Remove only native UTF-16 maxlength200. Existing documented/Rust deleted-issue q256-scalar validation stays authoritative; no delete/restore/expiry/assignee/team/pagination, router/hook/type/backend/shared-fixture change.",
-  "source_and_check_sha256": {
-    "web/src/issues/Trash.tsx": "7d42b0d134bcdd755aca4d1587e2f4c8eaaea857fc8fee2aa9ed96dff6eadc48",
-    "web/src/issues/IssueDeletion.test.tsx": "1c6d5d7b1f3a9ec1a1f7e68102d0ef8a10bff4bef6dff0eb6da1da3c331c15e4",
-    "web/src/router.tsx": "af9b74a29f67de9b7757fe8cd6ae68d75bcb4d65de669a08e0839b01956e1e16",
-    "web/src/issues/IssueDelete.tsx": "d7cbfc7a1fa45ba7d5c40984626f87b2652dfe82ea6e9719a8794faf14f7dc65",
-    "web/e2e/trash-query-scalar-inputs.browser.ts": "459f4d997d1c35b8738b1f9f384c9ebfdb8861d0a3324bad45c4486086106362",
-    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
-    "web/e2e/fixtures.ts": "97c8f8183457a7b4af966090b12fbe58166c0f7fa37822643c5511d4fb469445",
-    "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667",
-    "work/trash-query-contained.py": "886bd0f126832806fd5113066973986afbc8faef729e622f95ab0233100e71d5",
-    "work/trash-query-scalars/unit.log": "6a372518116baab69525bc6aea2c41286761f9f526713dcd493f4067d9bec409",
-    "work/trash-query-scalars/typecheck.log": "50791af51b60280d7e513ca60ad69f0d2b8af76c3ac63034a5a590ae70375779",
-    "work/trash-query-scalars/production-build.log": "36e73439dedfce3b2fd81727486fac07ce722bd8db7ed5f1ea33497c0e0683e2"
+  "scope": "Trash query recorder correction; unchanged input-cap implementation",
+  "base_candidate": "9b474788ed25c3c187a342ae065a39f3c8653fbb",
+  "change": "Record every exact-list GET with nullable q, including absent/empty values; compare the complete rejection window. Count exact-detail requests at issue time, require zero before deliberate opening and exactly two for open/reload through journey end.",
+  "original_evidence": {
+    "commit": "9b474788ed25c3c187a342ae065a39f3c8653fbb",
+    "path": "docs/evidence/2026-10-25-trash-query-scalars.json",
+    "sha256": "d6464df674f70d95a72093d819ff7027b242ff381d977ee2d9f0f2ad07dcc667",
+    "artifact_index": {
+      "path": "$OPENTRACK_DEV_STATE/trash-query-scalars/artifact-index.json",
+      "sha256": "cfed418994c1ed33e8343c3004358f5bf2a0a6f35e4e094ca954af5ba3577650"
+    },
+    "limits": [
+      "Original recorder ignored absent-q list requests, so its no-fallback evidence was incomplete.",
+      "Original detail recorder counted completed responses, so pending/late request absence was not established."
+    ],
+    "preservation": "Original commit, fixtures, source, unit/build logs, frozen assets and proof remain unchanged; new complete-request observation supersedes only these recorder claims.",
+    "original_spec_sha256": "459f4d997d1c35b8738b1f9f384c9ebfdb8861d0a3324bad45c4486086106362"
   },
-  "executed_checks": [
-    {
-      "command": "cd web; npm test -- src/issues/IssueDeletion.test.tsx --maxWorkers=1",
-      "status": "passed",
-      "files": 1,
-      "tests": 18
+  "unchanged_app_evidence": {
+    "frontend_roots": {
+      "baseline": "$OPENTRACK_DEV_STATE/workflow-label-scalars/baseline-frontend",
+      "corrected": "$OPENTRACK_DEV_STATE/trash-query-scalars/corrected-frontend"
     },
-    {
-      "command": "cd web; npm run typecheck",
-      "status": "passed",
-      "targets": [
-        "tsconfig.json",
-        "tsconfig.e2e.json"
-      ]
+    "frontend_source_provenance": [
+      {
+        "phase": "baseline",
+        "source": "web/src/issues/Trash.tsx",
+        "source_sha256": "5fb5990c73a185e76c0958c1e2db765265007470ad828c1d3742d1334cc1e331",
+        "sourcemap": "assets/index-CAeW4zFK.js.map",
+        "sourcemap_sha256": "516821d4467f467480c14e14fbbe529915bcca9679c49ec03554a27d8d7ecb41",
+        "bundle_sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524"
+      },
+      {
+        "phase": "corrected",
+        "source": "web/src/issues/Trash.tsx",
+        "source_sha256": "7d42b0d134bcdd755aca4d1587e2f4c8eaaea857fc8fee2aa9ed96dff6eadc48",
+        "sourcemap": "assets/index-BgoVneWY.js.map",
+        "sourcemap_sha256": "10cec92631303ef3b5463aa4bdd76447f100288686893201e324bc999f3e392a",
+        "bundle_sha256": "90e4b8ba6f85379f9e49f2327b1841d342a3ad252f41ef036291bafdea7228bd"
+      }
+    ],
+    "reuse": "Production/unit/frozen frontend/backend bytes unchanged. No app build, unit suite or old artifact audit repeated.",
+    "retained_original_checks": [
+      {
+        "command": "cd web; npm test -- src/issues/IssueDeletion.test.tsx --maxWorkers=1",
+        "status": "passed",
+        "files": 1,
+        "tests": 18
+      },
+      {
+        "command": "cd web; npm run typecheck",
+        "status": "passed",
+        "targets": [
+          "tsconfig.json",
+          "tsconfig.e2e.json"
+        ]
+      },
+      {
+        "command": "npm run build --prefix web",
+        "status": "passed",
+        "candidate_production_builds": 1
+      }
+    ],
+    "unchanged_production_unit_sha256": {
+      "web/src/issues/Trash.tsx": "7d42b0d134bcdd755aca4d1587e2f4c8eaaea857fc8fee2aa9ed96dff6eadc48",
+      "web/src/issues/IssueDeletion.test.tsx": "1c6d5d7b1f3a9ec1a1f7e68102d0ef8a10bff4bef6dff0eb6da1da3c331c15e4"
     },
-    {
-      "command": "npm run build --prefix web",
-      "status": "passed",
-      "candidate_production_builds": 1
+    "retained_original_unit_build_log_sha256": {
+      "work/trash-query-scalars/unit.log": "6a372518116baab69525bc6aea2c41286761f9f526713dcd493f4067d9bec409",
+      "work/trash-query-scalars/production-build.log": "36e73439dedfce3b2fd81727486fac07ce722bd8db7ed5f1ea33497c0e0683e2"
     }
-  ],
-  "browser_command": "node node_modules/@playwright/test/cli.js test trash-query-scalar-inputs.browser.ts",
+  },
+  "changed_input_sha256": {
+    "web/e2e/trash-query-scalar-inputs.browser.ts": "e2a84364a83dcf1bc790ec8d4d1a93314942ab52e5d38616ea4ed73494a400db",
+    "work/trash-query-observation-contained.py": "d21ebfb7d5bece2211c15a5ae1dd6286837b2077ed4259d97acd83d6c02dcc37",
+    "work/trash-query-observation/e2e-typecheck.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "executed_changed_check": {
+    "command": "cd web; tsc --noEmit -p tsconfig.e2e.json",
+    "status": "passed"
+  },
   "profile": {
     "engines": [
       "chromium",
@@ -59,17 +100,6 @@
     "unchanged_search_debounce_ms": 280,
     "unchanged_page_limit": 50
   },
-  "fixture_isolation": "Fresh private target/prefix-distractor issues are deleted using existing APIs; another synthetic admin owns a matching private deleted issue unavailable to the original owner. Existing private environment/data/backend/scope reused without reset or old task reruns.",
-  "manual_saved_workspace_constructions": 0,
-  "runtime_artifact_root": "$OPENTRACK_DEV_STATE/trash-query-scalars",
-  "frontend_roots": {
-    "baseline": "$OPENTRACK_DEV_STATE/workflow-label-scalars/baseline-frontend",
-    "corrected": "$OPENTRACK_DEV_STATE/trash-query-scalars/corrected-frontend"
-  },
-  "private_artifact_index": {
-    "path": "$OPENTRACK_DEV_STATE/trash-query-scalars/artifact-index.json",
-    "sha256": "cfed418994c1ed33e8343c3004358f5bf2a0a6f35e4e094ca954af5ba3577650"
-  },
   "runs": {
     "baseline": {
       "receipt": {
@@ -79,21 +109,21 @@
             "browser": "chromium",
             "check": "Trash preserves full scalar queries, rejects 257 without stale actions and reloads the repaired authorized detail",
             "status": "failed",
-            "duration_ms": 13722,
+            "duration_ms": 14102,
             "failure": "trash-query-scalar-inputs.browser.ts:74"
           },
           {
             "browser": "firefox",
             "check": "Trash preserves full scalar queries, rejects 257 without stale actions and reloads the repaired authorized detail",
             "status": "failed",
-            "duration_ms": 14746,
+            "duration_ms": 15249,
             "failure": "trash-query-scalar-inputs.browser.ts:74"
           },
           {
             "browser": "webkit",
             "check": "Trash preserves full scalar queries, rejects 257 without stale actions and reloads the repaired authorized detail",
             "status": "failed",
-            "duration_ms": 14170,
+            "duration_ms": 14235,
             "failure": "trash-query-scalar-inputs.browser.ts:74"
           }
         ],
@@ -107,7 +137,7 @@
         "phase": "baseline",
         "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
         "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
-        "spec_sha256": "459f4d997d1c35b8738b1f9f384c9ebfdb8861d0a3324bad45c4486086106362",
+        "spec_sha256": "e2a84364a83dcf1bc790ec8d4d1a93314942ab52e5d38616ea4ed73494a400db",
         "browser_service_authority_absent": true,
         "scope_verified": true,
         "namespace_zero": true,
@@ -178,19 +208,19 @@
             "browser": "chromium",
             "check": "Trash preserves full scalar queries, rejects 257 without stale actions and reloads the repaired authorized detail",
             "status": "passed",
-            "duration_ms": 5418
+            "duration_ms": 6226
           },
           {
             "browser": "firefox",
             "check": "Trash preserves full scalar queries, rejects 257 without stale actions and reloads the repaired authorized detail",
             "status": "passed",
-            "duration_ms": 7192
+            "duration_ms": 7565
           },
           {
             "browser": "webkit",
             "check": "Trash preserves full scalar queries, rejects 257 without stale actions and reloads the repaired authorized detail",
             "status": "passed",
-            "duration_ms": 6718
+            "duration_ms": 7474
           }
         ],
         "limitations": [
@@ -203,7 +233,7 @@
         "phase": "corrected",
         "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
         "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
-        "spec_sha256": "459f4d997d1c35b8738b1f9f384c9ebfdb8861d0a3324bad45c4486086106362",
+        "spec_sha256": "e2a84364a83dcf1bc790ec8d4d1a93314942ab52e5d38616ea4ed73494a400db",
         "browser_service_authority_absent": true,
         "scope_verified": true,
         "namespace_zero": true,
@@ -245,7 +275,12 @@
               "current_detail_status": 200,
               "correct_detail_and_query_after_reload": true,
               "saved_deleted_version": "2",
-              "mutations_during_search_and_detail": 0
+              "mutations_during_search_and_detail": 0,
+              "every_list_get_recorded_including_absent_or_empty_query": true,
+              "rejected_window_queries": [
+                257
+              ],
+              "issued_detail_requests_after_deliberate_open_and_reload": 2
             }
           }
         },
@@ -281,7 +316,12 @@
               "current_detail_status": 200,
               "correct_detail_and_query_after_reload": true,
               "saved_deleted_version": "2",
-              "mutations_during_search_and_detail": 0
+              "mutations_during_search_and_detail": 0,
+              "every_list_get_recorded_including_absent_or_empty_query": true,
+              "rejected_window_queries": [
+                257
+              ],
+              "issued_detail_requests_after_deliberate_open_and_reload": 2
             }
           }
         },
@@ -317,171 +357,30 @@
               "current_detail_status": 200,
               "correct_detail_and_query_after_reload": true,
               "saved_deleted_version": "2",
-              "mutations_during_search_and_detail": 0
+              "mutations_during_search_and_detail": 0,
+              "every_list_get_recorded_including_absent_or_empty_query": true,
+              "rejected_window_queries": [
+                257
+              ],
+              "issued_detail_requests_after_deliberate_open_and_reload": 2
             }
           }
         }
       ]
     }
   },
-  "frontend_source_provenance": [
-    {
-      "phase": "baseline",
-      "source": "web/src/issues/Trash.tsx",
-      "source_sha256": "5fb5990c73a185e76c0958c1e2db765265007470ad828c1d3742d1334cc1e331",
-      "sourcemap": "assets/index-CAeW4zFK.js.map",
-      "sourcemap_sha256": "516821d4467f467480c14e14fbbe529915bcca9679c49ec03554a27d8d7ecb41",
-      "bundle_sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524"
-    },
-    {
-      "phase": "corrected",
-      "source": "web/src/issues/Trash.tsx",
-      "source_sha256": "7d42b0d134bcdd755aca4d1587e2f4c8eaaea857fc8fee2aa9ed96dff6eadc48",
-      "sourcemap": "assets/index-BgoVneWY.js.map",
-      "sourcemap_sha256": "10cec92631303ef3b5463aa4bdd76447f100288686893201e324bc999f3e392a",
-      "bundle_sha256": "90e4b8ba6f85379f9e49f2327b1841d342a3ad252f41ef036291bafdea7228bd"
-    }
-  ],
-  "retained_frontend_assets": [
-    {
-      "phase": "baseline",
-      "path": "assets/RichTextEditor-BedJvSKb.js",
-      "sha256": "a7b972c673d27a66d332a670742aee8d25a56d230d3feca5875b4937030a9178",
-      "bytes": 444281,
-      "mode": "0o600"
-    },
-    {
-      "phase": "baseline",
-      "path": "assets/RichTextEditor-BedJvSKb.js.map",
-      "sha256": "67e888af9e6fdec5c8153941ea5aa1f1e1fcc4126da5e66158230c442c8e3d46",
-      "bytes": 1964893,
-      "mode": "0o600"
-    },
-    {
-      "phase": "baseline",
-      "path": "assets/index-B9yoYYJd.css",
-      "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
-      "bytes": 90154,
-      "mode": "0o600"
-    },
-    {
-      "phase": "baseline",
-      "path": "assets/index-CAeW4zFK.js",
-      "sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524",
-      "bytes": 689015,
-      "mode": "0o600"
-    },
-    {
-      "phase": "baseline",
-      "path": "assets/index-CAeW4zFK.js.map",
-      "sha256": "516821d4467f467480c14e14fbbe529915bcca9679c49ec03554a27d8d7ecb41",
-      "bytes": 2393652,
-      "mode": "0o600"
-    },
-    {
-      "phase": "baseline",
-      "path": "assets/portability.worker-DEvlQVr4.js",
-      "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
-      "bytes": 79037,
-      "mode": "0o600"
-    },
-    {
-      "phase": "baseline",
-      "path": "assets/portability.worker-DEvlQVr4.js.map",
-      "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
-      "bytes": 224663,
-      "mode": "0o600"
-    },
-    {
-      "phase": "baseline",
-      "path": "index.html",
-      "sha256": "ca5c59a4af58df389a9d9cd627db02f17d33f573ef9c6735ce7a9a838137797b",
-      "bytes": 606,
-      "mode": "0o600"
-    },
-    {
-      "phase": "baseline",
-      "path": "theme.js",
-      "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
-      "bytes": 321,
-      "mode": "0o600"
-    },
-    {
-      "phase": "corrected",
-      "path": "assets/RichTextEditor-wlIaZetj.js",
-      "sha256": "e6becc07824e64d850a2a7949310cf2c03cce7ca6951428f03aeb7d21f7e9efc",
-      "bytes": 444281,
-      "mode": "0o600"
-    },
-    {
-      "phase": "corrected",
-      "path": "assets/RichTextEditor-wlIaZetj.js.map",
-      "sha256": "785d9496ce8e78e0f3c08de8a6a51cc3fccbd50767d6dcc9e3401bfee59a80a0",
-      "bytes": 1964243,
-      "mode": "0o600"
-    },
-    {
-      "phase": "corrected",
-      "path": "assets/index-B9yoYYJd.css",
-      "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
-      "bytes": 90154,
-      "mode": "0o600"
-    },
-    {
-      "phase": "corrected",
-      "path": "assets/index-BgoVneWY.js",
-      "sha256": "90e4b8ba6f85379f9e49f2327b1841d342a3ad252f41ef036291bafdea7228bd",
-      "bytes": 689001,
-      "mode": "0o600"
-    },
-    {
-      "phase": "corrected",
-      "path": "assets/index-BgoVneWY.js.map",
-      "sha256": "10cec92631303ef3b5463aa4bdd76447f100288686893201e324bc999f3e392a",
-      "bytes": 2391606,
-      "mode": "0o600"
-    },
-    {
-      "phase": "corrected",
-      "path": "assets/portability.worker-DEvlQVr4.js",
-      "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
-      "bytes": 79037,
-      "mode": "0o600"
-    },
-    {
-      "phase": "corrected",
-      "path": "assets/portability.worker-DEvlQVr4.js.map",
-      "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
-      "bytes": 224663,
-      "mode": "0o600"
-    },
-    {
-      "phase": "corrected",
-      "path": "index.html",
-      "sha256": "aecdaff322bf60ab6dbcf04b36d2053c2331a281c70ff71250d59ff8c304088a",
-      "bytes": 606,
-      "mode": "0o600"
-    },
-    {
-      "phase": "corrected",
-      "path": "theme.js",
-      "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
-      "bytes": 321,
-      "mode": "0o600"
-    }
-  ],
   "private_runtime_artifacts": [
     {
       "phase": "baseline",
       "path": "api.log",
-      "sha256": "9cab3b03c5be0b8420905196243b0f28b39e94b7543b79d39e2939038276317b",
+      "sha256": "bd46be364ba310c801309e36875c75a6d470eefde9777f326d35246632a2f75f",
       "bytes": 366,
       "mode": "0o600"
     },
     {
       "phase": "baseline",
       "path": "migration.log",
-      "sha256": "3e723b3b8ddb6d0e34458e2394e9f9176ebeb7a1af23902a0b6a4377012a2b53",
+      "sha256": "86acbcd58af5060a7d16288cdf51a333ea8e863ea21b76e9888a2bac0182304d",
       "bytes": 203,
       "mode": "0o600"
     },
@@ -495,35 +394,35 @@
     {
       "phase": "baseline",
       "path": "output/trash-query-scalar-inputs.-8492c--repaired-authorized-detail-chromium/error-context.md",
-      "sha256": "972415ecdc9b01186fa38b96fdebd35aa607fb433f94fb9a601ad371a3c4dcfd",
-      "bytes": 14639,
+      "sha256": "50b16190f89252f6b46010701c8cedf562f47f8348aac3e4d717eb625dcb95b3",
+      "bytes": 15054,
       "mode": "0o600"
     },
     {
       "phase": "baseline",
       "path": "output/trash-query-scalar-inputs.-8492c--repaired-authorized-detail-firefox/error-context.md",
-      "sha256": "235ac165295c4f43a8f537b0e91900426f7ae75d2d9968ed522ca22a6b69f32c",
-      "bytes": 14639,
+      "sha256": "9bc8534a4b159c80d8a406555c1a84d19ec1c086be86d909f5b3926b88ea3fd7",
+      "bytes": 15054,
       "mode": "0o600"
     },
     {
       "phase": "baseline",
       "path": "output/trash-query-scalar-inputs.-8492c--repaired-authorized-detail-webkit/error-context.md",
-      "sha256": "f00a355ecc83d377003c65f957e9f812b72306e0a1b29e82ae0314cbd5384843",
-      "bytes": 14639,
+      "sha256": "e11c3f2eb58cfb8ff85108eed7918cdb5378a5a5c7461357dc79581dd6026a52",
+      "bytes": 15054,
       "mode": "0o600"
     },
     {
       "phase": "baseline",
       "path": "private-results.json",
-      "sha256": "4453e33f7a79241a4ae282e8b73a2b96b40327578e99e9d724a59baf734351e7",
-      "bytes": 50688,
+      "sha256": "c863013f174b4b45fb1be6d7a92ab5948c4af8406ad39d87a88b17ba00be4f69",
+      "bytes": 50728,
       "mode": "0o600"
     },
     {
       "phase": "baseline",
       "path": "receipt.json",
-      "sha256": "749160d4737f146a7f3ee328cbe65022a8f2e852cef6ef7d19af3160b5b6a29a",
+      "sha256": "5bbf621d6eb2917c5c654f0d0e8ac1f7a20f152da7743370838782e60b562947",
       "bytes": 1211,
       "mode": "0o600"
     },
@@ -537,21 +436,21 @@
     {
       "phase": "baseline",
       "path": "scope-receipt.json",
-      "sha256": "15eab02e2e67bbbf9160ba0fae1371f1d13a892e84cb90b5bd203574b0e0770d",
+      "sha256": "9670aff655626b2278f54de94add4fc255e9865ee4ba6248a70ca7d67e3fd3b5",
       "bytes": 473,
       "mode": "0o600"
     },
     {
       "phase": "corrected",
       "path": "api.log",
-      "sha256": "8de2ad282568ea7268f5a8b66fb9915562dc61d47fbf72d9622edcb8019c8fd3",
+      "sha256": "5e0bdac7c4ff574c7b9f8dc2273215f44c4965012ffee7031dc13673acbed0ab",
       "bytes": 366,
       "mode": "0o600"
     },
     {
       "phase": "corrected",
       "path": "migration.log",
-      "sha256": "8f635abada65533dcddc8ac8599a75d6d8bbfc7194027981afc5d460970ef225",
+      "sha256": "0b5f4ad302a08a1c326ff8c368bd0f1b5a74cff12f5b41cc303cc4cce3b87119",
       "bytes": 203,
       "mode": "0o600"
     },
@@ -565,14 +464,14 @@
     {
       "phase": "corrected",
       "path": "private-results.json",
-      "sha256": "76ae6a2ea60131362aabf75e9dade0eac17523fda116d843e7a819e467593e74",
-      "bytes": 14392,
+      "sha256": "4cbd8cac4dd73f9ff01492db53a3eea8846148dca94fea872a6e02df8a0802b4",
+      "bytes": 15044,
       "mode": "0o600"
     },
     {
       "phase": "corrected",
       "path": "receipt.json",
-      "sha256": "234a4fe5c8e34f75ff49d2ccb437811c02c8f82d3ba0bc6c0fe1caf7c9694190",
+      "sha256": "04d59da400e5e08d0fcfce4ca6baeef82055b686ecb985f50aa9b19721e82a8c",
       "bytes": 1028,
       "mode": "0o600"
     },
@@ -586,36 +485,39 @@
     {
       "phase": "corrected",
       "path": "scope-receipt.json",
-      "sha256": "877a2a963bfd906866fd68e201eb9da618405b9ae8ce41615fc40fe00e798577",
+      "sha256": "4447011dadb13548052390e865097aa38ac6ca2fbecf24d7ecabc106f621383d",
       "bytes": 474,
       "mode": "0o600"
     }
   ],
+  "runtime_artifact_root": "$OPENTRACK_DEV_STATE/trash-query-observation",
+  "frontend_roots": {
+    "baseline": "$OPENTRACK_DEV_STATE/workflow-label-scalars/baseline-frontend",
+    "corrected": "$OPENTRACK_DEV_STATE/trash-query-scalars/corrected-frontend"
+  },
+  "private_artifact_index": {
+    "path": "$OPENTRACK_DEV_STATE/trash-query-observation/artifact-index.json",
+    "sha256": "a1443ac7b3635eb6c21ec21fd490f0fc926e82ac08c7da3b19e432a93245fbf7"
+  },
   "shutdown": {
     "same_namespace_extra_processes": [],
     "postmaster_pid_absent": true,
     "database_data_retained": true
   },
   "shutdown_receipt": {
-    "path": "$OPENTRACK_DEV_STATE/trash-query-scalars/shutdown-audit.json",
+    "path": "$OPENTRACK_DEV_STATE/trash-query-observation/shutdown-audit.json",
     "sha256": "ccbaea8ae3e0ab7df0f8208f921543c105cdfb51bd830e9118903394ec612f76"
   },
   "database_stop_log": {
-    "path": "$OPENTRACK_DEV_STATE/trash-query-scalars/database-stop.log",
+    "path": "$OPENTRACK_DEV_STATE/trash-query-observation/database-stop.log",
     "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
   },
-  "prior_candidate_preservation_receipt": {
-    "path": "$OPENTRACK_DEV_STATE/trash-query-scalars/prior-candidate-preservation.json",
-    "sha256": "5e5b3595e6f169d6a04838817b425006e006d64e063f2babd6af76a390803b13"
-  },
   "asserted_behavior": [
-    "Native baseline100 matches target+prefix distractor; corrected256 reaches the real deleted list unchanged and isolates the authorized target at limit50.",
-    "257 reaches Rust HTTP422 validation_failed with query retained, stale rows/actions absent and no unfiltered/truncated fallback.",
-    "Repair restores the exact result; keyboard opening performs a current authorized deleted-detail GET200 and preserves selected detail/query through reload and close.",
-    "Target/distractor tombstones remain unchanged at deleted version2; search/detail window sends no mutation. Private deleted control remains excluded/direct owner404.",
-    "Focused existing units retain delete/restore/expiry, dirty navigation, current authority/privacy, paging and uncertain-result regressions; new scalar unit verifies debounce/full query/error repair."
+    "Same corrected spec reproduces baseline100 and passes full256/257422/repair/detail/reload in all three engines.",
+    "All list GETs are observable even with null/empty q; the complete rejected window equals the exact257 query.",
+    "No detail request is issued through rejected Enter; exactly one deliberate open plus one reload request is allowed, including at journey end.",
+    "Private/prefix controls, no UI writes and unchanged tombstones/version2 remain asserted."
   ],
-  "migration_rollback": "No schema, Rust or wire change. Frontend rollback restores native query truncation; stored deleted issues and server policy remain unchanged.",
   "limits": [
     "Fixture deletion is setup; actual restore was not executed in this query/detail journey. Existing restore units and unchanged implementation remain separate from a new restore acceptance claim.",
     "Normal contained completion/namespace emptiness are verified, without forced interruption, physical/native/IME/assistive/screenshot or broader performance qualification.",

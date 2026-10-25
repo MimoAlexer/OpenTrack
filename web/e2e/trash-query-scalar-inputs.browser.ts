@@ -46,16 +46,16 @@ test('Trash preserves full scalar queries, rejects 257 without stale actions and
     const partial = await saved.request<DeletedIssue>(`/issues/${distractor.id}/deleted`);
     expect(tombstone).toMatchObject({ issue: { id: target.id, title: query, version: '2' }, can_restore: true });
     const denied = await saved.http.get(`${saved.path}/issues/${hidden.id}/deleted`); expect(denied.status()).toBe(404);
-    const replies: Response[] = []; const requests: string[] = []; const details: Response[] = []; const mutations: string[] = [];
+    const replies: Response[] = []; const requests: (string | null)[] = []; const detailRequests: string[] = []; const mutations: string[] = [];
     page.on('request', request => {
       const url = new URL(request.url());
-      if (request.method() === 'GET' && url.pathname === `${saved.path}/issues/deleted` && url.searchParams.has('q')) requests.push(url.searchParams.get('q')!);
+      if (request.method() === 'GET' && url.pathname === `${saved.path}/issues/deleted`) requests.push(url.searchParams.get('q'));
+      if (request.method() === 'GET' && url.pathname === `${saved.path}${path}`) detailRequests.push(request.url());
       if (url.pathname.startsWith(saved.path + '/') && ['POST', 'PATCH', 'DELETE', 'PUT'].includes(request.method())) mutations.push(request.method());
     });
     page.on('response', response => {
       const url = new URL(response.url());
-      if (response.request().method() === 'GET' && url.pathname === `${saved.path}/issues/deleted` && url.searchParams.has('q')) replies.push(response);
-      if (response.request().method() === 'GET' && response.url() === `${saved.origin}${saved.path}${path}`) details.push(response);
+      if (response.request().method() === 'GET' && url.pathname === `${saved.path}/issues/deleted`) replies.push(response);
     });
     await page.goto(`/w/${saved.workspace}/trash`);
     const screen = page.getByRole('region', { name: 'Trash', exact: true });
@@ -81,9 +81,10 @@ test('Trash preserves full scalar queries, rejects 257 without stale actions and
     expect(rejected.status()).toBe(422); expect(await rejected.json()).toMatchObject({ code: 'validation_failed' });
     await expect(input).toHaveValue(query + '\u{1F680}');
     await expect(screen.getByRole('alert').filter({ hasText: 'Invalid trash search or page size' })).toBeVisible();
-    await expect(rows).toHaveCount(0); expect(requests.slice(beforeError)).toEqual([query + '\u{1F680}']);
-    const detailCount = details.length; await input.press('Enter'); expect(details).toHaveLength(detailCount); expect(mutations).toEqual([]);
+    await expect(rows).toHaveCount(0);
+    expect(detailRequests).toHaveLength(0); await input.press('Enter'); expect(detailRequests).toHaveLength(0); expect(mutations).toEqual([]);
     expect(new URL(page.url()).pathname).toBe(`/w/${saved.workspace}/trash`);
+    const rejectedWindow = requests.slice(beforeError); expect(rejectedWindow).toEqual([query + '\u{1F680}']);
     const repairedResponse = page.waitForResponse(response => response.request().method() === 'GET'
       && new URL(response.url()).pathname === `${saved.path}/issues/deleted` && new URL(response.url()).searchParams.get('q') === query);
     await input.press('ControlOrMeta+A'); await input.pressSequentially(query); const repaired = await repairedResponse;
@@ -93,21 +94,23 @@ test('Trash preserves full scalar queries, rejects 257 without stale actions and
       page.waitForResponse(response => response.request().method() === 'GET' && response.url() === `${saved.origin}${saved.path}${path}`),
       rows.filter({ hasText: target.key }).press('Enter'),
     ]);
-    expect(detailResponse.status()).toBe(200); expect(await detailResponse.json()).toEqual(tombstone);
+    expect(detailResponse.status()).toBe(200); expect(await detailResponse.json()).toEqual(tombstone); expect(detailRequests).toHaveLength(1);
     const detail = page.getByRole('dialog', { name: `Restore ${target.key}`, exact: true }); await expect(detail).toContainText(query);
     expect(new URL(page.url()).pathname).toBe(`/w/${saved.workspace}/trash/${target.id}`);
     expect(new URL(page.url()).searchParams.get('q')).toBe(query);
-    await page.reload(); await expect(detail).toContainText(query);
+    await page.reload(); await expect(detail).toContainText(query); expect(detailRequests).toHaveLength(2);
     expect(await saved.request<DeletedIssue>(path)).toEqual(tombstone);
     await detail.getByRole('button', { name: 'Cancel', exact: true }).click(); await expect(detail).toHaveCount(0);
     await expect(input).toHaveValue(query); await expect(rows).toHaveCount(1);
     expect(await saved.request<DeletedIssue>(`/issues/${distractor.id}/deleted`)).toEqual(partial);
-    expect((await saved.http.get(`${saved.path}/issues/${hidden.id}/deleted`)).status()).toBe(404); expect(mutations).toEqual([]);
+    expect((await saved.http.get(`${saved.path}/issues/${hidden.id}/deleted`)).status()).toBe(404); expect(mutations).toEqual([]); expect(detailRequests).toHaveLength(2);
     await test.info().attach('query-detail-receipt', { contentType: 'application/json', body: JSON.stringify({
       query_scalars: [256, 257, 256], statuses: [boundaryResponse.status(), rejected.status(), repaired.status()],
       no_stale_action_or_unfiltered_fallback: true, private_deleted_read_status: denied.status(), private_control_excluded: true,
       current_detail_status: detailResponse.status(), correct_detail_and_query_after_reload: true,
       saved_deleted_version: tombstone.issue.version, mutations_during_search_and_detail: mutations.length,
+      every_list_get_recorded_including_absent_or_empty_query: true, rejected_window_queries: rejectedWindow.map(value => value === null ? 'absent' : value === '' ? 'empty' : Array.from(value).length),
+      issued_detail_requests_after_deliberate_open_and_reload: detailRequests.length,
     }) });
   } finally { await admin.dispose(); }
 });
