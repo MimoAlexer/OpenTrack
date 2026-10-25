@@ -1,0 +1,55 @@
+{
+  "status": "Contract target compiled; handler acceptance pending",
+  "base": "29b156c7f545cec1e20ab0cafa2a9c16a3234030",
+  "test": "crates/opentrack-api/tests/issue_order_contract.rs",
+  "test_sha256": "fbb7a7d4e3490b29e0c9a83ddc9a37b90d84841686587a1ce4e4a6f5a9058616",
+  "scope": "New HTTP/PostgreSQL contract target and evidence only; production, shared harness, schema and generated contracts unchanged",
+  "checks": {
+    "format": "rustfmt --edition 2024 --config skip_children=true crates/opentrack-api/tests/issue_order_contract.rs",
+    "compile": "cargo test --locked -p opentrack-api --test issue_order_contract --no-run",
+    "compile_exit": 0,
+    "compiled_cases": 7,
+    "runtime_selected_case": "position_rejects_rank_injection_and_enforces_source_authority_first",
+    "runtime_exit": 101,
+    "runtime_passed": 0,
+    "runtime_failed": 1,
+    "runtime_filtered_out": 6,
+    "retained_failure": "First position request with an untrusted rank received 404 instead of the required 422; the position route is absent at this base",
+    "repeated_missing_route_runs": 0,
+    "functional_acceptance": "Not established; remaining assertions and six other cases await the implemented handler head",
+    "baseline_test_sha256": "e500adce12eed2f05b315ad32c85391ec2c8f04541dabf1139e80b00d9647cae",
+    "final_test_only_review": "Required idempotency header and stale-claim no-effect assertions added; compare unchanged business fields across different authorized principals. Final target recompiled; missing-route baseline not repeated."
+  },
+  "compiled_scenarios": [
+    "Rank injection and malformed position rejection, private/viewer/wrong-tenant/CSRF/session authority, source 412 before stale generation or neighbor conflict",
+    "Live unfiltered adjacency excluding source, successor-only/predecessor-only/append, no-op without logical effects, matching and changed-body replay, current and recorded-team reauthorization",
+    "Numeric rank/UUID pagination, manual query constraints, query/principal/tenant/workflow/ordering/permission cursor binding",
+    "500-row inline normalization without changing other issues or creating their history",
+    "501-row create exhaustion with one typed intent, confirmed nonapplication, retained NULL receipt and no counter/issue/document/effect change",
+    "Required event suppression rolls back a position; same-key retry and replay remain safe",
+    "501-row position intent, maintenance array and nonapplication, readable ordinary sorts, bounded worker progress, access loss after 100 applied ranks, manager resume with actual private access and current permission-bound ETag, immutable original provenance and fresh reviewed retry"
+  ],
+  "execution_boundary": {
+    "fixture": "Unchanged shared application Harness::new and the existing workflow HTTP router pattern; fresh schema at migration 27",
+    "database_roles": "Existing separate runtime, migration owner, worker and operator test configuration; no role or database recreation",
+    "seed": "Owner-scoped synthetic accounts and explicit numeric issue ranks; HTTP setup/login/current issue reads precede the first missing position route",
+    "startup": "Fresh migration-27 runtime startup and explicit private-staging grant denial reached successfully before the missing-route assertion",
+    "namespace": "Verified existing private namespace and original database cluster identity",
+    "shutdown": "Private test process exited, database stopped successfully, existing data and the failed fresh schema retained"
+  },
+  "private_evidence": {
+    "root": "$OPENTRACK_DEV_STATE/issue-order-api",
+    "index": "artifact-index.json",
+    "index_sha256": "09bf7f490baaee2b67b6a1f6b2f0746974a1401d83f5e477b8f3d2de529abd55",
+    "files": 13,
+    "compile_log_sha256": "42b1878b006a74e6578475aef72190385922a9e92eda85a134e6ab27af07163b",
+    "missing_route_log_sha256": "d75bb36b50e84d9538b2a72b2cabae5b86148651b9d7c1a72f9608dc937cea9e"
+  },
+  "limits": [
+    "A successful compile is not HTTP behavior acceptance. The sole executed case is retained as a failure, not a pass.",
+    "Raw fixture account/grant/rank changes and recorded-team relocation isolate authorization and replay contracts; they do not qualify the management or issue-move APIs.",
+    "Existing worker and populated-upgrade evidence is not rerun or promoted to API/UI acceptance.",
+    "Full API/UI integration, hosted checks, native, physical-input, assistive-technology, performance and whole-product gates remain open."
+  ],
+  "migration_rollback": "No new migration or production behavior; removing the new target and evidence reverts this slice. The retained failed schema belongs only to its generated test fixture."
+}
