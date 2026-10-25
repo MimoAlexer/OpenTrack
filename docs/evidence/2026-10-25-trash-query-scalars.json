@@ -1,0 +1,527 @@
+{
+  "date": "2026-10-25",
+  "scope": "Trash query recorder correction; unchanged input-cap implementation",
+  "base_candidate": "9b474788ed25c3c187a342ae065a39f3c8653fbb",
+  "change": "Record every exact-list GET with nullable q, including absent/empty values; compare the complete rejection window. Count exact-detail requests at issue time, require zero before deliberate opening and exactly two for open/reload through journey end.",
+  "original_evidence": {
+    "commit": "9b474788ed25c3c187a342ae065a39f3c8653fbb",
+    "path": "docs/evidence/2026-10-25-trash-query-scalars.json",
+    "sha256": "d6464df674f70d95a72093d819ff7027b242ff381d977ee2d9f0f2ad07dcc667",
+    "artifact_index": {
+      "path": "$OPENTRACK_DEV_STATE/trash-query-scalars/artifact-index.json",
+      "sha256": "cfed418994c1ed33e8343c3004358f5bf2a0a6f35e4e094ca954af5ba3577650"
+    },
+    "limits": [
+      "Original recorder ignored absent-q list requests, so its no-fallback evidence was incomplete.",
+      "Original detail recorder counted completed responses, so pending/late request absence was not established."
+    ],
+    "preservation": "Original commit, fixtures, source, unit/build logs, frozen assets and proof remain unchanged; new complete-request observation supersedes only these recorder claims.",
+    "original_spec_sha256": "459f4d997d1c35b8738b1f9f384c9ebfdb8861d0a3324bad45c4486086106362"
+  },
+  "unchanged_app_evidence": {
+    "frontend_roots": {
+      "baseline": "$OPENTRACK_DEV_STATE/workflow-label-scalars/baseline-frontend",
+      "corrected": "$OPENTRACK_DEV_STATE/trash-query-scalars/corrected-frontend"
+    },
+    "frontend_source_provenance": [
+      {
+        "phase": "baseline",
+        "source": "web/src/issues/Trash.tsx",
+        "source_sha256": "5fb5990c73a185e76c0958c1e2db765265007470ad828c1d3742d1334cc1e331",
+        "sourcemap": "assets/index-CAeW4zFK.js.map",
+        "sourcemap_sha256": "516821d4467f467480c14e14fbbe529915bcca9679c49ec03554a27d8d7ecb41",
+        "bundle_sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524"
+      },
+      {
+        "phase": "corrected",
+        "source": "web/src/issues/Trash.tsx",
+        "source_sha256": "7d42b0d134bcdd755aca4d1587e2f4c8eaaea857fc8fee2aa9ed96dff6eadc48",
+        "sourcemap": "assets/index-BgoVneWY.js.map",
+        "sourcemap_sha256": "10cec92631303ef3b5463aa4bdd76447f100288686893201e324bc999f3e392a",
+        "bundle_sha256": "90e4b8ba6f85379f9e49f2327b1841d342a3ad252f41ef036291bafdea7228bd"
+      }
+    ],
+    "reuse": "Production/unit/frozen frontend/backend bytes unchanged. No app build, unit suite or old artifact audit repeated.",
+    "retained_original_checks": [
+      {
+        "command": "cd web; npm test -- src/issues/IssueDeletion.test.tsx --maxWorkers=1",
+        "status": "passed",
+        "files": 1,
+        "tests": 18
+      },
+      {
+        "command": "cd web; npm run typecheck",
+        "status": "passed",
+        "targets": [
+          "tsconfig.json",
+          "tsconfig.e2e.json"
+        ]
+      },
+      {
+        "command": "npm run build --prefix web",
+        "status": "passed",
+        "candidate_production_builds": 1
+      }
+    ],
+    "unchanged_production_unit_sha256": {
+      "web/src/issues/Trash.tsx": "7d42b0d134bcdd755aca4d1587e2f4c8eaaea857fc8fee2aa9ed96dff6eadc48",
+      "web/src/issues/IssueDeletion.test.tsx": "1c6d5d7b1f3a9ec1a1f7e68102d0ef8a10bff4bef6dff0eb6da1da3c331c15e4"
+    },
+    "retained_original_unit_build_log_sha256": {
+      "work/trash-query-scalars/unit.log": "6a372518116baab69525bc6aea2c41286761f9f526713dcd493f4067d9bec409",
+      "work/trash-query-scalars/production-build.log": "36e73439dedfce3b2fd81727486fac07ce722bd8db7ed5f1ea33497c0e0683e2"
+    }
+  },
+  "changed_input_sha256": {
+    "web/e2e/trash-query-scalar-inputs.browser.ts": "e2a84364a83dcf1bc790ec8d4d1a93314942ab52e5d38616ea4ed73494a400db",
+    "work/trash-query-observation-contained.py": "d21ebfb7d5bece2211c15a5ae1dd6286837b2077ed4259d97acd83d6c02dcc37",
+    "work/trash-query-observation/e2e-typecheck.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "executed_changed_check": {
+    "command": "cd web; tsc --noEmit -p tsconfig.e2e.json",
+    "status": "passed"
+  },
+  "profile": {
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "journeys_per_engine": 1,
+    "workers": 1,
+    "retries": 0,
+    "test_timeout_ms": 60000,
+    "expect_timeout_ms": 10000,
+    "action_timeout_ms": 10000,
+    "origin": "http://127.0.0.1:18081",
+    "trace": false,
+    "screenshot": false,
+    "video": false,
+    "unchanged_search_debounce_ms": 280,
+    "unchanged_page_limit": 50
+  },
+  "runs": {
+    "baseline": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "Trash preserves full scalar queries, rejects 257 without stale actions and reloads the repaired authorized detail",
+            "status": "failed",
+            "duration_ms": 14102,
+            "failure": "trash-query-scalar-inputs.browser.ts:74"
+          },
+          {
+            "browser": "firefox",
+            "check": "Trash preserves full scalar queries, rejects 257 without stale actions and reloads the repaired authorized detail",
+            "status": "failed",
+            "duration_ms": 15249,
+            "failure": "trash-query-scalar-inputs.browser.ts:74"
+          },
+          {
+            "browser": "webkit",
+            "check": "Trash preserves full scalar queries, rejects 257 without stale actions and reloads the repaired authorized detail",
+            "status": "failed",
+            "duration_ms": 14235,
+            "failure": "trash-query-scalar-inputs.browser.ts:74"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "baseline",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "e2a84364a83dcf1bc790ec8d4d1a93314942ab52e5d38616ea4ed73494a400db",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 1,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 100,
+              "input_utf16_units": 200,
+              "requested_scalars": 100,
+              "limit": "50",
+              "result_count": 2,
+              "target_present": true,
+              "partial_present": true,
+              "private_present": false,
+              "private_deleted_read_status": 404
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 100,
+              "input_utf16_units": 200,
+              "requested_scalars": 100,
+              "limit": "50",
+              "result_count": 2,
+              "target_present": true,
+              "partial_present": true,
+              "private_present": false,
+              "private_deleted_read_status": 404
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 100,
+              "input_utf16_units": 200,
+              "requested_scalars": 100,
+              "limit": "50",
+              "result_count": 2,
+              "target_present": true,
+              "partial_present": true,
+              "private_present": false,
+              "private_deleted_read_status": 404
+            }
+          }
+        }
+      ]
+    },
+    "corrected": {
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "Trash preserves full scalar queries, rejects 257 without stale actions and reloads the repaired authorized detail",
+            "status": "passed",
+            "duration_ms": 6226
+          },
+          {
+            "browser": "firefox",
+            "check": "Trash preserves full scalar queries, rejects 257 without stale actions and reloads the repaired authorized detail",
+            "status": "passed",
+            "duration_ms": 7565
+          },
+          {
+            "browser": "webkit",
+            "check": "Trash preserves full scalar queries, rejects 257 without stale actions and reloads the repaired authorized detail",
+            "status": "passed",
+            "duration_ms": 7474
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "corrected",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "e2a84364a83dcf1bc790ec8d4d1a93314942ab52e5d38616ea4ed73494a400db",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 0,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 256,
+              "input_utf16_units": 512,
+              "requested_scalars": 256,
+              "limit": "50",
+              "result_count": 1,
+              "target_present": true,
+              "partial_present": false,
+              "private_present": false,
+              "private_deleted_read_status": 404
+            },
+            "query-detail-receipt": {
+              "query_scalars": [
+                256,
+                257,
+                256
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "no_stale_action_or_unfiltered_fallback": true,
+              "private_deleted_read_status": 404,
+              "private_control_excluded": true,
+              "current_detail_status": 200,
+              "correct_detail_and_query_after_reload": true,
+              "saved_deleted_version": "2",
+              "mutations_during_search_and_detail": 0,
+              "every_list_get_recorded_including_absent_or_empty_query": true,
+              "rejected_window_queries": [
+                257
+              ],
+              "issued_detail_requests_after_deliberate_open_and_reload": 2
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 256,
+              "input_utf16_units": 512,
+              "requested_scalars": 256,
+              "limit": "50",
+              "result_count": 1,
+              "target_present": true,
+              "partial_present": false,
+              "private_present": false,
+              "private_deleted_read_status": 404
+            },
+            "query-detail-receipt": {
+              "query_scalars": [
+                256,
+                257,
+                256
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "no_stale_action_or_unfiltered_fallback": true,
+              "private_deleted_read_status": 404,
+              "private_control_excluded": true,
+              "current_detail_status": 200,
+              "correct_detail_and_query_after_reload": true,
+              "saved_deleted_version": "2",
+              "mutations_during_search_and_detail": 0,
+              "every_list_get_recorded_including_absent_or_empty_query": true,
+              "rejected_window_queries": [
+                257
+              ],
+              "issued_detail_requests_after_deliberate_open_and_reload": 2
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "input_scalars": 256,
+              "input_utf16_units": 512,
+              "requested_scalars": 256,
+              "limit": "50",
+              "result_count": 1,
+              "target_present": true,
+              "partial_present": false,
+              "private_present": false,
+              "private_deleted_read_status": 404
+            },
+            "query-detail-receipt": {
+              "query_scalars": [
+                256,
+                257,
+                256
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "no_stale_action_or_unfiltered_fallback": true,
+              "private_deleted_read_status": 404,
+              "private_control_excluded": true,
+              "current_detail_status": 200,
+              "correct_detail_and_query_after_reload": true,
+              "saved_deleted_version": "2",
+              "mutations_during_search_and_detail": 0,
+              "every_list_get_recorded_including_absent_or_empty_query": true,
+              "rejected_window_queries": [
+                257
+              ],
+              "issued_detail_requests_after_deliberate_open_and_reload": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  "private_runtime_artifacts": [
+    {
+      "phase": "baseline",
+      "path": "api.log",
+      "sha256": "bd46be364ba310c801309e36875c75a6d470eefde9777f326d35246632a2f75f",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "migration.log",
+      "sha256": "86acbcd58af5060a7d16288cdf51a333ea8e863ea21b76e9888a2bac0182304d",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/.last-run.json",
+      "sha256": "dafa3c2259f463b3f55b46fdbce15bd28f39e5ab544b84868eb9ffd34903d4de",
+      "bytes": 194,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/trash-query-scalar-inputs.-8492c--repaired-authorized-detail-chromium/error-context.md",
+      "sha256": "50b16190f89252f6b46010701c8cedf562f47f8348aac3e4d717eb625dcb95b3",
+      "bytes": 15054,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/trash-query-scalar-inputs.-8492c--repaired-authorized-detail-firefox/error-context.md",
+      "sha256": "9bc8534a4b159c80d8a406555c1a84d19ec1c086be86d909f5b3926b88ea3fd7",
+      "bytes": 15054,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/trash-query-scalar-inputs.-8492c--repaired-authorized-detail-webkit/error-context.md",
+      "sha256": "e11c3f2eb58cfb8ff85108eed7918cdb5378a5a5c7461357dc79581dd6026a52",
+      "bytes": 15054,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "private-results.json",
+      "sha256": "c863013f174b4b45fb1be6d7a92ab5948c4af8406ad39d87a88b17ba00be4f69",
+      "bytes": 50728,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "receipt.json",
+      "sha256": "5bbf621d6eb2917c5c654f0d0e8ac1f7a20f152da7743370838782e60b562947",
+      "bytes": 1211,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "runner.log",
+      "sha256": "de16cce04496767620d164c1246a5c698d98b0c4efb7cfbfef4295f50e13164b",
+      "bytes": 566,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "scope-receipt.json",
+      "sha256": "9670aff655626b2278f54de94add4fc255e9865ee4ba6248a70ca7d67e3fd3b5",
+      "bytes": 473,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "api.log",
+      "sha256": "5e0bdac7c4ff574c7b9f8dc2273215f44c4965012ffee7031dc13673acbed0ab",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "migration.log",
+      "sha256": "0b5f4ad302a08a1c326ff8c368bd0f1b5a74cff12f5b41cc303cc4cce3b87119",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "output/.last-run.json",
+      "sha256": "91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903",
+      "bytes": 45,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "private-results.json",
+      "sha256": "4cbd8cac4dd73f9ff01492db53a3eea8846148dca94fea872a6e02df8a0802b4",
+      "bytes": 15044,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "receipt.json",
+      "sha256": "04d59da400e5e08d0fcfce4ca6baeef82055b686ecb985f50aa9b19721e82a8c",
+      "bytes": 1028,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "runner.log",
+      "sha256": "844832e8368d03d1cdc25f2f98a577f369d2622910b36cb8295953604dca671d",
+      "bytes": 440,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "scope-receipt.json",
+      "sha256": "4447011dadb13548052390e865097aa38ac6ca2fbecf24d7ecabc106f621383d",
+      "bytes": 474,
+      "mode": "0o600"
+    }
+  ],
+  "runtime_artifact_root": "$OPENTRACK_DEV_STATE/trash-query-observation",
+  "frontend_roots": {
+    "baseline": "$OPENTRACK_DEV_STATE/workflow-label-scalars/baseline-frontend",
+    "corrected": "$OPENTRACK_DEV_STATE/trash-query-scalars/corrected-frontend"
+  },
+  "private_artifact_index": {
+    "path": "$OPENTRACK_DEV_STATE/trash-query-observation/artifact-index.json",
+    "sha256": "a1443ac7b3635eb6c21ec21fd490f0fc926e82ac08c7da3b19e432a93245fbf7"
+  },
+  "shutdown": {
+    "same_namespace_extra_processes": [],
+    "postmaster_pid_absent": true,
+    "database_data_retained": true
+  },
+  "shutdown_receipt": {
+    "path": "$OPENTRACK_DEV_STATE/trash-query-observation/shutdown-audit.json",
+    "sha256": "ccbaea8ae3e0ab7df0f8208f921543c105cdfb51bd830e9118903394ec612f76"
+  },
+  "database_stop_log": {
+    "path": "$OPENTRACK_DEV_STATE/trash-query-observation/database-stop.log",
+    "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+  },
+  "asserted_behavior": [
+    "Same corrected spec reproduces baseline100 and passes full256/257422/repair/detail/reload in all three engines.",
+    "All list GETs are observable even with null/empty q; the complete rejected window equals the exact257 query.",
+    "No detail request is issued through rejected Enter; exactly one deliberate open plus one reload request is allowed, including at journey end.",
+    "Private/prefix controls, no UI writes and unchanged tombstones/version2 remain asserted."
+  ],
+  "limits": [
+    "Fixture deletion is setup; actual restore was not executed in this query/detail journey. Existing restore units and unchanged implementation remain separate from a new restore acceptance claim.",
+    "Normal contained completion/namespace emptiness are verified, without forced interruption, physical/native/IME/assistive/screenshot or broader performance qualification.",
+    "This bounded query slice does not replace broader deletion/product or current hosted CI gates. Exact-head review/integration remain lead-owned.",
+    "No push, PR, merge or issue closure was performed. Ongoing worker Goal continues for scoped findings and next explicit assignment."
+  ]
+}

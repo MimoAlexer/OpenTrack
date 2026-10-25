@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Picker } from './Picker';
+import { ApiError } from '../api';
 
 let container: HTMLDivElement; let root: Root;
 const select = vi.fn(); const setOpen = vi.fn(); const parentKey = vi.fn();
@@ -48,4 +49,30 @@ it('leaves Home and End in a typed query until list navigation is active', async
   expect(input().hasAttribute('aria-activedescendant')).toBe(false);
   await key('ArrowDown'); await key('Escape'); expect(setOpen).toHaveBeenCalledExactlyOnceWith(false);
   expect(document.activeElement).toBe(container.querySelector('button'));
+});
+
+it('forwards supplementary query text intact and clears active selection through a rejected query and repair', async () => {
+  const name = '\u{1F680}'.repeat(100); const seen = vi.fn();
+  function Controlled({ failed = false }: { failed?: boolean }) {
+    const [query, setQuery] = useState('');
+    return <Picker label="Assignee" value="Unassigned" open setOpen={setOpen} query={query} setQuery={value => { seen(value); setQuery(value); }}
+      choices={failed ? [] : [{ id: 'eligible', text: name }]} select={select} loading={false}
+      error={failed ? new ApiError(422, 'validation_failed', 'Search must contain at most 100 characters') : null}
+      refresh={() => {}} more={() => {}} hasMore={false}/>;
+  }
+  const change = async (value: string) => act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input(), value);
+    input().dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => root.render(<Controlled/>));
+  await key('ArrowDown'); expect(active()).toBe(name);
+  await change(name); expect(seen).toHaveBeenLastCalledWith(name); expect(input().value).toBe(name);
+  expect(input().hasAttribute('aria-activedescendant')).toBe(false); await key('Enter'); expect(select).not.toHaveBeenCalled();
+  await change(name + '\u{1F680}'); await act(async () => root.render(<Controlled failed/>));
+  expect(input().value).toBe(name + '\u{1F680}'); expect(seen).toHaveBeenLastCalledWith(name + '\u{1F680}');
+  expect(container.textContent).toContain('Search must contain at most 100 characters');
+  expect(container.querySelectorAll('[role=option]')).toHaveLength(0); await key('Enter'); expect(select).not.toHaveBeenCalled();
+  await act(async () => root.render(<Controlled/>)); await change(name);
+  await key('ArrowDown'); await key('Enter'); expect(select).toHaveBeenCalledExactlyOnceWith('eligible');
+  expect(setOpen).toHaveBeenCalledExactlyOnceWith(false); expect(document.activeElement).toBe(container.querySelector('.reference-trigger'));
 });

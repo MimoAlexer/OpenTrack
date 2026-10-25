@@ -274,6 +274,16 @@ it('retries invitation team discovery without losing the email draft', async () 
   expect(container.textContent).toContain('No teams are available.');
 });
 
+it('preserves a rejected supplementary invited name and repairs it with one authentication callback', async () => {
+  const previous = { url: `${location.pathname}${location.search}`, state: history.state }; const authenticated = vi.fn(); const names: string[] = []; const name = '😀'.repeat(100);
+  vi.stubGlobal('fetch', vi.fn((url: string, options: RequestInit) => { if (url.endsWith('/preview')) return Promise.resolve(json(preview)); const displayName = JSON.parse(options.body as string).display_name as string; names.push(displayName); return Promise.resolve(names.length === 1 ? json({ code: 'invalid', detail: 'Name must contain 1–100 characters' }, 422) : json({ ...invited, user: { ...invited.user, display_name: displayName } })); }));
+  try {
+    await render(<JoinWorkspace session={null} authenticated={authenticated}/>); await input(container.querySelector('textarea')!, 'synthetic-invitation'); await submit(container.querySelector('form')!); await click('Create an account'); const field = container.querySelector<HTMLInputElement>('input[name="display_name"]')!;
+    await input(field, name + '😀'); await input(container.querySelector<HTMLInputElement>('input[name="password"]')!, 'synthetic-new-account-password'); await submit(container.querySelector('form')!); expect(names).toEqual([name + '😀']); expect(field.value).toBe(name + '😀'); expect(authenticated).not.toHaveBeenCalled(); expect(field.disabled).toBe(false);
+    await input(field, name); await submit(container.querySelector('form')!); expect(names).toEqual([name + '😀', name]); expect(authenticated).toHaveBeenCalledTimes(1); expect((authenticated.mock.calls[0][0] as Session).user.display_name).toBe(name);
+  } finally { history.replaceState(previous.state, '', previous.url); }
+});
+
 it('focuses invitation review and rejected credentials without discarding the token', async () => {
   const fetch = vi.fn((url: string) => Promise.resolve(url.endsWith('/preview') ? json(preview) : json({ code: 'unauthenticated', detail: 'Sign in to continue.' }, 401)));
   vi.stubGlobal('fetch', fetch);

@@ -17,6 +17,57 @@ async function render(token='csrf'){await act(async()=>root.render(<IssueComment
 function buttons(label:string){return [...container.querySelectorAll<HTMLButtonElement>('button')].filter(button=>button.textContent===label);}
 async function click(label:string,index=0){await act(async()=>buttons(label)[index].click());}
 async function type(label:string,text:string){const el=container.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${label}"]`)!;await act(async()=>{Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')!.set!.call(el,text);el.dispatchEvent(new Event('input',{bubbles:true}));});}
+it.each(['edit', 'delete'])('keeps a rejected supplementary moderation %s reason and repairs it with the original comment precondition', async mode => {
+  const original = comment('a', 'Other member comment', 'other'); let current = original; const writes: RequestInit[] = [];
+  const reason = '\u{1F680}'.repeat(500); const draft = 'Manager draft';
+  vi.stubGlobal('fetch', vi.fn((url: string, options: RequestInit) => {
+    if (options.method === 'PATCH' || options.method === 'DELETE') {
+      writes.push(options);
+      if (writes.length === 1) return Promise.resolve(json({ code: 'validation_failed', detail: 'Moderation reason must contain 1–500 characters without control characters' }, 422));
+      current = { ...original, version: '2', etag: '"comment:a:2"', ...(mode === 'delete' ? { deleted_at: '2026-10-25T12:00:00Z', document: null, can_edit: false, can_delete: false } : { document: { ...original.document!, version: '2', body: fromPlainText(draft), plain_text: draft } }) };
+      return Promise.resolve(mode === 'delete' ? new Response(null, { status: 204 }) : json(current));
+    }
+    return Promise.resolve(json(url.endsWith('/comments/a') ? current : page([current])));
+  }));
+  await render(); await click(mode === 'edit' ? 'Edit comment' : 'Delete comment');
+  if (mode === 'edit') await type('Edit comment', draft);
+  const action = mode === 'edit' ? 'Save comment' : 'Delete comment';
+  const reasonInput = container.querySelector<HTMLInputElement>(mode === 'edit' ? '.moderation-reason input' : 'dialog input')!;
+  const fillReason = async (value: string) => { await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(reasonInput, value); reasonInput.dispatchEvent(new Event('input', { bubbles: true })); }); };
+  const submitAction = () => click(action, mode === 'delete' ? 1 : 0);
+  expect(buttons(action)[mode === 'delete' ? 1 : 0].disabled).toBe(true);
+  await fillReason('   '); expect(buttons(action)[mode === 'delete' ? 1 : 0].disabled).toBe(true);
+  await fillReason(reason + '\u{1F680}'); await submitAction();
+  expect(reasonInput.value).toBe(reason + '\u{1F680}'); expect(reasonInput.disabled).toBe(false);
+  expect(container.textContent).toContain('Moderation reason must contain'); expect(current).toEqual(original);
+  if (mode === 'edit') expect(container.querySelector<HTMLTextAreaElement>('[aria-label="Edit comment"]')!.value).toBe(draft);
+  await fillReason(reason); await submitAction(); expect(writes).toHaveLength(2);
+  for (const [index, write] of writes.entries()) {
+    expect(write.method).toBe(mode === 'edit' ? 'PATCH' : 'DELETE'); expect(new Headers(write.headers).get('If-Match')).toBe(original.etag);
+    expect(JSON.parse(write.body as string)).toEqual({ ...(mode === 'edit' ? { schema_version: 1, body: fromPlainText(draft) } : {}), moderation_reason: reason + (index === 0 ? '\u{1F680}' : '') });
+  }
+  expect(container.querySelector(mode === 'edit' ? '[aria-label="Edit comment"]' : 'dialog')).toBeNull(); expect(current.version).toBe('2');
+});
+
+it.each(['edit', 'delete'])('keeps ordinary author %s requests free of a moderation reason', async mode => {
+  let current = comment('a', 'Own comment'); const writes: RequestInit[] = [];
+  vi.stubGlobal('fetch', vi.fn((url: string, options: RequestInit) => {
+    if (options.method === 'PATCH' || options.method === 'DELETE') { writes.push(options); current = { ...current, version: '2', ...(mode === 'delete' ? { deleted_at: '2026-10-25T12:00:00Z', document: null, can_edit: false, can_delete: false } : { document: { ...current.document!, body: fromPlainText('Author edit'), plain_text: 'Author edit' } }) }; return Promise.resolve(mode === 'delete' ? new Response(null, { status: 204 }) : json(current)); }
+    return Promise.resolve(json(url.endsWith('/comments/a') ? current : page([current])));
+  }));
+  await render(); await click(mode === 'edit' ? 'Edit comment' : 'Delete comment');
+  expect(container.querySelector('.moderation-reason input,dialog input')).toBeNull();
+  if (mode === 'edit') await type('Edit comment', 'Author edit');
+  await click(mode === 'edit' ? 'Save comment' : 'Delete comment', mode === 'delete' ? 1 : 0);
+  expect(writes).toHaveLength(1); expect(writes[0].body ? JSON.parse(writes[0].body as string) : {}).not.toHaveProperty('moderation_reason');
+});
+
+it('offers no moderation actions when current server permissions deny both commands', async () => {
+  const denied = { ...comment('a', 'Visible member comment', 'other'), can_edit: false, can_delete: false };
+  vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(json(page([denied]))))); await render();
+  expect(container.textContent).toContain('Visible member comment'); expect(buttons('Edit comment')).toHaveLength(0); expect(buttons('Delete comment')).toHaveLength(0);
+});
+
 describe('comment drafts and durable commands',()=>{
  it('retries an unknown create with the exact same key/body and one visible comment',async()=>{let first=true;const fetch=vi.fn((_url:string,opts:RequestInit)=>{if(opts.method==='POST'){if(first){first=false;return Promise.reject(new Error('Disconnected'));}return Promise.resolve(json(comment('posted','My comment')));}return Promise.resolve(json(page([])));});vi.stubGlobal('fetch',fetch);await render();await type('Comment','My comment');await click('Post comment');expect(state.blocked).toBe(true);expect(container.querySelector<HTMLTextAreaElement>('[aria-label="Comment"]')!.value).toBe('My comment');await click('Retry safely');const writes=fetch.mock.calls.filter(([,opts])=>opts.method==='POST');expect(new Headers(writes[0][1].headers).get('Idempotency-Key')).toBe(new Headers(writes[1][1].headers).get('Idempotency-Key'));expect(writes[0][1].body).toBe(writes[1][1].body);expect(container.querySelectorAll('.comment')).toHaveLength(1);expect(state.dirty).toBe(false);});
  it('prevents another edit from discarding a dirty comment',async()=>{vi.stubGlobal('fetch',vi.fn(() => Promise.resolve(json(page([comment('a','First'),comment('b','Second')])))));await render();await click('Edit comment');await type('Edit comment','Unsaved first edit');expect(buttons('Edit comment').every(button=>button.disabled)).toBe(true);await click('Edit comment',1);expect(container.querySelector<HTMLTextAreaElement>('[aria-label="Edit comment"]')!.value).toBe('Unsaved first edit');});

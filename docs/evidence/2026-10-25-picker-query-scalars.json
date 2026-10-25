@@ -1,0 +1,1207 @@
+{
+  "date": "2026-10-25",
+  "scope": "Shared label/eligible-assignee/project-lead query scalar input",
+  "base_commit": "8b730204089f0ce63c61e0615c9bb7a49ebeaa98",
+  "branch": "codex/worker-a-picker-query-scalars",
+  "change": "Remove only the shared native100 UTF-16 search cap. Existing Rust100-scalar query validation remains authoritative; consumers/hook/backend/types/registry/CSS are unchanged.",
+  "source_and_check_sha256": {
+    "web/src/taxonomy/Picker.tsx": "c8db7b30c3f2b6704ca40270db26643a931eaa747a4bd905d4022b6b15d4ed81",
+    "web/src/taxonomy/PickerBounds.test.tsx": "539a4eb76f6025b263a52fa8c75f6afdaac01ee3c2f4ca51f593ed7213ccead0",
+    "web/src/taxonomy/PickerKeyboard.test.tsx": "fdfc8be1fba0f6501046d65872f9ea074337c4207c56ac9bd103078efb658aaa",
+    "web/src/taxonomy/Taxonomy.test.tsx": "25e1b2a94aa7d5bd340110938e1d358882aa3ce2699079af1e4c364e95539a1d",
+    "web/src/projects/Projects.test.tsx": "3dd032d6a8d228d49a673209b98842f346d0c686daf31bbf04cb48b70fbc9bab",
+    "web/src/taxonomy/LabelPicker.tsx": "3db4420a0986db1bf54fc78fc7bcf0f8dd3e907cc943066810f43e1933419b9b",
+    "web/src/taxonomy/AssigneePicker.tsx": "efa577154c673027384e1ca6847c8f3abc5469612c0f2f3ab28ac5ff8bb9f6b0",
+    "web/src/projects/ProjectLead.tsx": "430b39c5c7994be7acf04b4f7450d274b11f3928fb8c8a7a7d10c2e19391ff80",
+    "web/src/taxonomy/useSearchPage.ts": "ba36202a02432f0578f5e1ca7e5d26a457604747c861f34c6de4cd24410f212b",
+    "web/e2e/picker-query-scalar-inputs.browser.ts": "081f13a4a12bcdf48144f2812365a88e81394fd2aa2d8dbb18c69da97dd66dfd",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "web/e2e/fixtures.ts": "97c8f8183457a7b4af966090b12fbe58166c0f7fa37822643c5511d4fb469445",
+    "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667",
+    "work/picker-query-contained-final.py": "85820321a3245768f5497cd1b143f196866bde3b900f09a9288ae8956362a4e3",
+    "work/picker-query-scalars/unit.log": "bfe87ef5ef211af38d1dff9b956491f629d60fa9e1db683baaad484f9b62c501",
+    "work/picker-query-scalars/typecheck.log": "50791af51b60280d7e513ca60ad69f0d2b8af76c3ac63034a5a590ae70375779",
+    "work/picker-query-scalars/production-build.log": "ea752827c248385d8b15efb0ad69aa2e7e356cc942ef46c0f509edc064dbfb5a"
+  },
+  "executed_checks": [
+    {
+      "command": "cd web; npm test -- src/taxonomy/PickerBounds.test.tsx src/taxonomy/PickerKeyboard.test.tsx src/taxonomy/Taxonomy.test.tsx src/projects/Projects.test.tsx --maxWorkers=1",
+      "status": "passed",
+      "files": 4,
+      "tests": 57
+    },
+    {
+      "command": "cd web; npm run typecheck",
+      "status": "passed",
+      "targets": [
+        "tsconfig.json",
+        "tsconfig.e2e.json"
+      ]
+    },
+    {
+      "command": "npm run build --prefix web",
+      "status": "passed",
+      "candidate_production_builds": 1
+    }
+  ],
+  "browser_command": "node node_modules/@playwright/test/cli.js test picker-query-scalar-inputs.browser.ts",
+  "profile": {
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "journeys_per_engine": 2,
+    "workers": 1,
+    "retries": 0,
+    "test_timeout_ms": 60000,
+    "expect_timeout_ms": 10000,
+    "action_timeout_ms": 10000,
+    "origin": "http://127.0.0.1:18081",
+    "trace": false,
+    "screenshot": false,
+    "video": false,
+    "unchanged_consumer_debounce_ms": 240,
+    "unchanged_remote_result_limit": 20
+  },
+  "fixture_isolation": "Long synthetic names are seeded with existing owner invitation/acceptance and label APIs in fresh private teams. Eligible targets, partial-prefix distractors and ineligible nonmembers are distinct. A second admin private label is owner404. No prior DB reset or old task rerun.",
+  "acceptance_phases": [
+    "baseline-final",
+    "corrected"
+  ],
+  "runs": {
+    "baseline": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "shared label and assignee queries retain full scalar text and persist repaired authorized issue selections",
+            "status": "failed",
+            "duration_ms": 17544,
+            "failure": "picker-query-scalar-inputs.browser.ts:78"
+          },
+          {
+            "browser": "chromium",
+            "check": "project lead uses the shared scalar query and persists only the repaired eligible selection",
+            "status": "failed",
+            "duration_ms": 17990,
+            "failure": "picker-query-scalar-inputs.browser.ts:154"
+          },
+          {
+            "browser": "firefox",
+            "check": "shared label and assignee queries retain full scalar text and persist repaired authorized issue selections",
+            "status": "failed",
+            "duration_ms": 18624,
+            "failure": "picker-query-scalar-inputs.browser.ts:78"
+          },
+          {
+            "browser": "firefox",
+            "check": "project lead uses the shared scalar query and persists only the repaired eligible selection",
+            "status": "failed",
+            "duration_ms": 18659,
+            "failure": "picker-query-scalar-inputs.browser.ts:154"
+          },
+          {
+            "browser": "webkit",
+            "check": "shared label and assignee queries retain full scalar text and persist repaired authorized issue selections",
+            "status": "failed",
+            "duration_ms": 17707,
+            "failure": "picker-query-scalar-inputs.browser.ts:78"
+          },
+          {
+            "browser": "webkit",
+            "check": "project lead uses the shared scalar query and persists only the repaired eligible selection",
+            "status": "failed",
+            "duration_ms": 18248,
+            "failure": "picker-query-scalar-inputs.browser.ts:154"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "baseline",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "1509115c9f43a11c41d001a8a0cb86794ca7ea0881565b2d7abe49fbbe20a12f",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 1,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "journey": "issue-label-assignee",
+          "status": "failed",
+          "attachments": {},
+          "limit": "Selector failure before label/assignee native input; not cutoff evidence."
+        },
+        {
+          "engine": "chromium",
+          "journey": "project-lead",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "project_lead": {
+                "input_scalars": 50,
+                "input_utf16_units": 100,
+                "requested_scalars": 50,
+                "status": 200,
+                "result_count": 2,
+                "target_present": true,
+                "partial_present": true,
+                "ineligible_present": false
+              }
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "journey": "issue-label-assignee",
+          "status": "failed",
+          "attachments": {},
+          "limit": "Selector failure before label/assignee native input; not cutoff evidence."
+        },
+        {
+          "engine": "firefox",
+          "journey": "project-lead",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "project_lead": {
+                "input_scalars": 50,
+                "input_utf16_units": 100,
+                "requested_scalars": 50,
+                "status": 200,
+                "result_count": 2,
+                "target_present": true,
+                "partial_present": true,
+                "ineligible_present": false
+              }
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "journey": "issue-label-assignee",
+          "status": "failed",
+          "attachments": {},
+          "limit": "Selector failure before label/assignee native input; not cutoff evidence."
+        },
+        {
+          "engine": "webkit",
+          "journey": "project-lead",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "project_lead": {
+                "input_scalars": 50,
+                "input_utf16_units": 100,
+                "requested_scalars": 50,
+                "status": 200,
+                "result_count": 2,
+                "target_present": true,
+                "partial_present": true,
+                "ineligible_present": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    "baseline-final": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "shared label and assignee queries retain full scalar text and persist repaired authorized issue selections",
+            "status": "failed",
+            "duration_ms": 8614,
+            "failure": "picker-query-scalar-inputs.browser.ts:89"
+          },
+          {
+            "browser": "chromium",
+            "check": "project lead uses the shared scalar query and persists only the repaired eligible selection",
+            "status": "failed",
+            "duration_ms": 17868,
+            "failure": "picker-query-scalar-inputs.browser.ts:154"
+          },
+          {
+            "browser": "firefox",
+            "check": "shared label and assignee queries retain full scalar text and persist repaired authorized issue selections",
+            "status": "failed",
+            "duration_ms": 9832,
+            "failure": "picker-query-scalar-inputs.browser.ts:89"
+          },
+          {
+            "browser": "firefox",
+            "check": "project lead uses the shared scalar query and persists only the repaired eligible selection",
+            "status": "failed",
+            "duration_ms": 18769,
+            "failure": "picker-query-scalar-inputs.browser.ts:154"
+          },
+          {
+            "browser": "webkit",
+            "check": "shared label and assignee queries retain full scalar text and persist repaired authorized issue selections",
+            "status": "failed",
+            "duration_ms": 8859,
+            "failure": "picker-query-scalar-inputs.browser.ts:89"
+          },
+          {
+            "browser": "webkit",
+            "check": "project lead uses the shared scalar query and persists only the repaired eligible selection",
+            "status": "failed",
+            "duration_ms": 18181,
+            "failure": "picker-query-scalar-inputs.browser.ts:154"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "baseline-final",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "081f13a4a12bcdf48144f2812365a88e81394fd2aa2d8dbb18c69da97dd66dfd",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 1,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "journey": "issue-label-assignee",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "labels": {
+                "input_scalars": 50,
+                "input_utf16_units": 100,
+                "requested_scalars": 50,
+                "status": 200,
+                "result_count": 2,
+                "target_present": true,
+                "partial_present": true,
+                "ineligible_present": false
+              },
+              "assignee": {
+                "input_scalars": 50,
+                "input_utf16_units": 100,
+                "requested_scalars": 50,
+                "status": 200,
+                "result_count": 2,
+                "target_present": true,
+                "partial_present": true,
+                "ineligible_present": false
+              }
+            }
+          }
+        },
+        {
+          "engine": "chromium",
+          "journey": "project-lead",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "project_lead": {
+                "input_scalars": 50,
+                "input_utf16_units": 100,
+                "requested_scalars": 50,
+                "status": 200,
+                "result_count": 2,
+                "target_present": true,
+                "partial_present": true,
+                "ineligible_present": false
+              }
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "journey": "issue-label-assignee",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "labels": {
+                "input_scalars": 50,
+                "input_utf16_units": 100,
+                "requested_scalars": 50,
+                "status": 200,
+                "result_count": 2,
+                "target_present": true,
+                "partial_present": true,
+                "ineligible_present": false
+              },
+              "assignee": {
+                "input_scalars": 50,
+                "input_utf16_units": 100,
+                "requested_scalars": 50,
+                "status": 200,
+                "result_count": 2,
+                "target_present": true,
+                "partial_present": true,
+                "ineligible_present": false
+              }
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "journey": "project-lead",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "project_lead": {
+                "input_scalars": 50,
+                "input_utf16_units": 100,
+                "requested_scalars": 50,
+                "status": 200,
+                "result_count": 2,
+                "target_present": true,
+                "partial_present": true,
+                "ineligible_present": false
+              }
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "journey": "issue-label-assignee",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "labels": {
+                "input_scalars": 50,
+                "input_utf16_units": 100,
+                "requested_scalars": 50,
+                "status": 200,
+                "result_count": 2,
+                "target_present": true,
+                "partial_present": true,
+                "ineligible_present": false
+              },
+              "assignee": {
+                "input_scalars": 50,
+                "input_utf16_units": 100,
+                "requested_scalars": 50,
+                "status": 200,
+                "result_count": 2,
+                "target_present": true,
+                "partial_present": true,
+                "ineligible_present": false
+              }
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "journey": "project-lead",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "project_lead": {
+                "input_scalars": 50,
+                "input_utf16_units": 100,
+                "requested_scalars": 50,
+                "status": 200,
+                "result_count": 2,
+                "target_present": true,
+                "partial_present": true,
+                "ineligible_present": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    "corrected": {
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "shared label and assignee queries retain full scalar text and persist repaired authorized issue selections",
+            "status": "passed",
+            "duration_ms": 12764
+          },
+          {
+            "browser": "chromium",
+            "check": "project lead uses the shared scalar query and persists only the repaired eligible selection",
+            "status": "passed",
+            "duration_ms": 9264
+          },
+          {
+            "browser": "firefox",
+            "check": "shared label and assignee queries retain full scalar text and persist repaired authorized issue selections",
+            "status": "passed",
+            "duration_ms": 14787
+          },
+          {
+            "browser": "firefox",
+            "check": "project lead uses the shared scalar query and persists only the repaired eligible selection",
+            "status": "passed",
+            "duration_ms": 10269
+          },
+          {
+            "browser": "webkit",
+            "check": "shared label and assignee queries retain full scalar text and persist repaired authorized issue selections",
+            "status": "passed",
+            "duration_ms": 13041
+          },
+          {
+            "browser": "webkit",
+            "check": "project lead uses the shared scalar query and persists only the repaired eligible selection",
+            "status": "passed",
+            "duration_ms": 10840
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "corrected",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "081f13a4a12bcdf48144f2812365a88e81394fd2aa2d8dbb18c69da97dd66dfd",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 0,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "journey": "issue-label-assignee",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "labels": {
+                "input_scalars": 100,
+                "input_utf16_units": 200,
+                "requested_scalars": 100,
+                "status": 200,
+                "result_count": 1,
+                "target_present": true,
+                "partial_present": false,
+                "ineligible_present": false
+              },
+              "assignee": {
+                "input_scalars": 100,
+                "input_utf16_units": 200,
+                "requested_scalars": 100,
+                "status": 200,
+                "result_count": 1,
+                "target_present": true,
+                "partial_present": false,
+                "ineligible_present": false
+              }
+            },
+            "persisted-selection-receipt": {
+              "consumers": [
+                "LabelPicker",
+                "AssigneePicker"
+              ],
+              "query_scalars": [
+                100,
+                101,
+                100
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "no_stale_selection_or_unfiltered_fallback": true,
+              "private_label_read_status": 404,
+              "ineligible_person_excluded": true,
+              "persisted_label_and_assignee_names": [
+                100,
+                100
+              ],
+              "accepted_writes": 1,
+              "saved_version": "1"
+            }
+          }
+        },
+        {
+          "engine": "chromium",
+          "journey": "project-lead",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "project_lead": {
+                "input_scalars": 100,
+                "input_utf16_units": 200,
+                "requested_scalars": 100,
+                "status": 200,
+                "result_count": 1,
+                "target_present": true,
+                "partial_present": false,
+                "ineligible_present": false
+              }
+            },
+            "persisted-selection-receipt": {
+              "consumers": [
+                "ProjectLead"
+              ],
+              "query_scalars": [
+                100,
+                101,
+                100
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "no_stale_selection_or_unfiltered_fallback": true,
+              "ineligible_person_excluded": true,
+              "persisted_lead_name_scalars": 100,
+              "accepted_writes": 1,
+              "saved_version": "1"
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "journey": "issue-label-assignee",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "labels": {
+                "input_scalars": 100,
+                "input_utf16_units": 200,
+                "requested_scalars": 100,
+                "status": 200,
+                "result_count": 1,
+                "target_present": true,
+                "partial_present": false,
+                "ineligible_present": false
+              },
+              "assignee": {
+                "input_scalars": 100,
+                "input_utf16_units": 200,
+                "requested_scalars": 100,
+                "status": 200,
+                "result_count": 1,
+                "target_present": true,
+                "partial_present": false,
+                "ineligible_present": false
+              }
+            },
+            "persisted-selection-receipt": {
+              "consumers": [
+                "LabelPicker",
+                "AssigneePicker"
+              ],
+              "query_scalars": [
+                100,
+                101,
+                100
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "no_stale_selection_or_unfiltered_fallback": true,
+              "private_label_read_status": 404,
+              "ineligible_person_excluded": true,
+              "persisted_label_and_assignee_names": [
+                100,
+                100
+              ],
+              "accepted_writes": 1,
+              "saved_version": "1"
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "journey": "project-lead",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "project_lead": {
+                "input_scalars": 100,
+                "input_utf16_units": 200,
+                "requested_scalars": 100,
+                "status": 200,
+                "result_count": 1,
+                "target_present": true,
+                "partial_present": false,
+                "ineligible_present": false
+              }
+            },
+            "persisted-selection-receipt": {
+              "consumers": [
+                "ProjectLead"
+              ],
+              "query_scalars": [
+                100,
+                101,
+                100
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "no_stale_selection_or_unfiltered_fallback": true,
+              "ineligible_person_excluded": true,
+              "persisted_lead_name_scalars": 100,
+              "accepted_writes": 1,
+              "saved_version": "1"
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "journey": "issue-label-assignee",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "labels": {
+                "input_scalars": 100,
+                "input_utf16_units": 200,
+                "requested_scalars": 100,
+                "status": 200,
+                "result_count": 1,
+                "target_present": true,
+                "partial_present": false,
+                "ineligible_present": false
+              },
+              "assignee": {
+                "input_scalars": 100,
+                "input_utf16_units": 200,
+                "requested_scalars": 100,
+                "status": 200,
+                "result_count": 1,
+                "target_present": true,
+                "partial_present": false,
+                "ineligible_present": false
+              }
+            },
+            "persisted-selection-receipt": {
+              "consumers": [
+                "LabelPicker",
+                "AssigneePicker"
+              ],
+              "query_scalars": [
+                100,
+                101,
+                100
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "no_stale_selection_or_unfiltered_fallback": true,
+              "private_label_read_status": 404,
+              "ineligible_person_excluded": true,
+              "persisted_label_and_assignee_names": [
+                100,
+                100
+              ],
+              "accepted_writes": 1,
+              "saved_version": "1"
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "journey": "project-lead",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-evidence": {
+              "project_lead": {
+                "input_scalars": 100,
+                "input_utf16_units": 200,
+                "requested_scalars": 100,
+                "status": 200,
+                "result_count": 1,
+                "target_present": true,
+                "partial_present": false,
+                "ineligible_present": false
+              }
+            },
+            "persisted-selection-receipt": {
+              "consumers": [
+                "ProjectLead"
+              ],
+              "query_scalars": [
+                100,
+                101,
+                100
+              ],
+              "statuses": [
+                200,
+                422,
+                200
+              ],
+              "no_stale_selection_or_unfiltered_fallback": true,
+              "ineligible_person_excluded": true,
+              "persisted_lead_name_scalars": 100,
+              "accepted_writes": 1,
+              "saved_version": "1"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "selector_correction": {
+    "reason": "Initial combined issue journey used dialog-anchored inner has locators, stopping before native input. Corrected only the Labels/Assignee inner anchors to be relative.",
+    "only_two_locator_anchors_changed": true,
+    "assertions_profile_timeouts_unchanged": true,
+    "original_spec_sha256": "1509115c9f43a11c41d001a8a0cb86794ca7ea0881565b2d7abe49fbbe20a12f",
+    "final_spec_sha256": "081f13a4a12bcdf48144f2812365a88e81394fd2aa2d8dbb18c69da97dd66dfd",
+    "initial_phase": "baseline",
+    "acceptance_phases": [
+      "baseline-final",
+      "corrected"
+    ]
+  },
+  "runtime_artifact_root": "$OPENTRACK_DEV_STATE/picker-query-scalars",
+  "frontend_roots": {
+    "baseline": "$OPENTRACK_DEV_STATE/workflow-label-scalars/baseline-frontend",
+    "corrected": "$OPENTRACK_DEV_STATE/picker-query-scalars/corrected-frontend"
+  },
+  "private_artifact_index": {
+    "path": "$OPENTRACK_DEV_STATE/picker-query-scalars/artifact-index.json",
+    "sha256": "a0d8aa890cf114aff4961bdab7a8ae94de854f68666d21a16de3a39b7b6ca5eb"
+  },
+  "frontend_source_provenance": [
+    {
+      "phase": "baseline",
+      "source": "web/src/taxonomy/Picker.tsx",
+      "source_sha256": "b57638d957cf91e57750299b539a3856f533cc73e67eed3498ee255051d4b51e",
+      "sourcemap": "assets/index-CAeW4zFK.js.map",
+      "sourcemap_sha256": "516821d4467f467480c14e14fbbe529915bcca9679c49ec03554a27d8d7ecb41",
+      "bundle_sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524"
+    },
+    {
+      "phase": "corrected",
+      "source": "web/src/taxonomy/Picker.tsx",
+      "source_sha256": "c8db7b30c3f2b6704ca40270db26643a931eaa747a4bd905d4022b6b15d4ed81",
+      "sourcemap": "assets/index-QTg0jR_7.js.map",
+      "sourcemap_sha256": "a18ed8f01ef4e8f56f6be677bc8a8876277e5ec4936ed5766a922a7788054a22",
+      "bundle_sha256": "0270d3257115f261ee878e2437eb7d0b7057330f7b5252da734bb0ecb97bac61"
+    }
+  ],
+  "retained_frontend_assets": [
+    {
+      "phase": "baseline",
+      "path": "assets/RichTextEditor-BedJvSKb.js",
+      "sha256": "a7b972c673d27a66d332a670742aee8d25a56d230d3feca5875b4937030a9178",
+      "bytes": 444281,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/RichTextEditor-BedJvSKb.js.map",
+      "sha256": "67e888af9e6fdec5c8153941ea5aa1f1e1fcc4126da5e66158230c442c8e3d46",
+      "bytes": 1964893,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/index-B9yoYYJd.css",
+      "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+      "bytes": 90154,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/index-CAeW4zFK.js",
+      "sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524",
+      "bytes": 689015,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/index-CAeW4zFK.js.map",
+      "sha256": "516821d4467f467480c14e14fbbe529915bcca9679c49ec03554a27d8d7ecb41",
+      "bytes": 2393652,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/portability.worker-DEvlQVr4.js",
+      "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+      "bytes": 79037,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/portability.worker-DEvlQVr4.js.map",
+      "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+      "bytes": 224663,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "index.html",
+      "sha256": "ca5c59a4af58df389a9d9cd627db02f17d33f573ef9c6735ce7a9a838137797b",
+      "bytes": 606,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "theme.js",
+      "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+      "bytes": 321,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/RichTextEditor-DTcpLwNs.js",
+      "sha256": "1ad2733452fd50616595a38e794124e4ca8805c534784c725ede672262f12c2d",
+      "bytes": 444281,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/RichTextEditor-DTcpLwNs.js.map",
+      "sha256": "29d94330ee98eb2fdb76f766663c39cd2e33ffccac186ef5b61e91003d74f4df",
+      "bytes": 1964243,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/index-B9yoYYJd.css",
+      "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+      "bytes": 90154,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/index-QTg0jR_7.js",
+      "sha256": "0270d3257115f261ee878e2437eb7d0b7057330f7b5252da734bb0ecb97bac61",
+      "bytes": 689001,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/index-QTg0jR_7.js.map",
+      "sha256": "a18ed8f01ef4e8f56f6be677bc8a8876277e5ec4936ed5766a922a7788054a22",
+      "bytes": 2391606,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/portability.worker-DEvlQVr4.js",
+      "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+      "bytes": 79037,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/portability.worker-DEvlQVr4.js.map",
+      "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+      "bytes": 224663,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "index.html",
+      "sha256": "2db1fe4d85edfaf74d5dc894289592329ba9e692ff876e5429fc31ad2bf654b8",
+      "bytes": 606,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "theme.js",
+      "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+      "bytes": 321,
+      "mode": "0o600"
+    }
+  ],
+  "private_runtime_artifacts": [
+    {
+      "phase": "baseline",
+      "path": "api.log",
+      "sha256": "3b8d0993a24d2cf896d1b8e8b817c46d417ad6e362518fb2f5bac702fc63c095",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "migration.log",
+      "sha256": "6ff959341d6694b06d52b54a3d303d187c5bada274253d08c8a7025f21082ddb",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/.last-run.json",
+      "sha256": "2915986773dd635e649148cca25ef1190912d2623c0ad78f2474952d0d2c896b",
+      "bytes": 341,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/picker-query-scalar-inputs-6961a-repaired-eligible-selection-chromium/error-context.md",
+      "sha256": "dc29ddcf1f24210b0850e3add8bb7df25257824a3567d067284b58759b39dbba",
+      "bytes": 16835,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/picker-query-scalar-inputs-6961a-repaired-eligible-selection-firefox/error-context.md",
+      "sha256": "af5c6f96e0d36a5c39515b3a862631ec3829f15f110398f822562bf890234ea0",
+      "bytes": 16835,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/picker-query-scalar-inputs-6961a-repaired-eligible-selection-webkit/error-context.md",
+      "sha256": "80ef55d0b6db1d25740f3eec42e18d52e69bbfbdfc26582005e79e006290fd6b",
+      "bytes": 16835,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/picker-query-scalar-inputs-7546f-authorized-issue-selections-chromium/error-context.md",
+      "sha256": "41a95c87bff1b079e79d4119bb0479a58e562912485dcd9c367b3d688201aece",
+      "bytes": 101861,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/picker-query-scalar-inputs-7546f-authorized-issue-selections-firefox/error-context.md",
+      "sha256": "92c566c54591e5a2c9955f40db7f76fe9d7be278befd9d7505bb8342fe345ff8",
+      "bytes": 103100,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/picker-query-scalar-inputs-7546f-authorized-issue-selections-webkit/error-context.md",
+      "sha256": "574ec9eb8731eb90b8c266dfbedd894483ec95035e78bb8a57d6ef1822e475bf",
+      "bytes": 102888,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "private-results.json",
+      "sha256": "9574157786237ea203417195a86373f0e91aa663a07895f24e91356c70ed9442",
+      "bytes": 57827,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "receipt.json",
+      "sha256": "a8fda9867b1c4620a8c6e882aaaaf95d6ba22bafdd5fcbe1ca6142566c618e1f",
+      "bytes": 1991,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "runner.log",
+      "sha256": "c64f3c2460801e7f5f3e3c1e1ab20bbf55eb0d6ac2d17daad3ee53c6bac721a1",
+      "bytes": 1007,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "scope-receipt.json",
+      "sha256": "2a4d018e319a48488dfb7abf1123291e2c5bac4758bb6ee7ca11393f7fd79aba",
+      "bytes": 473,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-final",
+      "path": "api.log",
+      "sha256": "be180e98c897f107ca25408d139e933e83a492429d2d4f732ad1ce48fda0d067",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-final",
+      "path": "migration.log",
+      "sha256": "f434c16e32b3f6f1048f363c0bd5cfadc7229cb6ebff2b4194c4440c993a7b5a",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-final",
+      "path": "output/.last-run.json",
+      "sha256": "2915986773dd635e649148cca25ef1190912d2623c0ad78f2474952d0d2c896b",
+      "bytes": 341,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-final",
+      "path": "output/picker-query-scalar-inputs-6961a-repaired-eligible-selection-chromium/error-context.md",
+      "sha256": "f01313630a16f303c07948c2d47d62b89a3574c12e8e9dea41f1d6b32dbf2d43",
+      "bytes": 16831,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-final",
+      "path": "output/picker-query-scalar-inputs-6961a-repaired-eligible-selection-firefox/error-context.md",
+      "sha256": "aa5be7c3a9902dcc67cd531dc7e09ac90983fd0eab72a66f9f8d2c8b9c9b1baf",
+      "bytes": 16831,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-final",
+      "path": "output/picker-query-scalar-inputs-6961a-repaired-eligible-selection-webkit/error-context.md",
+      "sha256": "b5fa8b86104a05cf069c3d7d0c273080df3aa9530d0b2e3ed8de91bd2372ea9d",
+      "bytes": 16831,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-final",
+      "path": "output/picker-query-scalar-inputs-7546f-authorized-issue-selections-chromium/error-context.md",
+      "sha256": "b63f5caacdea32200b742c4709983fb507771d664bf2042c12e2734e6848a5e5",
+      "bytes": 110585,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-final",
+      "path": "output/picker-query-scalar-inputs-7546f-authorized-issue-selections-firefox/error-context.md",
+      "sha256": "7e78df5c469d1b7eaa96488dd9c31fe45206d0c2e24a78d591f822850182dde0",
+      "bytes": 111824,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-final",
+      "path": "output/picker-query-scalar-inputs-7546f-authorized-issue-selections-webkit/error-context.md",
+      "sha256": "48387f6bb6d88b6b557c8441bcbd87cc65eeee2101f482487ed7cdb11b5ec271",
+      "bytes": 111510,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-final",
+      "path": "private-results.json",
+      "sha256": "9a26f9c61165715e2f4de4aa40cf0da29e1e60aa1b17d08e9b1b550139f0058e",
+      "bytes": 90464,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-final",
+      "path": "receipt.json",
+      "sha256": "a9e1a03ef54e5064e196b2fd08b8609146cb7a4434e5336122029740277b2fae",
+      "bytes": 1988,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-final",
+      "path": "runner.log",
+      "sha256": "d710b2a3df94e39cd7bb34490cf743b20b088892d9b9d6510d54a3c119fc5577",
+      "bytes": 1007,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline-final",
+      "path": "scope-receipt.json",
+      "sha256": "4bbe02c5ce89429077163ab3d7bf5f9de32a6693888a3f762260d51b66e76e85",
+      "bytes": 479,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "api.log",
+      "sha256": "a7f47694b0e7ada7d7eaac1c940b2a6d415f552618687e6534eca7f508a4c48c",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "migration.log",
+      "sha256": "5b85c8092c5e265d23194dfbba136a519f28b5368615478afc0c873e64b7a51e",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "output/.last-run.json",
+      "sha256": "91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903",
+      "bytes": 45,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "private-results.json",
+      "sha256": "c329c047158f8bdee96152eb72b4efe8935da16319fef69fbe452eb6ee711b61",
+      "bytes": 21334,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "receipt.json",
+      "sha256": "a50b0dae920ba9297b2587b4821be8f1e5f5309084820328bc53e1a981a36cce",
+      "bytes": 1621,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "runner.log",
+      "sha256": "3c7eb9535f4749dc5c81293099bfa0a967c3b867a2a367c3ec0c93a1759e131b",
+      "bytes": 746,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "scope-receipt.json",
+      "sha256": "695b6b3e41ff239087c3d5e537c0f19dceafc8efa9bf01157811421644cbe764",
+      "bytes": 474,
+      "mode": "0o600"
+    }
+  ],
+  "shutdown": {
+    "same_namespace_extra_processes": [],
+    "postmaster_pid_absent": true,
+    "database_data_retained": true
+  },
+  "shutdown_receipt": {
+    "path": "$OPENTRACK_DEV_STATE/picker-query-scalars/shutdown-audit.json",
+    "sha256": "ccbaea8ae3e0ab7df0f8208f921543c105cdfb51bd830e9118903394ec612f76"
+  },
+  "database_stop_log": {
+    "path": "$OPENTRACK_DEV_STATE/picker-query-scalars/database-stop.log",
+    "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+  },
+  "prior_candidate_preservation_receipt": {
+    "path": "$OPENTRACK_DEV_STATE/picker-query-scalars/prior-candidate-preservation.json",
+    "sha256": "62b82c22536a0032a66bea7d8f70e45581b30ae5ed5ccbb52f71331ce2c96859"
+  },
+  "asserted_behavior": [
+    "Native final baseline proves50 scalars for all three consumers in all engines; corrected full100 queries reach current APIs unchanged and isolate eligible targets.",
+    "101-scalar queries return real HTTP422 validation_failed, keep input text and clear remote candidates without stale selection or unfiltered fallback.",
+    "Repair restores current authorized selection; issue label/assignee and project lead IDs/names persist through one accepted create and reload, each at version1.",
+    "Private labels and matching ineligible nonmembers remain excluded. Existing Unassigned/No lead/self choices are retained as ordinary controls, not stale remote suggestions.",
+    "Focused units retain IME/modifier/focus/geometry/pagination/authority behavior; new controlled-query test verifies exact text and active-selection reset through error and repair."
+  ],
+  "migration_rollback": "No schema, Rust or wire change. Frontend rollback restores native query truncation; existing server bounds and authority remain unchanged.",
+  "limits": [
+    "Original combined-case selector failures remain retained and are not counted as cutoff proof; original ProjectLead50 evidence remains distinct from the complete final pair.",
+    "Normal contained completion/namespace emptiness are verified, without forced interruption, physical/native/IME/assistive/screenshot or broader performance qualification.",
+    "Only this bounded input slice is qualified. Broader feature/milestone/product acceptance and current hosted CI/integration remain lead-owned gates.",
+    "No push, PR, merge or issue closure was performed. Ongoing worker Goal remains active for scoped findings and next explicit assignment."
+  ]
+}
