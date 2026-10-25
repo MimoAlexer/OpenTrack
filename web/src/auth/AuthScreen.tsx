@@ -34,13 +34,13 @@ export function AuthScreen({ setup, onAuthenticated, notice }: { setup: boolean;
       <form onSubmit={submit} aria-busy={busy}>
         <fieldset disabled={busy}>
           {setup && <label className="field">Installation token<input name="setup_token" type="password" autoComplete="off" required autoFocus aria-describedby="token-help" /><small id="token-help">Use the setup token provided by the person running this installation.</small></label>}
-          {setup && <label className="field">Your name<input name="display_name" autoComplete="name" required maxLength={100} /></label>}
+          {setup && <label className="field">Your name<input name="display_name" autoComplete="name" required /></label>}
           <label className="field">Email<input name="email" type="email" autoComplete="username" autoFocus={!setup} required maxLength={254} aria-invalid={credentialsRejected || undefined} aria-describedby={credentialsRejected ? errorId : undefined} /></label>
           <label className="field">Password<input ref={passwordRef} name="password" type="password" autoComplete={setup ? 'new-password' : 'current-password'} required minLength={setup ? 12 : undefined} maxLength={1024} aria-invalid={credentialsRejected || undefined} aria-describedby={credentialsRejected ? errorId : setup ? 'password-help' : undefined} />{setup && <small id="password-help">At least 12 characters. A longer passphrase works well.</small>}</label>
           {setup && <>
             <div className="form-divider">Your workspace</div>
-            <label className="field">Workspace name<input name="workspace_name" placeholder="e.g. Northstar" required maxLength={100} /></label>
-            <div className="form-grid"><label className="field">First team<input name="team_name" placeholder="e.g. Engineering" required maxLength={100} /></label><label className="field">Issue prefix<input name="team_key" placeholder="ENG" pattern="[A-Za-z][A-Za-z0-9]{1,9}" title="2–10 letters or digits, starting with a letter" required maxLength={10} autoCapitalize="characters" className="uppercase" /><small>Appears in keys like ENG-1.</small></label></div>
+            <label className="field">Workspace name<input name="workspace_name" placeholder="e.g. Northstar" required /></label>
+            <div className="form-grid"><label className="field">First team<input name="team_name" placeholder="e.g. Engineering" required /></label><label className="field">Issue prefix<input name="team_key" placeholder="ENG" pattern="[A-Za-z][A-Za-z0-9]{1,9}" title="2–10 letters or digits, starting with a letter" required maxLength={10} autoCapitalize="characters" className="uppercase" /><small>Appears in keys like ENG-1.</small></label></div>
           </>}
           <button className="button primary auth-submit" type="submit">{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}{busy ? (setup ? 'Creating workspace…' : 'Signing in…') : (setup ? 'Create workspace' : 'Sign in')}</button>
         </fieldset>

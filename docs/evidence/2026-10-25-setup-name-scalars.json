@@ -1,0 +1,787 @@
+{
+  "date": "2026-10-25",
+  "base": "8b730204089f0ce63c61e0615c9bb7a49ebeaa98",
+  "scope": "Dedicated first-time setup display/workspace/team name100 scalar input; F01/F02/F03/M02 increment",
+  "change": "Only three native name100 caps removed; all installation-token/password/email/prefix/first-owner/session/login policy unchanged.",
+  "sources": [
+    {
+      "path": "web/src/auth/AuthScreen.tsx",
+      "sha256": "badb3f5dd3ca16c5f38a5b668ad62f3a51caeabb4a1f6cf0f627513527db7394"
+    },
+    {
+      "path": "web/src/auth/AuthScreen.test.tsx",
+      "sha256": "563f1dbbb3e08c9bd6f06e995b1b8d3b3ce137b78a438fb3dee4f04fd9e07106"
+    },
+    {
+      "path": "web/e2e/setup-name-scalar-inputs.acceptance.ts",
+      "sha256": "afd7b2142ea546f314f6b83d7ae07c3afcc3f64275e0b235c849beafa32de410"
+    }
+  ],
+  "baseline_sources": [
+    {
+      "path": "web/src/auth/AuthScreen.tsx",
+      "sha256": "e8c616f19e8dd8006001c5d7d058a9e32dce3fc065399f5c88ce0d2d673af6ed"
+    },
+    {
+      "path": "web/e2e/setup-name-scalar-inputs.acceptance.ts",
+      "sha256": "afd7b2142ea546f314f6b83d7ae07c3afcc3f64275e0b235c849beafa32de410"
+    }
+  ],
+  "checks": [
+    {
+      "command": "npm --prefix web test -- --maxWorkers=1 src/auth/AuthScreen.test.tsx",
+      "log": "work/setup-name-units.log",
+      "result": "5 passed",
+      "sha256": "2086ae6eb312f6a40e442b962959c31cf90b40c2006ed74ba52f8fbd5f5374b1"
+    },
+    {
+      "command": "npm --prefix web run typecheck",
+      "log": "work/setup-name-typecheck-final.log",
+      "result": "application/e2e passed",
+      "sha256": "50791af51b60280d7e513ca60ad69f0d2b8af76c3ac63034a5a590ae70375779"
+    },
+    {
+      "command": "npm --prefix web run build",
+      "log": "work/setup-name-build-final.log",
+      "result": "one final production build passed",
+      "sha256": "7f3a45e1125759cfac4fc3554671341387f22eeac5d139bfb825aea010331f1f"
+    }
+  ],
+  "dedicated_journeys": [
+    {
+      "phase": "baseline",
+      "engine": "chromium",
+      "relative_root": "runs/baseline/chromium",
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "first setup preserves all three 100-scalar names, rejects independent 101 drafts and creates one owner",
+            "status": "failed",
+            "duration_ms": 569,
+            "failure": "setup-name-scalar-inputs.acceptance.ts:33"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "6ccd60b428eccbedf1ee2e02bbac40a25f20e34fe1c711f3a0494a056424cbb0",
+      "spec_sha256": "afd7b2142ea546f314f6b83d7ae07c3afcc3f64275e0b235c849beafa32de410",
+      "caller_sha256": "4d75f0bafd6619179f29ea4859a28c62c3e8a75f4d1c3bee6128ef690a33a66a",
+      "config_sha256": "817331e41101c0fcc2f8b71837a37768351ce8d7b2071ba65a7a152ff714099c",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "before_selected_counts": {
+        "users": 0,
+        "organizations": 0,
+        "workspaces": 0,
+        "teams": 0
+      },
+      "after_selected_counts": {
+        "users": 0,
+        "organizations": 0,
+        "workspaces": 0,
+        "teams": 0
+      }
+    },
+    {
+      "phase": "baseline",
+      "engine": "firefox",
+      "relative_root": "runs/baseline/firefox",
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "firefox",
+            "check": "first setup preserves all three 100-scalar names, rejects independent 101 drafts and creates one owner",
+            "status": "failed",
+            "duration_ms": 1923,
+            "failure": "setup-name-scalar-inputs.acceptance.ts:33"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "13742dbbec8b768e534a02195db86bf2fa493d0e488b7fa93ad20ae15b366bca",
+      "spec_sha256": "afd7b2142ea546f314f6b83d7ae07c3afcc3f64275e0b235c849beafa32de410",
+      "caller_sha256": "4d75f0bafd6619179f29ea4859a28c62c3e8a75f4d1c3bee6128ef690a33a66a",
+      "config_sha256": "817331e41101c0fcc2f8b71837a37768351ce8d7b2071ba65a7a152ff714099c",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "before_selected_counts": {
+        "users": 0,
+        "organizations": 0,
+        "workspaces": 0,
+        "teams": 0
+      },
+      "after_selected_counts": {
+        "users": 0,
+        "organizations": 0,
+        "workspaces": 0,
+        "teams": 0
+      }
+    },
+    {
+      "phase": "baseline",
+      "engine": "webkit",
+      "relative_root": "runs/baseline/webkit",
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "webkit",
+            "check": "first setup preserves all three 100-scalar names, rejects independent 101 drafts and creates one owner",
+            "status": "failed",
+            "duration_ms": 974,
+            "failure": "setup-name-scalar-inputs.acceptance.ts:33"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "24a30a61f33ee943ba99c21f2b2a0dc5b4231a77060b953287d361b30cd00252",
+      "spec_sha256": "afd7b2142ea546f314f6b83d7ae07c3afcc3f64275e0b235c849beafa32de410",
+      "caller_sha256": "4d75f0bafd6619179f29ea4859a28c62c3e8a75f4d1c3bee6128ef690a33a66a",
+      "config_sha256": "817331e41101c0fcc2f8b71837a37768351ce8d7b2071ba65a7a152ff714099c",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "before_selected_counts": {
+        "users": 0,
+        "organizations": 0,
+        "workspaces": 0,
+        "teams": 0
+      },
+      "after_selected_counts": {
+        "users": 0,
+        "organizations": 0,
+        "workspaces": 0,
+        "teams": 0
+      }
+    },
+    {
+      "phase": "corrected",
+      "engine": "chromium",
+      "relative_root": "runs/corrected/chromium",
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "first setup preserves all three 100-scalar names, rejects independent 101 drafts and creates one owner",
+            "status": "passed",
+            "duration_ms": 4410
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "061057739a54c67b9588f8716ad62f2328bc973c1ded0565b38892cd650557e4",
+      "spec_sha256": "afd7b2142ea546f314f6b83d7ae07c3afcc3f64275e0b235c849beafa32de410",
+      "caller_sha256": "4d75f0bafd6619179f29ea4859a28c62c3e8a75f4d1c3bee6128ef690a33a66a",
+      "config_sha256": "817331e41101c0fcc2f8b71837a37768351ce8d7b2071ba65a7a152ff714099c",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "before_selected_counts": {
+        "users": 0,
+        "organizations": 0,
+        "workspaces": 0,
+        "teams": 0
+      },
+      "after_selected_counts": {
+        "users": 1,
+        "organizations": 1,
+        "workspaces": 1,
+        "teams": 1
+      }
+    },
+    {
+      "phase": "corrected",
+      "engine": "firefox",
+      "relative_root": "runs/corrected/firefox",
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "firefox",
+            "check": "first setup preserves all three 100-scalar names, rejects independent 101 drafts and creates one owner",
+            "status": "passed",
+            "duration_ms": 6172
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "1c6bd2fbf1b05781c78a607f37bab064daa4d0c724890306d48319e94b61c89f",
+      "spec_sha256": "afd7b2142ea546f314f6b83d7ae07c3afcc3f64275e0b235c849beafa32de410",
+      "caller_sha256": "4d75f0bafd6619179f29ea4859a28c62c3e8a75f4d1c3bee6128ef690a33a66a",
+      "config_sha256": "817331e41101c0fcc2f8b71837a37768351ce8d7b2071ba65a7a152ff714099c",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "before_selected_counts": {
+        "users": 0,
+        "organizations": 0,
+        "workspaces": 0,
+        "teams": 0
+      },
+      "after_selected_counts": {
+        "users": 1,
+        "organizations": 1,
+        "workspaces": 1,
+        "teams": 1
+      }
+    },
+    {
+      "phase": "corrected",
+      "engine": "webkit",
+      "relative_root": "runs/corrected/webkit",
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "webkit",
+            "check": "first setup preserves all three 100-scalar names, rejects independent 101 drafts and creates one owner",
+            "status": "passed",
+            "duration_ms": 5398
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "492289d91a9d006e51dc1c16419c70f34deb23213f780290e5040133ed73338f",
+      "spec_sha256": "afd7b2142ea546f314f6b83d7ae07c3afcc3f64275e0b235c849beafa32de410",
+      "caller_sha256": "4d75f0bafd6619179f29ea4859a28c62c3e8a75f4d1c3bee6128ef690a33a66a",
+      "config_sha256": "817331e41101c0fcc2f8b71837a37768351ce8d7b2071ba65a7a152ff714099c",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "before_selected_counts": {
+        "users": 0,
+        "organizations": 0,
+        "workspaces": 0,
+        "teams": 0
+      },
+      "after_selected_counts": {
+        "users": 1,
+        "organizations": 1,
+        "workspaces": 1,
+        "teams": 1
+      }
+    }
+  ],
+  "native_name_facts": [
+    {
+      "phase": "baseline",
+      "engine": "chromium",
+      "fields": [
+        {
+          "field": "display_name",
+          "expected_scalars": 100,
+          "actual_scalars": 50,
+          "expected_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+          "actual_sha256": "204fb86cf8796e29396b5d6010ed3de22155f2f76c669015ec04475215ab6a2c"
+        },
+        {
+          "field": "workspace_name",
+          "expected_scalars": 100,
+          "actual_scalars": 50,
+          "expected_sha256": "81dca1957ea9ba1dfab122be5cd217443d844e9fac9f63eb211fbe4d8f9d68d0",
+          "actual_sha256": "8314656c91f1c4c7ce3bbf7d0f64ea588cf59b0c03c566d7d060a16132d77dcd"
+        },
+        {
+          "field": "team_name",
+          "expected_scalars": 100,
+          "actual_scalars": 50,
+          "expected_sha256": "685323f3bd8a979ae10d4b4dab92bd4c0b6ec6711bb8a19da80fee054fc5b829",
+          "actual_sha256": "92e516eb38cbaf7e3ea2b027c8acdaf036b13ff388b8087d02c2c18b35e22645"
+        }
+      ]
+    },
+    {
+      "phase": "baseline",
+      "engine": "firefox",
+      "fields": [
+        {
+          "field": "display_name",
+          "expected_scalars": 100,
+          "actual_scalars": 50,
+          "expected_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+          "actual_sha256": "204fb86cf8796e29396b5d6010ed3de22155f2f76c669015ec04475215ab6a2c"
+        },
+        {
+          "field": "workspace_name",
+          "expected_scalars": 100,
+          "actual_scalars": 50,
+          "expected_sha256": "81dca1957ea9ba1dfab122be5cd217443d844e9fac9f63eb211fbe4d8f9d68d0",
+          "actual_sha256": "8314656c91f1c4c7ce3bbf7d0f64ea588cf59b0c03c566d7d060a16132d77dcd"
+        },
+        {
+          "field": "team_name",
+          "expected_scalars": 100,
+          "actual_scalars": 50,
+          "expected_sha256": "685323f3bd8a979ae10d4b4dab92bd4c0b6ec6711bb8a19da80fee054fc5b829",
+          "actual_sha256": "92e516eb38cbaf7e3ea2b027c8acdaf036b13ff388b8087d02c2c18b35e22645"
+        }
+      ]
+    },
+    {
+      "phase": "baseline",
+      "engine": "webkit",
+      "fields": [
+        {
+          "field": "display_name",
+          "expected_scalars": 100,
+          "actual_scalars": 50,
+          "expected_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+          "actual_sha256": "204fb86cf8796e29396b5d6010ed3de22155f2f76c669015ec04475215ab6a2c"
+        },
+        {
+          "field": "workspace_name",
+          "expected_scalars": 100,
+          "actual_scalars": 50,
+          "expected_sha256": "81dca1957ea9ba1dfab122be5cd217443d844e9fac9f63eb211fbe4d8f9d68d0",
+          "actual_sha256": "8314656c91f1c4c7ce3bbf7d0f64ea588cf59b0c03c566d7d060a16132d77dcd"
+        },
+        {
+          "field": "team_name",
+          "expected_scalars": 100,
+          "actual_scalars": 50,
+          "expected_sha256": "685323f3bd8a979ae10d4b4dab92bd4c0b6ec6711bb8a19da80fee054fc5b829",
+          "actual_sha256": "92e516eb38cbaf7e3ea2b027c8acdaf036b13ff388b8087d02c2c18b35e22645"
+        }
+      ]
+    },
+    {
+      "phase": "corrected",
+      "engine": "chromium",
+      "fields": [
+        {
+          "field": "display_name",
+          "expected_scalars": 100,
+          "actual_scalars": 100,
+          "expected_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+          "actual_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81"
+        },
+        {
+          "field": "workspace_name",
+          "expected_scalars": 100,
+          "actual_scalars": 100,
+          "expected_sha256": "81dca1957ea9ba1dfab122be5cd217443d844e9fac9f63eb211fbe4d8f9d68d0",
+          "actual_sha256": "81dca1957ea9ba1dfab122be5cd217443d844e9fac9f63eb211fbe4d8f9d68d0"
+        },
+        {
+          "field": "team_name",
+          "expected_scalars": 100,
+          "actual_scalars": 100,
+          "expected_sha256": "685323f3bd8a979ae10d4b4dab92bd4c0b6ec6711bb8a19da80fee054fc5b829",
+          "actual_sha256": "685323f3bd8a979ae10d4b4dab92bd4c0b6ec6711bb8a19da80fee054fc5b829"
+        }
+      ]
+    },
+    {
+      "phase": "corrected",
+      "engine": "firefox",
+      "fields": [
+        {
+          "field": "display_name",
+          "expected_scalars": 100,
+          "actual_scalars": 100,
+          "expected_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+          "actual_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81"
+        },
+        {
+          "field": "workspace_name",
+          "expected_scalars": 100,
+          "actual_scalars": 100,
+          "expected_sha256": "81dca1957ea9ba1dfab122be5cd217443d844e9fac9f63eb211fbe4d8f9d68d0",
+          "actual_sha256": "81dca1957ea9ba1dfab122be5cd217443d844e9fac9f63eb211fbe4d8f9d68d0"
+        },
+        {
+          "field": "team_name",
+          "expected_scalars": 100,
+          "actual_scalars": 100,
+          "expected_sha256": "685323f3bd8a979ae10d4b4dab92bd4c0b6ec6711bb8a19da80fee054fc5b829",
+          "actual_sha256": "685323f3bd8a979ae10d4b4dab92bd4c0b6ec6711bb8a19da80fee054fc5b829"
+        }
+      ]
+    },
+    {
+      "phase": "corrected",
+      "engine": "webkit",
+      "fields": [
+        {
+          "field": "display_name",
+          "expected_scalars": 100,
+          "actual_scalars": 100,
+          "expected_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+          "actual_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81"
+        },
+        {
+          "field": "workspace_name",
+          "expected_scalars": 100,
+          "actual_scalars": 100,
+          "expected_sha256": "81dca1957ea9ba1dfab122be5cd217443d844e9fac9f63eb211fbe4d8f9d68d0",
+          "actual_sha256": "81dca1957ea9ba1dfab122be5cd217443d844e9fac9f63eb211fbe4d8f9d68d0"
+        },
+        {
+          "field": "team_name",
+          "expected_scalars": 100,
+          "actual_scalars": 100,
+          "expected_sha256": "685323f3bd8a979ae10d4b4dab92bd4c0b6ec6711bb8a19da80fee054fc5b829",
+          "actual_sha256": "685323f3bd8a979ae10d4b4dab92bd4c0b6ec6711bb8a19da80fee054fc5b829"
+        }
+      ]
+    }
+  ],
+  "selected_setup_proofs": [
+    {
+      "engine": "chromium",
+      "rejected_statuses": [
+        422,
+        422,
+        422
+      ],
+      "setup_available_after_rejections": [
+        true,
+        true,
+        true
+      ],
+      "accepted_status": 201,
+      "session_status": 200,
+      "bootstrap_status": 200,
+      "second_setup_status": 409,
+      "workspace_count": 1,
+      "team_count": 1,
+      "names": [
+        {
+          "field": "display_name",
+          "scalars": 100,
+          "sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81"
+        },
+        {
+          "field": "workspace_name",
+          "scalars": 100,
+          "sha256": "81dca1957ea9ba1dfab122be5cd217443d844e9fac9f63eb211fbe4d8f9d68d0"
+        },
+        {
+          "field": "team_name",
+          "scalars": 100,
+          "sha256": "685323f3bd8a979ae10d4b4dab92bd4c0b6ec6711bb8a19da80fee054fc5b829"
+        }
+      ]
+    },
+    {
+      "engine": "firefox",
+      "rejected_statuses": [
+        422,
+        422,
+        422
+      ],
+      "setup_available_after_rejections": [
+        true,
+        true,
+        true
+      ],
+      "accepted_status": 201,
+      "session_status": 200,
+      "bootstrap_status": 200,
+      "second_setup_status": 409,
+      "workspace_count": 1,
+      "team_count": 1,
+      "names": [
+        {
+          "field": "display_name",
+          "scalars": 100,
+          "sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81"
+        },
+        {
+          "field": "workspace_name",
+          "scalars": 100,
+          "sha256": "81dca1957ea9ba1dfab122be5cd217443d844e9fac9f63eb211fbe4d8f9d68d0"
+        },
+        {
+          "field": "team_name",
+          "scalars": 100,
+          "sha256": "685323f3bd8a979ae10d4b4dab92bd4c0b6ec6711bb8a19da80fee054fc5b829"
+        }
+      ]
+    },
+    {
+      "engine": "webkit",
+      "rejected_statuses": [
+        422,
+        422,
+        422
+      ],
+      "setup_available_after_rejections": [
+        true,
+        true,
+        true
+      ],
+      "accepted_status": 201,
+      "session_status": 200,
+      "bootstrap_status": 200,
+      "second_setup_status": 409,
+      "workspace_count": 1,
+      "team_count": 1,
+      "names": [
+        {
+          "field": "display_name",
+          "scalars": 100,
+          "sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81"
+        },
+        {
+          "field": "workspace_name",
+          "scalars": 100,
+          "sha256": "81dca1957ea9ba1dfab122be5cd217443d844e9fac9f63eb211fbe4d8f9d68d0"
+        },
+        {
+          "field": "team_name",
+          "scalars": 100,
+          "sha256": "685323f3bd8a979ae10d4b4dab92bd4c0b6ec6711bb8a19da80fee054fc5b829"
+        }
+      ]
+    }
+  ],
+  "private_index": {
+    "root": "$OPENTRACK_DEV_STATE/setup-name-scalar",
+    "file": "artifact-index.json",
+    "sha256": "abfeef33459d5a76a2c8d7696cc202ae704781c204070730002aad188e428e1d"
+  },
+  "frontends": {
+    "baseline": {
+      "root": "$OPENTRACK_DEV_STATE/setup-name-scalar/frontends/baseline",
+      "assets": [
+        {
+          "path": "assets/RichTextEditor-BedJvSKb.js",
+          "sha256": "a7b972c673d27a66d332a670742aee8d25a56d230d3feca5875b4937030a9178",
+          "bytes": 444281
+        },
+        {
+          "path": "assets/RichTextEditor-BedJvSKb.js.map",
+          "sha256": "aac381f9909ddeb395b739b59751d91c01c642a3c71a86a50370426d00a31705",
+          "bytes": 1964243
+        },
+        {
+          "path": "assets/index-B9yoYYJd.css",
+          "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+          "bytes": 90154
+        },
+        {
+          "path": "assets/index-CAeW4zFK.js",
+          "sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524",
+          "bytes": 689015
+        },
+        {
+          "path": "assets/index-CAeW4zFK.js.map",
+          "sha256": "c2364cee9fc4402a16c032a3ce46884116a599867a9bc8f51f9a54798f80f537",
+          "bytes": 2391632
+        },
+        {
+          "path": "assets/portability.worker-DEvlQVr4.js",
+          "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+          "bytes": 79037
+        },
+        {
+          "path": "assets/portability.worker-DEvlQVr4.js.map",
+          "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+          "bytes": 224663
+        },
+        {
+          "path": "index.html",
+          "sha256": "ca5c59a4af58df389a9d9cd627db02f17d33f573ef9c6735ce7a9a838137797b",
+          "bytes": 606
+        },
+        {
+          "path": "theme.js",
+          "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+          "bytes": 321
+        }
+      ],
+      "source_map_matches_pinned": true
+    },
+    "corrected": {
+      "root": "$OPENTRACK_DEV_STATE/setup-name-scalar/frontends/corrected",
+      "assets": [
+        {
+          "path": "assets/RichTextEditor-DXBxOHd2.js",
+          "sha256": "2538e11f7d6cea8020cdc1867357a50326d2708702c822c2b992dbfd80777fe4",
+          "bytes": 444281
+        },
+        {
+          "path": "assets/RichTextEditor-DXBxOHd2.js.map",
+          "sha256": "7c9dc3aee8a50042e498700e974505984f53f6a151a17e625ab01b005592baa8",
+          "bytes": 1964243
+        },
+        {
+          "path": "assets/index-8KwNHl3m.js",
+          "sha256": "365e485767c294d8ac56e76eb44ff1f5865fa662b309db1514b7c8c8cbb95f58",
+          "bytes": 688973
+        },
+        {
+          "path": "assets/index-8KwNHl3m.js.map",
+          "sha256": "2fe96b7dbb35ba25d621cd9be043a68d1c948dacbdd258febc2ac50a7f3b6329",
+          "bytes": 2391554
+        },
+        {
+          "path": "assets/index-B9yoYYJd.css",
+          "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+          "bytes": 90154
+        },
+        {
+          "path": "assets/portability.worker-DEvlQVr4.js",
+          "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+          "bytes": 79037
+        },
+        {
+          "path": "assets/portability.worker-DEvlQVr4.js.map",
+          "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+          "bytes": 224663
+        },
+        {
+          "path": "index.html",
+          "sha256": "27c34091c8684ff6bcf68e89cc07b6b59e9bd4a7e5655f350fd431faa601a0bf",
+          "bytes": 606
+        },
+        {
+          "path": "theme.js",
+          "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+          "bytes": 321
+        }
+      ]
+    }
+  },
+  "isolation": {
+    "existing_private_cluster_namespace_caches_reused": true,
+    "fresh_fixture_databases": 6,
+    "fresh_restricted_roles": 24,
+    "old_states_not_reset": true,
+    "own_cluster_namespace_datadir_port_identifier_guards": {
+      "private_data_directory_matches": true,
+      "private_port_matches": true,
+      "original_cluster_identifier_matches": true,
+      "namespace_matches": true,
+      "existing_cluster_reused": true,
+      "old_databases_not_reset": true
+    },
+    "node_receives_only_dedicated_fixture_http_authority": true,
+    "no_node_pg_database_service_credentials": true,
+    "fixture_credentials_sealed_private": true
+  },
+  "standalone_config": {
+    "file": "work/setup-name.playwright.config.ts",
+    "sha256": "817331e41101c0fcc2f8b71837a37768351ce8d7b2071ba65a7a152ff714099c",
+    "canonical_sha256": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "only_overrides": [
+      "testDir",
+      "testMatch",
+      "outputDir"
+    ],
+    "reporter_alias": "ignored work/e2e -> same checkout web/e2e; canonical reporter identity unchanged",
+    "canonical_profile_unchanged": {
+      "test_timeout_ms": 60000,
+      "action_expect_timeout_ms": 10000,
+      "workers": 1,
+      "retries": 0,
+      "origin": "http://127.0.0.1:18081"
+    },
+    "base_playwright_only": true,
+    "saved_workspace_fixture_not_imported": true,
+    "dedicated_disposable_startup_guard": true,
+    "outside_default_browser_matrix": true
+  },
+  "runtime": {
+    "caller": "work/run-setup-name-browser.py",
+    "caller_sha256": "4d75f0bafd6619179f29ea4859a28c62c3e8a75f4d1c3bee6128ef690a33a66a",
+    "provisioner": "work/prepare-setup-name-fixtures.py",
+    "provisioner_sha256": "b8f003f3647fee5a8fc9c142d6ce120871ac005068e70299dd145ed45ebdefdd",
+    "unchanged_backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+    "unchanged_scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+    "one_engine_per_new_fixture": true,
+    "default_private_launcher_used": true,
+    "build_mode_never_used_for_runtime": true,
+    "all_six_scopes_empty_and_apis_reaped": true,
+    "log_cap_bytes_each": 2097152,
+    "private_directory_mode": "0700",
+    "private_file_mode": "0600"
+  },
+  "shutdown": {
+    "path": "shutdown-audit.json",
+    "sha256": "f93afca36b238df6d01036cb0e604cd9d9ff3927722ce14857202f37948fd818",
+    "body": {
+      "state": "stopped",
+      "data_preserved": true,
+      "fixture_databases_retained": 6,
+      "fixture_roles_retained": 24,
+      "all_owned_api_browser_handles_reaped": true,
+      "logs": [
+        {
+          "path": "db-stop.log",
+          "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d",
+          "bytes": 56
+        },
+        {
+          "path": "db-status.log",
+          "sha256": "e138ccb54fdb08283c6eb21159c53207bbbbf07077246e2804e18d22efe6e250",
+          "bytes": 26
+        }
+      ]
+    }
+  },
+  "previous_candidates": {
+    "df71_branch_assets_index_preserved": true,
+    "relocation_root": "$OPENTRACK_DEV_STATE/qualified-invite-name-df71f449",
+    "relocation_sha256": "7b59dee4e1a758df537cddadf950c66b10fd3465dabf839f04669d40fa524ba0",
+    "pagination_correction": "31e9ac7f289dd288cf07dca8bf9f46005f4189fe",
+    "old_successful_checks_not_repeated": true
+  },
+  "preserved_preparation_failure": "Initial first-fixture migration stopped before schema application because minimal env lacked an explicit public URL. Diagnostic migrate.log retained. The same newly created DB and original role credentials were resumed with explicit loopback URL/listen/storage env; no DB/role recreation or password reset. All six fixtures then migrated through existing helpers.",
+  "acceptance": [
+    "Nine original50-scalar native cutoffs, then identical-spec three dedicated corrected journeys preserve100 in all three names.",
+    "Each field independently sends101 and receives422; all name drafts survive and setup remains available. Repair creates one owner/session/default workspace/team; names persist through reload/session/bootstrap.",
+    "Second setup returns409 with setup unavailable afterward. Parent-only bounded selected table reads show0 users/organizations/workspaces/teams before all runs,0 after baseline and1 each after corrected.",
+    "Only selected noncredential fields are asserted/recorded. Existing login password-manager/error-focus units remain passing."
+  ],
+  "limits": [
+    "These3journeys perphase are intentionally separate from the shared global browser matrix; no global CI qualification claimed.",
+    "Only four selected primary-table counts were observed; no universal absence-of-orphan-record claim or per-error full-database audit. Expected name digests in proof are bound to exact executed session/bootstrap equality assertions.",
+    "Normal scoped cleanup observed; forced interruption, physical keyboard/IME, native desktop, assistive technology, broader lifecycle/security/recovery and whole-product gates remain separate.",
+    "Lead owns mandatory independent review, exact-head hosted checks and integration."
+  ],
+  "migration_rollback": "No tracked Rust/API/schema/dependency change. Existing migrations applied only to new retained fixtures; frontend rollback needs no durable data rewrite."
+}

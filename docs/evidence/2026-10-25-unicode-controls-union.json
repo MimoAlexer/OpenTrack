@@ -1,0 +1,320 @@
+{
+  "date": "2026-10-25",
+  "scope": "Moderation/reopen reasons, project update bodies, invited names, palette/reference/Trash queries. First-time setup owner/workspace/team names.",
+  "base_commit": "25ca33cc3c1f9de87d96f2f5658febd1f617124a",
+  "code_union_commit": "4a497bf7e64c20692c515f9687a3da887b405c71",
+  "source_sha256": {
+    "docs/evidence/2026-10-25-comment-moderation-scalars.json": "f02cc3cf2e5175852a95105044afd1d6b51592c1179e7e47f73d869b82ccc09d",
+    "docs/evidence/2026-10-25-comment-moderation-scalars.md": "021cbc740037f3a746239506bfa86279db9758a7e09b61f34732ce785b7f0c2a",
+    "docs/evidence/2026-10-25-cycle-update-scalars.json": "59d28a9eb4e2c0fed259a89c222d126b21aa41d4b44f87ba5e0b94022c1ccb2f",
+    "docs/evidence/2026-10-25-cycle-update-scalars.md": "ac5a072790b9873f65ec3a2e2ec4e870042cb89a20775273e41e09bd4fa1e513",
+    "docs/evidence/2026-10-25-invite-name-scalars.json": "ffdab1449c924c33534b58cddee6fa32807b58cd10d62e223ca9062b1cfc9a27",
+    "docs/evidence/2026-10-25-invite-name-scalars.md": "49562c3bc192b8086665537f875436cf2e414f0c835b60d03535bafa8c4952c5",
+    "docs/evidence/2026-10-25-palette-query-scalars.json": "361921d184f3dec59f1ff5d15425349e86f0ce485c11d4f09f9e083fac8eb8fb",
+    "docs/evidence/2026-10-25-palette-query-scalars.md": "b2e355022db87261930b7dc1e0aadc555873929c3724195974990966958f8be7",
+    "docs/evidence/2026-10-25-picker-query-scalars.json": "b9ed375a4628e4433c6818758e0efa3531d51e569d04233f0ead6cd066f020c9",
+    "docs/evidence/2026-10-25-picker-query-scalars.md": "fdaa2b4dfdea8a460ba8c3ef91ef6fab056451755ef1dc56903476c23ce06292",
+    "docs/evidence/2026-10-25-trash-query-scalars.json": "74d6d080d209d01300424866198f552e0c4cd86435daeb3b9ede7d0068c44e34",
+    "docs/evidence/2026-10-25-trash-query-scalars.md": "661510d5968e12f92f950dae8ef484efc14d53305733dccdfa19f846113b52c6",
+    "web/e2e/comment-moderation-scalar-inputs.browser.ts": "198ab88637b360581cc9374c7cf5b832c9c44f82673d4b961ded496f55050105",
+    "web/e2e/cycle-update-scalar-inputs.browser.ts": "4e26396ebc83a4cc42c6918ae2125fe6c9060dba4d8e85f55ae72f84511f4bba",
+    "web/e2e/invite-name-scalar-inputs.browser.ts": "939f1d0912744a2472efabe8db0df7bd974c32ac7edc643a1dbb2dfd8dc32ed2",
+    "web/e2e/palette-query-scalar-inputs.browser.ts": "9aaa41ff6a068427130e571ad0c9db75490149cafd2cadb404c889c7b8219f9d",
+    "web/e2e/picker-query-scalar-inputs.browser.ts": "081f13a4a12bcdf48144f2812365a88e81394fd2aa2d8dbb18c69da97dd66dfd",
+    "web/e2e/trash-query-scalar-inputs.browser.ts": "e2a84364a83dcf1bc790ec8d4d1a93314942ab52e5d38616ea4ed73494a400db",
+    "web/src/commands/CommandPalette.tsx": "0ec9800e1f1e35bce168b3e56a8a60d96651eb8df253d6650d944c4df293cee0",
+    "web/src/commands/palette-issues.test.tsx": "21596dd9f7a19f8abf7e274b478e7149a02ba24ea3fc84e5b4f5cf931f2e3b6a",
+    "web/src/cycles/Cycles.tsx": "e290b07b1ed3983277244af224250f72d34bdc3a0e8d34117174947f8cb75e17",
+    "web/src/cycles/Planning.test.tsx": "32db60bab39f922bdc5f32b4dd673fbbc433cfa86a34fbf9c19827aa16f18cbf",
+    "web/src/documents/IssueComments.test.tsx": "4c08be0edfc6c8699111ac83f89a70318563dd7f524ac0b0bb2168463025e87b",
+    "web/src/documents/IssueComments.tsx": "b6cb795f50de66bd46ad356edc80373776a496c7ce3c96c2caf4e17e63505174",
+    "web/src/issues/IssueDeletion.test.tsx": "1c6d5d7b1f3a9ec1a1f7e68102d0ef8a10bff4bef6dff0eb6da1da3c331c15e4",
+    "web/src/issues/Trash.tsx": "7d42b0d134bcdd755aca4d1587e2f4c8eaaea857fc8fee2aa9ed96dff6eadc48",
+    "web/src/projects/ProjectUpdates.tsx": "7da16a04ff7c7e076529a8ae31783ec5bf275b2a5ed7972fb90a575c2e53e6cd",
+    "web/src/projects/Projects.test.tsx": "ec3ddf23b39519084bd692020e5a00a1b582e5df22d3dca43a3c7ce9ad73c5b7",
+    "web/src/settings/JoinWorkspace.tsx": "4c7c15d1cf1f9be4a753b5538300c6275fc0b52258eb8d1015df1e73b6a65546",
+    "web/src/settings/Settings.test.tsx": "20e1a436110ea8a53f11288e45c81390689fbe9146533e587095c30b78483fcf",
+    "web/src/taxonomy/Picker.tsx": "c8db7b30c3f2b6704ca40270db26643a931eaa747a4bd905d4022b6b15d4ed81",
+    "web/src/taxonomy/PickerKeyboard.test.tsx": "fdfc8be1fba0f6501046d65872f9ea074337c4207c56ac9bd103078efb658aaa",
+    "docs/REQUIREMENTS_STATUS.md": "b02105123c1c41386e28ccee7b269cb69224ef80b28a8373a4948576765efa98",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "web/e2e/fixtures.ts": "231ed3b47c40321e2419cf1f122d1ece64767f93cab07d35e1462eed0f06d45b",
+    "web/e2e/receipt-reporter.ts": "cbbc4061b3b4d00fd22f7bd803e9f3ba056c95e5eabc9b9528def2f23ca441ea",
+    "web/e2e/fixture-session.ts": "d8be4e0d00c0840998046b3e4572e941fd8cdca0b5fa666a13af4ebe59bea575",
+    "web/src/fixture-session.test.ts": "d03dd17ecdc645d0f646612b11aa1322218e3153b894c5c3393a3e38851df306",
+    "web/src/auth/AuthScreen.tsx": "badb3f5dd3ca16c5f38a5b668ad62f3a51caeabb4a1f6cf0f627513527db7394",
+    "web/src/auth/AuthScreen.test.tsx": "563f1dbbb3e08c9bd6f06e995b1b8d3b3ce137b78a438fb3dee4f04fd9e07106",
+    "web/e2e/setup-name-scalar-inputs.acceptance.ts": "afd7b2142ea546f314f6b83d7ae07c3afcc3f64275e0b235c849beafa32de410",
+    "docs/evidence/2026-10-25-setup-name-scalars.json": "3ef492697b278d12475674970ad7ea54446d5e639fcccdbfaffb0e4a94c484b0",
+    "docs/evidence/2026-10-25-setup-name-scalars.md": "9a0d85926d90b9c7a006c23d6fac1e579fc3e17a091ec5498b8f820fe3b2edf6",
+    "docs/evidence/2026-10-25-project-lead-readiness.json": "d8c20e0eebd5e8010761126768f7a4ece9f8d3b4f61410b811d1b5f6f02c3c6b",
+    "docs/evidence/2026-10-25-project-lead-readiness.md": "874b6b90b93765f13ced95ee382c013c1cb4d30f772d1ddebb0261731a98bced",
+    "web/e2e/projects.browser.ts": "f58ec560de92a5d425eb89e675ff41c3b6b71eb849f070b7c6e8f450cefcdcd5",
+    "web/e2e/receipt-reporter-privacy.mjs": "669d95ccabef123ff6f027897f52cf7b89cb561a5ac21e92c272dd8937bc272e",
+    "web/src/taxonomy/taxonomy.css": "e9eec762503ed759577cc98b551992be9093147d98320d1ee08efb311b6eaa91"
+  },
+  "individual_browser_qualification": [
+    {
+      "scope": "comment-moderation",
+      "worker_head": "393320de177777c8a4b6dd8abd425a913c5ae533",
+      "baseline_expected_failures": 3,
+      "corrected_passes": 3,
+      "evidence": "docs/evidence/2026-10-25-comment-moderation-scalars.json",
+      "evidence_sha256": "f02cc3cf2e5175852a95105044afd1d6b51592c1179e7e47f73d869b82ccc09d"
+    },
+    {
+      "scope": "cycle-update",
+      "worker_head": "9c4b00c31df7367340ef0319913e334c95712a77",
+      "baseline_expected_failures": 6,
+      "corrected_passes": 6,
+      "evidence": "docs/evidence/2026-10-25-cycle-update-scalars.json",
+      "evidence_sha256": "59d28a9eb4e2c0fed259a89c222d126b21aa41d4b44f87ba5e0b94022c1ccb2f"
+    },
+    {
+      "scope": "palette-query",
+      "worker_head": "0705a9fdfa87dfff2b96eba5d8a492a881a6f0ca",
+      "baseline_expected_failures": 3,
+      "corrected_passes": 3,
+      "evidence": "docs/evidence/2026-10-25-palette-query-scalars.json",
+      "evidence_sha256": "361921d184f3dec59f1ff5d15425349e86f0ce485c11d4f09f9e083fac8eb8fb"
+    },
+    {
+      "scope": "invite-name",
+      "worker_head": "31e9ac7f289dd288cf07dca8bf9f46005f4189fe",
+      "baseline_expected_failures": 3,
+      "corrected_passes": 3,
+      "evidence": "docs/evidence/2026-10-25-invite-name-scalars.json",
+      "evidence_sha256": "ffdab1449c924c33534b58cddee6fa32807b58cd10d62e223ca9062b1cfc9a27"
+    },
+    {
+      "scope": "picker-query",
+      "worker_head": "2ef1aee6b9ac050301070894fad13554fce24066",
+      "baseline_expected_failures": 6,
+      "corrected_passes": 6,
+      "evidence": "docs/evidence/2026-10-25-picker-query-scalars.json",
+      "evidence_sha256": "b9ed375a4628e4433c6818758e0efa3531d51e569d04233f0ead6cd066f020c9"
+    },
+    {
+      "scope": "trash-query",
+      "worker_head": "28f9b3b59c9b4be42566ef863e56249d38e521f2",
+      "baseline_expected_failures": 3,
+      "corrected_passes": 3,
+      "evidence": "docs/evidence/2026-10-25-trash-query-scalars.json",
+      "evidence_sha256": "74d6d080d209d01300424866198f552e0c4cd86435daeb3b9ede7d0068c44e34",
+      "supersedes_incomplete_recorder_head": "9b474788ed25c3c187a342ae065a39f3c8653fbb"
+    },
+    {
+      "scope": "setup-name",
+      "worker_head": "e5d064e8405ef2b8eefc9ed41f0e2f5459e0da97",
+      "baseline_expected_failed_cases": 3,
+      "baseline_native_cutoffs": 9,
+      "corrected_passes": 3,
+      "default_browser_matrix": false,
+      "evidence": "docs/evidence/2026-10-25-setup-name-scalars.json",
+      "evidence_sha256": "3ef492697b278d12475674970ad7ea54446d5e639fcccdbfaffb0e4a94c484b0"
+    }
+  ],
+  "local_browser_scope": "27 original corrected input journeys on seven separate bundles, plus three focused project/brief journeys on the final composed corrected bundle. No full local213-case browser matrix.",
+  "combined_checks": [
+    {
+      "check": "focused-units",
+      "exit_code": 0,
+      "elapsed_seconds": 2.156,
+      "owned_process_reaped": true,
+      "log_sha256": "a56bd010503f3196a2039e66afb09dfa67826c3b942ab684d8901c47b8a86943",
+      "passed": 5,
+      "files": 1
+    },
+    {
+      "check": "typescript-app",
+      "exit_code": 0,
+      "elapsed_seconds": 0.813,
+      "owned_process_reaped": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "typescript-browser",
+      "exit_code": 0,
+      "elapsed_seconds": 0.469,
+      "owned_process_reaped": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "production-bundle",
+      "exit_code": 0,
+      "elapsed_seconds": 1.344,
+      "owned_process_reaped": true,
+      "log_sha256": "a9d7177ac0e4134af207efd5c3ee2485b39df1554efc3abd4dde7e44f1fa2150"
+    }
+  ],
+  "retained_focused_units": [
+    {
+      "head": "a12ec33868df52124d3a2fed27381f53c9be9d4b",
+      "passed": 115,
+      "files": 6,
+      "paths": [
+        "web/src/issues/IssueDeletion.test.tsx",
+        "web/src/documents/IssueComments.test.tsx",
+        "web/src/projects/Projects.test.tsx",
+        "web/src/settings/Settings.test.tsx",
+        "web/src/commands/palette-issues.test.tsx",
+        "web/src/taxonomy/PickerKeyboard.test.tsx"
+      ],
+      "source_and_production_dependencies_unchanged": true,
+      "log_sha256": "4622ae523d06091190f9400e9a09fb027b4e8a847707be10560813a9e6af2509"
+    },
+    {
+      "head": "ed6b112d5555aaab26afb2afc691e41f22c70308",
+      "passed": 27,
+      "files": 1,
+      "paths": [
+        "web/src/cycles/Planning.test.tsx"
+      ],
+      "source_and_production_dependencies_unchanged": true,
+      "log_sha256": "fd0dd8464532e7b7f8a264f5658391677fe0c6856dc340006b345e834992413c"
+    }
+  ],
+  "focused_unique_passes": 147,
+  "original_union_failure": {
+    "head": "a12ec33868df52124d3a2fed27381f53c9be9d4b",
+    "passed": 141,
+    "failed": 1,
+    "cause": "Merge-resolution restoration lost the existing test helper textarea support; restored the exact worker helper. Production code and six passing test files unchanged.",
+    "log_sha256": "4622ae523d06091190f9400e9a09fb027b4e8a847707be10560813a9e6af2509"
+  },
+  "browser_listing": {
+    "exit_code": 0,
+    "listed_only": true,
+    "total": 213,
+    "files": 25,
+    "by_engine": {
+      "chromium": 71,
+      "firefox": 71,
+      "webkit": 71
+    },
+    "setup_standalone_not_selected": true,
+    "log_sha256": "f65b774540df0ea98567a4d5fa6d30d2d025182190a15074dcbcba933cb394fc"
+  },
+  "combined_frontend_build": {
+    "sha256": "c36a2f4dc82dd49ab5e531536955ed01fc8720bd9e87122b7409bbcf48b8177d",
+    "qualified_worker_head": "448d7b99cfbe832b03ed02dafb17b993dabafa23",
+    "evidence": "docs/evidence/2026-10-25-project-lead-readiness.json",
+    "source_web_tree_equal": true,
+    "served_in_focused_local_cases": 3,
+    "full_local_matrix": false
+  },
+  "worker_source_equivalence": {
+    "web/src/documents/IssueComments.tsx": {
+      "head": "393320de177777c8a4b6dd8abd425a913c5ae533",
+      "sha256": "b6cb795f50de66bd46ad356edc80373776a496c7ce3c96c2caf4e17e63505174"
+    },
+    "web/e2e/comment-moderation-scalar-inputs.browser.ts": {
+      "head": "393320de177777c8a4b6dd8abd425a913c5ae533",
+      "sha256": "198ab88637b360581cc9374c7cf5b832c9c44f82673d4b961ded496f55050105"
+    },
+    "web/src/cycles/Cycles.tsx": {
+      "head": "9c4b00c31df7367340ef0319913e334c95712a77",
+      "sha256": "e290b07b1ed3983277244af224250f72d34bdc3a0e8d34117174947f8cb75e17"
+    },
+    "web/src/projects/ProjectUpdates.tsx": {
+      "head": "9c4b00c31df7367340ef0319913e334c95712a77",
+      "sha256": "7da16a04ff7c7e076529a8ae31783ec5bf275b2a5ed7972fb90a575c2e53e6cd"
+    },
+    "web/e2e/cycle-update-scalar-inputs.browser.ts": {
+      "head": "9c4b00c31df7367340ef0319913e334c95712a77",
+      "sha256": "4e26396ebc83a4cc42c6918ae2125fe6c9060dba4d8e85f55ae72f84511f4bba"
+    },
+    "web/src/commands/CommandPalette.tsx": {
+      "head": "0705a9fdfa87dfff2b96eba5d8a492a881a6f0ca",
+      "sha256": "0ec9800e1f1e35bce168b3e56a8a60d96651eb8df253d6650d944c4df293cee0"
+    },
+    "web/e2e/palette-query-scalar-inputs.browser.ts": {
+      "head": "0705a9fdfa87dfff2b96eba5d8a492a881a6f0ca",
+      "sha256": "9aaa41ff6a068427130e571ad0c9db75490149cafd2cadb404c889c7b8219f9d"
+    },
+    "web/src/settings/JoinWorkspace.tsx": {
+      "head": "31e9ac7f289dd288cf07dca8bf9f46005f4189fe",
+      "sha256": "4c7c15d1cf1f9be4a753b5538300c6275fc0b52258eb8d1015df1e73b6a65546"
+    },
+    "web/e2e/invite-name-scalar-inputs.browser.ts": {
+      "head": "31e9ac7f289dd288cf07dca8bf9f46005f4189fe",
+      "sha256": "939f1d0912744a2472efabe8db0df7bd974c32ac7edc643a1dbb2dfd8dc32ed2"
+    },
+    "web/src/taxonomy/Picker.tsx": {
+      "head": "2ef1aee6b9ac050301070894fad13554fce24066",
+      "sha256": "c8db7b30c3f2b6704ca40270db26643a931eaa747a4bd905d4022b6b15d4ed81"
+    },
+    "web/e2e/picker-query-scalar-inputs.browser.ts": {
+      "head": "2ef1aee6b9ac050301070894fad13554fce24066",
+      "sha256": "081f13a4a12bcdf48144f2812365a88e81394fd2aa2d8dbb18c69da97dd66dfd"
+    },
+    "web/src/issues/Trash.tsx": {
+      "head": "9b474788ed25c3c187a342ae065a39f3c8653fbb",
+      "sha256": "7d42b0d134bcdd755aca4d1587e2f4c8eaaea857fc8fee2aa9ed96dff6eadc48"
+    },
+    "web/e2e/trash-query-scalar-inputs.browser.ts": {
+      "head": "28f9b3b59c9b4be42566ef863e56249d38e521f2",
+      "sha256": "e2a84364a83dcf1bc790ec8d4d1a93314942ab52e5d38616ea4ed73494a400db"
+    },
+    "web/src/auth/AuthScreen.tsx": {
+      "head": "e5d064e8405ef2b8eefc9ed41f0e2f5459e0da97",
+      "sha256": "badb3f5dd3ca16c5f38a5b668ad62f3a51caeabb4a1f6cf0f627513527db7394"
+    },
+    "web/e2e/setup-name-scalar-inputs.acceptance.ts": {
+      "head": "e5d064e8405ef2b8eefc9ed41f0e2f5459e0da97",
+      "sha256": "afd7b2142ea546f314f6b83d7ae07c3afcc3f64275e0b235c849beafa32de410"
+    }
+  },
+  "integration_adaptations": [
+    "Compose planning, project and settings regression tests with previously accepted tests; preserve all assertions.",
+    "Cycle reason evidence wording now states configured OPENTRACK_DATABASE_URL and READ ONLY transaction; PostgreSQL session-role identity was not separately recorded. No new database query or runtime rerun.",
+    "Trash recorder now observes all exact-list GET queries including null and emitted detail requests; same-spec before/after correction proof replaces the incomplete original recorder claims."
+  ],
+  "production_delta": "Remove eleven native UTF-16 caps across eight components, including three first-time setup names; project update scalar counter matches the existing Rust scalar bound. Rust authorization, validation, version and retry rules remain authoritative.",
+  "data_impact": "No backend, API, schema, persisted-format or dependency change. Frontend rollback restores former native cutoffs without data changes.",
+  "integration_requirements": [
+    "Independent final immutable source/evidence/privacy review.",
+    "All four configured checks at unchanged reviewed head.",
+    "Resolved conversations and prospective current-main tree equality under integration lock."
+  ],
+  "limits": [
+    "Original cutoff/discovery failures, earlier small-directory invitation evidence and combined helper failure remain retained.",
+    "Application owner role is not a PostgreSQL session-role attestation.",
+    "Listing is not execution; no local global matrix, forced cancellation, native GUI, physical input, IME or assistive-technology acceptance.",
+    "No broader milestone, issue or whole-product completion claimed.",
+    "Setup selected row counts are not a universal orphan-absence claim; initial missing-public-URL migration diagnostic and original credentials/data are retained.",
+    "Outer hosted matrix aborted at600seconds; a900second proposal is pending an explicit user decision. This corrective source keeps600seconds and every per-test/action/worker/retry profile unchanged."
+  ],
+  "harness_path_failure": {
+    "head": "02baf389ff861b7bc7bd87cb0c80f61313333464",
+    "cause": "First final runner used an incorrect AuthScreen test path and exited with no matching tests; no build ran in that attempt. Corrected path only; original log retained.",
+    "log_sha256": "f7e409ae0833567126a8277388ff18a2452706e164fe3270aee3297d08b562ae"
+  },
+  "picker_actionability_correction": {
+    "worker_head": "448d7b99cfbe832b03ed02dafb17b993dabafa23",
+    "evidence": "docs/evidence/2026-10-25-project-lead-readiness.json",
+    "evidence_sha256": "d8c20e0eebd5e8010761126768f7a4ece9f8d3b4f61410b811d1b5f6f02c3c6b",
+    "production_change": "Add flex-shrink:0 to .reference-option in taxonomy.css so multiline content retains its row height inside the bounded scrolling list",
+    "baseline_failed_cases": 7,
+    "corrected_focused_cases": 3,
+    "vitest_picker_checks": 10,
+    "overlapping_prior_picker_keyboard_checks": 4,
+    "node_privacy_checks": 10,
+    "no_fixture_identity_or_order_changes": true,
+    "no_action_assertion_timeout_retry_changes": true
+  },
+  "combined_checks_scope": "Earlier retained composed-source Auth/TypeScript/build checks; the later CSS-only repair has one changed build, ten focused Picker checks and ten strict Node privacy checks in its exact worker receipt. Four PickerKeyboard checks overlap the retained147.",
+  "initial_hosted_failure": {
+    "head": "f1817e71f09b92eb933b425885d3655f6d8e2283",
+    "run": 40210025722,
+    "job": 121219105208,
+    "reported_passes": 191,
+    "reported_failures": 2,
+    "reported_completions": 193,
+    "unreported_cases": 20,
+    "full_receipt": false,
+    "outer_timeout_seconds": 600,
+    "log_sha256": "e5a199d5674dc1a675339000691d33625f799c0dc56eadab3283f583bf241a20",
+    "unobserved": "Original hosted assertion/actionability/HTTP/geometry details were not recorded. Local exact-artifact reproduction establishes the repaired overlap mechanism without inventing retrospective hosted facts."
+  }
+}

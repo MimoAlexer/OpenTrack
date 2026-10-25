@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type { Page } from '@playwright/test';
+import type { Locator, Page, Request, Response } from '@playwright/test';
 import { test, expect, paragraph, SavedWorkspace } from './fixtures';
 import type { StructuredDocument } from '../src/documents/types';
 import type { Bootstrap, Team } from '../src/types';
 import type { FullProject, Project, ProjectIssue, ProjectProgress, ProjectUpdate } from '../src/projects/types';
+import type { ProjectLeadReadiness } from './receipt-reporter';
 
 const projectsPath = (saved: SavedWorkspace, id?: string) => `/teams/${saved.team.id}/projects${id ? `/${id}` : ''}`;
 const projectURL = (saved: SavedWorkspace, id: string) => `/w/${saved.workspace}/projects/${id}?team_id=${saved.team.id}`;
@@ -20,6 +21,122 @@ async function openProject(page: Page, saved: SavedWorkspace, project: Project) 
   await expect(page.getByRole('heading', { name: project.name, exact: true })).toBeVisible();
 }
 
+function observeProjectLead(page: Page, saved: SavedWorkspace) {
+  const facts: ProjectLeadReadiness = { request_state: 'unobserved', status: null, elapsed_ms: 0,
+    q_scalar_length: null, returned_count: null, has_more: null, self_assignable: null,
+    fixture_owner_in_page: null, expected_display_name_match: null, current_user_id_match: null,
+    option_observation: 'unobserved', owner_option_match_count: null, you_marker_option_count: null,
+    owner_option_visible: null, owner_option_enabled: null, click_failure: null,
+    center_hit_self_or_descendant: null, center_inside_dialog: null, center_inside_viewport: null,
+    matching_dialog_count: null, option_rect: null, popover_rect: null, wrapper_rect: null,
+    trigger_rect: null, dialog_rect: null, center_hit_another_option: null,
+    owner_option_content_rect: null, hit_option_rect: null, hit_option_content_rect: null };
+  const annotation = { type: 'project-lead-readiness', description: '' };
+  test.info().annotations.push(annotation);
+  let active: Request | undefined; let started = 0; let stopped = false;
+  const publish = () => { annotation.description = JSON.stringify(facts); };
+  const matching = (request: Request, path: string) => {
+    const url = new URL(request.url());
+    return request.method() === 'GET' && url.origin === saved.origin && url.pathname === path;
+  };
+  const begin = (request: Request) => {
+    if (!matching(request, `${saved.path}/teams/${saved.team.id}/assignees`)) return;
+    active = request; started = performance.now();
+    Object.assign(facts, { request_state: 'pending', status: null, elapsed_ms: 0,
+      q_scalar_length: [...(new URL(request.url()).searchParams.get('q') ?? '')].length,
+      returned_count: null, has_more: null, self_assignable: null, fixture_owner_in_page: null });
+    publish();
+  };
+  const received = async (response: Response) => {
+    const request = response.request();
+    if (matching(request, '/api/v1/auth/session') && response.status() === 200) {
+      try {
+        const body = await response.json();
+        if (!stopped && typeof body?.user?.id === 'string' && typeof body.user.display_name === 'string') {
+          facts.current_user_id_match = body.user.id === saved.session.user.id;
+          facts.expected_display_name_match = body.user.display_name === 'Example Owner'; publish();
+        }
+      } catch { /* No response bodies or raw errors enter the diagnostic. */ }
+    }
+    if (stopped || request !== active) return;
+    facts.status = response.status(); publish();
+    if (response.status() !== 200) return;
+    try {
+      const body = await response.json();
+      if (!stopped && request === active && Array.isArray(body?.data)
+          && typeof body.has_more === 'boolean' && typeof body.self_assignable === 'boolean') {
+        facts.returned_count = body.data.length; facts.has_more = body.has_more;
+        facts.self_assignable = body.self_assignable;
+        facts.fixture_owner_in_page = body.data.some((person: { id?: unknown }) => person?.id === saved.session.user.id);
+        publish();
+      }
+    } catch { /* A missing body observation remains unknown. */ }
+  };
+  const finish = (request: Request, state: 'completed' | 'failed') => {
+    if (request !== active) return;
+    facts.request_state = state; facts.elapsed_ms = Math.round(performance.now() - started); publish();
+  };
+  const completed = (request: Request) => finish(request, 'completed');
+  const failed = (request: Request) => finish(request, 'failed');
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    if (facts.request_state === 'pending') facts.elapsed_ms = Math.round(performance.now() - started);
+    publish(); page.off('request', begin); page.off('response', received);
+    page.off('requestfinished', completed); page.off('requestfailed', failed); page.off('close', stop);
+  };
+  page.on('request', begin); page.on('response', received);
+  page.on('requestfinished', completed); page.on('requestfailed', failed); page.once('close', stop); publish();
+  return { stop, failure: (error: unknown) => {
+    const message = error instanceof Error ? error.message : '';
+    facts.click_failure = message.includes('intercepts pointer events') ? 'pointer_intercepted'
+      : message.includes('outside of the viewport') ? 'outside_viewport'
+      : message.includes('element is not stable') ? 'not_stable'
+      : message.includes('element was detached') || message.includes('not attached to the DOM') ? 'detached'
+      : message.includes('element is not visible') ? 'not_visible'
+      : message.includes('element is not enabled') ? 'not_enabled'
+      : message.includes('strict mode violation') ? 'strict_match' : 'unknown';
+    publish();
+  }, probe: async (dialog: Locator, observation: 'before_click' | 'after_failed_click') => {
+    try {
+      const options = dialog.getByRole('listbox', { name: 'Project lead', exact: true }).getByRole('option');
+      const owner = options.filter({ hasText: /Example Owner/ });
+      const observed: Partial<ProjectLeadReadiness> = { option_observation: observation,
+        owner_option_match_count: await owner.count(),
+        you_marker_option_count: await options.filter({ has: page.locator('small').filter({ hasText: /^You$/ }) }).count(),
+        matching_dialog_count: await dialog.count(), owner_option_visible: null, owner_option_enabled: null,
+        center_hit_self_or_descendant: null, center_inside_dialog: null, center_inside_viewport: null,
+        option_rect: null, popover_rect: null, wrapper_rect: null, trigger_rect: null, dialog_rect: null,
+        center_hit_another_option: null, owner_option_content_rect: null, hit_option_rect: null, hit_option_content_rect: null };
+      if (observed.owner_option_match_count === 1) {
+        observed.owner_option_visible = await owner.isVisible(); observed.owner_option_enabled = await owner.isEnabled();
+        Object.assign(observed, await owner.evaluate(element => {
+          const rect = (node: Element | null) => {
+            if (!node) return null;
+            const value = node.getBoundingClientRect();
+            return { x: Math.round(value.x), y: Math.round(value.y), width: Math.round(value.width), height: Math.round(value.height) };
+          };
+          const box = element.getBoundingClientRect(); const x = box.x + box.width / 2; const y = box.y + box.height / 2;
+          const dialog = element.closest('dialog'); const bounds = dialog?.getBoundingClientRect();
+          const hit = document.elementFromPoint(x, y); const wrapper = element.closest('.reference-picker');
+          const hitOption = hit?.closest('.reference-option') ?? null;
+          return { center_hit_self_or_descendant: !!hit && (hit === element || element.contains(hit)),
+            center_hit_another_option: !!hitOption && hitOption !== element,
+            center_inside_dialog: bounds ? x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom : null,
+            center_inside_viewport: x >= 0 && x < window.innerWidth && y >= 0 && y < window.innerHeight,
+            option_rect: rect(element), popover_rect: rect(element.closest('.reference-popover')),
+            wrapper_rect: rect(wrapper), trigger_rect: rect(wrapper?.querySelector('.reference-trigger') ?? null), dialog_rect: rect(dialog),
+            owner_option_content_rect: rect(element.querySelector('span')),
+            hit_option_rect: rect(hitOption), hit_option_content_rect: rect(hitOption?.querySelector('span') ?? null) };
+        }));
+      }
+      Object.assign(facts, observed);
+    } catch { /* Closed pages leave unavailable observations unknown. */ }
+    if (facts.request_state === 'pending') facts.elapsed_ms = Math.round(performance.now() - started);
+    publish();
+  } };
+}
+
 test('project creation and brief edits persist while metadata and body versions remain independent', async ({ page, saved: owner }) => {
   const team = await owner.request<Team>('/teams', 'POST', {
     name: `Project acceptance ${randomUUID()}`, key: `P${randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase()}`,
@@ -29,6 +146,7 @@ test('project creation and brief edits persist while metadata and body versions 
   const saved = new SavedWorkspace(owner.http, owner.session, { ...bootstrap, teams: [team] }, owner.origin, owner.workspace);
   const name = `Saved project ${randomUUID()}`;
   const briefText = 'Ship the reviewed onboarding journey';
+  const readiness = observeProjectLead(page, saved);
   await saved.open(page);
   await page.getByRole('navigation', { name: 'Workspace navigation' }).getByRole('link', { name: 'Projects', exact: true }).click();
   const teamPicker = page.getByRole('combobox', { name: 'Project team', exact: true });
@@ -42,7 +160,12 @@ test('project creation and brief edits persist while metadata and body versions 
   await create.getByLabel('Start date', { exact: true }).fill('2026-11-02');
   await create.getByLabel('Target date', { exact: true }).fill('2026-11-20');
   await create.getByRole('button', { name: /^Project lead/ }).click();
-  await create.getByRole('listbox', { name: 'Project lead', exact: true }).getByRole('option', { name: /Example Owner/ }).click();
+  await readiness.probe(create, 'before_click');
+  try {
+    await create.getByRole('listbox', { name: 'Project lead', exact: true }).getByRole('option', { name: /Example Owner/ }).click();
+  } catch (error) {
+    readiness.failure(error); await readiness.probe(create, 'after_failed_click'); throw error;
+  } finally { readiness.stop(); }
   const brief = create.getByRole('textbox', { name: 'Project brief', exact: true });
   await brief.fill(briefText);
   await brief.press('Control+a');

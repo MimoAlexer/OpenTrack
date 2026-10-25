@@ -1,0 +1,87 @@
+{
+  "status": "Focused picker regression corrected and verified; integration checks pending",
+  "base": "f1817e71f09b92eb933b425885d3655f6d8e2283",
+  "production_change": "Add flex-shrink:0 to .reference-option in taxonomy.css so multiline content retains its row height inside the bounded scrolling list",
+  "source_sha256": {
+    "web/e2e/projects.browser.ts": "f58ec560de92a5d425eb89e675ff41c3b6b71eb849f070b7c6e8f450cefcdcd5",
+    "web/e2e/receipt-reporter.ts": "cbbc4061b3b4d00fd22f7bd803e9f3ba056c95e5eabc9b9528def2f23ca441ea",
+    "web/e2e/receipt-reporter-privacy.mjs": "669d95ccabef123ff6f027897f52cf7b89cb561a5ac21e92c272dd8937bc272e",
+    "web/src/taxonomy/taxonomy.css": "e9eec762503ed759577cc98b551992be9093147d98320d1ee08efb311b6eaa91"
+  },
+  "runtime_inputs": {
+    "baseline_frontend_sha256": "715b754e9414ba21e2e0461ad4322989e132ab97dcc807776eaddfdbac4ee9d7",
+    "corrected_frontend_sha256": "c36a2f4dc82dd49ab5e531536955ed01fc8720bd9e87122b7409bbcf48b8177d",
+    "frontend_files_each": 9,
+    "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+    "backend_build_inputs_equal_between_retained_base_and_f181": true,
+    "profile_sha256": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "profile": { "test_timeout_ms": 60000, "expect_timeout_ms": 10000, "action_timeout_ms": 10000, "workers": 1, "retries": 0, "outer_bound_seconds": 600 },
+    "original_case_actions_assertions_and_five_argument_fixture_constructor_preserved": true,
+    "artificial_member_seed": false,
+    "backend_rebuilt": false,
+    "changed_frontend_builds": 1
+  },
+  "diagnosis": {
+    "pagination_hypothesis": "Disproved: the owner has an independent self-assignable choice",
+    "baseline_readiness_all_three_engines": {
+      "request_state": "completed", "status": 200, "q_scalar_length": 0,
+      "returned_count": 7, "has_more": false, "self_assignable": true,
+      "fixture_owner_in_page": true, "expected_display_name_match": true,
+      "current_user_id_match": true, "owner_option_match_count": 1,
+      "you_marker_option_count": 1, "owner_option_visible": true, "owner_option_enabled": true
+    },
+    "actionability_all_three_engines": {
+      "click_failure": "pointer_intercepted", "center_hit_self_or_descendant": false,
+      "center_inside_dialog": true, "center_inside_viewport": true, "matching_dialog_count": 1
+    },
+    "bounded_chromium_overlap_observation": {
+      "center_hit_another_option": true,
+      "option_rect": { "x": 341, "y": 406, "width": 314, "height": 36 },
+      "hit_option_rect": { "x": 341, "y": 444, "width": 314, "height": 36 },
+      "hit_option_content_rect": { "x": 349, "y": 417, "width": 290, "height": 90 }
+    },
+    "cause": "The following option's multiline text overflowed its shrunken 36-pixel row and covered the owner's click center. Popup, dialog and viewport placement were already valid."
+  },
+  "checks": {
+    "privacy_parser_tests": { "passed": 10, "failed": 0 },
+    "existing_picker_bounds_and_keyboard_tests": { "passed": 10, "failed": 0 },
+    "browser_typescript_exit": 0,
+    "app_typescript_and_production_build_exit": 0,
+    "baseline_case": { "passed": 0, "failed": 3, "engines": ["chromium", "firefox", "webkit"] },
+    "expanded_actionability_observation": { "passed": 0, "failed": 3 },
+    "bounded_row_geometry_observation": { "passed": 0, "failed": 1, "engine": "chromium" },
+    "corrected_original_case": {
+      "passed": 3, "failed": 0,
+      "duration_ms": { "chromium": 3211, "firefox": 4750, "webkit": 3181 },
+      "outcome": "Normal pointer selection and the original persisted lead, brief formatting, reload and independent metadata/body version assertions pass"
+    },
+    "initial_launcher_failure": "An overanchored CLI filter selected zero tests; its caller/log/result and clean teardown remain retained separately. Corrected discovery selected exactly one case per engine.",
+    "historical_failed_product_cases_retained": 7
+  },
+  "diagnostic_privacy": {
+    "annotation": "project-lead-readiness",
+    "publication": "A single validated annotation is printed at test end and included in the receipt",
+    "accepted_values": "Exact fixed enums, bounded integer counts/timings/rectangles and booleans or explicit unknown nulls",
+    "rejected_values": "Extra/missing fields, arbitrary strings, nested secrets, prototype keys, malformed/oversized JSON, inconsistent states and out-of-range values",
+    "option_snapshot_semantics": "Option facts identify before_click or after_failed_click; they are independent of later request completion. A zero pre-click sample is not an unavailable-owner diagnosis. The original normal click and persisted lead assertion establish successful selection.",
+    "raw_names_identifiers_urls_headers_cookies_bodies_and_errors_published": false
+  },
+  "evidence": {
+    "root": "$OPENTRACK_DEV_STATE/project-lead-readiness",
+    "index": "artifact-index.json",
+    "index_sha256": "4e4d308997322789c606c73404c793cd31cb9d0078b1311b052ee40b78bee618",
+    "indexed_files": 131,
+    "facts": "final-facts.json",
+    "facts_sha256": "ee213ab21583c93a7f8f7e989c809c0316e0396103fdff96f36f0adf4b047cc4",
+    "all_owned_browser_namespaces_empty": true,
+    "all_owned_apis_reaped": true,
+    "private_database_stopped_and_data_retained": true,
+    "original_hosted_failure": "The lead retains the original AMD64 log, SHA256 e5a199d5674dc1a675339000691d33625f799c0dc56eadab3283f583bf241a20; these focused results do not erase it"
+  },
+  "limits": [
+    "Only the original project-create/brief case was run locally; no full local matrix was repeated.",
+    "The local three-engine regression is corrected. The original hosted failure had limited diagnostics, so fresh exact-head hosted checks and independent review still establish integrated acceptance.",
+    "Native/physical/assistive-technology and broader performance/product gates remain separate."
+  ],
+  "migration_rollback": "No schema or storage format change. Reverting the CSS declaration restores the previous row layout; diagnostics can be removed independently."
+}
