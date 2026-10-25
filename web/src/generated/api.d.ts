@@ -26722,6 +26722,8 @@ export interface operations {
             200: {
                 headers: {
                     "Cache-Control"?: "no-store";
+                    /** @description Strong quoted aggregate version; send as If-Match on later changes. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -44400,6 +44402,8 @@ export interface operations {
             200: {
                 headers: {
                     "Cache-Control"?: "no-store";
+                    /** @description Strong validator bound to the current maintenance state, caller authority and resume capability. Use If-None-Match for reads and the current value as If-Match when resuming. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -44409,6 +44413,8 @@ export interface operations {
             304: {
                 headers: {
                     "Cache-Control"?: "no-store";
+                    /** @description Strong validator bound to the current maintenance state, caller authority and resume capability. Use If-None-Match for reads and the current value as If-Match when resuming. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -44798,6 +44804,8 @@ export interface operations {
             200: {
                 headers: {
                     "Cache-Control"?: "no-store";
+                    /** @description Strong validator bound to the current maintenance state, caller authority and resume capability. Use If-None-Match for reads and the current value as If-Match when resuming. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {

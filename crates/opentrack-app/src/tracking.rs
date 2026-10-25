@@ -216,7 +216,7 @@ impl App {
     ) -> Result<Issue> {
         if key.len() < 8 || key.len() > 128 || !key.is_ascii() {
             return Err(Error::Invalid(
-                "Provide an Idempotency-Key of 8ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“128 ASCII characters".into(),
+                "Provide an Idempotency-Key of 8–128 ASCII characters".into(),
             ));
         }
         req.validate()?;

@@ -588,7 +588,7 @@ pub fn bounded_text(value: &str, name: &str, max: usize) -> Result<String> {
     let value = value.trim();
     if value.is_empty() || value.chars().count() > max || value.chars().any(|c| c.is_control()) {
         Err(Error::Invalid(format!(
-            "{name} must contain 1â€“{max} characters without control characters"
+            "{name} must contain 1–{max} characters without control characters"
         )))
     } else {
         Ok(value.into())
@@ -624,7 +624,7 @@ pub fn validate_team_key(value: &str) -> Result<String> {
             .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
     {
         return Err(Error::Invalid(
-            "Team key must be 2â€“10 letters or numbers, starting with a letter".into(),
+            "Team key must be 2–10 letters or numbers, starting with a letter".into(),
         ));
     }
     Ok(value)
@@ -638,12 +638,12 @@ mod tests {
     use super::*;
     #[test]
     fn unicode_title_limit_is_characters() {
-        assert!(bounded_text(&"Ã©".repeat(256), "Title", 256).is_ok());
-        assert!(bounded_text(&"Ã©".repeat(257), "Title", 256).is_err());
+        assert!(bounded_text(&"é".repeat(256), "Title", 256).is_ok());
+        assert!(bounded_text(&"é".repeat(257), "Title", 256).is_err());
     }
     #[test]
     fn password_accepts_spaces_and_paste() {
-        assert!(validate_password("a long pasted passphrase ðŸ¦€").is_ok());
+        assert!(validate_password("a long pasted passphrase 🦀").is_ok());
         assert!(validate_password("short").is_err());
     }
     #[test]

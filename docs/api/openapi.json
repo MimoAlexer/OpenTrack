@@ -42721,6 +42721,12 @@
                   "const": "no-store",
                   "type": "string"
                 }
+              },
+              "ETag": {
+                "description": "Strong quoted aggregate version; send as If-Match on later changes.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -70400,6 +70406,12 @@
                   "const": "no-store",
                   "type": "string"
                 }
+              },
+              "ETag": {
+                "description": "Strong validator bound to the current maintenance state, caller authority and resume capability. Use If-None-Match for reads and the current value as If-Match when resuming.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -70408,6 +70420,12 @@
               "Cache-Control": {
                 "schema": {
                   "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "Strong validator bound to the current maintenance state, caller authority and resume capability. Use If-None-Match for reads and the current value as If-Match when resuming.",
+                "schema": {
                   "type": "string"
                 }
               }
@@ -71018,6 +71036,12 @@
               "Cache-Control": {
                 "schema": {
                   "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "Strong validator bound to the current maintenance state, caller authority and resume capability. Use If-None-Match for reads and the current value as If-Match when resuming.",
+                "schema": {
                   "type": "string"
                 }
               }

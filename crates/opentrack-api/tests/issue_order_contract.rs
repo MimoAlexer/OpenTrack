@@ -953,6 +953,18 @@ async fn progress(f: &Fixture, client: &Client, path: &str) -> Value {
     ] {
         assert!(body.get(forbidden).is_none());
     }
+    let unchanged = request(
+        &f.router,
+        Some(client),
+        "GET",
+        path,
+        None,
+        &[("if-none-match", reply.etag())],
+    )
+    .await;
+    unchanged.expect(StatusCode::NOT_MODIFIED);
+    assert_eq!(unchanged.etag(), reply.etag());
+    assert!(unchanged.bytes.is_empty());
     body
 }
 
@@ -1059,9 +1071,26 @@ async fn large_position_intent_survives_mid_apply_access_loss_and_manager_resume
     assert_eq!(blocked["applied_count"], "100");
     assert_eq!(blocked["total_count"], "501");
     assert_eq!(blocked["error_code"], "access_lost");
-    request(&f.router, Some(&f.manager), "GET", &path, None, &[])
-        .await
-        .problem(StatusCode::NOT_FOUND, "not_found");
+    request(
+        &f.router,
+        Some(&f.member),
+        "GET",
+        &path,
+        None,
+        &[("if-none-match", queued["etag"].as_str().unwrap())],
+    )
+    .await
+    .problem(StatusCode::UNAUTHORIZED, "unauthenticated");
+    request(
+        &f.router,
+        Some(&f.manager),
+        "GET",
+        &path,
+        None,
+        &[("if-none-match", blocked["etag"].as_str().unwrap())],
+    )
+    .await
+    .problem(StatusCode::NOT_FOUND, "not_found");
     let viewer = progress(&f, &f.viewer, &path).await;
     assert_eq!(viewer["can_resume"], false);
     let resume = format!("{path}/resume");
@@ -1075,6 +1104,27 @@ async fn large_position_intent_survives_mid_apply_access_loss_and_manager_resume
     )
     .await
     .problem(StatusCode::FORBIDDEN, "forbidden");
+    let mut tx = h.context(f.owner.id, f.workspace).await;
+    sqlx::query("UPDATE workspace_members SET role='admin' WHERE workspace_id=$1 AND user_id=$2")
+        .bind(f.workspace)
+        .bind(f.viewer.id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    let promoted = login(&f.router, "viewer@example.test").await;
+    let changed = request(
+        &f.router,
+        Some(&promoted),
+        "GET",
+        &path,
+        None,
+        &[("if-none-match", viewer["etag"].as_str().unwrap())],
+    )
+    .await;
+    changed.expect(StatusCode::OK);
+    assert_eq!(changed.json()["can_resume"], true);
+    assert_ne!(changed.etag(), viewer["etag"].as_str().unwrap());
     request(
         &f.router,
         Some(&f.manager),
