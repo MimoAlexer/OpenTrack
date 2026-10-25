@@ -9,7 +9,7 @@
 .reference-search>svg { width:14px; color:var(--secondary); }
 .reference-search>input { width:100%; min-width:0; min-height:32px; padding:5px 7px; border:1px solid var(--control); background:var(--panel); }
 .reference-options { display:flex; flex-direction:column; gap:2px; min-height:0; max-height:230px; overflow:auto; }
-.reference-option { display:flex; align-items:center; gap:8px; min-height:36px; padding:7px 8px; border-radius:4px; cursor:pointer; font-size:12px; }
+.reference-option { display:flex; flex-shrink:0; align-items:center; gap:8px; min-height:36px; padding:7px 8px; border-radius:4px; cursor:pointer; font-size:12px; }
 .reference-option>span:nth-last-child(2) { flex:1; min-width:0; overflow-wrap:anywhere; }
 .reference-option small { display:block; color:var(--secondary); margin-top:2px; font-size:10px; }
 .reference-option.active,.reference-option:hover { background:var(--hover); }
