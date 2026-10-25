@@ -206,7 +206,8 @@ class BrowserAcceptance:
                             "--app-secrets", "/run/secrets")
             require(re.fullmatch(r"[0-9a-f]{64}", token), "The credential helper returned an invalid setup token")
             password = secrets.token_urlsafe(36)
-            manifest = prepare(self, token, password)
+            suite_deadline = time.monotonic() + 900
+            manifest = prepare(self, token, password, suite_deadline=suite_deadline)
             validate_manifest(manifest)
             with tempfile.TemporaryDirectory(prefix="opentrack-browser-order-") as directory:
                 os.chmod(directory, 0o700)
@@ -216,7 +217,7 @@ class BrowserAcceptance:
                     json.dump(manifest, stream)
                 environment = browser_environment(self.environment, self.url, token, password, path)
                 result = subprocess.run(["node", "node_modules/@playwright/test/cli.js", "test"],
-                                        cwd=self.root / "web", env=environment, timeout=900)
+                                        cwd=self.root / "web", env=environment, timeout=remaining(suite_deadline, 900))
                 require(result.returncode == 0, "Browser acceptance failed; inspect the credential-free test receipt")
         finally:
             if started:

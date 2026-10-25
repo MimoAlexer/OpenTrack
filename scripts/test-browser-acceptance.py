@@ -317,7 +317,8 @@ class Boundaries(unittest.TestCase):
                     return SimpleNamespace(returncode=outcome)
 
                 with patch.object(module, "prepare", return_value=manifest()), patch.object(module.subprocess, "run", side_effect=node), \
-                        patch.object(module.os, "open", wraps=os.open) as opened, patch.object(module.os, "chmod", wraps=os.chmod) as mode:
+                        patch.object(module.os, "open", wraps=os.open) as opened, patch.object(module.os, "chmod", wraps=os.chmod) as mode, \
+                        patch.object(module.time, "monotonic", return_value=1000):
                     if outcome == 0:
                         runner.run()
                     else:
@@ -361,12 +362,54 @@ class Boundaries(unittest.TestCase):
                 runner.command(["docker", "version"])
         self.assertNotIn("synthetic", str(raised.exception))
 
+    def test_preparation_consumes_the_single_suite_budget_before_node(self):
+        runner = self.runner()
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", ""])
+        clock = [1000]
+
+        def compose(*args, **kwargs):
+            if args[0] == "up":
+                clock[0] += 240
+            return "127.0.0.1:18081" if args[0] == "port" else "a" * 64
+
+        runner.dc.side_effect = compose
+
+        def preparation(*args, suite_deadline):
+            self.assertEqual(suite_deadline, 2140)
+            clock[0] += 137
+            return manifest()
+
+        with patch.object(module.time, "monotonic", side_effect=lambda: clock[0]), \
+                patch.object(module, "prepare", side_effect=preparation), \
+                patch.object(module.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as node:
+            runner.run()
+        node.assert_called_once()
+        self.assertEqual(node.call_args.kwargs["timeout"], 763)
+        self.assertEqual(runner.dc.call_args.args[0], "down")
+
+    def test_exhausted_suite_budget_never_starts_node_and_still_cleans_up(self):
+        runner = self.runner()
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", ""])
+        runner.dc.side_effect = lambda *args, **kwargs: "127.0.0.1:18081" if args[0] == "port" else "a" * 64
+        clock = [1000]
+
+        def preparation(*args, suite_deadline):
+            clock[0] = suite_deadline
+            return manifest()
+
+        with patch.object(module.time, "monotonic", side_effect=lambda: clock[0]), \
+                patch.object(module, "prepare", side_effect=preparation), patch.object(module.subprocess, "run") as node:
+            with self.assertRaisesRegex(RuntimeError, "bounded deadline"):
+                runner.run()
+        node.assert_not_called()
+        self.assertEqual(runner.dc.call_args.args, ("down", "--volumes", "--remove-orphans", "--timeout", "35"))
+
 
 class FixturePreparation(unittest.TestCase):
     def test_three_real_lifecycle_sequences_and_variable_partial_count(self):
         harness = PreparationHarness()
         with patch.object(fixtures, "Client", side_effect=harness.client):
-            result = fixtures.prepare(harness, "synthetic-token", "synthetic-password")
+            result = fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=time.monotonic() + 900)
         self.assertEqual(result, manifest())
         self.assertTrue(harness.running)
         self.assertEqual(harness.operations[-2:], [("start", "worker"), ("inspect", "worker")])
@@ -386,7 +429,7 @@ class FixturePreparation(unittest.TestCase):
         harness = PreparationHarness()
         harness.fresh = False
         with patch.object(fixtures, "Client", side_effect=harness.client), self.assertRaises(RuntimeError):
-            fixtures.prepare(harness, "synthetic-token", "synthetic-password")
+            fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=time.monotonic() + 900)
         self.assertEqual(harness.operations, [("http", "GET", "/api/v1/setup/status")])
 
     def test_input_failure_partial_stop_and_missed_checkpoint_restore_worker(self):
@@ -397,7 +440,7 @@ class FixturePreparation(unittest.TestCase):
             else:
                 setattr(harness, failure, True)
             with self.subTest(failure=failure), patch.object(fixtures, "Client", side_effect=harness.client), self.assertRaises(RuntimeError):
-                fixtures.prepare(harness, "synthetic-token", "synthetic-password")
+                fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=time.monotonic() + 900)
             self.assertTrue(harness.running)
             self.assertEqual(harness.operations[-2:], [("start", "worker"), ("inspect", "worker")])
 
@@ -405,14 +448,14 @@ class FixturePreparation(unittest.TestCase):
         harness = PreparationHarness()
         harness.fail_start = True
         with patch.object(fixtures, "Client", side_effect=harness.client), self.assertRaisesRegex(RuntimeError, "restoration failure"):
-            fixtures.prepare(harness, "synthetic-token", "synthetic-password")
+            fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=time.monotonic() + 900)
         self.assertFalse(harness.running)
 
     def test_replaced_worker_is_never_started(self):
         harness = PreparationHarness()
         harness.changed_worker = True
         with patch.object(fixtures, "Client", side_effect=harness.client), self.assertRaisesRegex(RuntimeError, "different worker"):
-            fixtures.prepare(harness, "synthetic-token", "synthetic-password")
+            fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=time.monotonic() + 900)
         self.assertFalse(any(op[0] == "start" for op in harness.operations))
         self.assertEqual(harness.sql, [])
 
@@ -420,14 +463,45 @@ class FixturePreparation(unittest.TestCase):
         harness = PreparationHarness()
         harness.owned_service = Mock(side_effect=RuntimeError("Mock foreign resource"))
         with patch.object(fixtures, "Client", side_effect=harness.client), self.assertRaises(RuntimeError):
-            fixtures.prepare(harness, "synthetic-token", "synthetic-password")
+            fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=time.monotonic() + 900)
         self.assertEqual(harness.operations, [("http", "GET", "/api/v1/setup/status")])
 
     def test_deadline_prevents_worker_control_and_sql(self):
         harness = PreparationHarness()
         with patch.object(fixtures, "Client", side_effect=harness.client), patch.object(fixtures.time, "monotonic", side_effect=[0, 301]), self.assertRaises(RuntimeError):
-            fixtures.prepare(harness, "synthetic-token", "synthetic-password")
+            fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=900)
         self.assertFalse(any(op[0] in ("stop", "run", "sql") for op in harness.operations))
+
+    def test_preparation_cap_is_clipped_to_remaining_suite_time_and_cleanup_is_not(self):
+        harness = PreparationHarness()
+        with patch.object(fixtures.time, "monotonic", return_value=1000), \
+                patch.object(fixtures, "Client", side_effect=harness.client) as clients, \
+                patch.object(harness, "dc", wraps=harness.dc) as commands:
+            result = fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=1040)
+        self.assertEqual(result, manifest())
+        self.assertTrue(all(call.args[1] == 1040 for call in clients.call_args_list))
+        self.assertTrue(all(call.kwargs["timeout"] == 40 for call in commands.call_args_list if call.args[0] != "start"))
+        self.assertEqual(commands.call_args.kwargs["timeout"], 55)
+
+    def test_expiry_after_worker_stop_still_restores_that_owned_worker(self):
+        harness = PreparationHarness()
+        clock = [1000]
+        command = harness.dc
+
+        def expire_after_stop(*args, **kwargs):
+            command(*args, **kwargs)
+            if args[0] == "stop":
+                clock[0] = 1901
+
+        with patch.object(fixtures.time, "monotonic", side_effect=lambda: clock[0]), \
+                patch.object(fixtures, "Client", side_effect=harness.client), \
+                patch.object(harness, "dc", side_effect=expire_after_stop) as commands:
+            with self.assertRaisesRegex(RuntimeError, "bounded deadline"):
+                fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=1900)
+        self.assertTrue(harness.running)
+        self.assertEqual(harness.sql, [])
+        self.assertEqual(commands.call_args.args, ("start", "worker"))
+        self.assertEqual(commands.call_args.kwargs["timeout"], 55)
 
     def test_sql_identifiers_and_team_scope_reject_before_execution(self):
         for ids in (("not-an-id", uid(2), uid(3), uid(4)), (uid(1), uid(2), "x'; SELECT 1", uid(4))):

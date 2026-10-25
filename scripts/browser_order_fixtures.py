@@ -25,7 +25,7 @@ def identifier(value):
 
 def remaining(deadline, maximum):
     seconds = deadline - time.monotonic()
-    require(seconds > 0, "Browser fixture preparation exceeded its bounded deadline")
+    require(seconds > 0, "Browser acceptance exceeded its bounded deadline")
     return min(seconds, maximum)
 
 
@@ -149,8 +149,8 @@ def progress(owner, path, team, status, job):
     return current
 
 
-def prepare(runner, token, password):
-    deadline = time.monotonic() + PREPARATION_SECONDS
+def prepare(runner, token, password, *, suite_deadline):
+    deadline = min(suite_deadline, time.monotonic() + PREPARATION_SECONDS)
     owner = Client(runner.url, deadline)
     require(owner.request("/api/v1/setup/status").get("setup_required") is True,
             "Browser setup must target a fresh database")
