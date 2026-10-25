@@ -42,6 +42,26 @@ async function submit(form: HTMLFormElement) { await act(async () => form.dispat
 async function focusRefresh() { await act(async () => window.dispatchEvent(new Event('focus'))); }
 function field(label: string) { return [...container.querySelectorAll('label')].find(element => element.firstChild?.textContent === label)?.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input,textarea,select')!; }
 
+it.each(['create', 'edit'])('preserves a rejected supplementary status %s draft and repairs it under the same workflow precondition', async mode => {
+  const name = '\u{1F680}'.repeat(100); const writes: RequestInit[] = []; const saved = vi.fn();
+  const accepted = { ...initial, version: '2', statuses: mode === 'create' ? [...initial.statuses, status('added', name, 2)] : [{ ...first, name }, second] };
+  vi.stubGlobal('fetch', vi.fn((_url: string, options: RequestInit) => {
+    writes.push(options);
+    return Promise.resolve(writes.length === 1 ? json({ code: 'validation_failed', detail: 'Status name must contain 1–100 characters without control characters' }, 422) : json(accepted, mode === 'create' ? 201 : 200));
+  }));
+  await render(<StatusEditor workspaceId="w" workflow={initial} status={mode === 'edit' ? first : undefined} session={session} canManage close={() => {}} saved={saved} accept={() => {}} />);
+  await input(field('Status name'), name + '\u{1F680}'); await submit(container.querySelector('form')!);
+  expect(field('Status name').value).toBe(name + '\u{1F680}'); expect(container.textContent).toContain('Status name must contain'); expect(saved).not.toHaveBeenCalled();
+  expect(field('Status name').matches(':disabled')).toBe(false);
+  await input(field('Status name'), name); await submit(container.querySelector('form')!);
+  expect(writes).toHaveLength(2); expect(saved).toHaveBeenCalledExactlyOnceWith(accepted);
+  for (const [index, write] of writes.entries()) {
+    expect(write.method).toBe(mode === 'create' ? 'POST' : 'PATCH');
+    expect(new Headers(write.headers).get('If-Match')).toBe('"workflow:t:1:true"');
+    expect(JSON.parse(write.body as string)).toEqual({ name: name + (index === 0 ? '\u{1F680}' : ''), color: 'slate', ...(mode === 'create' ? { category: 'unstarted' } : {}) });
+  }
+});
+
 it('shows the explicit default regardless of order and omits it until the person chooses a status', async () => {
   let workflow = initial; let body: Record<string, unknown> | undefined;
   vi.stubGlobal('fetch', vi.fn((url: string, options: RequestInit) => {

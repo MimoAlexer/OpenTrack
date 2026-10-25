@@ -1,0 +1,906 @@
+{
+  "date": "2026-10-25",
+  "scope": "Workflow and taxonomy scalar input; bounded F08/F09 increment",
+  "base_commit": "8b730204089f0ce63c61e0615c9bb7a49ebeaa98",
+  "branch": "codex/worker-a-workflow-label-scalars",
+  "change": "Remove exactly three native UTF-16 maxlength caps: status name, label name and Search labels. Existing Rust scalar bounds and all other controls/policy remain unchanged.",
+  "source_and_check_sha256": {
+    "web/src/workflows/StatusEditor.tsx": "612684e29e10c83dc5e11544ac54633a454e98a3ee73479fd68ab8720ebdb38e",
+    "web/src/workflows/Workflow.test.tsx": "2f32cf2c51c5bd600ee4d2c4d59987fb567c90a16024017915f69e5a55cce9bb",
+    "web/src/taxonomy/LabelSettings.tsx": "df454687663d01fb8495ba4dd2e35c7e042d9e0745557f3400d5b586db97ad8a",
+    "web/src/taxonomy/Taxonomy.test.tsx": "b34e8c6470af1e04ec7f9a22eeac7cc888ce0d6734775a58c2eaadd32a1f98ac",
+    "web/e2e/workflow-label-scalar-inputs.browser.ts": "5a2bf5fd7013e4df9e16f7da50577cac0d26ca6f50a14cee3be14574ab3a95cd",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "web/e2e/fixtures.ts": "97c8f8183457a7b4af966090b12fbe58166c0f7fa37822643c5511d4fb469445",
+    "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667",
+    "work/workflow-label-contained.py": "22a3332ae6268fd293c9084fc7c1f82534695e83e855a52da217dac9b6f2d0df",
+    "work/workflow-label-scalars/unit.log": "15781987849e893f08ec1349bc3abeb09b2a4c7f77ca70c41c320b89ff00eacd",
+    "work/workflow-label-scalars/typecheck.log": "50791af51b60280d7e513ca60ad69f0d2b8af76c3ac63034a5a590ae70375779",
+    "work/workflow-label-scalars/production-build.log": "b29b3d58ebde4e73b687424f605bfc821dd3121112956bf09b3c384aa48a43da"
+  },
+  "executed_checks": [
+    {
+      "command": "cd web; npm test -- src/workflows/Workflow.test.tsx src/taxonomy/Taxonomy.test.tsx --maxWorkers=1",
+      "status": "passed",
+      "files": 2,
+      "tests": 38
+    },
+    {
+      "command": "cd web; npm run typecheck",
+      "status": "passed",
+      "targets": [
+        "tsconfig.json",
+        "tsconfig.e2e.json"
+      ]
+    },
+    {
+      "command": "npm run build --prefix web",
+      "status": "passed",
+      "candidate_production_builds": 1
+    }
+  ],
+  "browser_command": "node node_modules/@playwright/test/cli.js test workflow-label-scalar-inputs.browser.ts",
+  "profile": {
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "journeys_per_engine": 2,
+    "workers": 1,
+    "retries": 0,
+    "test_timeout_ms": 60000,
+    "expect_timeout_ms": 10000,
+    "action_timeout_ms": 10000,
+    "origin": "http://127.0.0.1:18081",
+    "trace": false,
+    "screenshot": false,
+    "video": false
+  },
+  "private_reporters": "Existing receipt reporter plus standard JSON reporter; private per-phase output roots. Six baseline failures and six corrected passes retained separately.",
+  "fixture_isolation": "Fresh synthetic private teams per journey in the existing worker database. No data reset or environment recreation; same approved copied scope and frozen backend in both phases.",
+  "first_wave_preservation": {
+    "candidate": "64341961ff6317e5dcac3e81fa2ab1fbba14a54b",
+    "qualified_assets_relocated": "$OPENTRACK_DEV_STATE/template-scalar-inputs/qualified-frontend",
+    "relocation_receipt_sha256": "a18de90be2a5cc7b698f7e3953f5c2fc7ce030ff8cb03e28cc13082b04335f13",
+    "all_nine_assets_maps_hash_verified": true,
+    "qualification_repeated": false
+  },
+  "baseline_frontend": "Copied the previously retained exact pinned-base frontend; source maps independently match both pinned production files. No new baseline build.",
+  "runtime_artifact_root": "$OPENTRACK_DEV_STATE/workflow-label-scalars",
+  "runs": {
+    "baseline": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "status scalar boundaries preserve aggregate versions, defaults and order through rejected writes and repaired reloads",
+            "status": "failed",
+            "duration_ms": 10802,
+            "failure": "workflow-label-scalar-inputs.browser.ts:42"
+          },
+          {
+            "browser": "chromium",
+            "check": "label scalar names and full search queries preserve drafts, saved versions and filtered results after 422 rejection",
+            "status": "failed",
+            "duration_ms": 672,
+            "failure": "workflow-label-scalar-inputs.browser.ts:142"
+          },
+          {
+            "browser": "firefox",
+            "check": "status scalar boundaries preserve aggregate versions, defaults and order through rejected writes and repaired reloads",
+            "status": "failed",
+            "duration_ms": 12318,
+            "failure": "workflow-label-scalar-inputs.browser.ts:42"
+          },
+          {
+            "browser": "firefox",
+            "check": "label scalar names and full search queries preserve drafts, saved versions and filtered results after 422 rejection",
+            "status": "failed",
+            "duration_ms": 2294,
+            "failure": "workflow-label-scalar-inputs.browser.ts:142"
+          },
+          {
+            "browser": "webkit",
+            "check": "status scalar boundaries preserve aggregate versions, defaults and order through rejected writes and repaired reloads",
+            "status": "failed",
+            "duration_ms": 11058,
+            "failure": "workflow-label-scalar-inputs.browser.ts:42"
+          },
+          {
+            "browser": "webkit",
+            "check": "label scalar names and full search queries preserve drafts, saved versions and filtered results after 422 rejection",
+            "status": "failed",
+            "duration_ms": 1165,
+            "failure": "workflow-label-scalar-inputs.browser.ts:142"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "baseline",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "5a2bf5fd7013e4df9e16f7da50577cac0d26ca6f50a14cee3be14574ab3a95cd",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 1,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "journey": "status",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-counts": {
+              "status_name": {
+                "scalars": 50,
+                "utf16_units": 100
+              }
+            }
+          }
+        },
+        {
+          "engine": "chromium",
+          "journey": "label-search",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-counts": {
+              "label_name": {
+                "scalars": 50,
+                "utf16_units": 100
+              },
+              "label_query": {
+                "scalars": 50,
+                "utf16_units": 100
+              }
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "journey": "status",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-counts": {
+              "status_name": {
+                "scalars": 50,
+                "utf16_units": 100
+              }
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "journey": "label-search",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-counts": {
+              "label_name": {
+                "scalars": 50,
+                "utf16_units": 100
+              },
+              "label_query": {
+                "scalars": 50,
+                "utf16_units": 100
+              }
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "journey": "status",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-counts": {
+              "status_name": {
+                "scalars": 50,
+                "utf16_units": 100
+              }
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "journey": "label-search",
+          "status": "failed",
+          "attachments": {
+            "native-boundary-counts": {
+              "label_name": {
+                "scalars": 50,
+                "utf16_units": 100
+              },
+              "label_query": {
+                "scalars": 50,
+                "utf16_units": 100
+              }
+            }
+          }
+        }
+      ]
+    },
+    "corrected": {
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "status scalar boundaries preserve aggregate versions, defaults and order through rejected writes and repaired reloads",
+            "status": "passed",
+            "duration_ms": 2029
+          },
+          {
+            "browser": "chromium",
+            "check": "label scalar names and full search queries preserve drafts, saved versions and filtered results after 422 rejection",
+            "status": "passed",
+            "duration_ms": 2913
+          },
+          {
+            "browser": "firefox",
+            "check": "status scalar boundaries preserve aggregate versions, defaults and order through rejected writes and repaired reloads",
+            "status": "passed",
+            "duration_ms": 3999
+          },
+          {
+            "browser": "firefox",
+            "check": "label scalar names and full search queries preserve drafts, saved versions and filtered results after 422 rejection",
+            "status": "passed",
+            "duration_ms": 4379
+          },
+          {
+            "browser": "webkit",
+            "check": "status scalar boundaries preserve aggregate versions, defaults and order through rejected writes and repaired reloads",
+            "status": "passed",
+            "duration_ms": 2765
+          },
+          {
+            "browser": "webkit",
+            "check": "label scalar names and full search queries preserve drafts, saved versions and filtered results after 422 rejection",
+            "status": "passed",
+            "duration_ms": 4085
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "containment": {
+        "phase": "corrected",
+        "backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "5a2bf5fd7013e4df9e16f7da50577cac0d26ca6f50a14cee3be14574ab3a95cd",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 0,
+        "cleanup_failures": []
+      },
+      "journeys": [
+        {
+          "engine": "chromium",
+          "journey": "status",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-counts": {
+              "status_name": {
+                "scalars": 100,
+                "utf16_units": 200
+              }
+            },
+            "persisted-scalar-receipt": {
+              "created_scalars": 100,
+              "edited_scalars": 100,
+              "aggregate_versions": [
+                "1",
+                "2",
+                "3"
+              ],
+              "existing_statuses_default_category_order_preserved": true,
+              "writes": [
+                {
+                  "method": "POST",
+                  "status": 422
+                },
+                {
+                  "method": "POST",
+                  "status": 201
+                },
+                {
+                  "method": "PATCH",
+                  "status": 422
+                },
+                {
+                  "method": "PATCH",
+                  "status": 200
+                }
+              ]
+            }
+          }
+        },
+        {
+          "engine": "chromium",
+          "journey": "label-search",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-counts": {
+              "label_name": {
+                "scalars": 100,
+                "utf16_units": 200
+              },
+              "label_query": {
+                "scalars": 100,
+                "utf16_units": 200
+              }
+            },
+            "persisted-scalar-receipt": {
+              "created_scalars": 100,
+              "edited_scalars": 100,
+              "versions": [
+                "1",
+                "2"
+              ],
+              "query_scalars": [
+                100,
+                101,
+                100
+              ],
+              "query_statuses": [
+                200,
+                422,
+                200
+              ],
+              "no_unfiltered_fallback": true,
+              "writes": [
+                {
+                  "method": "POST",
+                  "status": 422
+                },
+                {
+                  "method": "POST",
+                  "status": 201
+                },
+                {
+                  "method": "PATCH",
+                  "status": 422
+                },
+                {
+                  "method": "PATCH",
+                  "status": 200
+                }
+              ]
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "journey": "status",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-counts": {
+              "status_name": {
+                "scalars": 100,
+                "utf16_units": 200
+              }
+            },
+            "persisted-scalar-receipt": {
+              "created_scalars": 100,
+              "edited_scalars": 100,
+              "aggregate_versions": [
+                "1",
+                "2",
+                "3"
+              ],
+              "existing_statuses_default_category_order_preserved": true,
+              "writes": [
+                {
+                  "method": "POST",
+                  "status": 422
+                },
+                {
+                  "method": "POST",
+                  "status": 201
+                },
+                {
+                  "method": "PATCH",
+                  "status": 422
+                },
+                {
+                  "method": "PATCH",
+                  "status": 200
+                }
+              ]
+            }
+          }
+        },
+        {
+          "engine": "firefox",
+          "journey": "label-search",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-counts": {
+              "label_name": {
+                "scalars": 100,
+                "utf16_units": 200
+              },
+              "label_query": {
+                "scalars": 100,
+                "utf16_units": 200
+              }
+            },
+            "persisted-scalar-receipt": {
+              "created_scalars": 100,
+              "edited_scalars": 100,
+              "versions": [
+                "1",
+                "2"
+              ],
+              "query_scalars": [
+                100,
+                101,
+                100
+              ],
+              "query_statuses": [
+                200,
+                422,
+                200
+              ],
+              "no_unfiltered_fallback": true,
+              "writes": [
+                {
+                  "method": "POST",
+                  "status": 422
+                },
+                {
+                  "method": "POST",
+                  "status": 201
+                },
+                {
+                  "method": "PATCH",
+                  "status": 422
+                },
+                {
+                  "method": "PATCH",
+                  "status": 200
+                }
+              ]
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "journey": "status",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-counts": {
+              "status_name": {
+                "scalars": 100,
+                "utf16_units": 200
+              }
+            },
+            "persisted-scalar-receipt": {
+              "created_scalars": 100,
+              "edited_scalars": 100,
+              "aggregate_versions": [
+                "1",
+                "2",
+                "3"
+              ],
+              "existing_statuses_default_category_order_preserved": true,
+              "writes": [
+                {
+                  "method": "POST",
+                  "status": 422
+                },
+                {
+                  "method": "POST",
+                  "status": 201
+                },
+                {
+                  "method": "PATCH",
+                  "status": 422
+                },
+                {
+                  "method": "PATCH",
+                  "status": 200
+                }
+              ]
+            }
+          }
+        },
+        {
+          "engine": "webkit",
+          "journey": "label-search",
+          "status": "passed",
+          "attachments": {
+            "native-boundary-counts": {
+              "label_name": {
+                "scalars": 100,
+                "utf16_units": 200
+              },
+              "label_query": {
+                "scalars": 100,
+                "utf16_units": 200
+              }
+            },
+            "persisted-scalar-receipt": {
+              "created_scalars": 100,
+              "edited_scalars": 100,
+              "versions": [
+                "1",
+                "2"
+              ],
+              "query_scalars": [
+                100,
+                101,
+                100
+              ],
+              "query_statuses": [
+                200,
+                422,
+                200
+              ],
+              "no_unfiltered_fallback": true,
+              "writes": [
+                {
+                  "method": "POST",
+                  "status": 422
+                },
+                {
+                  "method": "POST",
+                  "status": 201
+                },
+                {
+                  "method": "PATCH",
+                  "status": 422
+                },
+                {
+                  "method": "PATCH",
+                  "status": 200
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "frontend_source_provenance": [
+    {
+      "phase": "baseline",
+      "source": "web/src/taxonomy/LabelSettings.tsx",
+      "source_sha256": "86232b037ae25404acf6d7f05c64a36b63bfa3c39632742c3d70785ecf70d408",
+      "sourcemap": "assets/index-CAeW4zFK.js.map",
+      "sourcemap_sha256": "516821d4467f467480c14e14fbbe529915bcca9679c49ec03554a27d8d7ecb41",
+      "bundle_sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524"
+    },
+    {
+      "phase": "baseline",
+      "source": "web/src/workflows/StatusEditor.tsx",
+      "source_sha256": "b086c15fb813f442f710ceabb49198f478601a21b2d3b22d7ebbf2ba5ccd6677",
+      "sourcemap": "assets/index-CAeW4zFK.js.map",
+      "sourcemap_sha256": "516821d4467f467480c14e14fbbe529915bcca9679c49ec03554a27d8d7ecb41",
+      "bundle_sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524"
+    },
+    {
+      "phase": "corrected",
+      "source": "web/src/taxonomy/LabelSettings.tsx",
+      "source_sha256": "df454687663d01fb8495ba4dd2e35c7e042d9e0745557f3400d5b586db97ad8a",
+      "sourcemap": "assets/index-DP2hupZv.js.map",
+      "sourcemap_sha256": "9fd857557f3577146bf2affab8b7587166c94a37dbc4c49a2bdc02f2f3585a09",
+      "bundle_sha256": "e9cde9a3baa851777340a9b4ee14b3b98fc2510dd9cb35c5ebb6aa2783d3f7a8"
+    },
+    {
+      "phase": "corrected",
+      "source": "web/src/workflows/StatusEditor.tsx",
+      "source_sha256": "612684e29e10c83dc5e11544ac54633a454e98a3ee73479fd68ab8720ebdb38e",
+      "sourcemap": "assets/index-DP2hupZv.js.map",
+      "sourcemap_sha256": "9fd857557f3577146bf2affab8b7587166c94a37dbc4c49a2bdc02f2f3585a09",
+      "bundle_sha256": "e9cde9a3baa851777340a9b4ee14b3b98fc2510dd9cb35c5ebb6aa2783d3f7a8"
+    }
+  ],
+  "retained_frontend_assets": [
+    {
+      "phase": "baseline",
+      "path": "assets/RichTextEditor-BedJvSKb.js",
+      "sha256": "a7b972c673d27a66d332a670742aee8d25a56d230d3feca5875b4937030a9178",
+      "bytes": 444281,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/RichTextEditor-BedJvSKb.js.map",
+      "sha256": "67e888af9e6fdec5c8153941ea5aa1f1e1fcc4126da5e66158230c442c8e3d46",
+      "bytes": 1964893,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/index-B9yoYYJd.css",
+      "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+      "bytes": 90154,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/index-CAeW4zFK.js",
+      "sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524",
+      "bytes": 689015,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/index-CAeW4zFK.js.map",
+      "sha256": "516821d4467f467480c14e14fbbe529915bcca9679c49ec03554a27d8d7ecb41",
+      "bytes": 2393652,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/portability.worker-DEvlQVr4.js",
+      "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+      "bytes": 79037,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "assets/portability.worker-DEvlQVr4.js.map",
+      "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+      "bytes": 224663,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "index.html",
+      "sha256": "ca5c59a4af58df389a9d9cd627db02f17d33f573ef9c6735ce7a9a838137797b",
+      "bytes": 606,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "theme.js",
+      "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+      "bytes": 321,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/RichTextEditor--uG5bnxn.js",
+      "sha256": "259ff6426402d2723e9aa6e2b2af53d8183c8266037639fa47e1453e04d7b935",
+      "bytes": 444281,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/RichTextEditor--uG5bnxn.js.map",
+      "sha256": "508653b908d2609c276a51a460be4807e385acba8df29b5a5901337009be54e3",
+      "bytes": 1964243,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/index-B9yoYYJd.css",
+      "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+      "bytes": 90154,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/index-DP2hupZv.js",
+      "sha256": "e9cde9a3baa851777340a9b4ee14b3b98fc2510dd9cb35c5ebb6aa2783d3f7a8",
+      "bytes": 688973,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/index-DP2hupZv.js.map",
+      "sha256": "9fd857557f3577146bf2affab8b7587166c94a37dbc4c49a2bdc02f2f3585a09",
+      "bytes": 2391554,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/portability.worker-DEvlQVr4.js",
+      "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+      "bytes": 79037,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "assets/portability.worker-DEvlQVr4.js.map",
+      "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+      "bytes": 224663,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "index.html",
+      "sha256": "b1bc2b254cb22832d263002bad621224f3e6c55175a50bb923ffdc7ec1292fdc",
+      "bytes": 606,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "theme.js",
+      "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+      "bytes": 321,
+      "mode": "0o600"
+    }
+  ],
+  "private_runtime_artifacts": [
+    {
+      "phase": "baseline",
+      "path": "api.log",
+      "sha256": "bfd06e74c60b8aa171fc43a1638c6ca169ca42666c4c50b9df1277e50f769e0c",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "migration.log",
+      "sha256": "d2070eece3f862723b4af076bfefbb981fd2fffcf2b4f80cfffd204d4c288a48",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/.last-run.json",
+      "sha256": "f8bb03b52475267c02f305242237ee354169a577cb2edd3ab1eacda8f2a06c4d",
+      "bytes": 341,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/workflow-label-scalar-inpu-65c7c-writes-and-repaired-reloads-chromium/error-context.md",
+      "sha256": "ea5c4e05f6856b845b7ed5e764d9f5b04bb93b550ef7807aacd2bbf14db6b8f9",
+      "bytes": 12756,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/workflow-label-scalar-inpu-65c7c-writes-and-repaired-reloads-firefox/error-context.md",
+      "sha256": "8e3b3be177ec8ead063813f73d7e2adca54a84d91ee527e4bce2bdd6c4570bc8",
+      "bytes": 12756,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/workflow-label-scalar-inpu-65c7c-writes-and-repaired-reloads-webkit/error-context.md",
+      "sha256": "ea5c4e05f6856b845b7ed5e764d9f5b04bb93b550ef7807aacd2bbf14db6b8f9",
+      "bytes": 12756,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/workflow-label-scalar-inpu-6e441-results-after-422-rejection-chromium/error-context.md",
+      "sha256": "b328996f78b909efc820c2a7e6b9e1b75ab8017ea82119e240b6af9af8c7b4ca",
+      "bytes": 33371,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/workflow-label-scalar-inpu-6e441-results-after-422-rejection-firefox/error-context.md",
+      "sha256": "e5ac939d511f1450dae3bcd713a21ab1b392af3059849cdb29f0b1ece7c8bfeb",
+      "bytes": 34354,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "output/workflow-label-scalar-inpu-6e441-results-after-422-rejection-webkit/error-context.md",
+      "sha256": "3519f53a15a3cb698c47b7651dbe542be60e0d0268dc96c5e4100bcad788f531",
+      "bytes": 34804,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "private-results.json",
+      "sha256": "3defa144439eebfc99a539eadb7587eec801edc731118c70f1f26bdaa215e789",
+      "bytes": 78919,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "receipt.json",
+      "sha256": "9b896185178aee77ad67b3dbf9e54ccfee490a9f0beb22195d4be9d4281d2bad",
+      "bytes": 2104,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "runner.log",
+      "sha256": "390f7ef9d2c87b2dd3e7821473a2f3fea97ac44ec422fb1f21ff286d5e5d55a5",
+      "bytes": 1124,
+      "mode": "0o600"
+    },
+    {
+      "phase": "baseline",
+      "path": "scope-receipt.json",
+      "sha256": "b9f76cb53277e98b46395343706734c142d39810ff5b869314101d1f9c1ae576",
+      "bytes": 473,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "api.log",
+      "sha256": "cfdf7fd47f40fe1c4463a57f9be652e2b62d4d2cf2d3c8511c13d1ef0e10937c",
+      "bytes": 366,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "migration.log",
+      "sha256": "56b635d209175b4c9e69078697410cbd358c30968d30c2b64d42cc9ed40d4743",
+      "bytes": 203,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "output/.last-run.json",
+      "sha256": "91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903",
+      "bytes": 45,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "private-results.json",
+      "sha256": "40f85605772ee70c4a8d603e633d3a50362ba7fa7418f30903e1bbce62ff1f9d",
+      "bytes": 19888,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "receipt.json",
+      "sha256": "7d4a77f9b07b1576198294d8a3984d09fb91ee00573009d4997475c1e6257a87",
+      "bytes": 1721,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "runner.log",
+      "sha256": "2df7bfc5803644ecd582b6e1497afd27ca68ce1feed5ebfed0d87f95d1b7b4e0",
+      "bytes": 851,
+      "mode": "0o600"
+    },
+    {
+      "phase": "corrected",
+      "path": "scope-receipt.json",
+      "sha256": "4eceb4214350120c9dffa259cea2c5005b170d6ee421c3818ea146d798dea4ef",
+      "bytes": 474,
+      "mode": "0o600"
+    }
+  ],
+  "shutdown": {
+    "same_namespace_extra_processes": [],
+    "postmaster_pid_absent": true,
+    "database_data_retained": true
+  },
+  "shutdown_receipt_sha256": "ccbaea8ae3e0ab7df0f8208f921543c105cdfb51bd830e9118903394ec612f76",
+  "asserted_behavior": [
+    "Native input preserves100 supplementary scalars for status/label creation, edit and reload; baseline caps admitted50.",
+    "Each101-scalar create/edit request reaches Rust and returns HTTP422 validation_failed while preserving drafts and saved values/versions.",
+    "One repaired create and one repaired edit succeed per entity, without duplicate entity or version increment on rejection.",
+    "Workflow preconditions use current aggregate ETags; existing statuses/default/category/order remain unchanged.",
+    "Search sends the full100-scalar query and finds the saved label.101 reaches HTTP422 without truncation or an unfiltered fallback; repair reloads the filtered result.",
+    "Focused existing tests retain conflict review, original-command uncertain retry, restore-name repair, permissions and label scope behavior."
+  ],
+  "migration_rollback": "No schema, Rust or wire change. Frontend rollback restores native cutoffs; the unchanged server still reads scalar-valid saved names.",
+  "limits": [
+    "Only this bounded F08/F09 input slice is qualified; broader feature/milestone/product completion is not claimed.",
+    "Normal contained completion and namespace emptiness were verified; no forced interruption drill was performed.",
+    "Physical IME/keyboard, native desktop, assistive technology, screenshots and global matrices remain separate gates.",
+    "Independent exact-head review, hosted checks and integration remain with the lead. No push, PR, merge or issue closure was performed.",
+    "The ongoing lead-directed worker Goal stays active for scoped review findings and the next explicit assignment."
+  ]
+}
