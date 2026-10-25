@@ -1,0 +1,204 @@
+{
+  "date": "2026-10-25",
+  "status": "Private composed-source checks passed; manual UI and final integrated acceptance pending",
+  "qualified_head": "6ba9482fa5c7b86b0a5b4f4017554496dafa960b",
+  "imported_candidates": [
+    {
+      "original": "71718f0d89b4fdd872b84ae8428c2b838142c902",
+      "private_import": "b4e6c94",
+      "scope": "Reviewed input/CSS correction batch; publicPR166 remains held at incomplete hosted matrix"
+    },
+    {
+      "original": "f0a0de6eb6b6d1487ec95d2057c3ae0d4abb8841",
+      "private_imports": [
+        "d08eb6b",
+        "f0d8703"
+      ],
+      "scope": "Literal scoped team query already in backend; palette team/project discovery UI and evidence imported"
+    },
+    {
+      "original": "813e54bf769e7ba1c4cfefeac16f8c899b2168ae",
+      "private_import": "26abc2e",
+      "scope": "Reviewed append/replace and semantic rich Markdown portability"
+    },
+    {
+      "original": "200c2efb447018fae2b1f3379c860a7392b931bf",
+      "private_imports": [
+        "3670769",
+        "89fac44",
+        "1c66e3e",
+        "128d3c5"
+      ],
+      "scope": "Planning write intent/review recovery and its three review corrections"
+    },
+    {
+      "original": "4dfede8fa5f7935d29c70ff7e2a28962f5ffe4f2",
+      "private_import": "6ba9482",
+      "scope": "Fixture-only compatibility; separate14-case proof retained, independent review pending"
+    }
+  ],
+  "production_binding": [
+    {
+      "reviewed_commit": "71718f0",
+      "path": "web/src/auth/AuthScreen.tsx",
+      "byte_identical": true,
+      "sha256": "badb3f5dd3ca16c5f38a5b668ad62f3a51caeabb4a1f6cf0f627513527db7394"
+    },
+    {
+      "reviewed_commit": "71718f0",
+      "path": "web/src/documents/IssueComments.tsx",
+      "byte_identical": true,
+      "sha256": "b6cb795f50de66bd46ad356edc80373776a496c7ce3c96c2caf4e17e63505174"
+    },
+    {
+      "reviewed_commit": "71718f0",
+      "path": "web/src/projects/ProjectUpdates.tsx",
+      "byte_identical": true,
+      "sha256": "7da16a04ff7c7e076529a8ae31783ec5bf275b2a5ed7972fb90a575c2e53e6cd"
+    },
+    {
+      "reviewed_commit": "71718f0",
+      "path": "web/src/settings/JoinWorkspace.tsx",
+      "byte_identical": true,
+      "sha256": "4c7c15d1cf1f9be4a753b5538300c6275fc0b52258eb8d1015df1e73b6a65546"
+    },
+    {
+      "reviewed_commit": "71718f0",
+      "path": "web/src/taxonomy/Picker.tsx",
+      "byte_identical": true,
+      "sha256": "c8db7b30c3f2b6704ca40270db26643a931eaa747a4bd905d4022b6b15d4ed81"
+    },
+    {
+      "reviewed_commit": "71718f0",
+      "path": "web/src/taxonomy/taxonomy.css",
+      "byte_identical": true,
+      "sha256": "e9eec762503ed759577cc98b551992be9093147d98320d1ee08efb311b6eaa91"
+    },
+    {
+      "reviewed_commit": "71718f0",
+      "path": "web/src/issues/Trash.tsx",
+      "byte_identical": true,
+      "sha256": "7d42b0d134bcdd755aca4d1587e2f4c8eaaea857fc8fee2aa9ed96dff6eadc48"
+    },
+    {
+      "reviewed_commit": "71718f0",
+      "path": "web/src/cycles/Cycles.tsx",
+      "byte_identical": true,
+      "sha256": "e290b07b1ed3983277244af224250f72d34bdc3a0e8d34117174947f8cb75e17"
+    },
+    {
+      "reviewed_commit": "f0a0de6",
+      "path": "web/src/commands/CommandPalette.tsx",
+      "byte_identical": true,
+      "sha256": "206ec3f94179d4645f34938a25132392450593f8fc7f25d4a116bfc452dad85f"
+    },
+    {
+      "reviewed_commit": "f0a0de6",
+      "path": "web/src/commands/commands.css",
+      "byte_identical": true,
+      "sha256": "d3431e7e4a7b9cccab401b82f64fb4666c556b25cc097d6bc74389ea47ca7053"
+    },
+    {
+      "reviewed_commit": "f0a0de6",
+      "path": "web/src/commands/usePaletteEntities.ts",
+      "byte_identical": true,
+      "sha256": "818807526e08012c55079877e9e16bb121ccfaef728345c9b0c3d0e8afd73707"
+    },
+    {
+      "reviewed_commit": "813e54b",
+      "path": "web/src/documents/DocumentPortability.tsx",
+      "byte_identical": true,
+      "sha256": "ac003ebea0578d944ebde4d27799a12959da543d5311bca117a1397f3a1e9a84"
+    },
+    {
+      "reviewed_commit": "200c2ef",
+      "path": "web/src/projects/ProjectIssues.tsx",
+      "byte_identical": true,
+      "sha256": "eb178aa7c863847f9620f96e4942742b59e2bdf6894880aa3b0e669fd7290d9b"
+    },
+    {
+      "reviewed_commit": "200c2ef",
+      "path": "web/src/projects/Milestones.tsx",
+      "byte_identical": false,
+      "sha256": "cf371315d237a6729bcf81ff46c52577ac79671c59a62192e8b911454358326e",
+      "composition": "Exactly reviewed200c source with the existing main25ca milestone native title cap removal retained",
+      "composed_bytes_verified": true
+    }
+  ],
+  "backend_production": {
+    "head": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+    "unchanged_source_roots": [
+      "crates/opentrack-domain/src",
+      "crates/opentrack-app/src",
+      "crates/opentrack-api/src",
+      "crates/opentrack-store/src",
+      "crates/opentrack-store/migrations",
+      "crates/opentrack-server/src"
+    ],
+    "byte_identical": true,
+    "rebuild_repeated": false,
+    "frozen_binary_sha256": "f9725a64b91ef8df2847abfb7ededf8dd31566caa5601812a8d4b39801c01622"
+  },
+  "executed": {
+    "focused_tests": 164,
+    "test_files": 9,
+    "test_paths": [
+      "src/commands/commands.test.tsx",
+      "src/commands/preferences.test.tsx",
+      "src/commands/palette-issues.test.tsx",
+      "src/commands/usePaletteEntities.test.tsx",
+      "src/projects/PlanningWriteRecovery.test.tsx",
+      "src/projects/Projects.test.tsx",
+      "src/cycles/Planning.test.tsx",
+      "src/documents/DocumentPortability.test.tsx",
+      "src/documents/RichTextEditorPortability.test.tsx"
+    ],
+    "checks": [
+      {
+        "check": "focused-units",
+        "exit_code": 0,
+        "elapsed_seconds": 18.797,
+        "owned_process_reaped": true,
+        "log_sha256": "c995b158d01942de6356b849834b11bb4fc2225907ce85c675433ac2740de7fd",
+        "passed": 164,
+        "files": 9
+      },
+      {
+        "check": "typescript-app",
+        "exit_code": 0,
+        "elapsed_seconds": 0.859,
+        "owned_process_reaped": true,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "check": "typescript-browser",
+        "exit_code": 0,
+        "elapsed_seconds": 0.516,
+        "owned_process_reaped": true,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "tracked_sources_unchanged": true,
+    "full_unit_suite": false,
+    "production_build": false,
+    "browser_execution": false
+  },
+  "private_evidence": {
+    "root": "$OPENTRACK_DEV_STATE/manual-feature-union-v1",
+    "index": "artifact-index.json",
+    "index_sha256": "a1b8972f780154651d1dc1eb8f5a97452718b8b00b9d929b1b46b7235814d2f3",
+    "files": 5,
+    "linux_copies_verified_equal_to_retained_windows_artifacts": true,
+    "copied_linux_modes": "0700 directory /0600 files",
+    "raw_logs_published": false,
+    "result_sha256": "6d0f4d6f06081d9f1228a5844536a2403171798f80a1b407709e3bcd1665b88a"
+  },
+  "preserved_boundaries": [
+    "Initial private runner preparation failed before any product test started; delimiter corrected only, receipt retained",
+    "Original source-specific browser successes and failures remain in their individual receipts; no combined current-bundle browser success claimed",
+    "PR166717 AMD64 report remains201passed/12unreported/outer600s timeout; source integration here does not clear that public gate",
+    "No timeout/profile/assertion relaxation; proposed900 remains awaiting explicit human answer",
+    "Manual UI candidate remains separately owned and unfinished; production build deferred until that union",
+    "No main merge, M27 retained-database upgrade, issue closure, native/physical/assistive/performance or whole-product completion"
+  ]
+}
