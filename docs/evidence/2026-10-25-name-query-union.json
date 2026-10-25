@@ -103,7 +103,7 @@
   ],
   "limits": [
     "Original native failures and selector-discovery failures are retained separately with final same-spec comparisons.",
-    "Supplementary label-restore behavior is covered by existing policy tests, not a new restore browser journey.",
+    "Existing restore-name repair policy remains covered by focused tests; supplementary-scalar restore input was not separately exercised.",
     "No local global browser matrix, forced cancellation, native/physical/IME/assistive or broad milestone completion is claimed."
   ]
 }
