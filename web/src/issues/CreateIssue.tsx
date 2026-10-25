@@ -81,7 +81,7 @@ export function CreateIssue({ workspaceId, data, session, initialTeam, close, cr
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (committed.current || busy || uploads?.pending || composing || unavailable || parentReview || templateReview || unresolved.length > 0 || (!uncertain && !useDefault && !validExplicitStatus)) return;
     if (!pending.current || !uncertain && (!maintenance || pending.current.fingerprint !== fingerprint)) { const { status_id, description: _description, ...fields } = draft; pending.current = { key: crypto.randomUUID(), fingerprint, body: { ...fields, document: { schema_version: 1, body }, ...(template ? { template, status_id: useDefault ? currentDefault?.id ?? '' : status_id } : !useDefault ? { status_id } : {}), title: draft.title.trim(), team_id: teamId, ...(parentIssue ? { parent_id: parentIssue.id, parent_etag: parentIssue.etag } : {}) } }; }
-    setBusy(true); setError(null);
+    setBusy(true); setError(null); setMaintenance(null);
     let issue: Issue;
     try {
       issue = await request<Issue>(`/workspaces/${workspaceId}/issues`, { method: 'POST', body: pending.current.body, csrf: session.csrf_token, headers: { 'Idempotency-Key': pending.current.key } });

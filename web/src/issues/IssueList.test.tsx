@@ -290,6 +290,28 @@ it.each([false, true])('uses authorized exit proof while respecting an independe
   } finally { history.replaceState(previous.state, '', previous.url); }
 });
 
+it('recovers a denied manual board with a compatible all-team sort and retains unrelated filters', async () => {
+  let reads = 0; let workflows = 0; const previous = { url: `${location.pathname}${location.search}`, state: history.state };
+  history.replaceState({ otIndex: 0 }, '', '/w/w/issues?team_id=t&status_id=s&layout=board&display_version=1&q=review&priority=2&view=mine&sort=manual');
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (url.includes('/workflow')) { workflows += 1; return Promise.resolve(privateWorkflow()); }
+    return Promise.resolve(++reads === 2 ? json({ code: 'not_found' }, 404) : json({ data: [issue], next_cursor: null, has_more: false, order_version: '1:1' }));
+  }));
+  function Routed({ refresh }: { refresh: number }) {
+    const route = parseRoute(useLocation());
+    return <IssueList workspaceId="w" data={privateData} session={session} params={route.search} refresh={refresh} create={() => {}} searchRef={createRef()} />;
+  }
+  try {
+    await act(async () => root.render(<Routed refresh={0} />)); await act(async () => root.render(<Routed refresh={1} />));
+    await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Open all issues')!.click());
+    const query = new URLSearchParams(location.search);
+    expect(query.get('team_id')).toBeNull(); expect(query.get('status_id')).toBeNull(); expect(query.get('layout')).toBe('list'); expect(query.get('sort')).toBe('created');
+    expect(query.get('q')).toBe('review'); expect(query.get('priority')).toBe('2'); expect(query.get('view')).toBe('mine'); expect(query.get('display_version')).toBe('1');
+    expect(workflows).toBe(1); expect(reads).toBe(3); expect(container.querySelector('#row-i')).not.toBeNull();
+    expect(container.textContent).not.toContain('Manual ordering requires an explicitly selected');
+  } finally { history.replaceState(previous.state, '', previous.url); }
+});
+
 it('retains the original denied team and reports only its fresh recovery proofs after another team is selected', async () => {
   const otherTeam = { ...privateData.teams[0], id: 'other-team', key: 'OTHER', name: 'Other team', private: false };
   const otherStatus = { ...status, id: 'other-status', team_id: otherTeam.id };

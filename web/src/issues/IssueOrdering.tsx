@@ -25,6 +25,11 @@ const denied = (error: unknown) => error instanceof ApiError && [401, 403, 404].
 const text = (value: unknown): value is string => typeof value === 'string' && !!value.trim();
 const count = (value: unknown): value is string => typeof value === 'string' && /^(0|[1-9][0-9]*)$/.test(value);
 const jobStates = ['queued', 'running', 'retry_wait', 'blocked', 'dead_letter', 'succeeded'];
+function validOrderVersion(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 39) return false;
+  const parts = value.split(':');
+  return parts.length === 2 && parts.every(part => /^[1-9][0-9]*$/.test(part) && BigInt(part) <= 9223372036854775807n && BigInt(part).toString() === part);
+}
 
 export function validOrderJobs(value: unknown): value is OrderMaintenance[] {
   return Array.isArray(value) && value.every(job => job && text(job.id) && text(job.team_id) && text(job.status_id) && jobStates.includes(job.state) && ['staging', 'applying', 'completed'].includes(job.phase) && count(job.staged_count) && count(job.applied_count) && (job.total_count === null || count(job.total_count)) && count(job.version) && text(job.etag) && typeof job.can_resume === 'boolean' && (job.error_code === null || typeof job.error_code === 'string'));
@@ -86,7 +91,7 @@ export function useIssueOrdering(options: Options) {
         if (valid(operation)) change({ ...active, jobs: combined, facts: { authority: operation.authority, issue, workflow, candidates: [], anchorUnavailable: !!active.anchorId }, phase: active.outcome === 'unknown' ? 'uncertain' : active.outcome === 'acknowledged' ? 'acknowledged' : 'maintenance', error });
         return;
       }
-      if (!text(page.order_version) || !Array.isArray(page.data) || page.data.length > 50 || page.data.some(item => item.workspace_id !== options.workspaceId || item.team_id !== active.teamId || item.status_id !== active.statusId || item.archived_at)) throw new ApiError(0, 'invalid_response', 'The current issue order could not be verified.');
+      if (!validOrderVersion(page.order_version) || !Array.isArray(page.data) || page.data.length > 50 || page.data.some(item => item.workspace_id !== options.workspaceId || item.team_id !== active.teamId || item.status_id !== active.statusId || item.archived_at)) throw new ApiError(0, 'invalid_response', 'The current issue order could not be verified.');
       let anchor: Issue | undefined; let anchorUnavailable = false;
       if (active.anchorId && active.outcome !== 'unknown' && active.outcome !== 'acknowledged') {
         try {
@@ -121,7 +126,8 @@ export function useIssueOrdering(options: Options) {
     change(pending);
     try {
       const ack = await request<PositionAck>(`/workspaces/${options.workspaceId}/issues/${active.sourceId}/position`, { method: 'POST', csrf: latest.current.session.csrf_token, signal: operation.abort.signal, body: sent.body, headers: { 'If-Match': sent.etag, 'Idempotency-Key': sent.key } });
-      if (!ack || ack.issue?.id !== active.sourceId || ack.issue.workspace_id !== options.workspaceId || !text(ack.order_version)) throw new ApiError(0, 'invalid_response', 'The position response could not be verified. Check the same request.');
+      if (!ack || !validOrderVersion(ack.order_version)) throw new ApiError(0, 'invalid_response', 'The position response could not be verified. Check the same request.');
+      currentIssue(ack.issue, active.sourceId, options.workspaceId);
       if (!valid(operation)) return;
       const acknowledged: Intent = { ...pending, outcome: 'acknowledged', phase: 'acknowledged' }; change(acknowledged);
       await refresh(acknowledged, operation);
@@ -129,18 +135,18 @@ export function useIssueOrdering(options: Options) {
       if (!valid(operation)) return;
       const jobs = orderMaintenance(error, active.teamId);
       if (jobs) {
-        const maintenance: Intent = { ...pending, outcome: 'not-applied', phase: 'maintenance', jobs, error }; change(maintenance); latest.current.reload();
+        const maintenance: Intent = { ...pending, outcome: active.outcome === 'unknown' ? 'unknown' : 'not-applied', phase: active.outcome === 'unknown' ? 'uncertain' : 'maintenance', jobs, error }; change(maintenance); latest.current.reload();
         await refresh(maintenance, operation);
       }
       else if (denied(error)) await accessFailure(pending, operation, error);
-      else if (error instanceof ApiError && [409, 412, 422].includes(error.status)) {
+      else if (active.outcome !== 'unknown' && error instanceof ApiError && (error.status === 409 && error.code === 'conflict' || error.status === 412 && error.code === 'version_conflict' || error.status === 422 && error.code === 'validation_failed')) {
         const conflict: Intent = { ...pending, outcome: 'not-applied', phase: 'review', facts: undefined, error }; change(conflict);
         await refresh(conflict, operation);
       } else change({ ...pending, phase: 'uncertain', error });
     } finally { end(operation); }
   }
   function begin(issue: Issue, teamId: string, orderVersion: string, choice?: Partial<Choice>, pointer = false) {
-    if (stateRef.current || !latest.current.ready || latest.current.readOnly || !text(orderVersion) || issue.workspace_id !== options.workspaceId || issue.team_id !== teamId || issue.archived_at) return;
+    if (stateRef.current || !latest.current.ready || latest.current.readOnly || !validOrderVersion(orderVersion) || issue.workspace_id !== options.workspaceId || issue.team_id !== teamId || issue.archived_at) return;
     const active: Intent = { id: crypto.randomUUID(), sourceId: issue.id, teamId, statusId: choice?.statusId ?? issue.status_id, placement: choice?.placement ?? 'append', anchorId: choice?.anchorId, outcome: 'unsent', phase: 'choose', jobs: [], error: null };
     change(active);
     if (pointer) {
@@ -281,7 +287,7 @@ export function useIssueOrderDrag({ enabled, controller, teamId, orderVersion, i
     value.target = issue && issue.id !== value.issue.id && column?.dataset.orderStatus ? { statusId: column.dataset.orderStatus, placement: event.clientY < row!.getBoundingClientRect().top + row!.getBoundingClientRect().height / 2 ? 'before' : 'after', anchorId: issue.id } : !row && column?.dataset.orderStatus ? { statusId: column.dataset.orderStatus, placement: 'append' } : undefined;
     setDrag({ issue: value.issue.id, target: value.target?.anchorId ?? value.target?.statusId, placement: value.target?.placement });
   }
-  function pointerUp(event: PointerEvent<HTMLButtonElement>) { const value = active.current; if (!value || value.pointer !== event.pointerId) return; stop(); if (value.active && value.target && controller) controller.begin(value.issue, value.teamId, value.orderVersion, value.target, true); }
+  function pointerUp(event: PointerEvent<HTMLButtonElement>) { const value = active.current; if (!value || value.pointer !== event.pointerId) return; if (value.active) pointerMove(event); stop(); if (enabled && value.active && value.target && controller) controller.begin(value.issue, value.teamId, value.orderVersion, value.target, true); }
   useEffect(() => { if (!enabled || active.current?.teamId !== teamId) stop(); }, [enabled, teamId]);
   useEffect(() => { const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && active.current) { event.preventDefault(); stop(); } }; window.addEventListener('keydown', escape, true); return () => { window.removeEventListener('keydown', escape, true); stop(); }; }, []);
   return { drag, pointerDown, pointerMove, pointerUp, cancel: stop };

@@ -209,3 +209,63 @@ it('keeps the pointer-down source and order snapshot when enabled drag props ref
   expect(writes[0][0]).toBe('/api/v1/workspaces/workspace/issues/issue/position'); expect(new Headers(writes[0][1].headers).get('If-Match')).toBe(source.etag);
   expect(JSON.parse(writes[0][1].body as string)).toEqual({ order_version: '1:1', status_id: targetStatus.id, before_id: anchor.id });
 });
+
+it.each(['incomplete issue', 'noncanonical order version', 'overflowing order version'] as const)('review boundary: keeps a malformed 200 %s uncertain until the identical request has a valid acknowledgement', async malformed => {
+  let posts = 0; const ack = { ...source, version: '2', etag: '"issue:issue:2"' }; const canonical = { ...source, version: '7', etag: '"issue:issue:7"' };
+  const invalid = { issue: malformed === 'incomplete issue' ? { id: source.id, workspace_id: source.workspace_id } : ack, order_version: malformed === 'noncanonical order version' ? '01:1' : malformed === 'overflowing order version' ? '1:9223372036854775808' : '2:1' };
+  const fetch = vi.fn((url: string, init: RequestInit) => Promise.resolve(init.method === 'POST' ? json(++posts === 1 ? invalid : { issue: ack, order_version: '2:1' }) : readFixture(url, canonical, '7:1')));
+  vi.stubGlobal('fetch', fetch); const config = options(); await render(<Ordering config={config} />); await begin(true);
+  expect(controller.state?.outcome).toBe('unknown'); expect(button('Check same position request').disabled).toBe(false); expect(config.updated).not.toHaveBeenCalled(); expect(hasUnsavedChanges()).toBe(true);
+  expect(fetch.mock.calls.filter(([, init]) => init.method !== 'POST')).toHaveLength(0);
+  await click('Check same position request'); const writes = fetch.mock.calls.filter(([, init]) => init.method === 'POST'); expect(writes).toHaveLength(2);
+  expect(writes[1][1].body).toBe(writes[0][1].body); for (const name of ['Idempotency-Key', 'If-Match']) expect(new Headers(writes[1][1].headers).get(name)).toBe(new Headers(writes[0][1].headers).get(name));
+  expect(config.updated).toHaveBeenCalledExactlyOnceWith(canonical);
+});
+
+it.each([[409, 'conflict'], [412, 'version_conflict'], [422, 'validation_failed']] as const)('review boundary: preserves an unknown successful-request replay after ordinary %s instead of offering a new move', async (statusCode, code) => {
+  let posts = 0; const ack = { ...source, version: '2', etag: '"issue:issue:2"' };
+  const fetch = vi.fn((url: string, init: RequestInit) => {
+    if (init.method !== 'POST') return Promise.resolve(readFixture(url, ack, '2:1'));
+    posts += 1;
+    if (posts === 1) return Promise.reject(new TypeError('Committed response lost'));
+    return Promise.resolve(posts === 2 ? json({ code, detail: 'The operation cannot be replayed.' }, statusCode) : json({ issue: ack, order_version: '2:1' }));
+  }); vi.stubGlobal('fetch', fetch); const config = options(); await render(<Ordering config={config} />); await begin(true); await click('Check same position request');
+  expect(controller.state?.outcome).toBe('unknown'); expect(button('Check same position request').disabled).toBe(false); expect(container.textContent).not.toContain('move was not applied'); expect(config.updated).not.toHaveBeenCalled();
+  expect([...container.querySelectorAll('button')].some(item => item.textContent === 'Apply reviewed position')).toBe(false);
+  await click('Check same position request'); const writes = fetch.mock.calls.filter(([, init]) => init.method === 'POST'); expect(writes).toHaveLength(3);
+  for (const [, init] of writes.slice(1)) { expect(init.body).toBe(writes[0][1].body); for (const name of ['Idempotency-Key', 'If-Match']) expect(new Headers(init.headers).get(name)).toBe(new Headers(writes[0][1].headers).get(name)); }
+  expect(config.updated).toHaveBeenCalledExactlyOnceWith(ack);
+});
+
+it.each(['applied true', 'invalid jobs'] as const)('review boundary: does not classify a malformed maintenance %s response as unapplied', async malformed => {
+  let posts = 0;
+  const fetch = vi.fn((url: string, init: RequestInit) => Promise.resolve(init.method === 'POST' ? ++posts === 1 ? json({ code: 'issue_order_maintenance', detail: 'Unverified maintenance', details: { applied: malformed === 'applied true', maintenance: malformed === 'invalid jobs' ? [{ id: job.id }] : [job] } }, 409) : json({ issue: source, order_version: '1:1' }) : readFixture(url)));
+  vi.stubGlobal('fetch', fetch); const config = options(); await render(<Ordering config={config} />); await begin(true);
+  expect(controller.state?.outcome).toBe('unknown'); expect(button('Check same position request').disabled).toBe(false); expect(container.textContent).not.toContain('move was not applied'); expect(config.updated).not.toHaveBeenCalled();
+  await click('Check same position request'); const writes = fetch.mock.calls.filter(([, init]) => init.method === 'POST'); expect(writes).toHaveLength(2);
+  expect(writes[1][1].body).toBe(writes[0][1].body); expect(new Headers(writes[1][1].headers).get('Idempotency-Key')).toBe(new Headers(writes[0][1].headers).get('Idempotency-Key'));
+});
+
+it('review boundary: keeps the original unknown outcome frozen when a later replay encounters current maintenance', async () => {
+  let posts = 0;
+  const fetch = vi.fn((url: string, init: RequestInit) => {
+    if (init.method === 'POST') { posts += 1; return posts === 1 ? Promise.reject(new TypeError('Response lost')) : Promise.resolve(posts === 2 ? maintenance() : json({ issue: source, order_version: '1:1' })); }
+    if (url === jobPath) return Promise.resolve(json(job));
+    if (url.includes('/issues?') && posts === 2) return Promise.resolve(maintenance());
+    return Promise.resolve(readFixture(url));
+  }); vi.stubGlobal('fetch', fetch); await render(<Ordering config={options()} />); await begin(true); await click('Check same position request');
+  expect(controller.state?.outcome).toBe('unknown'); expect(container.textContent).toContain('total not known yet'); expect(button('Check same position request').disabled).toBe(false); expect(container.textContent).not.toContain('move was not applied');
+  await click('Check same position request'); const writes = fetch.mock.calls.filter(([, init]) => init.method === 'POST'); expect(writes).toHaveLength(3);
+  expect(writes.every(([, init]) => init.body === writes[0][1].body && new Headers(init.headers).get('Idempotency-Key') === new Headers(writes[0][1].headers).get('Idempotency-Key'))).toBe(true);
+});
+
+it.each(['after reference', 'empty column', 'outside board'] as const)('review boundary: rechecks the actual release hit for a pointer drop at %s', async release => {
+  const canonical = { ...source, status_id: targetStatus.id, version: '2', etag: '"issue:issue:2"' };
+  const fetch = vi.fn((url: string, init: RequestInit) => Promise.resolve(init.method === 'POST' ? json({ issue: canonical, order_version: '2:1' }) : readFixture(url, canonical, '2:1')));
+  vi.stubGlobal('fetch', fetch); await render(<Dragging config={options()} />); const handle = button('Drag source'); const row = container.querySelector('[data-order-issue="anchor"]')!;
+  vi.spyOn(row, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 100, 100, 100)); hit = row; await pointer(handle, 'pointerdown', 0); await pointer(handle, 'pointermove', 110);
+  hit = release === 'outside board' ? null : release === 'empty column' ? container.querySelector('[data-testid="empty-target"]') : row;
+  await pointer(handle, 'pointerup', 190); const writes = fetch.mock.calls.filter(([, init]) => init.method === 'POST');
+  if (release === 'outside board') { expect(writes).toHaveLength(0); expect(container.textContent).toContain('No drag'); }
+  else { expect(writes).toHaveLength(1); expect(JSON.parse(writes[0][1].body as string)).toEqual({ order_version: '1:1', status_id: targetStatus.id, ...(release === 'after reference' ? { after_id: anchor.id } : {}) }); expect(new Headers(writes[0][1].headers).get('If-Match')).toBe(source.etag); }
+});

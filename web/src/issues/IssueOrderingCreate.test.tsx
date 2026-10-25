@@ -76,6 +76,25 @@ it('never creates automatically after maintenance completes and explicitly retri
   expect(JSON.parse(requests[1][1].body as string).document).toEqual({ schema_version: 1, body: readyBody }); expect(created).toHaveBeenCalledExactlyOnceWith(saved);
 });
 
+it('withdraws prior noncreation confirmation before retry and freezes an unchanged attached draft after response loss', async () => {
+  const close = vi.fn(); const created = vi.fn(); await render(close, created); await readyDraft(); await submit();
+  const binding = attachmentContext!.binding; expect(container.textContent).toContain('No issue was created by this request');
+  let interrupt!: (error: Error) => void; create = () => new Promise((_resolve, reject) => { interrupt = reject; });
+  await click('Retry create'); expect(writes()).toHaveLength(2); expect(container.textContent).not.toContain('No issue was created by this request');
+  expect(button('Cancel').disabled).toBe(true); expect(container.querySelector<HTMLFieldSetElement>('fieldset')!.disabled).toBe(true);
+  await act(async () => interrupt(new TypeError('Response lost')));
+  expect(container.textContent).toContain('this issue may already exist'); expect(container.textContent).not.toContain('No issue was created by this request');
+  expect(button('Cancel').disabled).toBe(true); expect(button('Retry safely').disabled).toBe(false); expect(editor.disabled).toBe(true);
+  expect(container.querySelector<HTMLFieldSetElement>('fieldset')!.disabled).toBe(true); expect(titleInput().value).toBe('Retained draft');
+  expect(editor.value).toEqual(readyBody); expect(attachmentContext!.binding).toBe(binding); expect(attachmentContext!.readySeed(fileId)).toEqual(file);
+  expect(close).not.toHaveBeenCalled(); expect(created).not.toHaveBeenCalled(); expect(hasUnsavedChanges()).toBe(true);
+  create = () => Promise.resolve(json(saved)); await click('Retry safely'); const requests = writes(); expect(requests).toHaveLength(3);
+  for (const [, request] of requests.slice(1)) {
+    expect(request.body).toBe(requests[0][1].body); expect(new Headers(request.headers).get('Idempotency-Key')).toBe(new Headers(requests[0][1].headers).get('Idempotency-Key'));
+  }
+  expect(JSON.parse(requests[2][1].body as string).document).toEqual({ schema_version: 1, body: readyBody }); expect(created).toHaveBeenCalledExactlyOnceWith(saved);
+});
+
 it('uses a new request key and body only after the user edits a confirmed unapplied draft', async () => {
   const created = vi.fn(); await render(vi.fn(), created); await readyDraft(); await submit(); await title('Explicitly revised draft');
   expect(writes()).toHaveLength(1); expect(container.textContent).not.toContain('No issue was created by this request'); expect(editor.value).toEqual(readyBody);

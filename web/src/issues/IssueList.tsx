@@ -132,7 +132,7 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
     const denial = deniedBoard.current;
     if (!denial || denial.authority !== historyScope || busy) return;
     const read = beginRead();
-    const next = new URLSearchParams(params); next.delete('team_id'); next.delete('status_id'); next.set('layout', 'list');
+    const next = new URLSearchParams(params); next.delete('team_id'); next.delete('status_id'); next.set('layout', 'list'); if (next.get('sort') === 'manual') next.set('sort', 'created');
     const exit = issuesUrl(workspaceId, next);
     setLoading({ scope: resultScope, busy: true, error: null });
     try {

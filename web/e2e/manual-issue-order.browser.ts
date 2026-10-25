@@ -128,7 +128,16 @@ test('an unknown position survives authority refresh with its exact request and 
   const lost = async (route: Route) => {
     if (route.request().method() !== 'POST') { await route.continue(); return; }
     requests.push(route.request()); const response = await route.fetch({ maxRetries: 0, maxRedirects: 0 });
-    try { expect(response.status()).toBe(200); const value: unknown = await response.json(); if (requests.length === 1) { acknowledged = value; await route.abort('failed'); } else { expect(value).toEqual(acknowledged); await route.fulfill({ response }); } } finally { await response.dispose(); }
+    try {
+      expect(response.status()).toBe(200); const value = await response.json() as { issue: Issue; order_version: string };
+      if (requests.length === 1) { acknowledged = value; await route.abort('failed'); }
+      else {
+        expect(value).toEqual(acknowledged);
+        if (requests.length === 2) await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...value, issue: { ...value.issue, etag: '' } }) });
+        else if (requests.length === 3) await route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ code: 'conflict', detail: 'The retained request result cannot currently be replayed.' }) });
+        else await route.fulfill({ response });
+      }
+    } finally { await response.dispose(); }
   };
   await page.route(endpoint, lost);
   try {
@@ -140,9 +149,17 @@ test('an unknown position survives authority refresh with its exact request and 
     const bootstrap = page.waitForResponse(response => response.request().method() === 'GET' && response.url() === `${new URL(saved.origin).origin}${saved.path}/bootstrap`);
     await saved.request(`/members/${ref.requester_id}`, 'PATCH', { role: 'viewer' }, { 'If-Match': member.etag! });
     await page.evaluate(() => window.dispatchEvent(new Event('focus'))); const refreshed = await (await bootstrap).json() as { auth_epoch: string }; expect(refreshed.auth_epoch).not.toBe(previous.auth_epoch);
-    await expect(dialog).toContainText(canonical.title); await dialog.getByRole('button', { name: 'Check same position request', exact: true }).click(); await expect(dialog).toHaveCount(0);
-    expect(requests).toHaveLength(2); expect(requests[1].postData()).toBe(requests[0].postData());
-    for (const header of ['if-match', 'idempotency-key']) expect(requests[1].headers()[header]).toBe(requests[0].headers()[header]);
+    await expect(dialog).toContainText(canonical.title);
+    for (let rejectedReplay = 0; rejectedReplay < 2; rejectedReplay++) {
+      await dialog.getByRole('button', { name: 'Check same position request', exact: true }).click();
+      await expect(dialog).toContainText('The outcome is uncertain.'); await expect(dialog.getByRole('button', { name: 'Check same position request', exact: true })).toBeEnabled();
+      await expect(dialog.getByRole('button', { name: 'Discard local move', exact: true })).toBeDisabled(); await expect(dialog.getByRole('button', { name: 'Apply reviewed position', exact: true })).toHaveCount(0);
+      expect(await saved.issue(source.id)).toEqual(canonical);
+    }
+    await dialog.getByRole('button', { name: 'Check same position request', exact: true }).click(); await expect(dialog).toHaveCount(0);
+    expect(requests).toHaveLength(4);
+    for (const replay of requests.slice(1)) { expect(replay.postData()).toBe(requests[0].postData()); for (const header of ['if-match', 'idempotency-key']) expect(replay.headers()[header]).toBe(requests[0].headers()[header]); }
+    test.info().annotations.push({ type: 'response-injection', description: 'Real committed/cached position responses: first delivery aborted; second acknowledgement has invalid empty ETag; third is injected generic409 representing unavailable/expired successful replay. Fourth delivers the actual cached success. No backend record or expiry was changed.' });
     expect(await saved.issue(source.id)).toEqual(canonical); await expect(page.locator(`#row-${source.id}`)).toContainText(canonical.title); await page.reload(); await expect(page.locator(`#row-${source.id}`)).toContainText(canonical.title);
   } finally { await page.unroute(endpoint, lost); }
 
@@ -217,7 +234,18 @@ test('typed large-group maintenance preserves an editable create draft and attac
     }
     expect(current).toMatchObject({ id: ref.job_id, state: 'succeeded', phase: 'completed', staged_count: '501', applied_count: '501', total_count: '501' }); await expect(progress).toContainText('Order preparation complete.'); expect(creates).toHaveLength(2); expect(positions).toHaveLength(0);
     expect((await saved.request<IssuePage>(`/issues?${new URLSearchParams({ team_id: ref.team_id, q: title, limit: '100' })}`)).data).toHaveLength(0);
-    const last = await create('Retry create'); expect(last.status()).toBe(201); const issue = await last.json() as Issue; expect(creates).toHaveLength(3); expect(creates[2].postData()).toBe(creates[1].postData()); expect(creates[2].headers()['idempotency-key']).toBe(creates[1].headers()['idempotency-key']);
+    let committed: Issue | undefined;
+    const loseCreate = async (route: Route) => { const value = await route.fetch({ maxRetries: 0, maxRedirects: 0 }); try { expect(value.status()).toBe(201); committed = await value.json() as Issue; await route.abort('failed'); } finally { await value.dispose(); } };
+    await page.route(createEndpoint, loseCreate);
+    try {
+      await dialog.getByRole('button', { name: 'Retry create', exact: true }).click();
+      await expect(dialog).toContainText('this issue may already exist'); await expect(dialog).not.toContainText('No issue was created by this request');
+      await expect(dialog.getByRole('textbox', { name: 'Title', exact: true })).toBeDisabled(); await expect(description).not.toBeEditable(); await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
+      await expect(dialog.getByRole('button', { name: 'Retry safely', exact: true })).toBeEnabled(); expect(creates).toHaveLength(3);
+    } finally { await page.unroute(createEndpoint, loseCreate); }
+    const last = await create('Retry safely'); expect(last.status()).toBe(201); const issue = await last.json() as Issue; expect(issue).toEqual(committed); expect(creates).toHaveLength(4);
+    for (const replay of creates.slice(2)) { expect(replay.postData()).toBe(creates[1].postData()); expect(replay.headers()['idempotency-key']).toBe(creates[1].headers()['idempotency-key']); }
+    test.info().annotations.push({ type: 'response-injection', description: 'Actual201 create response is delivered as a network abort; safe retry recovers the real cached201. No issue or idempotency record is fabricated.' });
     await expect(dialog).toHaveCount(0); await page.reload(); await expect(page.getByRole('textbox', { name: 'Description', exact: true })).toContainText('Ready draft and attachment survive order preparation.');
     const document = await saved.document(issue.id); expect(attachmentIds(document.body as RichBody)).toEqual([attachment.id]); expect(plainText(document.body as RichBody)).toContain('Ready draft and attachment'); expect((await saved.issue(issue.id)).title).toBe(edited);
     expect((await saved.request<IssuePage>(`/issues?${new URLSearchParams({ team_id: ref.team_id, q: title, limit: '100' })}`)).data.map(item => item.id)).toEqual([issue.id]);
