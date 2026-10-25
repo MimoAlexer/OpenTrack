@@ -165,6 +165,27 @@ class Boundaries(unittest.TestCase):
             with self.subTest(project=project), self.assertRaises(RuntimeError):
                 module.validate_target(project, "http://localhost:18081", self.env)
 
+    def test_preflight_inspects_inactive_profiles_without_enabling_runtime_services(self):
+        runner = self.runner()
+        active = copy.deepcopy(self.config)
+        active["services"] = {name: service for name, service in active["services"].items() if not service.get("profiles")}
+        referenced = {mount["source"] for service in active["services"].values() for mount in service["volumes"]}
+        active["volumes"] = {name: volume for name, volume in active["volumes"].items() if name in referenced}
+
+        def config(*arguments, **kwargs):
+            self.assertIn(arguments, (("config", "--format", "json"), ("--profile", "*", "config", "--format", "json")))
+            return json.dumps(self.config if arguments[0] == "--profile" else active)
+
+        runner.dc = Mock(side_effect=config)
+        resolved = module.BrowserAcceptance.preflight(runner)
+        self.assertEqual(set(resolved["services"]), set(module.SERVICE_MOUNTS))
+        self.assertIn("operator_output", resolved["volumes"])
+        self.assertEqual(runner.dc.call_args.args, ("--profile", "*", "config", "--format", "json"))
+        self.assertEqual(runner.environment["COMPOSE_PROFILES"], "")
+        runner.command.reset_mock()
+        module.BrowserAcceptance.dc(runner, "up", "--detach", timeout=1)
+        self.assertNotIn("--profile", runner.command.call_args.args[0])
+
     def test_no_local_or_non_loopback_runtime(self):
         for url in ("http://example.test:18081", "http://0.0.0.0:18081", "http://localhost:8080", "https://localhost:18081", "http://localhost:18081/path", "http://user@localhost:18081", "http://localhost:18081?target=elsewhere"):
             with self.subTest(url=url), self.assertRaises(RuntimeError):

@@ -153,7 +153,7 @@ class BrowserAcceptance:
         return self.command(self.compose + list(arguments), timeout)
 
     def preflight(self, timeout=120):
-        config = json.loads(self.dc("config", "--format", "json", timeout=timeout))
+        config = json.loads(self.dc("--profile", "*", "config", "--format", "json", timeout=timeout))
         validate_compose(config, self.project)
         return config
 
