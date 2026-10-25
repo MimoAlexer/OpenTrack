@@ -245,7 +245,7 @@ fn workspace_route(method: Method, path: &[&str]) -> bool {
         ["issues", issue, "relations", relation] => {
             id(issue) && id(relation) && matches!(method, Get | Delete)
         }
-        ["issues", issue, "move" | "restore"] => id(issue) && method == Post,
+        ["issues", issue, "move" | "restore" | "position"] => id(issue) && method == Post,
         ["teams", team, rest @ ..] if id(team) => team_route(method, rest),
         _ => false,
     }
@@ -267,8 +267,12 @@ fn team_route(method: Method, path: &[&str]) -> bool {
         ["statuses", status] => id(status) && matches!(method, Get | Patch),
         ["statuses", status, "replacement-preview"] => id(status) && method == Get,
         ["statuses", status, "archive" | "replace" | "restore"] => id(status) && method == Post,
-        ["workflow-replacements", job] => id(job) && method == Get,
-        ["workflow-replacements", job, "resume"] => id(job) && method == Post,
+        ["workflow-replacements" | "issue-order-maintenance", job] => id(job) && method == Get,
+        [
+            "workflow-replacements" | "issue-order-maintenance",
+            job,
+            "resume",
+        ] => id(job) && method == Post,
         ["workflow", "default" | "order"] => method == Put,
         _ => false,
     }
@@ -907,6 +911,38 @@ mod tests {
 #[cfg(test)]
 mod cycle_route_tests {
     use super::*;
+    #[test]
+    fn manual_order_routes_keep_methods_and_identifiers_scoped() {
+        let w = "00000000-0000-0000-0000-000000000001";
+        let t = "00000000-0000-0000-0000-000000000002";
+        let id = "00000000-0000-0000-0000-000000000003";
+        for (path, allowed) in [
+            (
+                format!("/api/v1/workspaces/{w}/issues/{id}/position"),
+                Method::Post,
+            ),
+            (
+                format!("/api/v1/workspaces/{w}/teams/{t}/issue-order-maintenance/{id}"),
+                Method::Get,
+            ),
+            (
+                format!("/api/v1/workspaces/{w}/teams/{t}/issue-order-maintenance/{id}/resume"),
+                Method::Post,
+            ),
+        ] {
+            for method in [
+                Method::Get,
+                Method::Post,
+                Method::Patch,
+                Method::Put,
+                Method::Delete,
+            ] {
+                assert_eq!(route_allowed(method, &path), method == allowed);
+                assert!(!route_allowed(method, &format!("{path}/extra")));
+                assert!(!route_allowed(method, &path.replace(id, "invalid")));
+            }
+        }
+    }
     #[test]
     fn native_cycle_routes_are_method_and_uuid_scoped() {
         let w = "00000000-0000-0000-0000-000000000001";

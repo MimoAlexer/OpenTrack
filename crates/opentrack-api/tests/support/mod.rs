@@ -110,6 +110,13 @@ impl Harness {
                 "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {schema} TO \"{role}\""
             ),
             format!("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA {schema} TO \"{role}\""),
+            format!("REVOKE ALL ON {schema}.issue_order_staging FROM \"{role}\""),
+            format!(
+                "REVOKE UPDATE,DELETE,TRUNCATE ON {schema}.issue_order_normalizations,{schema}.issue_order_guards FROM \"{role}\""
+            ),
+            format!(
+                "GRANT EXECUTE ON FUNCTION {schema}.issue_order_rebalance_inline(uuid,uuid,uuid) TO \"{role}\""
+            ),
             format!(
                 "REVOKE INSERT,UPDATE,DELETE ON {schema}.workspace_stream_heads FROM \"{role}\""
             ),
@@ -251,6 +258,12 @@ impl Harness {
         let app = App::connect(scoped_url(runtime, &schema).as_str(), &setup_token, 4, 2)
             .await
             .unwrap();
+        let inline: bool = sqlx::query_scalar("SELECT has_function_privilege(current_user,'issue_order_rebalance_inline(uuid,uuid,uuid)','EXECUTE')")
+            .fetch_one(&app.pool).await.unwrap();
+        assert!(
+            inline,
+            "HTTP fixtures require the scoped inline ordering capability"
+        );
         let static_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../work/http-contract")
             .join(&schema);

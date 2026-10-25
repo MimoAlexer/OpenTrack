@@ -1,5 +1,11 @@
 use crate::Tx;
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
+
+pub enum IssueListCursor {
+    Standard(i16, DateTime<Utc>, Uuid),
+    Manual(i32, i32, Uuid, String, Uuid),
+}
 
 pub async fn append_issue_rank(
     tx: &mut Tx,

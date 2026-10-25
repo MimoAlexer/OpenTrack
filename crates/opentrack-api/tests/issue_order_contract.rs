@@ -1,4 +1,7 @@
 #[allow(dead_code)]
+#[path = "support/mod.rs"]
+mod http_support;
+#[allow(dead_code)]
 #[path = "../../opentrack-app/tests/support/mod.rs"]
 mod support;
 
@@ -351,7 +354,12 @@ impl Fixture {
                 ("teams", false) => "to_jsonb(x)-'ordering_version'",
                 _ => "to_jsonb(x)",
             };
-            result.push(sqlx::query_scalar(AssertSqlSafe(format!("SELECT coalesce(jsonb_agg(data ORDER BY data::text),'[]'::jsonb) FROM (SELECT {projection} data FROM {table} x WHERE workspace_id=$1) rows")))
+            let operation_audits = if table == "audit_entries" {
+                " AND NOT (x.action IN ('issue.order_maintenance_requested','issue.order_maintenance_resumed') AND EXISTS(SELECT 1 FROM issue_order_normalizations n WHERE n.workspace_id=x.workspace_id AND n.id=x.target_id))"
+            } else {
+                ""
+            };
+            result.push(sqlx::query_scalar(AssertSqlSafe(format!("SELECT coalesce(jsonb_agg(data ORDER BY data::text),'[]'::jsonb) FROM (SELECT {projection} data FROM {table} x WHERE workspace_id=$1{operation_audits}) rows")))
                 .bind(self.workspace).fetch_one(&mut *tx).await.unwrap());
         }
         tx.commit().await.unwrap();
@@ -866,9 +874,9 @@ async fn create_exhaustion_commits_one_typed_intent_without_creating_an_issue() 
         (1, 0)
     );
     let mut tx = h.context(f.owner.id, f.workspace).await;
-    let intent: (i64,i64,i64) = sqlx::query_as("SELECT (SELECT count(*) FROM jobs WHERE workspace_id=$1 AND kind='issues.order_normalize'),(SELECT count(*) FROM issue_order_normalizations WHERE workspace_id=$1),(SELECT count(*) FROM issue_order_guards WHERE workspace_id=$1)")
-        .bind(f.workspace).fetch_one(&mut *tx).await.unwrap();
-    assert_eq!(intent, (1, 1, 1));
+    let intent: (i64,i64,i64,i64) = sqlx::query_as("SELECT (SELECT count(*) FROM jobs WHERE workspace_id=$1 AND kind='issues.order_normalize'),(SELECT count(*) FROM issue_order_normalizations WHERE workspace_id=$1),(SELECT count(*) FROM issue_order_guards WHERE workspace_id=$1),(SELECT count(*) FROM audit_entries a JOIN issue_order_normalizations n ON n.workspace_id=a.workspace_id AND n.id=a.target_id WHERE a.workspace_id=$1 AND a.action='issue.order_maintenance_requested' AND a.actor_id=$2)")
+        .bind(f.workspace).bind(f.member.id).fetch_one(&mut *tx).await.unwrap();
+    assert_eq!(intent, (1, 1, 1, 1));
     tx.commit().await.unwrap();
     h.cleanup().await;
 }
@@ -1130,6 +1138,15 @@ async fn large_position_intent_survives_mid_apply_access_loss_and_manager_resume
     let actors: (Uuid,Uuid) = sqlx::query_as("SELECT n.original_requested_by,j.requested_by FROM issue_order_normalizations n JOIN jobs j USING(workspace_id,id) WHERE n.workspace_id=$1 AND n.id=$2")
         .bind(f.workspace).bind(job).fetch_one(&mut *tx).await.unwrap();
     assert_eq!(actors, (f.member.id, manager.id));
+    let audits: Vec<(String,Uuid)> = sqlx::query_as("SELECT action,actor_id FROM audit_entries WHERE workspace_id=$1 AND target_id=$2 AND action IN('issue.order_maintenance_requested','issue.order_maintenance_resumed') ORDER BY action")
+        .bind(f.workspace).bind(job).fetch_all(&mut *tx).await.unwrap();
+    assert_eq!(
+        audits,
+        vec![
+            ("issue.order_maintenance_requested".into(), f.member.id),
+            ("issue.order_maintenance_resumed".into(), manager.id)
+        ]
+    );
     tx.commit().await.unwrap();
     let before_stale_claim = f.snapshot(&h, true).await;
     assert_eq!(
@@ -1187,6 +1204,102 @@ async fn large_position_intent_survives_mid_apply_access_loss_and_manager_resume
     .await
     .expect(StatusCode::OK);
     worker.pool.close().await;
+    h.cleanup().await;
+}
+
+#[tokio::test]
+async fn http_fixture_grants_keep_ordering_staging_private() {
+    let h = http_support::Harness::new().await;
+    h.cleanup().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn active_order_maintenance_blocks_membership_changes_but_allows_text() {
+    let h = Harness::new().await;
+    let f = Fixture::new(&h).await;
+    let rows = f.seed(&h, f.team, f.statuses[0], 3).await;
+    let removed = get(&f.router, &f.owner, &f.issue_path(rows[2])).await;
+    request(
+        &f.router,
+        Some(&f.owner),
+        "DELETE",
+        &f.issue_path(rows[2]),
+        None,
+        &[("if-match", removed.etag())],
+    )
+    .await
+    .expect(StatusCode::NO_CONTENT);
+    let restore = get(
+        &f.router,
+        &f.owner,
+        &format!("{}/deleted", f.issue_path(rows[2])),
+    )
+    .await;
+    let job = Uuid::new_v4();
+    let mut tx = h.context(f.owner.id, f.workspace).await;
+    sqlx::query("INSERT INTO jobs(workspace_id,id,kind,requested_by,dedupe_key) VALUES($1,$2,'issues.order_normalize',$3,$2::text)")
+        .bind(f.workspace).bind(job).bind(f.member.id).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO issue_order_normalizations(workspace_id,id,team_id,status_id,original_requested_by) VALUES($1,$2,$3,$4,$5)")
+        .bind(f.workspace).bind(job).bind(f.team).bind(f.statuses[0]).bind(f.member.id).execute(&mut *tx).await.unwrap();
+    sqlx::query(
+        "INSERT INTO issue_order_guards(workspace_id,team_id,status_id,job_id) VALUES($1,$2,$3,$4)",
+    )
+    .bind(f.workspace)
+    .bind(f.team)
+    .bind(f.statuses[0])
+    .bind(job)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    let issue = get(&f.router, &f.member, &f.issue_path(rows[0])).await;
+    request(
+        &f.router,
+        Some(&f.member),
+        "PATCH",
+        &f.issue_path(rows[0]),
+        Some(json!({"title":"Editable during normalization"})),
+        &[("if-match", issue.etag())],
+    )
+    .await
+    .expect(StatusCode::OK);
+    let current = get(&f.router, &f.member, &f.issue_path(rows[0])).await;
+    let before = f.snapshot(&h, true).await;
+    for body in [json!({"status_id":f.statuses[1]}), json!({"archived":true})] {
+        let reply = request(
+            &f.router,
+            Some(&f.member),
+            "PATCH",
+            &f.issue_path(rows[0]),
+            Some(body),
+            &[("if-match", current.etag())],
+        )
+        .await;
+        assert_eq!(maintenance(&reply)["id"], json!(job));
+        assert_eq!(f.snapshot(&h, true).await, before);
+    }
+    let owner = get(&f.router, &f.owner, &f.issue_path(rows[0])).await;
+    let reply = request(
+        &f.router,
+        Some(&f.owner),
+        "DELETE",
+        &f.issue_path(rows[0]),
+        None,
+        &[("if-match", owner.etag())],
+    )
+    .await;
+    assert_eq!(maintenance(&reply)["id"], json!(job));
+    let reply = request(
+        &f.router,
+        Some(&f.owner),
+        "POST",
+        &format!("{}/restore", f.issue_path(rows[2])),
+        Some(json!({"status_id":f.statuses[0],"assignee_id":null,"label_ids":[]})),
+        &[("if-match", restore.etag())],
+    )
+    .await;
+    assert_eq!(maintenance(&reply)["id"], json!(job));
+    assert_eq!(f.snapshot(&h, true).await, before);
     h.cleanup().await;
 }
 

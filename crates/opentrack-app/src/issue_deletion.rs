@@ -181,6 +181,7 @@ impl App {
         writable(&old)?;
         graph::source_version(&old.issue, etag)?;
         let t = old.issue.team_id;
+        crate::issue_ordering::require_groups(&mut tx, a, w, &[(t, old.issue.status_id)]).await?;
         let (parent, child_count, relation_count) = attachments(&mut tx, w, t, id).await?;
         if child_count + relation_count + i64::from(parent.is_some()) > MAX_ATTACHMENTS {
             return Err(Error::Conflict("Deleting this issue exceeds the 10,000-connection limit. Detach some connections first".into()));
@@ -306,6 +307,16 @@ impl App {
                 "A selected label is unavailable for this team".into(),
             ));
         }
+        crate::issue_ordering::require_groups(
+            &mut tx,
+            a,
+            w,
+            &[
+                (old.issue.team_id, old.issue.status_id),
+                (old.issue.team_id, req.status_id),
+            ],
+        )
+        .await?;
         store::set_issue_labels(&mut tx, w, id, &req.label_ids)
             .await
             .map_err(db_error)?;

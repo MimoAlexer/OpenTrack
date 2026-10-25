@@ -1,8 +1,11 @@
 use crate::{
-    App, db_error, digest, graph, lifecycle,
+    App, activity, db_error, digest, graph, lifecycle, tracking,
     worker::{BatchOutcome, JobClaim},
 };
-use opentrack_domain::{Actor, Error, IssueOrderMaintenance, IssueOrderPhase, Result};
+use opentrack_domain::{
+    Actor, Error, IssueFilter, IssueOrderMaintenance, IssueOrderPhase, IssuePage, IssuePosition,
+    PositionIssue, Result,
+};
 use opentrack_store as store;
 use sqlx::Row;
 use uuid::Uuid;
@@ -10,6 +13,97 @@ use uuid::Uuid;
 pub(crate) enum RankAllocation {
     Ready(String),
     Maintenance(IssueOrderMaintenance),
+}
+
+#[derive(sqlx::FromRow)]
+struct RankedIssue {
+    id: Uuid,
+    rank: String,
+}
+
+async fn ranked(
+    tx: &mut store::Tx,
+    w: Uuid,
+    t: Uuid,
+    status: Uuid,
+    id: Uuid,
+) -> Result<RankedIssue> {
+    sqlx::query_as("SELECT i.id,i.rank::text AS rank FROM issues i WHERE i.workspace_id=$1 AND i.team_id=$2 AND i.status_id=$3 AND i.id=$4 AND i.archived_at IS NULL AND i.deleted_at IS NULL")
+        .bind(w).bind(t).bind(status).bind(id).fetch_optional(&mut **tx).await.map_err(db_error)?
+        .ok_or_else(||Error::Conflict("An issue ordering neighbor is unavailable; refresh the order".into()))
+}
+
+async fn adjacent(
+    tx: &mut store::Tx,
+    w: Uuid,
+    t: Uuid,
+    status: Uuid,
+    source: Uuid,
+    bound: Option<&RankedIssue>,
+    previous: bool,
+) -> Result<Option<RankedIssue>> {
+    let query = if previous {
+        "SELECT i.id,i.rank::text AS rank FROM issues i WHERE i.workspace_id=$1 AND i.team_id=$2 AND i.status_id=$3 AND i.id<>$4 AND i.archived_at IS NULL AND i.deleted_at IS NULL AND (i.rank,i.id)<(coalesce($5::numeric,100000000000000000000::numeric),coalesce($6::uuid,'00000000-0000-0000-0000-000000000000'::uuid)) ORDER BY i.rank DESC,i.id DESC LIMIT 1"
+    } else {
+        "SELECT i.id,i.rank::text AS rank FROM issues i WHERE i.workspace_id=$1 AND i.team_id=$2 AND i.status_id=$3 AND i.id<>$4 AND i.archived_at IS NULL AND i.deleted_at IS NULL AND (i.rank,i.id)>(coalesce($5::numeric,-100000000000000000000::numeric),coalesce($6::uuid,'00000000-0000-0000-0000-000000000000'::uuid)) ORDER BY i.rank,i.id LIMIT 1"
+    };
+    sqlx::query_as(query)
+        .bind(w)
+        .bind(t)
+        .bind(status)
+        .bind(source)
+        .bind(bound.map(|row| row.rank.as_str()))
+        .bind(bound.map(|row| row.id))
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(db_error)
+}
+
+async fn neighbors(
+    tx: &mut store::Tx,
+    w: Uuid,
+    t: Uuid,
+    status: Uuid,
+    source: Uuid,
+    request: &PositionIssue,
+) -> Result<(Option<RankedIssue>, Option<RankedIssue>)> {
+    if let Some(id) = request.before_id {
+        let before = ranked(tx, w, t, status, id).await?;
+        let after = adjacent(tx, w, t, status, source, Some(&before), true).await?;
+        if request.after_id.is_some() && after.as_ref().map(|row| row.id) != request.after_id {
+            return Err(Error::Conflict(
+                "The ordering neighbors are no longer adjacent; refresh the order".into(),
+            ));
+        }
+        Ok((after, Some(before)))
+    } else if let Some(id) = request.after_id {
+        let after = ranked(tx, w, t, status, id).await?;
+        let before = adjacent(tx, w, t, status, source, Some(&after), false).await?;
+        Ok((Some(after), before))
+    } else {
+        Ok((adjacent(tx, w, t, status, source, None, true).await?, None))
+    }
+}
+
+async fn between(
+    tx: &mut store::Tx,
+    after: Option<&RankedIssue>,
+    before: Option<&RankedIssue>,
+) -> Result<Option<String>> {
+    sqlx::query_scalar("WITH candidate AS(SELECT CASE WHEN $1::numeric IS NULL AND $2::numeric IS NULL THEN 1024 WHEN $1::numeric IS NULL THEN $2::numeric-1024 WHEN $2::numeric IS NULL THEN $1::numeric+1024 ELSE ($1::numeric+$2::numeric)/2 END AS value),rounded AS(SELECT CASE WHEN value>-100000000000000000000::numeric AND value<100000000000000000000::numeric THEN value::numeric(38,18) END AS rank FROM candidate) SELECT CASE WHEN rank IS NOT NULL AND ($1::numeric IS NULL OR rank>$1::numeric) AND ($2::numeric IS NULL OR rank<$2::numeric) THEN rank::text END FROM rounded")
+        .bind(after.map(|row|row.rank.as_str())).bind(before.map(|row|row.rank.as_str())).fetch_one(&mut **tx).await.map_err(db_error)
+}
+
+async fn order_version(tx: &mut store::Tx, w: Uuid, t: Uuid) -> Result<String> {
+    let (order, workflow): (i64, i64) = sqlx::query_as(
+        "SELECT ordering_version,workflow_version FROM teams WHERE workspace_id=$1 AND id=$2",
+    )
+    .bind(w)
+    .bind(t)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(db_error)?;
+    Ok(format!("{order}:{workflow}"))
 }
 
 async fn maintenance(
@@ -69,6 +163,29 @@ pub(crate) async fn active(
     match id {
         Some(id) => maintenance(tx, a, w, t, id).await.map(Some),
         None => Ok(None),
+    }
+}
+
+pub(crate) async fn require_groups(
+    tx: &mut store::Tx,
+    a: &Actor,
+    w: Uuid,
+    groups: &[(Uuid, Uuid)],
+) -> Result<()> {
+    let mut progress = Vec::new();
+    for &(team, status) in groups {
+        if let Some(current) = active(tx, a, w, team, Some(status)).await?
+            && !progress
+                .iter()
+                .any(|item: &IssueOrderMaintenance| item.id == current.id)
+        {
+            progress.push(current);
+        }
+    }
+    if progress.is_empty() {
+        Ok(())
+    } else {
+        Err(Error::IssueOrderMaintenance(progress))
     }
 }
 
@@ -157,6 +274,244 @@ async fn enqueue(
 }
 
 impl App {
+    pub(crate) async fn manual_issues(
+        &self,
+        mut tx: store::Tx,
+        a: &Actor,
+        w: Uuid,
+        mut filter: IssueFilter,
+        epoch: i64,
+    ) -> Result<IssuePage> {
+        let t = filter
+            .team_id
+            .ok_or_else(|| Error::Invalid("Manual order requires an explicit team".into()))?;
+        if !store::visible_team(&mut tx, w, t, a.user.id, false)
+            .await
+            .map_err(db_error)?
+        {
+            return Err(Error::NotFound);
+        }
+        let active_team: bool = sqlx::query_scalar(
+            "SELECT archived_at IS NULL FROM teams WHERE workspace_id=$1 AND id=$2 FOR SHARE",
+        )
+        .bind(w)
+        .bind(t)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(db_error)?;
+        if !store::visible_team(&mut tx, w, t, a.user.id, false)
+            .await
+            .map_err(db_error)?
+        {
+            return Err(Error::NotFound);
+        }
+        if !active_team {
+            return Err(Error::Conflict(
+                "Restore this team before using manual order".into(),
+            ));
+        }
+        if let Some(progress) = active(&mut tx, a, w, t, None).await? {
+            return Err(Error::IssueOrderMaintenance(vec![progress]));
+        }
+        let version = order_version(&mut tx, w, t).await?;
+        filter.q = filter
+            .q
+            .as_deref()
+            .map(str::trim)
+            .filter(|q| !q.is_empty())
+            .map(str::to_owned);
+        filter.limit = Some(filter.limit.unwrap_or(50));
+        filter.label_mode = Some(filter.label_mode.unwrap_or_else(|| "any".into()));
+        let mut fingerprint = filter.clone();
+        fingerprint.cursor = None;
+        let binding = format!(
+            "{w}:{}:{epoch}:{version}:{}",
+            a.user.id,
+            serde_json::to_string(&fingerprint).map_err(|_| Error::Internal)?
+        );
+        let after: Option<(i32, i32, Uuid, String, Uuid)> = filter
+            .cursor
+            .as_deref()
+            .map(|cursor| self.taxonomy_cursor_decode("issues-manual-v1", &binding, cursor))
+            .transpose()?;
+        let mut data = store::list_issues(
+            &mut tx,
+            w,
+            a.user.id,
+            &filter,
+            after.map(|(c, p, s, r, id)| store::IssueListCursor::Manual(c, p, s, r, id)),
+        )
+        .await
+        .map_err(db_error)?;
+        let limit = filter.limit.unwrap_or(50) as usize;
+        let has_more = data.len() > limit;
+        data.truncate(limit);
+        let next_cursor = if has_more {
+            let last = data.last().ok_or(Error::Internal)?;
+            let key: (i32,i32,Uuid,String,Uuid)=sqlx::query_as("SELECT CASE s.category WHEN 'triage' THEN 0 WHEN 'backlog' THEN 1 WHEN 'unstarted' THEN 2 WHEN 'started' THEN 3 WHEN 'completed' THEN 4 ELSE 5 END,s.position,s.id,i.rank::text,i.id FROM issues i JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id WHERE i.workspace_id=$1 AND i.team_id=$2 AND i.id=$3")
+                .bind(w).bind(t).bind(last.id).fetch_one(&mut *tx).await.map_err(db_error)?;
+            Some(self.taxonomy_cursor_encode("issues-manual-v1", &binding, &key)?)
+        } else {
+            None
+        };
+        tx.commit().await.map_err(db_error)?;
+        Ok(IssuePage {
+            data,
+            next_cursor,
+            has_more,
+            order_version: Some(version),
+            order_maintenance: Vec::new(),
+        })
+    }
+
+    pub async fn position_issue(
+        &self,
+        a: &Actor,
+        w: Uuid,
+        id: Uuid,
+        key: &str,
+        etag: &str,
+        request: PositionIssue,
+    ) -> Result<IssuePosition> {
+        request.validate(id)?;
+        let (kh, rh) = lifecycle::request_hash(key, &(id, &request, etag))?;
+        let route = format!("issues.position:{id}");
+        let mut tx = self.scoped(a, w, true).await?;
+        if let Some(saved) =
+            lifecycle::retry::<IssuePosition>(&mut tx, w, a.user.id, &route, &kh, &rh).await?
+        {
+            graph::receipt_authority(&mut tx, a, w, &saved.issue).await?;
+            tx.commit().await.map_err(db_error)?;
+            return Ok(saved);
+        }
+        let scope = graph::current(&mut tx, a, w, id).await?;
+        let t = scope.team_id;
+        if !store::visible_team(&mut tx, w, t, a.user.id, true)
+            .await
+            .map_err(db_error)?
+        {
+            return Err(Error::NotFound);
+        }
+        let old = store::issue(&mut tx, w, a.user.id, id, true)
+            .await
+            .map_err(db_error)?
+            .ok_or(Error::NotFound)?;
+        graph::source_version(&old, etag)?;
+        if old.team_id != t {
+            return Err(Error::Conflict(
+                "This issue moved teams; refresh before positioning".into(),
+            ));
+        }
+        lifecycle::require_active_team(&mut tx, w, t).await?;
+        if old.archived_at.is_some() {
+            return Err(Error::Conflict(
+                "Restore this issue before positioning it".into(),
+            ));
+        }
+        let status = request.status_id.unwrap_or(old.status_id);
+        let target = store::workflow_status(&mut tx, w, t, status)
+            .await
+            .map_err(db_error)?
+            .ok_or_else(|| Error::Invalid("Status is unavailable for this team".into()))?;
+        if target.archived_at.is_some() || target.retiring_at.is_some() {
+            return Err(Error::Invalid("Status is unavailable for this team".into()));
+        }
+        tracking::status_transition(&mut tx, w, &old, status, old.assignee_id, false).await?;
+        let mut maintenance = Vec::new();
+        for group in [old.status_id, status] {
+            if let Some(progress) = active(&mut tx, a, w, t, Some(group)).await?
+                && !maintenance
+                    .iter()
+                    .any(|p: &IssueOrderMaintenance| p.id == progress.id)
+            {
+                maintenance.push(progress);
+            }
+        }
+        if !maintenance.is_empty() {
+            tx.commit().await.map_err(db_error)?;
+            return Err(Error::IssueOrderMaintenance(maintenance));
+        }
+        let version = order_version(&mut tx, w, t).await?;
+        if request.order_version != version {
+            return Err(Error::Conflict(
+                "Issue order changed; refresh before positioning".into(),
+            ));
+        }
+        let (mut after, mut before) = neighbors(&mut tx, w, t, status, id, &request).await?;
+        let current = ranked(&mut tx, w, t, old.status_id, id).await?;
+        let previous_after = adjacent(&mut tx, w, t, old.status_id, id, Some(&current), true)
+            .await?
+            .map(|row| row.id);
+        let previous_before = adjacent(&mut tx, w, t, old.status_id, id, Some(&current), false)
+            .await?
+            .map(|row| row.id);
+        if status == old.status_id
+            && previous_after == after.as_ref().map(|row| row.id)
+            && previous_before == before.as_ref().map(|row| row.id)
+        {
+            let result = IssuePosition {
+                issue: old,
+                order_version: version,
+            };
+            graph::save(&mut tx, w, a.user.id, &route, &kh, &result).await?;
+            tx.commit().await.map_err(db_error)?;
+            return Ok(result);
+        }
+        let rank = match between(&mut tx, after.as_ref(), before.as_ref()).await? {
+            Some(rank) => rank,
+            None => {
+                let inline: bool =
+                    sqlx::query_scalar("SELECT issue_order_rebalance_inline($1,$2,$3)")
+                        .bind(w)
+                        .bind(t)
+                        .bind(status)
+                        .fetch_one(&mut *tx)
+                        .await
+                        .map_err(db_error)?;
+                if !inline {
+                    let progress = enqueue(&mut tx, a, w, t, status).await?;
+                    tx.commit().await.map_err(db_error)?;
+                    return Err(Error::IssueOrderMaintenance(vec![progress]));
+                }
+                (after, before) = neighbors(&mut tx, w, t, status, id, &request).await?;
+                between(&mut tx, after.as_ref(), before.as_ref())
+                    .await?
+                    .ok_or(Error::Internal)?
+            }
+        };
+        graph::one(sqlx::query("UPDATE issues SET rank=$4::numeric,status_id=$5,version=version+1,updated_at=clock_timestamp() WHERE workspace_id=$1 AND team_id=$2 AND id=$3").bind(w).bind(t).bind(id).bind(rank).bind(status).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
+        let issue = graph::current(&mut tx, a, w, id).await?;
+        let mut changes = activity::issue_changes(&mut tx, &old, &issue).await?;
+        changes
+            .get_mut("fields")
+            .and_then(serde_json::Value::as_array_mut)
+            .ok_or(Error::Internal)?
+            .push(serde_json::json!("position"));
+        changes["position"] = serde_json::json!({"before":{"status_id":old.status_id,"after_id":previous_after,"before_id":previous_before},"after":{"status_id":status,"after_id":after.as_ref().map(|row|row.id),"before_id":before.as_ref().map(|row|row.id)}});
+        changes["source"] = serde_json::json!("manual_order");
+        let result = IssuePosition {
+            issue,
+            order_version: order_version(&mut tx, w, t).await?,
+        };
+        graph::save(&mut tx, w, a.user.id, &route, &kh, &result).await?;
+        graph::effects(
+            &mut tx,
+            &[store::Event {
+                workspace: w,
+                team: t,
+                entity: id,
+                version: result.issue.version.parse().map_err(|_| Error::Internal)?,
+                actor: a.user.id,
+                kind: "issue.updated",
+                mutation: Uuid::new_v4(),
+                changes,
+            }],
+        )
+        .await?;
+        tx.commit().await.map_err(db_error)?;
+        Ok(result)
+    }
+
     pub async fn issue_order_maintenance(
         &self,
         a: &Actor,
