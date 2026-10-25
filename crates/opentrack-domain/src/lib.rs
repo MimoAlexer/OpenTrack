@@ -754,6 +754,15 @@ pub struct DirectoryQuery {
     pub cursor: Option<String>,
     pub state: Option<String>,
 }
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TeamQuery {
+    #[schema(max_length = 100)]
+    pub q: Option<String>,
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+    pub state: Option<String>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreateWorkspace {

@@ -533,7 +533,7 @@ async fn private_team_lifecycle(
     );
     assert!(
         !h.app
-            .list_teams(owner, w, page())
+            .list_teams(owner, w, TeamQuery::default())
             .await
             .unwrap()
             .data
@@ -597,7 +597,11 @@ async fn private_team_lifecycle(
         Err(Error::Unauthorized)
     ));
     let contributor = &sign_in_again(h, contributor).await;
-    let visible = h.app.list_teams(contributor, w, page()).await.unwrap();
+    let visible = h
+        .app
+        .list_teams(contributor, w, TeamQuery::default())
+        .await
+        .unwrap();
     assert!(
         !visible
             .data

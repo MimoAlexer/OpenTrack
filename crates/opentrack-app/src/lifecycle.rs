@@ -465,21 +465,45 @@ impl App {
         &self,
         actor: &Actor,
         w: Uuid,
-        q: DirectoryQuery,
+        mut q: TeamQuery,
     ) -> Result<Page<TeamDetail>> {
         let mut tx = self.scoped(actor, w, false).await?;
-        let (limit, state, after, binding) = directory(
-            &mut tx,
-            actor,
-            w,
-            "teams",
-            &q,
-            &["active", "archived", "all"],
-        )
-        .await?;
-        let ids:Vec<Uuid>=sqlx::query_scalar("SELECT t.id FROM teams t WHERE t.workspace_id=$1 AND (NOT t.private OR EXISTS(SELECT 1 FROM team_members tm WHERE tm.workspace_id=$1 AND tm.team_id=t.id AND tm.user_id=$2)) AND ($3='all' OR (t.archived_at IS NOT NULL)=($3='archived')) AND ($4::uuid IS NULL OR t.id>$4) ORDER BY t.id LIMIT $5").bind(w).bind(actor.user.id).bind(state).bind(after).bind(i64::from(limit)+1).fetch_all(&mut *tx).await.map_err(db_error)?;
+        let limit = q.limit.unwrap_or(50);
+        let state = q.state.as_deref().unwrap_or("active").to_owned();
+        let term = q.q.as_deref().unwrap_or("").trim().to_owned();
+        if !(1..=100).contains(&limit) || !["active", "archived", "all"].contains(&state.as_str()) {
+            return Err(Error::Invalid(
+                "Invalid directory state or page size".into(),
+            ));
+        }
+        if term.chars().count() > 100 || term.chars().any(char::is_control) {
+            return Err(Error::Invalid(
+                "Team search must contain at most 100 characters without control characters".into(),
+            ));
+        }
+        let cursor = q.cursor.take();
+        q.q = Some(term.clone());
+        q.limit = Some(limit);
+        q.state = Some(state.clone());
+        let epoch = store::auth_epoch(&mut tx, w).await.map_err(db_error)?;
+        let binding = format!(
+            "{w}:{}:{epoch}:{}",
+            actor.user.id,
+            serde_json::to_string(&q).map_err(|_| Error::Internal)?
+        );
+        let after: Option<Uuid> = cursor
+            .as_deref()
+            .map(|value| self.taxonomy_cursor_decode("teams-v1", &binding, value))
+            .transpose()?;
+        let ids:Vec<Uuid>=sqlx::query_scalar("SELECT t.id FROM teams t WHERE t.workspace_id=$1 AND (NOT t.private OR EXISTS(SELECT 1 FROM team_members tm WHERE tm.workspace_id=$1 AND tm.team_id=t.id AND tm.user_id=$2)) AND ($3='all' OR (t.archived_at IS NOT NULL)=($3='archived')) AND ($4::uuid IS NULL OR t.id>$4) AND (strpos(lower(t.name),lower($6))>0 OR strpos(lower(t.key),lower($6))>0) ORDER BY t.id LIMIT $5").bind(w).bind(actor.user.id).bind(state).bind(after).bind(i64::from(limit)+1).bind(term).fetch_all(&mut *tx).await.map_err(db_error)?;
+        let has_more = ids.len() > limit as usize;
+        let next_cursor = if has_more {
+            Some(self.taxonomy_cursor_encode("teams-v1", &binding, &ids[limit as usize - 1])?)
+        } else {
+            None
+        };
         let mut data = Vec::new();
-        for id in &ids {
+        for id in ids.iter().take(limit as usize) {
             data.push(
                 store::team_detail(&mut tx, w, *id, actor.user.id)
                     .await
@@ -488,7 +512,11 @@ impl App {
             );
         }
         tx.commit().await.map_err(db_error)?;
-        Ok(page(data, ids, limit, binding))
+        Ok(Page {
+            data,
+            next_cursor,
+            has_more,
+        })
     }
     pub async fn create_team(
         &self,
