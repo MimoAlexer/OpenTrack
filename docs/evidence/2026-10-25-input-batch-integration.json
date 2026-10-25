@@ -1,0 +1,90 @@
+{
+  "date": "2026-10-25",
+  "status": "PR166 integrated after exact-head qualification",
+  "pull_request": 166,
+  "qualified_head": "7369ae4ec0c991f2f46d72cf20d2f422105cd1ce",
+  "main_merge": "8cd9f0879750a6658f78822ff671aee1ca603913",
+  "merged_at": "2026-10-25T20:40:09Z",
+  "required_checks": {
+    "verify": "SUCCESS",
+    "native-contracts": "SUCCESS",
+    "runtime (ubuntu-24.04, amd64)": "SUCCESS",
+    "runtime (ubuntu-24.04-arm, arm64)": "SUCCESS"
+  },
+  "unresolved_conversations": 0,
+  "pagination_complete": true,
+  "current_main_before_merge": "25ca33cc3c1f9de87d96f2f5658febd1f617124a",
+  "prospective_tree": "c66b7714d828b676ac14e436633229fc37109f3d",
+  "merge_tree_equals_reviewed_head": true,
+  "neutral_merge_identity": true,
+  "browser": {
+    "head": "7369ae4ec0c991f2f46d72cf20d2f422105cd1ce",
+    "run": 40229959618,
+    "job": 121279400069,
+    "job_conclusion": "success",
+    "reported_completions": 213,
+    "unique_browser_titles": 213,
+    "statuses": {
+      "PASSED": 213
+    },
+    "by_engine": {
+      "chromium": 71,
+      "firefox": 71,
+      "webkit": 71
+    },
+    "end_receipts": [
+      [
+        "passed",
+        "213",
+        "213"
+      ]
+    ],
+    "complete_213": true,
+    "raw_log_sha256": "b46eefa009c3995c6bb388ee6b21c740ec95f493d5e258ca2b216cfcc3b8cc82",
+    "actual_json_receipt_parsed": true,
+    "actual_json_receipt_sha256": "85dbf85ee53375518c4026a7565897988bfb36755387ca4d9a2c41d64642c254",
+    "actual_json_cases": 213,
+    "actual_json_all_passed": true
+  },
+  "workflow_runs": {
+    "implementation": 40229959704,
+    "docker": 40229959618,
+    "amd64_job": 121279400069
+  },
+  "review": "Original717 source/evidence/privacy CLEAR reused; actual authorized7369 one-line watchdog source/evidence/metadata independently CLEAR, including three pure boundary tests",
+  "profile": {
+    "whole_suite_seconds": 900,
+    "explicitly_approved": true,
+    "per_test_seconds": 60,
+    "expect_action_seconds": 10,
+    "workers": 1,
+    "retries": 0,
+    "assertions_and_selection_unchanged": true
+  },
+  "retained_history": {
+    "f181": "191passes/2failures/193completions/20unreported, outer600seconds",
+    "717": "201passes/0reportedfailure/201completions/12unreported/noend, outer600seconds",
+    "original_private_log_sha256": [
+      "e5a199d5674dc1a675339000691d33625f799c0dc56eadab3283f583bf241a20",
+      "f79065e61c206780ddf66e427fe14a7c77af9b522b3770a2911f56ca7a775582"
+    ],
+    "individual_bundles_and_failures": "Retained in their original receipts; this later run does not overwrite them"
+  },
+  "evidence": {
+    "private_root": "$OPENTRACK_DEV_STATE/pr166-watchdog-v1",
+    "raw_log_published": false,
+    "boundary_log_sha256": "383a12fba9b5b327054a24ce7e5739569c4f0b6621facd981f2d6a4271063b3c",
+    "source_union_receipt_sha256": "ae63646b861cea19554208b9ebbd333ae97603c2fa1db604c9f5232b661be84a",
+    "private_artifact_index": "artifact-index.json",
+    "private_artifact_index_sha256": "d8f6b00c96ca08a6cfd9d60cfb3b2a4b3a7b1949a47b668bca7cafa39489c4b6",
+    "private_artifact_files": 6,
+    "private_copies": "Linux0700 directory/0600 files; byte-equal to retained Windows originals"
+  },
+  "limits": [
+    "Source matched the reviewed PR tree; post-merge CI is a distinct run and not claimed here",
+    "Three standalone fresh-setup cases remain separate from213 saved-workspace cases",
+    "Synthetic composition/three browser engines do not qualify OS IME/native/physical input/assistive technology",
+    "No whole issue/milestone/product completion",
+    "Main contains26migrations; manual-order migration27 and UI remain private and unaccepted"
+  ]
+}
