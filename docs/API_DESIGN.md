@@ -85,7 +85,39 @@ Document schema 1 accepts the implemented common text formats under a 256 KiB se
 
 Comments default to 25 items (maximum 100), ordered newest first by creation time and ID; the UI renders them chronologically. `GET /comments/{id}` supports reconciliation after an interrupted mutation. POST requires an idempotency key, PATCH and DELETE require If-Match, and another author's moderation additionally requires a bounded `moderation_reason` (optional JSON body on DELETE). Deleted comments return tombstones without document bodies. `GET /documents/{id}/revisions` returns paginated metadata; `GET /documents/{id}/revisions/{revision}` loads one body. `GET /issues/{id}/activity-page` adds cursor pagination without changing the legacy activity response. Cursors bind caller, issue/document, query and workspace authorization epoch. Historical comments and revisions require both current issue access and access to their recorded team audience.
 
-POST /issues/{id}/position requires If-Match, Idempotency-Key and the server-issued `order_version`, with optional target status and before_id/after_id. The opaque order token binds ordering and workflow generations as two canonical positive bigint decimal components separated by a colon. Clients echo it rather than constructing it. Source authorization and the source ETag precede stale generation/neighbour409 checks. Successful matching replay reauthorizes the current issue and recorded team before returning its acknowledgement; clients refresh current issue/order state rather than overwriting newer data with that historical response. Server checks full-group neighbors and assigns rank under the team ordering lock; a source-as-neighbor or equal anchors is invalid. Neither anchor means append. Maintenance409 confirms the original move was not applied; a refreshed, explicitly reviewed attempt uses a new key. POST /issues/{id}/restore is versioned and must revalidate current workflow/project references. This remains a resource-family target contract; implementation OpenAPI enumerates every action and error before release.
+POST /issues/{id}/position requires If-Match, Idempotency-Key and the server-issued `order_version`, with optional target status and before_id/after_id. The opaque order token binds ordering and workflow generations as two canonical positive bigint decimal components separated by a colon. Clients echo it rather than constructing it. Source authorization and the source ETag precede stale generation/neighbour409 checks. Successful matching replay reauthorizes the current issue and recorded team before returning its acknowledgement; clients refresh current issue/order state rather than overwriting newer data with that historical response. Server checks full live, unfiltered group neighbors and assigns rank under the team ordering lock. `before_id` identifies the successor (insert immediately before it); `after_id` identifies the predecessor (insert immediately after it). A single anchor derives its other neighbor on the server; two anchors must be adjacent after excluding the source. A source-as-neighbor or equal anchors is invalid. Neither anchor means append. Maintenance409 confirms the original move was not applied; a refreshed, explicitly reviewed attempt uses a new key. POST /issues/{id}/restore is versioned and must revalidate current workflow/project references. This remains a resource-family target contract; implementation OpenAPI enumerates every action and error before release.
+
+### Manual-order maintenance (migration0027 slice)
+
+The generated OpenAPI on the manual-order branch implements the position contract;
+its connected UI and integrated acceptance remain separate qualification. `sort=manual`
+requires an explicit `team_id` and rejects `archived=true`. Manual pages carry
+`order_version` and use a signed cursor bound to current principal/workspace,
+authorization epoch, normalized filters/limit, ordering generation and workflow
+generation. The key orders status category/position/ID, exact database rank and
+issue ID. Rank remains outside the public Issue representation. The team shared
+lock precedes generation and row reads. Existing created/priority cursor formats
+remain unchanged; their optional maintenance metadata does not broaden scope.
+
+`GET /teams/{t}/issue-order-maintenance/{job}` reauthorizes before returning progress
+or304. Its canonical ETag binds operation version, current resume capability and
+current authorization. Progress distinguishes staging/applied counts and keeps
+`total_count:null` until staging ends. `POST` to the same resource's `/resume` action
+requires its current If-Match and actual manager/private-team access; it preserves
+original requester, job identity and staged/applied state while assigning the
+current execution requester and recording the real resumer.
+
+`issue_order_maintenance` is409 with `details.maintenance` (an array of visible
+operation projections) and `details.applied:false`. Manual reads fail closed while
+a team has a maintenance marker, including blocked/dead-letter work; created and
+priority reads remain usable. A mutation receiving this response was not applied.
+Precision exhaustion normalizes at most500 live siblings inline; larger scopes
+atomically enqueue one typed intent. Create keeps its matching NULL-success receipt
+without allocating an issue number/row/document or Issue effects. Its draft,
+attachments and unchanged request/key remain retryable, and confirmed noncreation
+permits explicit edit/cancel. Position retries after maintenance require canonical
+refresh and a new explicitly reviewed request/key. Transport uncertainty instead
+retains the original immutable body, key and source validator until acknowledged.
 
 ## Pagination, filters and search
 
