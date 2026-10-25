@@ -1,0 +1,584 @@
+{
+  "date": "2026-10-25",
+  "base": "8b730204089f0ce63c61e0615c9bb7a49ebeaa98",
+  "scope": "Invited new-account display-name100 scalar boundary only; F02/F03/M02 increment",
+  "change": "Remove one native display-name maxLength100; Rust Name100 remains authoritative. All email/password/token/expiry/authority/existing-account logic unchanged.",
+  "sources": [
+    {
+      "path": "web/src/settings/JoinWorkspace.tsx",
+      "sha256": "4c7c15d1cf1f9be4a753b5538300c6275fc0b52258eb8d1015df1e73b6a65546"
+    },
+    {
+      "path": "web/src/settings/Settings.test.tsx",
+      "sha256": "f4a93de86e5fa4ec97eb6d8e68ae89454704cb0dc4997a717d5bb8e9ccffd8ba"
+    },
+    {
+      "path": "web/e2e/invite-name-scalar-inputs.browser.ts",
+      "sha256": "a0c7ed85afb9e26c2970605ba7a0e04e567b9f9d58ffabe33703e2e059330c5f"
+    }
+  ],
+  "baseline_sources": [
+    {
+      "path": "web/src/settings/JoinWorkspace.tsx",
+      "sha256": "1ef3ebb3f9ccec67647e0a411f79b9baa2d91957f5dcc69ebdc5481b0dcd2413"
+    },
+    {
+      "path": "web/e2e/invite-name-scalar-inputs.browser.ts",
+      "sha256": "a0c7ed85afb9e26c2970605ba7a0e04e567b9f9d58ffabe33703e2e059330c5f"
+    }
+  ],
+  "checks": [
+    {
+      "command": "npm --prefix web test -- --maxWorkers=1 src/settings/Settings.test.tsx",
+      "log": "work/invite-name-units.log",
+      "result": "25 passed in one file",
+      "log_sha256": "a0badf3947c5d6a3ef4173b6d13198b113080444c22f3fe4652fab1f85aa42c4"
+    },
+    {
+      "command": "npm --prefix web run typecheck",
+      "log": "work/invite-name-typecheck-final.log",
+      "result": "application and e2e targets passed",
+      "log_sha256": "50791af51b60280d7e513ca60ad69f0d2b8af76c3ac63034a5a590ae70375779"
+    },
+    {
+      "command": "npm --prefix web run build",
+      "log": "work/invite-name-build-final.log",
+      "result": "one final production build passed; existing chunk-size warning retained",
+      "log_sha256": "d23201afad048d8bc60cf1acf760feb7be03402a81334104582786530a4dbfb8"
+    }
+  ],
+  "browser_runs": {
+    "baseline": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "new invited account preserves 100 name scalars, rejects 101 without consuming membership and repairs once",
+            "status": "failed",
+            "duration_ms": 575,
+            "failure": "invite-name-scalar-inputs.browser.ts:26"
+          },
+          {
+            "browser": "firefox",
+            "check": "new invited account preserves 100 name scalars, rejects 101 without consuming membership and repairs once",
+            "status": "failed",
+            "duration_ms": 1948,
+            "failure": "invite-name-scalar-inputs.browser.ts:26"
+          },
+          {
+            "browser": "webkit",
+            "check": "new invited account preserves 100 name scalars, rejects 101 without consuming membership and repairs once",
+            "status": "failed",
+            "duration_ms": 1079,
+            "failure": "invite-name-scalar-inputs.browser.ts:26"
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "b97e4f5dce6f8207443c83f7abe3bb58f77ae4a08375e37c2d00f1f674d95fdc",
+      "spec_sha256": "a0c7ed85afb9e26c2970605ba7a0e04e567b9f9d58ffabe33703e2e059330c5f",
+      "caller_sha256": "e3bc2b828ee4f057183c05f07c8441ee878b2918f60aa3c94498442fae198bfd",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "files": [
+        {
+          "path": "api.log",
+          "sha256": "b0e4f47473f125dac8496347e52d931eacb8c35f3d22656606631ed320c720c8",
+          "bytes": 366
+        },
+        {
+          "path": "browser.log",
+          "sha256": "e9cf57952e9983e51717e4774b4989d1d702d8b44e46c36d51a8ecdcf537716a",
+          "bytes": 542
+        },
+        {
+          "path": "caller.py",
+          "sha256": "e3bc2b828ee4f057183c05f07c8441ee878b2918f60aa3c94498442fae198bfd",
+          "bytes": 5078
+        },
+        {
+          "path": "cleanup.json",
+          "sha256": "8dbd52d51fd671df3f496745ceaaf6a273483ebd23a35170f7fd6b81e216a6de",
+          "bytes": 75
+        },
+        {
+          "path": "output/.last-run.json",
+          "sha256": "b59e40fa02f04370b104b9a06c546245c278b83a7cbb3f71428ef48f5e9c5fbb",
+          "bytes": 194
+        },
+        {
+          "path": "output/invite-name-scalar-inputs.-cc4ba-membership-and-repairs-once-chromium/error-context.md",
+          "sha256": "adf9df9916d9e9a6f405a6eefbb8599a600ca67f2f90c96d811d1b7ddd99ca53",
+          "bytes": 9970
+        },
+        {
+          "path": "output/invite-name-scalar-inputs.-cc4ba-membership-and-repairs-once-chromium/native-name-input.json",
+          "sha256": "ba3ea0cc04de19f9a29057993dc6eed663e51d81da918891638d1e0eeb804098",
+          "bytes": 307
+        },
+        {
+          "path": "output/invite-name-scalar-inputs.-cc4ba-membership-and-repairs-once-firefox/error-context.md",
+          "sha256": "ff014254213636ebb3dd82c760869367c8e34ad306818e91b92c7b86ae7ecdf8",
+          "bytes": 9972
+        },
+        {
+          "path": "output/invite-name-scalar-inputs.-cc4ba-membership-and-repairs-once-firefox/native-name-input.json",
+          "sha256": "3cd6b778e4582165908f296b81b2d1b93174172a2a8cac657674bf3037d01ede",
+          "bytes": 306
+        },
+        {
+          "path": "output/invite-name-scalar-inputs.-cc4ba-membership-and-repairs-once-webkit/error-context.md",
+          "sha256": "e135c3f9133d8dc800a81695e8e9382c9de2242ad44ef5807568d9324ebc18fb",
+          "bytes": 9953
+        },
+        {
+          "path": "output/invite-name-scalar-inputs.-cc4ba-membership-and-repairs-once-webkit/native-name-input.json",
+          "sha256": "c408e63d401bb57356569c6278027cdc3174330f6d6787b050242fa67a046b71",
+          "bytes": 305
+        },
+        {
+          "path": "receipt.json",
+          "sha256": "b97e4f5dce6f8207443c83f7abe3bb58f77ae4a08375e37c2d00f1f674d95fdc",
+          "bytes": 1183
+        },
+        {
+          "path": "result.json",
+          "sha256": "ca93bc95660a4d2cd12e6369114a5791a1cfa83b998444e49288bea3d1e2b427",
+          "bytes": 38
+        },
+        {
+          "path": "spec.browser.ts",
+          "sha256": "a0c7ed85afb9e26c2970605ba7a0e04e567b9f9d58ffabe33703e2e059330c5f",
+          "bytes": 6717
+        }
+      ]
+    },
+    "corrected": {
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "new invited account preserves 100 name scalars, rejects 101 without consuming membership and repairs once",
+            "status": "passed",
+            "duration_ms": 3666
+          },
+          {
+            "browser": "firefox",
+            "check": "new invited account preserves 100 name scalars, rejects 101 without consuming membership and repairs once",
+            "status": "passed",
+            "duration_ms": 5078
+          },
+          {
+            "browser": "webkit",
+            "check": "new invited account preserves 100 name scalars, rejects 101 without consuming membership and repairs once",
+            "status": "passed",
+            "duration_ms": 4121
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "145cf09152fb3e88c055cf34fceefeed925c2fc45debc7f446adf19a16b51245",
+      "spec_sha256": "a0c7ed85afb9e26c2970605ba7a0e04e567b9f9d58ffabe33703e2e059330c5f",
+      "caller_sha256": "e3bc2b828ee4f057183c05f07c8441ee878b2918f60aa3c94498442fae198bfd",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "files": [
+        {
+          "path": "api.log",
+          "sha256": "41485271c43036dc3f08f1c7ee4aed473e9ddba85d06812772e0056e459200ad",
+          "bytes": 366
+        },
+        {
+          "path": "browser.log",
+          "sha256": "860b3728e4038f0b1c479300fed0bc0a8579e1c1a9ab9581190d3a274f529c4b",
+          "bytes": 416
+        },
+        {
+          "path": "caller.py",
+          "sha256": "e3bc2b828ee4f057183c05f07c8441ee878b2918f60aa3c94498442fae198bfd",
+          "bytes": 5078
+        },
+        {
+          "path": "cleanup.json",
+          "sha256": "8dbd52d51fd671df3f496745ceaaf6a273483ebd23a35170f7fd6b81e216a6de",
+          "bytes": 75
+        },
+        {
+          "path": "output/.last-run.json",
+          "sha256": "91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903",
+          "bytes": 45
+        },
+        {
+          "path": "output/invite-name-scalar-inputs.-cc4ba-membership-and-repairs-once-chromium/acceptance-name-proof.json",
+          "sha256": "f876f909f29086dd7612d68c371a56877d08bea1966a42bb27c6096af65cb148",
+          "bytes": 359
+        },
+        {
+          "path": "output/invite-name-scalar-inputs.-cc4ba-membership-and-repairs-once-chromium/native-name-input.json",
+          "sha256": "754fc9092a10742cab6a941f02d6afe53bb22e0ed112cecd24aa3ea847b04df9",
+          "bytes": 308
+        },
+        {
+          "path": "output/invite-name-scalar-inputs.-cc4ba-membership-and-repairs-once-firefox/acceptance-name-proof.json",
+          "sha256": "6676253f9e97f3f4b45de714682ab7c5e71c1f3bc512d960ed64debbc03b687d",
+          "bytes": 358
+        },
+        {
+          "path": "output/invite-name-scalar-inputs.-cc4ba-membership-and-repairs-once-firefox/native-name-input.json",
+          "sha256": "dbbd49309d994596a1a38aa8a4c43bc5951ba576e123ffb306b8a7f1cef99b58",
+          "bytes": 307
+        },
+        {
+          "path": "output/invite-name-scalar-inputs.-cc4ba-membership-and-repairs-once-webkit/acceptance-name-proof.json",
+          "sha256": "223e8000254affdc398d5c2854316bfa514d5eb467059c0fb84f35a1b165f535",
+          "bytes": 357
+        },
+        {
+          "path": "output/invite-name-scalar-inputs.-cc4ba-membership-and-repairs-once-webkit/native-name-input.json",
+          "sha256": "3743fe4fcca1d0b9c10a3e7cb709450e0fcb1cdf41130687da1e2a7598863e51",
+          "bytes": 306
+        },
+        {
+          "path": "receipt.json",
+          "sha256": "145cf09152fb3e88c055cf34fceefeed925c2fc45debc7f446adf19a16b51245",
+          "bytes": 1004
+        },
+        {
+          "path": "result.json",
+          "sha256": "55a18e8f7a1cdd822ecd909e79181387440ebf2c0d88bff3905b1de756f077d5",
+          "bytes": 39
+        },
+        {
+          "path": "spec.browser.ts",
+          "sha256": "a0c7ed85afb9e26c2970605ba7a0e04e567b9f9d58ffabe33703e2e059330c5f",
+          "bytes": 6717
+        }
+      ]
+    }
+  },
+  "native_baseline": [
+    {
+      "engine": "chromium",
+      "expected_scalars": 100,
+      "actual_scalars": 50,
+      "expected_utf16": 200,
+      "actual_utf16": 100,
+      "expected_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+      "actual_sha256": "204fb86cf8796e29396b5d6010ed3de22155f2f76c669015ec04475215ab6a2c",
+      "member_count": 0,
+      "pending_count": 1
+    },
+    {
+      "engine": "firefox",
+      "expected_scalars": 100,
+      "actual_scalars": 50,
+      "expected_utf16": 200,
+      "actual_utf16": 100,
+      "expected_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+      "actual_sha256": "204fb86cf8796e29396b5d6010ed3de22155f2f76c669015ec04475215ab6a2c",
+      "member_count": 0,
+      "pending_count": 1
+    },
+    {
+      "engine": "webkit",
+      "expected_scalars": 100,
+      "actual_scalars": 50,
+      "expected_utf16": 200,
+      "actual_utf16": 100,
+      "expected_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+      "actual_sha256": "204fb86cf8796e29396b5d6010ed3de22155f2f76c669015ec04475215ab6a2c",
+      "member_count": 0,
+      "pending_count": 1
+    }
+  ],
+  "corrected_native_input": [
+    {
+      "engine": "chromium",
+      "expected_scalars": 100,
+      "actual_scalars": 100,
+      "expected_utf16": 200,
+      "actual_utf16": 200,
+      "expected_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+      "actual_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+      "member_count": 0,
+      "pending_count": 1
+    },
+    {
+      "engine": "firefox",
+      "expected_scalars": 100,
+      "actual_scalars": 100,
+      "expected_utf16": 200,
+      "actual_utf16": 200,
+      "expected_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+      "actual_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+      "member_count": 0,
+      "pending_count": 1
+    },
+    {
+      "engine": "webkit",
+      "expected_scalars": 100,
+      "actual_scalars": 100,
+      "expected_utf16": 200,
+      "actual_utf16": 200,
+      "expected_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+      "actual_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+      "member_count": 0,
+      "pending_count": 1
+    }
+  ],
+  "selected_acceptance_proof": [
+    {
+      "engine": "chromium",
+      "rejected_status": 422,
+      "invitation_after_reject_status": 200,
+      "anonymous_after_reject_status": 401,
+      "accepted_status": 200,
+      "session_reload_status": 200,
+      "replay_status": 404,
+      "owner_status": 200,
+      "name_scalars": 100,
+      "name_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+      "member_count": 1,
+      "pending_count": 0,
+      "accepted_count": 1
+    },
+    {
+      "engine": "firefox",
+      "rejected_status": 422,
+      "invitation_after_reject_status": 200,
+      "anonymous_after_reject_status": 401,
+      "accepted_status": 200,
+      "session_reload_status": 200,
+      "replay_status": 404,
+      "owner_status": 200,
+      "name_scalars": 100,
+      "name_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+      "member_count": 1,
+      "pending_count": 0,
+      "accepted_count": 1
+    },
+    {
+      "engine": "webkit",
+      "rejected_status": 422,
+      "invitation_after_reject_status": 200,
+      "anonymous_after_reject_status": 401,
+      "accepted_status": 200,
+      "session_reload_status": 200,
+      "replay_status": 404,
+      "owner_status": 200,
+      "name_scalars": 100,
+      "name_sha256": "a7e0f4a3cea486e31d501a7054ed6a3c9ab8f08e74e5bfa6b1d3014c0b884b81",
+      "member_count": 1,
+      "pending_count": 0,
+      "accepted_count": 1
+    }
+  ],
+  "fresh_anonymous_context": {
+    "separate_from_intact_owner_api": true,
+    "empty_cookie_storage_observed": true,
+    "device_profiles": {
+      "chromium": "Desktop Chrome",
+      "firefox": "Desktop Firefox",
+      "webkit": "Desktop Safari"
+    },
+    "locale": "en-US",
+    "timezone": "UTC",
+    "service_workers": "block",
+    "action_timeout_ms": 10000,
+    "navigation_timeout_ms": 0,
+    "navigation_default_verified_from_pinned_playwright_fixture": true,
+    "same_origin_route_guard_configured": true,
+    "no_credential_or_full_request_body_assertions": true
+  },
+  "canonical_profile": {
+    "unchanged": true,
+    "config_sha256": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "origin": "http://127.0.0.1:18081",
+    "test_timeout_ms": 60000,
+    "expect_timeout_ms": 10000,
+    "workers": 1,
+    "retries": 0
+  },
+  "artifact_index": {
+    "root": "$OPENTRACK_DEV_STATE/invite-name-scalar",
+    "file": "artifact-index.json",
+    "sha256": "86019fbe0840ee2c48396feba9b577fde6d2f049a006ca6532c6f03152e2a7ec"
+  },
+  "frontends": {
+    "baseline": {
+      "retained_root": "$OPENTRACK_DEV_STATE/invite-name-scalar/frontends/baseline",
+      "files": [
+        {
+          "path": "assets/RichTextEditor-BedJvSKb.js",
+          "sha256": "a7b972c673d27a66d332a670742aee8d25a56d230d3feca5875b4937030a9178",
+          "bytes": 444281
+        },
+        {
+          "path": "assets/RichTextEditor-BedJvSKb.js.map",
+          "sha256": "aac381f9909ddeb395b739b59751d91c01c642a3c71a86a50370426d00a31705",
+          "bytes": 1964243
+        },
+        {
+          "path": "assets/index-B9yoYYJd.css",
+          "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+          "bytes": 90154
+        },
+        {
+          "path": "assets/index-CAeW4zFK.js",
+          "sha256": "dcee547c9a32583992d5de43d779973abeee973d0813c52adde86feabb1e6524",
+          "bytes": 689015
+        },
+        {
+          "path": "assets/index-CAeW4zFK.js.map",
+          "sha256": "c2364cee9fc4402a16c032a3ce46884116a599867a9bc8f51f9a54798f80f537",
+          "bytes": 2391632
+        },
+        {
+          "path": "assets/portability.worker-DEvlQVr4.js",
+          "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+          "bytes": 79037
+        },
+        {
+          "path": "assets/portability.worker-DEvlQVr4.js.map",
+          "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+          "bytes": 224663
+        },
+        {
+          "path": "index.html",
+          "sha256": "ca5c59a4af58df389a9d9cd627db02f17d33f573ef9c6735ce7a9a838137797b",
+          "bytes": 606
+        },
+        {
+          "path": "theme.js",
+          "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+          "bytes": 321
+        }
+      ]
+    },
+    "corrected": {
+      "retained_root": "$OPENTRACK_DEV_STATE/invite-name-scalar/frontends/corrected",
+      "checkout_source_root": "web/dist",
+      "files": [
+        {
+          "path": "assets/RichTextEditor-Y39qMnSE.js",
+          "sha256": "6a699a82ac03cc2985725daba3a99a9792c6f81e340ca2ff7c1ea88315275e58",
+          "bytes": 444281
+        },
+        {
+          "path": "assets/RichTextEditor-Y39qMnSE.js.map",
+          "sha256": "f32d94345a211f7ea0d509e22556ceaa63c1b56a91163f486198f5f7b684549f",
+          "bytes": 1964243
+        },
+        {
+          "path": "assets/index-B9yoYYJd.css",
+          "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+          "bytes": 90154
+        },
+        {
+          "path": "assets/index-ClOBRM-5.js",
+          "sha256": "8f75f247ab2d583dcfe6b316f854332d879b37ff5a10b2e95d34cf7fef6a8c7b",
+          "bytes": 689001
+        },
+        {
+          "path": "assets/index-ClOBRM-5.js.map",
+          "sha256": "68c92cdcc1a5faa9fd2da8eebee195bcfea27a9a6cb7f765c7d0b097b034d357",
+          "bytes": 2391606
+        },
+        {
+          "path": "assets/portability.worker-DEvlQVr4.js",
+          "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+          "bytes": 79037
+        },
+        {
+          "path": "assets/portability.worker-DEvlQVr4.js.map",
+          "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+          "bytes": 224663
+        },
+        {
+          "path": "index.html",
+          "sha256": "cb03a321424f7e61398bf16c89940ad5ea0200e905c96a204d89f180e06b6531",
+          "bytes": 606
+        },
+        {
+          "path": "theme.js",
+          "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+          "bytes": 321
+        }
+      ]
+    }
+  },
+  "baseline_reuse": {
+    "receipt_sha256": "3209f027dbae6c1dd413bbbb801f116549776cd21479d773c6796ea004d5fe25",
+    "source_map_target_exactly_matches_pinned_source": true,
+    "old_successful_tests_or_build_not_repeated": true
+  },
+  "previous_candidate_preservation": {
+    "candidate": "9c4b00c31df7367340ef0319913e334c95712a77",
+    "root": "$OPENTRACK_DEV_STATE/qualified-cycle-update-9c4b00c3/web-dist",
+    "relocation_sha256": "096a3153e9ef4176e75003314fc9e8c6d244636edc5eb2a81cf3230490583507",
+    "artifact_index_copy_sha256": "b203fda4b7da177e929cf2ab35d63edb17a67ecd5ea55700e1b78db045c03c9b"
+  },
+  "shutdown": {
+    "file": "shutdown-audit.json",
+    "sha256": "6b726a4036a55a7b341a08b38b3c9eea96b5ca876e4cf8b3f89f45efad95b930",
+    "body": {
+      "state": "stopped",
+      "data_preserved": true,
+      "own_api_and_browser_reaped": true,
+      "logs": [
+        {
+          "path": "db-stop.log",
+          "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d",
+          "bytes": 56
+        },
+        {
+          "path": "db-status.log",
+          "sha256": "e138ccb54fdb08283c6eb21159c53207bbbbf07077246e2804e18d22efe6e250",
+          "bytes": 26
+        }
+      ]
+    }
+  },
+  "runtime": {
+    "same_frozen_backend_sha256": "4cd979ed41ef326bbaf6ac1d7c74a5eda68cd62677de016287a9086b80af8c39",
+    "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+    "caller_sha256": "e3bc2b828ee4f057183c05f07c8441ee878b2918f60aa3c94498442fae198bfd",
+    "command": "source work/browser-env.sh; python3 work/run-invite-name-browser.py <baseline|corrected>; approved scope runs node node_modules/@playwright/test/cli.js test invite-name-scalar-inputs.browser.ts",
+    "own_existing_namespace_database_reused": true,
+    "old_data_not_reset": true,
+    "browser_database_pg_service_authority_removed": true,
+    "private_directory_mode": "0700",
+    "private_file_mode": "0600",
+    "log_cap_bytes_each": 2097152
+  },
+  "acceptance": [
+    "Three native baseline50 cutoffs, then identical-spec three corrected API-backed100-scalar invitation accept/session/member/reload passes.",
+    "Actual101-scalar name receives422, preserves the name draft, leaves invitation pending/previewable and target membership absent, with anonymous session still401.",
+    "Repair accepts once; selected member name remains100 scalars after reload, invitation is consumed and replay returns existing404 without another membership.",
+    "Owner API retains its original session display name/status in the separate HTTP jar.",
+    "Existing focused Settings units cover simulated invitation errors, sign-in focus, permissions, invitation retry and scoped directory behavior. Broader lifecycle routes are unchanged and not newly qualified."
+  ],
+  "migration_rollback": "No Rust/API/schema/dependency change; frontend source/assets rollback without a data rewrite.",
+  "limits": [
+    "No independent global users-table observation after101 rejection; only invitation usability, session status and target workspace membership absence are claimed.",
+    "Three focused browser cases only; no globalCI or full lifecycle qualification.",
+    "Normal owned cleanup observed; forced cancellation remains a separate gate.",
+    "Physical keyboard/IME, native desktop, assistive technology, broader F02/F03/M02 and whole-product acceptance remain separate; lead owns hosted checks and integration."
+  ]
+}
