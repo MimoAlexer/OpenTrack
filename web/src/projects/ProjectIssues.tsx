@@ -48,7 +48,7 @@ function ScopedProjectIssues({ project, session, refresh, readOnly, changed, den
       const items: ProjectIssue[] = []; const cursors = new Set<string>(); let cursor: string | null = null; let complete = false;
       for (let pageIndex = 0; pageIndex < 10; pageIndex += 1) {
         const page: Page<ProjectIssue> = await request(`${path}/issues?${new URLSearchParams({ limit: '100', ...(cursor ? { cursor } : {}) })}`, { signal });
-        if (typeof page.has_more !== 'boolean' || !(page.next_cursor === null || typeof page.next_cursor === 'string') || !Array.isArray(page.data) || page.data.length > 100 || page.data.some(item => !item.id || items.some(previous => previous.id === item.id)) || new Set(page.data.map(item => item.id)).size !== page.data.length) throw new Error('The current project scope could not be verified. Reload current assignment.');
+        if (typeof page.has_more !== 'boolean' || !(page.next_cursor === null || typeof page.next_cursor === 'string') || !Array.isArray(page.data) || page.data.length > 100 || page.data.some(item => typeof item?.id !== 'string' || !item.id.trim() || !Object.hasOwn(item, 'milestone_id') || !(item.milestone_id === null || typeof item.milestone_id === 'string' && !!item.milestone_id.trim()) || items.some(previous => previous.id === item.id)) || new Set(page.data.map(item => item.id)).size !== page.data.length) throw new Error('The current project scope could not be verified. Reload current assignment.');
         items.push(...page.data);
         if (!page.has_more) {
           if (page.next_cursor) throw new Error('The project issue cursor is inconsistent. Reload current assignment.');
@@ -61,7 +61,14 @@ function ScopedProjectIssues({ project, session, refresh, readOnly, changed, den
       let target: Milestone | null = null;
       if (intent.milestone) {
         try { target = await request<Milestone>(`${path}/milestones/${encodeURIComponent(intent.milestone)}`, { signal }); }
-        catch (error) { if (error instanceof ApiError && error.status === 404) throw new Error('The selected milestone is no longer available. Discard this assignment and choose another.'); throw error; }
+        catch (error) {
+          if (error instanceof ApiError && error.status === 404) {
+            const access = await request<Project>(metadataPath, { signal });
+            if (access.id !== project.id || access.workspace_id !== project.workspace_id || access.team_id !== project.team_id || !access.etag) throw new Error('The project scope could not be verified. Reload current assignment.');
+            throw new Error('The selected milestone is no longer available. Discard this assignment and choose another.');
+          }
+          throw error;
+        }
         if (target.id !== intent.milestone || target.workspace_id !== project.workspace_id || target.team_id !== project.team_id || target.project_id !== project.id || !target.can_assign) throw new Error('The selected milestone is unavailable for this project. No retry was sent.');
       }
       const member = items.find(item => item.id === issue.id);
@@ -73,7 +80,7 @@ function ScopedProjectIssues({ project, session, refresh, readOnly, changed, den
       const afterIssue = await request<Issue>(issuePath, { signal });
       const after = await request<Project>(metadataPath, { signal });
       if (after.id !== current.id || after.workspace_id !== current.workspace_id || after.team_id !== current.team_id || after.etag !== current.etag || afterIssue.id !== issue.id || afterIssue.workspace_id !== issue.workspace_id || afterIssue.team_id !== issue.team_id || afterIssue.etag !== issue.etag || afterIssue.archived_at) throw new Error('The project or issue changed during review. Reload current assignment.');
-      const observed = intent.milestone !== undefined ? !!member && (member.milestone_id ?? null) === (intent.milestone || null) : !!member === intent.included;
+      const observed = intent.milestone !== undefined ? !!member && member.milestone_id === (intent.milestone || null) : !!member === intent.included;
       setReview({ intent: { ...intent, issue }, current: after, observed, included: !!member, currentMilestoneTitle: currentMilestone?.title, milestoneTitle: target?.title });
       changed(after); setError(null);
     } catch (error) { setError(error); if (isAccessError(error)) { setReview(null); setAdding(false); setUnavailable(true); denied(error); } }

@@ -281,3 +281,89 @@ it('restores recovery focus to the project issues section after observed removal
   const section = container.querySelector('section[aria-label="Project issues"]')!;
   expect([section, section.querySelector('h3')]).toContain(document.activeElement);
 });
+
+it.each([['truthy nonstring', 42], ['empty string', '']] as const)('review correction: rejects a terminal project issue with a %s id before confirming absence', async (_label, id) => {
+  const fetch = vi.fn((url: string, options: RequestInit) => {
+    if (options.method === 'PUT') return Promise.reject(new TypeError('Response lost'));
+    if (url === `${base}/metadata`) return Promise.resolve(json(latest));
+    if (url.endsWith('/workspaces/workspace/issues/issue')) return Promise.resolve(json(liveIssue));
+    const recovery = new URL(url, 'https://example.test').searchParams.get('limit') === '100';
+    return Promise.resolve(json(page(recovery ? [{ ...member, id }] : [member])));
+  }); vi.stubGlobal('fetch', fetch); await render(assignmentScreen()); await click('Remove EX-1 from project');
+  expect(container.querySelector('dialog')?.textContent).toContain('Review project assignment');
+  expectUnavailable('Apply reviewed assignment'); expect(optionalButton('Done')).toBeUndefined(); expect(hasUnsavedChanges()).toBe(true);
+  expect(fetch.mock.calls.filter(([, options]) => options.method === 'PUT')).toHaveLength(1);
+});
+
+it.each(['missing', 'number', 'empty string'] as const)('review correction: does not confirm milestone clearing from a %s milestone_id', async malformed => {
+  const { milestone_id: _milestone, ...withoutMilestone } = member;
+  const row = malformed === 'missing' ? withoutMilestone : { ...member, milestone_id: malformed === 'number' ? 0 : '' };
+  const fetch = vi.fn((url: string, options: RequestInit) => {
+    if (options.method === 'PUT') return Promise.reject(new TypeError('Response lost'));
+    if (url === `${base}/metadata`) return Promise.resolve(json(latest));
+    if (url.endsWith('/workspaces/workspace/issues/issue')) return Promise.resolve(json(liveIssue));
+    const recovery = new URL(url, 'https://example.test').searchParams.get('limit') === '100';
+    return Promise.resolve(json(page(recovery ? [row] : [{ ...member, milestone_id: 'destination' }])));
+  }); vi.stubGlobal('fetch', fetch); await render(assignmentScreen()); await select('');
+  expectUnavailable('Apply reviewed assignment'); expect(optionalButton('Done')).toBeUndefined(); expect(hasUnsavedChanges()).toBe(true);
+  expect(JSON.parse(fetch.mock.calls.find(([, options]) => options.method === 'PUT')![1].body as string)).toEqual({ milestone_id: null });
+  expect(fetch.mock.calls.filter(([, options]) => options.method === 'PUT')).toHaveLength(1);
+});
+
+it('review correction: retains observed milestone clearing for an explicit null milestone_id', async () => {
+  const fetch = vi.fn((url: string, options: RequestInit) => {
+    if (options.method === 'PUT') return Promise.reject(new TypeError('Response lost'));
+    if (url === `${base}/metadata`) return Promise.resolve(json(latest));
+    if (url.endsWith('/workspaces/workspace/issues/issue')) return Promise.resolve(json(liveIssue));
+    const recovery = new URL(url, 'https://example.test').searchParams.get('limit') === '100';
+    return Promise.resolve(json(page([{ ...member, milestone_id: recovery ? null : 'destination' }])));
+  }); vi.stubGlobal('fetch', fetch); await render(assignmentScreen()); await select('');
+  expect(button('Done').disabled).toBe(false); expectUnavailable('Apply reviewed assignment');
+  expect(fetch.mock.calls.filter(([, options]) => options.method === 'PUT')).toHaveLength(1);
+});
+
+it.each([403, 404])('review correction: conceals assignment labels when a selected milestone 404 is followed by project %s', async status => {
+  let metadataReads = 0; const denied = vi.fn();
+  const fetch = vi.fn((url: string, options: RequestInit) => {
+    if (options.method === 'PUT') return Promise.resolve(conflict());
+    if (url === `${base}/metadata`) return Promise.resolve(++metadataReads === 1 ? json(latest) : json({ code: status === 403 ? 'forbidden' : 'not_found', detail: 'Project unavailable' }, status));
+    if (url.endsWith('/workspaces/workspace/issues/issue')) return Promise.resolve(json(liveIssue));
+    if (url.endsWith('/milestones/destination')) return Promise.resolve(json({ code: 'not_found', detail: 'Milestone unavailable' }, 404));
+    return Promise.resolve(json(page([member])));
+  }); vi.stubGlobal('fetch', fetch); await render(assignmentScreen({ denied })); await select('destination');
+  expect(denied).toHaveBeenCalledOnce(); expect(metadataReads).toBe(2); expect(container.querySelector('dialog')).toBeNull();
+  expect(container.textContent).not.toContain(member.title); expect(container.textContent).not.toContain(member.key); expect(container.textContent).not.toContain('Destination');
+  expectUnavailable('Apply reviewed assignment'); expect(hasUnsavedChanges()).toBe(false);
+  expect(fetch.mock.calls.filter(([, options]) => options.method === 'PUT')).toHaveLength(1);
+});
+
+it('review correction: preserves unresolved selection after a missing milestone when fresh project access still matches', async () => {
+  let metadataReads = 0; const denied = vi.fn();
+  const fetch = vi.fn((url: string, options: RequestInit) => {
+    if (options.method === 'PUT') return Promise.resolve(conflict());
+    if (url === `${base}/metadata`) { metadataReads += 1; return Promise.resolve(json(latest)); }
+    if (url.endsWith('/workspaces/workspace/issues/issue')) return Promise.resolve(json(liveIssue));
+    if (url.endsWith('/milestones/destination')) return Promise.resolve(json({ code: 'not_found', detail: 'Milestone unavailable' }, 404));
+    return Promise.resolve(json(page([member])));
+  }); vi.stubGlobal('fetch', fetch); await render(assignmentScreen({ denied })); await select('destination');
+  expect(metadataReads).toBe(2); expect(denied).not.toHaveBeenCalled(); expect(container.querySelector('dialog')?.textContent).toContain(member.key);
+  expectUnavailable('Apply reviewed assignment'); expect(optionalButton('Done')).toBeUndefined(); expect(hasUnsavedChanges()).toBe(true);
+  expect(fetch.mock.calls.filter(([, options]) => options.method === 'PUT')).toHaveLength(1);
+});
+
+it('review correction: restores discard focus by surviving milestone identity after a missing anchor and deferred refresh', async () => {
+  const fetch = vi.fn((url: string, options: RequestInit) => Promise.resolve(options.method === 'PUT' ? conflict() : json(url === base ? full() : url.endsWith('/metadata') ? latest : milestonePage(overview(['Second', 'Third'])))));
+  vi.stubGlobal('fetch', fetch); let finishRefresh!: () => void;
+  function Parent() {
+    const [current, setCurrent] = useState(project); const [items, setItems] = useState(initial); const [loading, setLoading] = useState(false);
+    function refresh() { setLoading(true); finishRefresh = () => { setItems(overview(['Second', 'Third'])); setLoading(false); }; }
+    return <Milestones project={current} session={session} resource={{ items, loading, error: null, retry: refresh }} readOnly={false} changed={setCurrent} denied={vi.fn()} />;
+  }
+  await render(<Parent />); const origin = button('Move Second up'); origin.focus(); await click('Move Second up');
+  expectUnavailable('Apply reviewed move'); expect(button('Edit First').isConnected).toBe(true);
+  const discard = button('Discard move'); discard.focus(); await click('Discard move'); expect(container.querySelector('dialog')).toBeNull();
+  await act(async () => finishRefresh()); expect(container.querySelector('[aria-label="Edit First"]')).toBeNull(); expect(origin.disabled).toBe(true);
+  const section = container.querySelector('section[aria-label="Project milestones"]')!;
+  expect([button('Edit Second'), button('Move Second down'), section, section.querySelector('h3')]).toContain(document.activeElement);
+  expect(fetch.mock.calls.filter(([, options]) => options.method === 'PUT')).toHaveLength(1);
+});

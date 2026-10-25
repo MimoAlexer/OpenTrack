@@ -66,6 +66,35 @@ test('milestone conflicts preserve relative intent and new milestones; a lost co
   expect(persisted.version).toBe((committed as unknown as FullProject).version);
   expect(writes).toHaveLength(3);
   await test.info().attach('milestone-intent-recovery', { contentType: 'application/json', body: JSON.stringify({ first_status: 412, explicit_reviewed_retry: true, concurrent_milestone_retained: true, committed_response_relayed_as_loss: true, desired_current_order_verified: true, original_acknowledgment_inferred: false, total_put_requests: writes.length, reload_persisted: true }) });
+
+  const deleted = await saved.request<Milestone>(`${path}/milestones/${milestones[1].id}`);
+  const removal = await saved.http.delete(`${saved.path}${path}/milestones/${deleted.id}`, { headers: { Origin: saved.origin, 'X-CSRF-Token': saved.session.csrf_token, 'If-Match': deleted.etag } });
+  expect(removal.status()).toBe(204);
+  const listEndpoint = `${saved.origin}${saved.path}${path}/milestones`;
+  let reads = 0; let held = false; let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const delayRefresh = async (route: Route) => {
+    if (route.request().method() === 'GET' && new URL(route.request().url()).searchParams.get('limit') === '100' && ++reads > 1) { held = true; await gate; }
+    await route.continue();
+  };
+  await page.route(`${listEndpoint}?*`, delayRefresh);
+  try {
+    const stale = page.waitForResponse(response => response.request().method() === 'PUT' && response.url() === endpoint);
+    await section.getByRole('button', { name: 'Move Third outcome up', exact: true }).click();
+    expect((await stale).status()).toBe(412);
+    await expect(review.getByRole('alert')).toContainText('The moved milestone or its target is unavailable');
+    await expect.poll(() => held).toBe(true);
+    await expect(section.getByRole('heading', { level: 4 })).toHaveText(finalOrder.map(item => item.title));
+    await expect(section.getByRole('button', { name: 'Move Third outcome up', exact: true })).toBeDisabled();
+    await expect(review.getByRole('button', { name: 'Apply reviewed move', exact: true })).toBeDisabled();
+    await review.getByRole('button', { name: 'Discard move', exact: true }).click();
+    await expect(review).toHaveCount(0);
+    release();
+    await expect(section.getByRole('heading', { level: 4 })).toHaveText([milestones[2], milestones[0], added].map(item => item.title));
+    await expect(section.getByRole('button', { name: 'Edit Third outcome', exact: true })).toBeFocused();
+    expect(writes).toHaveLength(4);
+  } finally { release(); await page.unroute(`${listEndpoint}?*`, delayRefresh); }
+  await test.info().attach('discard-after-anchor-deletion', { contentType: 'application/json', body: JSON.stringify({ actual_delete_status: removal.status(), stale_move_status: 412, refreshed_order_held_until_discard: true, surviving_id_focus_restored: true, no_retry_after_discard: true, target_put_requests: writes.length }) });
 });
 
 test('project assignment review exhausts pagination, preserves milestone intent and reconciles absence without replay or stale private labels', async ({ page, saved, playwright }) => {
@@ -126,6 +155,37 @@ test('project assignment review exhausts pagination, preserves milestone intent 
     await expect(section.locator('.project-issue-row')).toHaveCount(100);
     await section.getByRole('button', { name: 'Load more issues', exact: true }).click();
     await expect(section.getByRole('combobox', { name: `Milestone for ${target.key}`, exact: true })).toHaveValue(milestone.id);
+
+    const beforeMalformed = await request<FullProject>(path);
+    await request(`${path}/metadata`, 'PATCH', { summary: 'A newer assignment review' }, beforeMalformed.metadata_etag);
+    const listEndpoint = `${saved.origin}${saved.path}${path}/issues`;
+    let malformed = 0;
+    const corruptDecision = async (route: Route) => {
+      if (route.request().method() !== 'GET' || new URL(route.request().url()).searchParams.get('limit') !== '100') { await route.continue(); return; }
+      const response = await route.fetch(); expect(response.status()).toBe(200);
+      const data = await response.json() as Page<ProjectIssue>;
+      const row = data.data.findIndex(item => item.id === target.id);
+      if (row >= 0) { data.data[row] = { id: target.id } as ProjectIssue; malformed += 1; }
+      await route.fulfill({ response, json: data });
+    };
+    await page.route(`${listEndpoint}?*`, corruptDecision);
+    try {
+      const staleClear = page.waitForResponse(response => response.request().method() === 'PUT' && response.url() === milestoneEndpoint);
+      await section.getByRole('combobox', { name: `Milestone for ${target.key}`, exact: true }).selectOption('');
+      expect((await staleClear).status()).toBe(412);
+      await expect(review.getByRole('alert')).toContainText('The current project scope could not be verified');
+      await expect(review).toContainText('no milestone');
+      await expect(review.getByRole('button', { name: 'Apply reviewed assignment', exact: true })).toBeDisabled();
+      await expect(review.getByRole('button', { name: 'Done', exact: true })).toHaveCount(0);
+      expect(malformed).toBe(1); expect(writes).toHaveLength(3);
+      await review.getByRole('button', { name: 'Discard assignment', exact: true }).click();
+    } finally { await page.unroute(`${listEndpoint}?*`, corruptDecision); }
+    await page.reload();
+    await page.getByRole('navigation', { name: 'Project sections', exact: true }).getByRole('button', { name: 'Issues', exact: true }).click();
+    await section.getByRole('button', { name: 'Load more issues', exact: true }).click();
+    await expect(section.locator('.project-issue-row')).toHaveCount(100);
+    await section.getByRole('button', { name: 'Load more issues', exact: true }).click();
+    await expect(section.getByRole('combobox', { name: `Milestone for ${target.key}`, exact: true })).toHaveValue(milestone.id);
     const beforeAbsent = pages.length;
     let committedVersion: string | null = null;
     const relay = async (route: Route) => {
@@ -138,7 +198,7 @@ test('project assignment review exhausts pagination, preserves milestone intent 
     try {
       await section.getByRole('button', { name: `Remove ${target.key} from project`, exact: true }).click();
       await expect(review.getByRole('status')).toContainText('This does not identify which request or person applied it.');
-      expect(committedVersion).not.toBeNull(); expect(writes).toHaveLength(3);
+      expect(committedVersion).not.toBeNull(); expect(writes).toHaveLength(4);
       await expect.poll(() => pages.length).toBe(beforeAbsent + 2);
       expect(pages.slice(beforeAbsent)).toEqual([{ cursor: null, count: 100, target: false, more: true }, { cursor: expect.any(String), count: 1, target: false, more: false }]);
       await expect(review.getByRole('button', { name: 'Apply reviewed assignment', exact: true })).toHaveCount(0);
@@ -149,17 +209,30 @@ test('project assignment review exhausts pagination, preserves milestone intent 
     await page.getByRole('navigation', { name: 'Project sections', exact: true }).getByRole('button', { name: 'Issues', exact: true }).click();
     await expect(section.locator('.project-issue-row')).toHaveCount(50);
     expect((await request<FullProject>(path)).version).toBe(committedVersion);
-    expect(await request<Issue>(`/issues/${target.id}`)).toEqual(targetBefore); expect(writes).toHaveLength(3);
+    expect(await request<Issue>(`/issues/${target.id}`)).toEqual(targetBefore); expect(writes).toHaveLength(4);
     const other = [...issues].sort((a, b) => a.id.localeCompare(b.id))[0];
-    const response = await admin.get(`${saved.path}/teams/${team.id}`);
-    expect(response.status()).toBe(200);
-    await request(`/teams/${team.id}`, 'PATCH', { private: true }, response.headers().etag);
-    const denied = page.waitForResponse(response => response.request().method() === 'PUT' && new URL(response.url()).pathname === `${saved.path}${path}/issues/${other.id}`);
-    await section.getByRole('button', { name: `Remove ${other.key} from project`, exact: true }).click();
-    expect((await denied).status()).toBe(404);
-    await expect(page.getByRole('heading', { name: project.name, exact: true })).toHaveCount(0);
-    await expect(page.getByText(other.title, { exact: true })).toHaveCount(0);
+    const beforeRevoke = await request<FullProject>(path);
+    await request(`${path}/metadata`, 'PATCH', { summary: 'Prepare current access check' }, beforeRevoke.metadata_etag);
+    const selectedEndpoint = `${saved.origin}${saved.path}${path}/milestones/${milestone.id}`;
+    const revokeBeforeSelectedRead = async (route: Route) => {
+      const response = await admin.get(`${saved.path}/teams/${team.id}`); expect(response.status()).toBe(200);
+      await request(`/teams/${team.id}`, 'PATCH', { private: true }, response.headers().etag);
+      await route.continue();
+    };
+    await page.route(selectedEndpoint, revokeBeforeSelectedRead);
+    try {
+      const selectedDenied = page.waitForResponse(response => response.request().method() === 'GET' && response.url() === selectedEndpoint);
+      const projectDenied = page.waitForResponse(response => response.request().method() === 'GET' && new URL(response.url()).pathname === `${saved.path}${path}/metadata` && response.status() === 404);
+      const staleAssignment = page.waitForResponse(response => response.request().method() === 'PUT' && new URL(response.url()).pathname === `${saved.path}${path}/issues/${other.id}/milestone`);
+      await section.getByRole('combobox', { name: `Milestone for ${other.key}`, exact: true }).selectOption(milestone.id);
+      expect((await staleAssignment).status()).toBe(412);
+      expect((await selectedDenied).status()).toBe(404);
+      expect((await projectDenied).status()).toBe(404);
+      await expect(review).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: project.name, exact: true })).toHaveCount(0);
+      await expect(page.getByText(other.title, { exact: true })).toHaveCount(0);
+    } finally { await page.unroute(selectedEndpoint, revokeBeforeSelectedRead); }
     expect((await saved.http.get(`${saved.path}${path}/metadata`)).status()).toBe(404);
-    await test.info().attach('assignment-recovery', { contentType: 'application/json', body: JSON.stringify({ target_after_first_100: true, exhausted_pages_before_absence: 2, stable_live_issue: true, explicit_milestone_review: true, committed_response_relayed_as_loss: true, desired_current_state_only: true, no_replay: true, private_denial: 404, stale_project_labels_removed: true, team_scope: team.id }) });
+    await test.info().attach('assignment-recovery', { contentType: 'application/json', body: JSON.stringify({ target_after_first_100: true, exhausted_pages_before_absence: 2, stable_live_issue: true, explicit_milestone_review: true, committed_response_relayed_as_loss: true, desired_current_state_only: true, no_replay: true, malformed_explicit_field_missing_rejected: true, fault_injected_readback_only: true, private_revoke_between_metadata_and_selected_read: true, selected_read_status: 404, revalidated_project_status: 404, stale_project_labels_and_intent_removed: true, team_scope: team.id }) });
   } finally { await admin.dispose(); }
 });

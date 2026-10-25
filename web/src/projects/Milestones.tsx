@@ -64,22 +64,22 @@ export function Milestones({ project, session, resource, readOnly, changed, deni
 function ScopedMilestones({ project, session, resource, readOnly, changed, denied }: Props) {
   const request = useScopedRequest(); const path = projectPath(project.workspace_id, project.team_id, project.id);
   const [editor, setEditor] = useState<Milestone | 'new' | null>(null); const [deleting, setDeleting] = useState<Milestone | null>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState<unknown>(null); const [limit, setLimit] = useState(50);
-  const container = useRef<HTMLElement>(null); const moveFocus = useRef<{ id: string; index: number; delta: number } | null>(null);
+  const container = useRef<HTMLElement>(null); const moveFocus = useRef<{ id: string; index?: number; delta: number } | null>(null);
   const [review, setReview] = useState<MoveReview | null>(null); const [unavailable, setUnavailable] = useState(false); const flight = useRef(false);
   useUnsavedChanges(!!review || busy);
   const canManage = !readOnly && (project.can_manage || project.lead_id === session.user.id);
   useEffect(() => { if (isAccessError(resource.error)) { setReview(null); setUnavailable(true); denied(resource.error); } }, [resource.error]);
   useEffect(() => {
     const focus = moveFocus.current; if (!focus || resource.loading || review) return;
-    if (resource.error) { moveFocus.current = null; return; }
-    if (resource.items.findIndex(item => item.milestone.id === focus.id) !== focus.index) return;
+    if (resource.error) { container.current?.focus(); moveFocus.current = null; return; }
+    if (focus.index !== undefined && resource.items.findIndex(item => item.milestone.id === focus.id) !== focus.index) return;
     const target = container.current?.querySelector<HTMLButtonElement>(`button[data-move-id="${focus.id}"][data-direction="${focus.delta}"]`);
     if (target && !target.disabled) target.focus(); else (container.current?.querySelector<HTMLButtonElement>(`button[data-edit-id="${focus.id}"]`) ?? container.current)?.focus();
     moveFocus.current = null;
   }, [resource.items, resource.loading, resource.error, review]);
   function closeReview() {
     if (busy || !review) return;
-    moveFocus.current = { id: review.move.id, index: (review.items ?? resource.items).findIndex(item => item.milestone.id === review.move.id), delta: review.move.delta };
+    moveFocus.current = { id: review.move.id, delta: review.move.delta };
     setReview(null);
   }
   async function refresh() { changed(await request<Project>(projectMetadataPath(project.workspace_id, project.team_id, project.id))); resource.retry(); }

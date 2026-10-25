@@ -302,7 +302,7 @@ describe('progress and updates', () => {
     const posts = fetch.mock.calls.filter(([, options]) => options.method === 'POST'); expect(new Headers(posts[0][1].headers).get('Idempotency-Key')).toBe(new Headers(posts[1][1].headers).get('Idempotency-Key')); expect(container.querySelector('textarea')?.value).toBe(''); expect(container.textContent).toContain('2 of 5 completed');
   });
   it('uses the project version when removing an issue and reports stale scope without replay', async () => {
-    const issue = { id: 'issue', key: 'ENG-8', title: 'A useful step', status_id: 'ready', status_name: 'Ready', status_category: 'unstarted', priority: 0, archived_at: null };
+    const issue = { id: 'issue', key: 'ENG-8', title: 'A useful step', status_id: 'ready', status_name: 'Ready', status_category: 'unstarted', priority: 0, archived_at: null, milestone_id: null };
     const latest = { ...project, etag: '"project-metadata:project:2"', version: '2' };
     const live = { ...issue, workspace_id: project.workspace_id, team_id: project.team_id, etag: '"issue:issue:1"', version: '1', description: '', body_version: '1', assignee_id: null, assignee: null, label_ids: [], labels: [], estimate: null, due_date: null, created_at: project.created_at, updated_at: project.updated_at };
     const fetch = vi.fn((url: string, options: RequestInit) => Promise.resolve(options.method === 'PUT' ? json({ code: 'version_conflict', detail: 'Scope changed.' }, 412) : url.endsWith('/workspaces/workspace/issues/issue') ? json(live) : url.includes('/issues?') ? json(page([issue])) : json(latest)));
