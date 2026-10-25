@@ -13,8 +13,30 @@ import re
 import secrets
 import subprocess
 import sys
+import tempfile
+import time
 import urllib.parse
-import urllib.request
+
+from browser_order_fixtures import prepare, remaining, validate_manifest
+
+
+SERVICE_MOUNTS = {
+    "initialize": {("database", "/database-state", True), ("blobs", "/var/lib/opentrack", False),
+                   ("database_secrets", "/bootstrap/database", False), ("api_secrets", "/bootstrap/app", False),
+                   ("migration_secrets", "/bootstrap/migration", False), ("worker_secrets", "/bootstrap/worker", False),
+                   ("operator_secrets", "/bootstrap/operator", False)},
+    "database": {("database", "/var/lib/postgresql", False), ("database_secrets", "/run/secrets", True)},
+    "migrate": {("migration_secrets", "/run/secrets", True)},
+    "app": {("api_secrets", "/run/secrets", True), ("blobs", "/var/lib/opentrack", False)},
+    "worker-provision": {("database_secrets", "/run/secrets", True)},
+    "worker-grant": {("migration_secrets", "/run/secrets", True)},
+    "worker": {("worker_secrets", "/run/secrets", True), ("blobs", "/var/lib/opentrack", False)},
+    "credentials": {("api_secrets", "/run/secrets", True)},
+    "operator-provision": {("database_secrets", "/run/secrets", True)},
+    "operator-grant": {("migration_secrets", "/run/secrets", True)},
+    "operator-output-init": {("operator_output", "/operator-output", False)},
+    "operator": {("operator_secrets", "/run/secrets", True), ("operator_output", "/operator-output", False)},
+}
 
 
 def require(condition, message):
@@ -42,12 +64,19 @@ def validate_target(project, url, environment):
 
 def validate_compose(config, project):
     require(config.get("name") == project, "Compose resolved a different project")
-    for volume in config.get("volumes", {}).values():
-        require(not volume.get("external") and volume.get("name", "").startswith(project + "_"),
+    for name, volume in config.get("volumes", {}).items():
+        require(not volume.get("external") and volume.get("name") == project + "_" + name
+                and volume.get("driver", "local") == "local" and not volume.get("driver_opts"),
                 "Every test volume must belong only to the disposable browser project")
-    for service in config["services"].values():
-        require(all(mount.get("type") == "volume" for mount in service.get("volumes", [])),
-                "Browser acceptance cannot mount host directories")
+    require(set(config["services"]) == set(SERVICE_MOUNTS), "Browser Compose service roles changed")
+    for name, service in config["services"].items():
+        profiles = ["tools"] if name == "credentials" else ["operator"] if name.startswith("operator") else []
+        require(service.get("profiles", []) == profiles, "Browser Compose service profiles changed")
+        mounts = service.get("volumes", [])
+        require(all(mount.get("type") == "volume" and mount.get("source") in config["volumes"] for mount in mounts)
+                and {(mount["source"], mount["target"], mount.get("read_only", False)) for mount in mounts}
+                == SERVICE_MOUNTS[name],
+                "Browser acceptance requires the reviewed service volumes and read-only secret mounts")
     ports = config["services"]["app"]["ports"]
     require(len(ports) == 1 and ports[0].get("host_ip") == "127.0.0.1"
             and str(ports[0].get("published")) == "18081" and ports[0].get("target") == 8080,
@@ -55,12 +84,39 @@ def validate_compose(config, project):
     require(not config["services"]["database"].get("ports"), "The test database must not publish a port")
 
 
+def browser_environment(environment, url, token, password, manifest):
+    keys = ("PATH", "HOME", "LANG", "LC_ALL", "TZ", "XDG_CACHE_HOME", "PLAYWRIGHT_BROWSERS_PATH",
+            "GITHUB_ACTIONS", "RUNNER_OS", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")
+    return {**{key: environment[key] for key in keys if key in environment}, "CI": "true",
+            "OPENTRACK_BROWSER_URL": url, "OPENTRACK_BROWSER_SETUP_TOKEN": token,
+            "OPENTRACK_BROWSER_PASSWORD": password, "OPENTRACK_BROWSER_ORDER_FIXTURES_FILE": str(manifest)}
+
+
+def validate_container(actual, config, project, service, running=None):
+    labels = actual["Config"].get("Labels") or {}
+    mounts = {(config["volumes"][mount["source"]]["name"], mount["target"], not mount.get("read_only", False))
+              for mount in config["services"][service]["volumes"]}
+    require(labels.get("com.docker.compose.project") == project
+            and labels.get("com.docker.compose.service") == service
+            and actual["State"]["Running"] in (True, False)
+            and (running is None or actual["State"]["Running"] is running)
+            and actual.get("Mounts") and all(mount.get("Type") == "volume" for mount in actual["Mounts"])
+            and {(mount.get("Name"), mount.get("Destination"), mount.get("RW"))
+                 for mount in actual["Mounts"]} == mounts,
+            "Browser fixture service or volume ownership did not match this project")
+    if service == "worker":
+        require(actual["Config"].get("Cmd") == ["worker"] and not any(
+            item.startswith("OPENTRACK__WORKER__") for item in actual["Config"].get("Env", [])),
+            "Browser fixture requires the unchanged default worker profile")
+
+
 class BrowserAcceptance:
     def __init__(self, project, url):
         self.url = validate_target(project, url, os.environ)
         self.project = project
         self.root = Path(__file__).resolve().parent.parent
-        self.environment = {**os.environ, "COMPOSE_PROJECT_NAME": project, "OPENTRACK_HTTP_PORT": "18081"}
+        self.environment = {**os.environ, "COMPOSE_PROJECT_NAME": project, "COMPOSE_PROFILES": "",
+                            "OPENTRACK_HTTP_PORT": "18081"}
         self.compose = ["docker", "compose", "--project-name", project,
                         "--file", str(self.root / "compose.yaml")]
 
@@ -73,8 +129,56 @@ class BrowserAcceptance:
     def dc(self, *arguments, timeout=120):
         return self.command(self.compose + list(arguments), timeout)
 
-    def preflight(self):
-        validate_compose(json.loads(self.dc("config", "--format", "json")), self.project)
+    def preflight(self, timeout=120):
+        config = json.loads(self.dc("config", "--format", "json", timeout=timeout))
+        validate_compose(config, self.project)
+        return config
+
+    def owned_service(self, service, running=True, timeout=55):
+        require(service in ("database", "worker"), "Browser fixture cannot control another service")
+        deadline = time.monotonic() + timeout
+        config = self.preflight(timeout=remaining(deadline, 55))
+        container = self.dc("ps", "--all", "--quiet", service, timeout=remaining(deadline, 55))
+        require(re.fullmatch(r"[0-9a-f]{12,64}", container),
+                "Browser fixture requires exactly one owned service container")
+        inspected = json.loads(self.command(["docker", "inspect", container], timeout=remaining(deadline, 55)))
+        require(len(inspected) == 1, "Browser fixture container inspection was ambiguous")
+        validate_container(inspected[0], config, self.project, service, running)
+        return container
+
+    def validate_live_resources(self, timeout=55):
+        deadline = time.monotonic() + timeout
+        config = self.preflight(timeout=remaining(deadline, 55))
+        services = {name for name, service in config["services"].items() if not service.get("profiles")}
+        containers = self.dc("ps", "--all", "--quiet", timeout=remaining(deadline, 55)).splitlines()
+        require(len(containers) == len(services) and all(re.fullmatch(r"[0-9a-f]{12,64}", item) for item in containers),
+                "Browser fixture requires only this fresh project's reviewed containers")
+        inspected = json.loads(self.command(["docker", "inspect", *containers], timeout=remaining(deadline, 55)))
+        seen = set()
+        for actual in inspected:
+            service = actual["Config"].get("Labels", {}).get("com.docker.compose.service")
+            require(service in services and service not in seen, "Browser fixture has an unexpected service container")
+            validate_container(actual, config, self.project, service)
+            seen.add(service)
+        require(seen == services, "Browser fixture is missing a reviewed service container")
+        names = {source for service in services for source, _, _ in SERVICE_MOUNTS[service]}
+        expected = {self.project + "_" + name: name for name in names}
+        volumes = json.loads(self.command(["docker", "volume", "inspect", *sorted(expected)],
+                                          timeout=remaining(deadline, 55)))
+        require(len(volumes) == len(expected) and {item.get("Name") for item in volumes} == set(expected)
+                and all(item.get("Driver") == "local" and not item.get("Options")
+                        and (item.get("Labels") or {}).get("com.docker.compose.project") == self.project
+                        and (item.get("Labels") or {}).get("com.docker.compose.volume") == expected[item["Name"]]
+                        for item in volumes),
+                "Browser fixture secret, blob or data volume belongs to a different project")
+
+    def owned_sql(self, statement, timeout):
+        deadline = time.monotonic() + timeout
+        self.validate_live_resources(timeout=remaining(deadline, 20))
+        self.owned_service("database", timeout=remaining(deadline, 20))
+        return self.dc("exec", "-T", "database", "psql", "-X", "-q", "-v", "ON_ERROR_STOP=1",
+                       "-U", "postgres", "-d", "opentrack", "-tAc", statement,
+                       timeout=remaining(deadline, 20))
 
     def cleanup(self):
         self.preflight()
@@ -96,18 +200,24 @@ class BrowserAcceptance:
             self.dc("up", "--detach", "--wait", "--wait-timeout", "180", "--no-build", timeout=240)
             require(self.dc("port", "app", "8080") == "127.0.0.1:18081",
                     "The live app port does not match the guarded loopback target")
+            self.validate_live_resources()
             # The installed credential helper emits only into this captured pipe.
             token = self.dc("run", "--rm", "--no-deps", "-T", "credentials", "setup-token",
                             "--app-secrets", "/run/secrets")
             require(re.fullmatch(r"[0-9a-f]{64}", token), "The credential helper returned an invalid setup token")
-            with urllib.request.urlopen(self.url + "/api/v1/setup/status", timeout=15) as response:
-                require(json.load(response)["setup_required"], "Browser setup must target a fresh database")
-            environment = {**self.environment, "OPENTRACK_BROWSER_URL": self.url,
-                           "OPENTRACK_BROWSER_SETUP_TOKEN": token,
-                           "OPENTRACK_BROWSER_PASSWORD": secrets.token_urlsafe(36)}
-            result = subprocess.run(["node", "node_modules/@playwright/test/cli.js", "test"],
-                                    cwd=self.root / "web", env=environment, timeout=900)
-            require(result.returncode == 0, "Browser acceptance failed; inspect the credential-free test receipt")
+            password = secrets.token_urlsafe(36)
+            manifest = prepare(self, token, password)
+            validate_manifest(manifest)
+            with tempfile.TemporaryDirectory(prefix="opentrack-browser-order-") as directory:
+                os.chmod(directory, 0o700)
+                path = Path(directory) / "references.json"
+                descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                    json.dump(manifest, stream)
+                environment = browser_environment(self.environment, self.url, token, password, path)
+                result = subprocess.run(["node", "node_modules/@playwright/test/cli.js", "test"],
+                                        cwd=self.root / "web", env=environment, timeout=900)
+                require(result.returncode == 0, "Browser acceptance failed; inspect the credential-free test receipt")
         finally:
             if started:
                 self.cleanup()
@@ -123,7 +233,7 @@ def main():
         runner = BrowserAcceptance(args.project, args.url)
         runner.cleanup() if args.cleanup else runner.run()
         return 0
-    except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired) as error:
+    except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as error:
         # Never include subprocess stdout/stderr, HTTP bodies or auth state.
         print(f"Browser acceptance stopped: {error if isinstance(error, RuntimeError) else type(error).__name__}", file=sys.stderr)
         return 1
