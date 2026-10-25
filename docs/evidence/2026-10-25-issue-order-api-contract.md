@@ -15,7 +15,10 @@ invariants are executed. Required maintenance audits are checked separately from
 Issue history; they are not hidden by dropping all audit assertions.
 
 Four pure ordering tests, strict affected API Clippy, the new native method/UUID
-route test and all published-operation route parity pass. All workspace test
+route test and all published-operation route parity pass. The complete native core
+suite passes50/50 and strict native Clippy; five schema startup regressions also
+pass without repairing metadata or implicitly upgrading historical fixtures.
+These are separate from native GUI or physical-input acceptance. All workspace test
 targets compile; this is not a full workspace runtime pass. Generated OpenAPI has
 only the expected three new ordering endpoints, manual-page response/types and the
 previously implemented optional team query. The compiled UI runtime is frozen and

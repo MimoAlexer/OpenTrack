@@ -56,7 +56,24 @@
     "workspace_targets_compile_only": true,
     "workspace_runtime_suite": false,
     "affected_api_clippy": "passed",
-    "normalizer_worker_source": "330d component/fault audit reused; unchanged storage/capability production behavior"
+    "normalizer_worker_source": "330d component/fault audit reused; unchanged storage/capability production behavior",
+    "native_core_suite": {
+      "passed": 50,
+      "failed": 0,
+      "parts": [
+        23,
+        5,
+        1,
+        21
+      ],
+      "clippy": "all targets, no default shell features, -D warnings",
+      "native_gui": false
+    },
+    "schema_startup_regressions": {
+      "passed": 5,
+      "failed": 0,
+      "metadata_repair_or_implicit_migration": false
+    }
   },
   "scope": [
     "Source authorization and If-Match before generation/neighbors; untrusted rank and null/ambiguous anchors rejected.",
@@ -128,5 +145,11 @@
     "No full workspace runtime suite; legacy fixture compatibility is a separate explicit pending check.",
     "No all-four hosted checks/current-main integration for this private backend; #30/#31 remain open.",
     "Prior input PR166 is independent and still gated by its current exact-head CI and review."
-  ]
+  ],
+  "additional_private_index": {
+    "path": "work/manual-order-qualification/artifact-index-native-schema.json",
+    "sha256": "76ed307d54398b38e61fd3ceaf8c51ef1b460233c91cbc4900925303a68a0fd2",
+    "entries": 5,
+    "original_api_index_unchanged": true
+  }
 }
