@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import type { TiptapEditorHTMLElement } from '@tiptap/core';
 import { readFileSync } from 'node:fs';
 import type { APIRequestContext, Locator, Page, Request, Route } from '@playwright/test';
 import { test, expect, paragraph, type SavedWorkspace } from './fixtures';
@@ -58,6 +59,7 @@ async function keyboardSelect(page: Page, control: Locator, value: string) {
   for (let index = 0; index < values.indexOf(value); index++) await page.keyboard.press('ArrowDown');
   await expect(control).toHaveValue(value);
 }
+async function editorBody(editor: Locator) { return editor.evaluate(element => (element as TiptapEditorHTMLElement).editor!.getJSON() as RichBody); }
 async function keyboardMove(page: Page, issue: Issue, status: string, placement: 'append' | 'before' | 'after', anchor?: Issue, reviewed?: () => Promise<void>) {
   const opener = page.getByRole('button', { name: `Position ${issue.key}`, exact: true }); await expect(opener).toBeEnabled(); await opener.focus(); await page.keyboard.press('Enter');
   const dialog = page.getByRole('dialog', { name: `Position ${issue.key}`, exact: true }); await expect(dialog).toBeVisible();
@@ -215,6 +217,7 @@ test('typed large-group maintenance preserves an editable create draft and attac
     await dialog.getByRole('textbox', { name: 'Title', exact: true }).fill(title); const description = dialog.getByRole('textbox', { name: 'Description', exact: true }); await description.fill('Ready draft and attachment survive order preparation.');
     const chooser = page.waitForEvent('filechooser'); await dialog.getByRole('button', { name: 'Attach files', exact: true }).click(); const uploaded = page.waitForResponse(response => response.request().method() === 'PUT' && response.url().startsWith(`${origin}${saved.path}/attachments/`) && response.url().endsWith('/content'));
     await (await chooser).setFiles({ name: filename, mimeType: 'text/plain', buffer: bytes }); const attachment = await (await uploaded).json() as Attachment; expect(attachment.state).toBe('ready'); await expect(dialog.getByRole('button', { name: `Download ${filename}`, exact: true })).toBeEnabled();
+    const readyBody = await editorBody(description); expect(attachmentIds(readyBody)).toEqual([attachment.id]); expect(plainText(readyBody)).toContain('Ready draft and attachment survive order preparation.');
     const create = async (name: string) => { const response = page.waitForResponse(value => value.url() === createEndpoint && value.request().method() === 'POST'); await dialog.getByRole('button', { name, exact: true }).click(); return response; };
     const first = await create('Create issue'); expect(first.status()).toBe(409); expect(await first.json()).toMatchObject({ code: 'issue_order_maintenance', details: { applied: false, maintenance: [expect.objectContaining({ id: ref.job_id })] } });
     await expect(dialog).toContainText('No issue was created by this request'); await expect(dialog).toContainText('total not known yet'); await expect(dialog.getByRole('textbox', { name: 'Title', exact: true })).toBeEditable(); await expect(description).toBeEditable(); await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeEnabled();
@@ -242,7 +245,9 @@ test('typed large-group maintenance preserves an editable create draft and attac
       await expect(dialog).toContainText('this issue may already exist'); await expect(dialog).not.toContainText('No issue was created by this request');
       await expect(dialog.getByRole('textbox', { name: 'Title', exact: true })).toBeDisabled(); await expect(description).not.toBeEditable(); await expect(description).toHaveAttribute('aria-readonly', 'true'); await expect(description).toHaveAttribute('contenteditable', 'false');
       expect(await description.evaluate(element => (element as HTMLElement).isContentEditable)).toBe(false);
-      const lockedBody = await description.innerHTML(); await description.click(); await page.keyboard.type('Blocked uncertain edit'); expect(await description.innerHTML()).toBe(lockedBody);
+      const lockedBody = await editorBody(description); expect(lockedBody).toEqual(readyBody);
+      await description.locator('p').first().click(); await page.keyboard.type('BlockedUncertainEdit');
+      expect(await editorBody(description)).toEqual(lockedBody);
       await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
       await expect(dialog.getByRole('button', { name: 'Retry safely', exact: true })).toBeEnabled(); expect(creates).toHaveLength(3);
     } finally { await page.unroute(createEndpoint, loseCreate); }
