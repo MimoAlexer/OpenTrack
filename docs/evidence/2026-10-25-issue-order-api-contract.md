@@ -4,6 +4,12 @@
 [Machine receipt](2026-10-25-issue-order-api-contract.json) binds the exact source,
 private logs, original failures and limits.
 
+This is the retained qualification of that earlier source. Subsequent review found
+corrupted Unicode literals and omitted ETag header declarations; the
+[corrective qualification](2026-10-25-issue-order-review-corrections.md) records
+their repair, the full domain suite and the new conditional HTTP checks. Statements
+below about the earlier run do not establish a full domain-suite or 304 runtime pass.
+
 All nine current-head HTTP-router/PostgreSQL cases pass in one final run. They
 exercise source/version ordering, rank injection rejection, full-group adjacency,
 idempotent replay and no-op effects, manual cursor binding, inline500 and durable501
