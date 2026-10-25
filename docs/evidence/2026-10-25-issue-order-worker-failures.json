@@ -1,0 +1,96 @@
+{
+  "date": "2026-10-25",
+  "scope": "New PostgreSQL failure acceptance for partial issue-order application, private-access loss, different execution requester, and actual mid-effect lease expiry.",
+  "base_commit": "330d1bf829398ffe10f0dcf641f46c681e7f2fce",
+  "test_commit": "84968380960a9e826cc723d2ef3eaf81fe53eee1",
+  "source_sha256": {
+    "crates/opentrack-app/tests/issue_order_worker_failures.rs": "9d4648d368a6009f21c32b68b3b0ba824500f88a32434c0503b8423f78076bc6",
+    "crates/opentrack-app/tests/support/mod.rs": "56e99d21a9d18ab23f4bdf34d2634ec2e98e23fb79fecb653023c1a7164aaacd",
+    "crates/opentrack-app/src/worker.rs": "603e5c3b82ae380cfd2e70bc849a45b325eb43cbdec516678275370eca5954d6",
+    "crates/opentrack-app/src/issue_ordering.rs": "dffb4fb6faf8879f0b7d2d31c5ea160de81f9e66ddbef5e709f5b010962753fe",
+    "crates/opentrack-store/migrations/0027_manual_issue_order.sql": "30afd8a7ff4158f4969dd4860490c2e4cdbbfb386f0814db36fb37b7fe9f33c3",
+    "crates/opentrack-server/src/worker.rs": "8e561d8b242408fb9f5c174ce0b186b2ecc1717d7422c7e9008dfb9165e8d759",
+    "crates/opentrack-server/src/config.rs": "1e1ed7ba3c5362c5acf539071973203e62385fd369affefa39609753889f537c",
+    "deploy/grant-worker.sql": "a5004cb18f9c5a31d2a8b40a292d33c0437b8225935c8583129a10026e4fb0fb"
+  },
+  "source_impact": "Only a new test target and dated evidence. Production, migration0027, standard Harness, grants and daemon/config source remain byte-identical to the base.",
+  "environment": "Existing verified private development namespace/cluster and configured restricted roles. Harness constructs fresh UUID schemas in the existing isolated _test database. Migration0027 and test-only trigger/sequences are applied only in those fresh schemas; no migration of retained public data or environment recreation.",
+  "executed": [
+    {
+      "command": "cargo test --locked --offline -p opentrack-app --test issue_order_worker_failures -j 1 -- --test-threads=1 --nocapture",
+      "passed": 2,
+      "failed": 0,
+      "duration_seconds": 13.56,
+      "log_sha256": "c66d1a4fb45eecbce3268fec4ad3267be00575a3576db3709b57509d425b8e7d",
+      "source_snapshot_sha256": "b714266838f0bf10c56dd3371ca2e92a7fee1892dc910782e472995a71745f11"
+    },
+    {
+      "command": "cargo test --locked --offline -p opentrack-app --test issue_order_worker_failures -j 1 real_mid_effect_wall_clock_lease_expiry_rolls_back_final_application -- --test-threads=1 --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "filtered": 1,
+      "duration_seconds": 7.26,
+      "log_sha256": "f8aef04dbcaa329ff83d38ceafca683b4c1e33a609201fa3396433e250f6af81",
+      "reason": "Added a nontransactional normal gate-return witness and elapsed completion bound, excluding lock/statement timeout as a false lease-expiry result. Only the changed expiry case was rerun."
+    },
+    {
+      "command": "cargo clippy --locked --offline -p opentrack-app --test issue_order_worker_failures -j 1 -- -D warnings",
+      "passed": true,
+      "log_sha256": "8b46af6526134420b0cf2fd62a005ce936c4f71139e480d0cd7f413f7f4b443d"
+    },
+    {
+      "command": "rustfmt --check --edition 2024 crates/opentrack-app/tests/issue_order_worker_failures.rs",
+      "passed": true
+    },
+    {
+      "command": "git diff --check",
+      "passed": true
+    }
+  ],
+  "passing_reuse": "The partial-application/access-loss case, all shared fixtures/helpers and test entry points are byte-identical to the initial two-case passing run. The expiry function alone changed for the stricter final witness. Two unique cases pass; no unchanged staging-only or stale-claim target was repeated.",
+  "partial_application": {
+    "live_issues": 501,
+    "archived_deleted_controls": 2,
+    "staged": 501,
+    "already_applied": 100,
+    "original_rank_suffix": 401,
+    "revocation": "Real remove_team_member through the application, using a current member validator. Contributor account and workspace membership remain enabled/active, but current private-team read returns NotFound.",
+    "blocked": "The next worker batch returns Blocked/access_lost. Entire normalization progress/cursor, staging, guard, exact issue ranks/metadata and team state remain unchanged after revocation; no worker history/event/stream effect appears.",
+    "takeover": "An actually eligible private-team manager differs from the original contributor. Controlled fixture SQL changes jobs.requested_by and requeue bookkeeping only; job identity, attempts, staging, progress and immutable original_requested_by are preserved. A fresh worker claim uses the manager and completes exact501 normalization without restoring the contributor access.",
+    "logical_preservation": "Whole issue JSON except physical rank, team JSON except ordering_version, documents/revisions, subscriptions, activity/audit/workspace events/stream heads, project membership, labels, relations and authorization/membership rows compare equal across worker effects. Revocation itself has a separate legitimate identity-effects baseline.",
+    "api_limit": "Fixture takeover is not manager-resume API acceptance. That endpoint is not implemented at this base."
+  },
+  "lease_fault": {
+    "precondition": "501 staged and500 applied; final application remains. Worker claims normally with unchanged default lease60s/max5 connections. Only that already-claimed fixture lease is shortened to600ms; baseline job is updated before effect execution.",
+    "gate": "Fresh-schema AFTER UPDATE ordering_version trigger is filtered to the target completed operation with guard absent. It verifies staged/applied/total501, exact normalized ranks, and actual statement3s/lock1s settings before blocking. Nontransactional sequence witnesses survive the production rollback.",
+    "observed_window_microseconds": {
+      "entered_before_expiry_us": 589497,
+      "observed_before_expiry_us": 585155,
+      "observed_after_expiry_us": 76709,
+      "observed_gate_wait_us": 666206,
+      "normal_gate_return_us": 668276,
+      "gate_left_after_expiry_us": 78779,
+      "effect_finished_since_entry_us": 680109
+    },
+    "result": "Same worker is observed blocked before expiry and again after actual DB clock expiry. Gate returns normally after expiry below the1s lock budget; worker completes below the statement-timeout boundary and returns LostLease. Exact ranks, normalization cursor/phase/counts, staging, guard, team generation, claimed expired running job and open attempt compare equal to the pre-effect baseline, as do all logical/history effects.",
+    "profile": {
+      "worker_lease_seconds": 60,
+      "worker_max_connections": 5,
+      "statement_timeout_ms": 3000,
+      "lock_timeout_ms": 1000,
+      "fixture_claimed_lease_ms": 600,
+      "daemon_poll_default_ms": 2000
+    },
+    "daemon_limit": "Daemon polling was not executed; its2000ms default and source remain unchanged. Tests invoke the real worker claim/effect transaction directly."
+  },
+  "cleanup": "Holder rollback and worker join/reap occur before witness assertions. Timeout cleanup aborts and awaits the JoinSet. Worker pools close before schema cleanup. All three successful fresh Harness invocations awaited schema removal; no test failure occurred. Failure paths preserve the failed schema/logs after closing pools. Test gate objects are explicitly dropped on success.",
+  "not_run": [
+    "No old staging-only/stale-claim tests, browser/UI build, server binary build, global matrix, deployment or hosted CI."
+  ],
+  "data_rollback": "No shipped source, data format or migration changes. Successful test schemas and their fault objects are removed; prior retained databases, assets, branches and proof remain unchanged.",
+  "limits": [
+    "This accepts the exact immutable330d worker foundation plus the new test target. Lead API/UI, real manager resume endpoint, manual-read presentation and integrated-main/hosted acceptance remain separate.",
+    "No whole issue30, F17/M05 or product completion is claimed.",
+    "The app Goal still reports blocked; this newly authorized assignment executed without a duplicate Goal or forced accounting change."
+  ]
+}
