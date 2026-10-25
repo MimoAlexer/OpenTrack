@@ -200,5 +200,53 @@
     "No timeout/profile/assertion relaxation; proposed900 remains awaiting explicit human answer",
     "Manual UI candidate remains separately owned and unfinished; production build deferred until that union",
     "No main merge, M27 retained-database upgrade, issue closure, native/physical/assistive/performance or whole-product completion"
-  ]
+  ],
+  "additional_worker_fault_runtime": {
+    "qualified_head": "6353b2f7183272fd0f1cd1a2edfea97f0b82da84",
+    "original_reviewed_candidate": "0cb1f9bf0979ef9949aa4888e92729bc6992e8c5",
+    "imported_test_head": "06a69f9",
+    "source_sha256": {
+      "crates/opentrack-app/tests/issue_order_worker_failures.rs": "9d4648d368a6009f21c32b68b3b0ba824500f88a32434c0503b8423f78076bc6",
+      "crates/opentrack-app/tests/support/mod.rs": "56e99d21a9d18ab23f4bdf34d2634ec2e98e23fb79fecb653023c1a7164aaacd",
+      "crates/opentrack-app/src/worker.rs": "603e5c3b82ae380cfd2e70bc849a45b325eb43cbdec516678275370eca5954d6",
+      "crates/opentrack-store/src/ordering.rs": "b84eaf0cec71adc30fd912d80ccfdc15f7f84c50a8dc0c3064c559c02cbfeae6",
+      "crates/opentrack-store/migrations/0027_manual_issue_order.sql": "30afd8a7ff4158f4969dd4860490c2e4cdbbfb386f0814db36fb37b7fe9f33c3"
+    },
+    "test_bytes_identical_to_original": true,
+    "reason_for_focused_run": "New test-target import against shared harness whose restricted-role grant correction postdates the original proof",
+    "passed": 2,
+    "failed": 0,
+    "filtered_out": 0,
+    "cases": [
+      "Partial applying private-team access loss and different-requester fixture takeover",
+      "Actual mid-effect wall-clock expiry with complete physical/logical rollback and normal gate-return witness"
+    ],
+    "checks": [
+      {
+        "check": "worker-fault-cases",
+        "exit_code": 0,
+        "elapsed_seconds": 31.654,
+        "owned_session_cleanup_confirmed": true,
+        "log_sha256": "190dc2e44c732fcfcb2b1601bc95ad2033a5984c67bd69507dd286b7a41ebd4f"
+      },
+      {
+        "check": "fault-clippy",
+        "exit_code": 0,
+        "elapsed_seconds": 10.803,
+        "owned_session_cleanup_confirmed": true,
+        "log_sha256": "804807f7aedbd6e38692aa0930062dd6dcb72e3ba2a021211ed872c571d5f0e2"
+      }
+    ],
+    "private_artifact_index": {
+      "root": "$OPENTRACK_DEV_STATE/manual-order-worker-fault-union-v1",
+      "name": "artifact-index.json",
+      "sha256": "7d9d1e47492c8e9df2fcf997e3e427c6da11ac565ba0f29b7d2d6b3de2427228",
+      "files": 3
+    },
+    "limits": [
+      "Direct claims/effects, not daemon dispatch or resume API acceptance",
+      "Original fixture take-over, fixed600ms fault injection,850ms observation and default worker profile retained",
+      "No whole workspace/browser/main acceptance"
+    ]
+  }
 }

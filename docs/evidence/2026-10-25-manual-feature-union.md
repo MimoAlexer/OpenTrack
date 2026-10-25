@@ -22,3 +22,12 @@ and all four exact-head hosted gates remain required before integration. The
 public PR166 matrix remains incomplete at 201 passes and 12 unreported cases;
 privately composing its source does not clear that gate. No timeout, profile or
 assertion changed, and no issue, milestone or whole-product completion is claimed.
+
+The previously reviewed worker-fault tests were subsequently imported unchanged
+as `06a69f9`. At `6353b2f`, both cases and strict affected Clippy pass against the
+current tightened shared fixture permissions. They retain the original private
+access-loss/fixture-takeover and actual lease-expiry rollback assertions, bounds
+and worker profile. This separate run qualifies direct claims/effects; daemon
+dispatch and the real resume endpoint retain their separate evidence. The receipt
+records this later source and its three private artifacts independently of the
+164-test frontend run.
