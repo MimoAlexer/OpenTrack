@@ -33,7 +33,9 @@ for (const interruptedRefresh of [false, true]) {
       const teamKey = `W${randomUUID().replaceAll('-', '').slice(0, 7).toUpperCase()}`;
       const before = await sessionFor(proof);
       expect(before.user.id).toBe(saved.session.user.id);
-      expect(before.workspaces[0]).toMatchObject({ id: saved.workspace, name: 'Browser acceptance' });
+      const fixtureMembership = before.workspaces.filter(workspace => workspace.id === saved.workspace);
+      expect(fixtureMembership).toHaveLength(1);
+      expect(fixtureMembership[0]).toMatchObject({ id: saved.workspace, name: 'Browser acceptance' });
       expect(before.workspaces.filter(workspace => workspace.name === name)).toEqual([]);
       if (interruptedRefresh) await page.route(sessionUrl, refreshRoute);
 
@@ -132,7 +134,7 @@ for (const interruptedRefresh of [false, true]) {
       await page.getByRole('combobox', { name: 'Workspace', exact: true }).selectOption(saved.workspace);
       await expect.poll(() => new URL(page.url()).pathname).toBe(`/w/${saved.workspace}/issues`);
       await expect(page.locator('.workspace-identity strong')).toHaveText('Browser acceptance');
-      expect((await sessionFor(proof)).workspaces[0].id).toBe(saved.workspace);
+      expect((await sessionFor(proof)).workspaces.filter(workspace => workspace.id === saved.workspace)).toHaveLength(1);
     } finally {
       page.off('request', countPost);
       if (interruptedRefresh) await page.unroute(sessionUrl, refreshRoute);

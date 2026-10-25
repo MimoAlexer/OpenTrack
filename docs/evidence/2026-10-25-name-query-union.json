@@ -1,0 +1,180 @@
+{
+  "date": "2026-10-25",
+  "scope": "Workflow/label names and query, workspace/team Unicode names.",
+  "base_commit": "5cb79f48ed1d59dad930fd5421d41b9aeaa5ca19",
+  "code_union_commit": "dca0b58bdf4a901e8f9a45c26bc584588cde8a09",
+  "source_sha256": {
+    "docs/evidence/2026-10-25-workflow-label-scalars.json": "84bd96bc6aaaa2579ac8ab1684f53eeda5aa3b03cba4eb03c1bee20f973ea642",
+    "docs/evidence/2026-10-25-workflow-label-scalars.md": "a1e1c14e1525cd03dc9f74e5e605a21b8123e441618757f3ea636194cf890ea1",
+    "docs/evidence/2026-10-25-workspace-team-scalars.json": "0388cc3a826112c0f26ad10b09b21e98303f11e976c1d15270abcf0d8dabeb06",
+    "docs/evidence/2026-10-25-workspace-team-scalars.md": "57b80268ef5a30cf9715548276653acfde8244e6688b25909500d34be5e3a045",
+    "web/e2e/workflow-label-scalar-inputs.browser.ts": "5a2bf5fd7013e4df9e16f7da50577cac0d26ca6f50a14cee3be14574ab3a95cd",
+    "web/e2e/workspace-team-scalar-inputs.browser.ts": "32e6bc634e6c54e3a92122b12bf9b56f8ee2276dbbf94b919c535420277cd39b",
+    "web/src/settings/Settings.test.tsx": "6648d86c488bc2e7923c8c05545de273d300a5925eabc29369cfb9b54481235b",
+    "web/src/settings/TeamSettings.tsx": "8e79f2f45f304e50484e74c1452475ba7f8ac2a89f5bf4c04d60caf9845a6af0",
+    "web/src/settings/WorkspaceCreation.test.tsx": "8133430635599c16c9a449c81dc34ad2e0142fd900b274abd18be6ae61b728b9",
+    "web/src/settings/WorkspaceSettings.tsx": "6c6822bd521664137fc66ee8b74b3cd7471bdb9754f4dc17712c47855a197e06",
+    "web/src/taxonomy/LabelSettings.tsx": "df454687663d01fb8495ba4dd2e35c7e042d9e0745557f3400d5b586db97ad8a",
+    "web/src/taxonomy/Taxonomy.test.tsx": "b34e8c6470af1e04ec7f9a22eeac7cc888ce0d6734775a58c2eaadd32a1f98ac",
+    "web/src/workflows/StatusEditor.tsx": "612684e29e10c83dc5e11544ac54633a454e98a3ee73479fd68ab8720ebdb38e",
+    "web/src/workflows/Workflow.test.tsx": "2f32cf2c51c5bd600ee4d2c4d59987fb567c90a16024017915f69e5a55cce9bb",
+    "docs/REQUIREMENTS_STATUS.md": "29fb60420560b1c5d9068cb00e38b3e02bd13c8ac830d11db18b8b77d3e9208b",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "web/e2e/fixtures.ts": "231ed3b47c40321e2419cf1f122d1ece64767f93cab07d35e1462eed0f06d45b",
+    "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667",
+    "web/e2e/fixture-session.ts": "d8be4e0d00c0840998046b3e4572e941fd8cdca0b5fa666a13af4ebe59bea575",
+    "web/src/fixture-session.test.ts": "d03dd17ecdc645d0f646612b11aa1322218e3153b894c5c3393a3e38851df306",
+    "web/e2e/board.browser.ts": "3c3843928d08db2e895b1e772b19876d6b1ef2a358b72b82f3f0aaaee66b6364",
+    "web/e2e/projects.browser.ts": "8c8b4fab9693e009fc934e100f5b5272388d1e144b61eae5e427651969777c54",
+    "web/e2e/identity.browser.ts": "5f2de9f29cd99aa25e401e27f741937d55a6661b11513e0cbedfbbddf9d2494b",
+    "web/e2e/team-settings.browser.ts": "9384b4f73d50a88f12ee09f10c08a6f9784e76d6cc2ba00ee1aae12ed9044fc2",
+    "web/e2e/workspace-creation.browser.ts": "321913e1874cc51c9767ef5c855d275dcf5dc7d30dc8b13d80816f56896b3c2f"
+  },
+  "individual_browser_qualification": [
+    {
+      "scope": "workflow-labels",
+      "worker_head": "af249b3fc5dfa5dab57d04652f9b742ad051108e",
+      "root_commit": "d8c37b6cabca3485a64c2a4c06d4d658a16ecc1a",
+      "baseline_expected_failures": 6,
+      "corrected_passes": 6,
+      "spec_sha256": "5a2bf5fd7013e4df9e16f7da50577cac0d26ca6f50a14cee3be14574ab3a95cd",
+      "evidence": "docs/evidence/2026-10-25-workflow-label-scalars.json",
+      "evidence_sha256": "84bd96bc6aaaa2579ac8ab1684f53eeda5aa3b03cba4eb03c1bee20f973ea642"
+    },
+    {
+      "scope": "workspace-team",
+      "worker_head": "4707c9e2c6bacfe43a980a2913f42ab4cfb06c45",
+      "root_commit": "dca0b58bdf4a901e8f9a45c26bc584588cde8a09",
+      "baseline_expected_failures": 6,
+      "corrected_passes": 6,
+      "spec_sha256": "32e6bc634e6c54e3a92122b12bf9b56f8ee2276dbbf94b919c535420277cd39b",
+      "evidence": "docs/evidence/2026-10-25-workspace-team-scalars.json",
+      "evidence_sha256": "0388cc3a826112c0f26ad10b09b21e98303f11e976c1d15270abcf0d8dabeb06"
+    }
+  ],
+  "local_browser_scope": "Twelve corrected journeys ran against two independent bundles; no local combined-bundle browser run is claimed.",
+  "combined_checks": [
+    {
+      "check": "focused-units",
+      "exit_code": 0,
+      "elapsed_seconds": 41.219,
+      "owned_process_reaped": true,
+      "log_sha256": "27a5c53e35f810ea3891ad0afb25df865d6d610ac78fe90585eb2f1d165a399a",
+      "passed": 74,
+      "files": 4
+    },
+    {
+      "check": "typescript-app",
+      "exit_code": 0,
+      "elapsed_seconds": 1.094,
+      "owned_process_reaped": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "typescript-browser",
+      "exit_code": 0,
+      "elapsed_seconds": 0.453,
+      "owned_process_reaped": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "production-bundle",
+      "exit_code": 0,
+      "elapsed_seconds": 1.969,
+      "owned_process_reaped": true,
+      "log_sha256": "c919312153ede11b58422179ed616fb785cde4e4ea5852759fa369c47157ed53"
+    }
+  ],
+  "combined_frontend_build": {
+    "sha256": "7fdd197ec716476c9e32cc66f0e5fb81a61762aa4c6e00a2b1965e11850b31d0",
+    "files": {
+      "assets/index-B9yoYYJd.css": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+      "assets/index-BQFUnXGE.js": "0f04332c0735504ca55837cc989c8133b2ad68cdf4dd8403f6cac4497297e658",
+      "assets/index-BQFUnXGE.js.map": "3203688b34e7d63c54024ffa3f863b00a2dea92358c197538c24dd2c3c3f8152",
+      "assets/portability.worker-DEvlQVr4.js": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+      "assets/portability.worker-DEvlQVr4.js.map": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+      "assets/RichTextEditor-ml4taPfB.js": "d00405568a74257e529d66e1c95692fa1dddbae514564e76388f29009c8d8952",
+      "assets/RichTextEditor-ml4taPfB.js.map": "b3b7b17f6a75336fc77d89e80566329154f4b63135a1cd996f79a880b9b130bf",
+      "index.html": "878047395d2e0c243671eefb96f34c21109dde425d3e08c590a44e1352a8cfe9",
+      "theme.js": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e"
+    },
+    "tracked_sources_unchanged": true,
+    "served_locally": false
+  },
+  "production_delta": "Remove eight native UTF-16 caps across four components; existing Rust limits and permission/version/retry behavior remain authoritative.",
+  "data_impact": "No Rust, API, schema, persisted format or dependency change. Frontend rollback restores native cutoffs without altering saved values.",
+  "integration_requirements": [
+    "Final independent immutable source/evidence/privacy review.",
+    "All four configured checks at the unchanged final head.",
+    "Clear conversations and current-main tree equality under the integration lock."
+  ],
+  "limits": [
+    "Original native failures and selector-discovery failures are retained separately with final same-spec comparisons.",
+    "Existing restore-name repair policy remains covered by focused tests; supplementary-scalar restore input was not separately exercised.",
+    "No local global browser matrix, forced cancellation, native/physical/IME/assistive or broad milestone completion is claimed."
+  ],
+  "fixture_selection_correction": {
+    "failed_head": "4d057cdb6a3f9825c5478a83eae6b1cdbefbf350",
+    "failed_run": 40193985715,
+    "failed_job": 121172490169,
+    "observed_ci": {
+      "passed": 63,
+      "total": 189,
+      "chromium_passed": 63,
+      "firefox_passed": 0,
+      "webkit_passed": 0,
+      "first_failure": "Firefox synthetic-session eligibility at fixtures.ts107",
+      "later_failures": "Fixture owner-authentication gate at fixtures.ts104; HTTP status not captured."
+    },
+    "private_failed_step_log_sha256": "890a7bba7a2e9e9a19d29691cec1c23cab3fe5226b03945343ad8196276d1f64",
+    "source_hazard": "Session workspaces are ordered by name and ID; the fixture incorrectly treated position zero as the canonical synthetic workspace.",
+    "observation_limit": "The CI receipt does not record session values or database collation; the controlled regression establishes the ordering hazard independently.",
+    "correction": "Select exactly one named synthetic workspace after validating the same synthetic owner, preserve server order, and pass its ID explicitly through every SavedWorkspace constructor. Workspace-creation proof checks require unique expected-ID membership instead of list position, preserving their identity/count/version/handoff assertions.",
+    "safety": "Disposable-mode, fixed-origin and synthetic identity checks remain; ambiguous or missing canonical workspaces fail closed. No data cleanup, product ordering, auth limit, assertion, timeout or retry relaxation.",
+    "isolated_legacy_guard_regression": {
+      "scope": "Isolated extraction of the exact prior session-index guard, not a complete old-browser run.",
+      "legacy_source_commit": "4d057cdb6a3f9825c5478a83eae6b1cdbefbf350",
+      "legacy_extraction_sha256": "b8c45276f439c7477f4e70b372c598ce6bc3473bb88713ca719300beea270e58",
+      "corrected_selector_sha256": "d8be4e0d00c0840998046b3e4572e941fd8cdca0b5fa666a13af4ebe59bea575",
+      "expected_failures": 2,
+      "passed": 4,
+      "exit_code": 1,
+      "log_sha256": "e66e0a2e4b7f7ef3c2284888ec898b90cbc94c81b1e59ae4c7716ad3f2b68ad6"
+    },
+    "corrected_selector_tests": {
+      "passed": 6,
+      "failed": 0,
+      "checks": [
+        {
+          "check": "fixture-selection-units",
+          "exit_code": 0,
+          "elapsed_seconds": 0.859,
+          "owned_process_reaped": true,
+          "log_sha256": "bb8c76b5d0cbe0e9d60f44684a381ad47ad9602715ef45cb1eae6dc1f77f7938"
+        },
+        {
+          "check": "typescript-app",
+          "exit_code": 0,
+          "elapsed_seconds": 0.937,
+          "owned_process_reaped": true,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "check": "typescript-browser",
+          "exit_code": 0,
+          "elapsed_seconds": 0.438,
+          "owned_process_reaped": true,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "check": "typescript-browser-final-membership-proofs",
+          "exit_code": 0,
+          "elapsed_seconds": 0.453,
+          "owned_process_reaped": true,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    "runtime_limits": "Existing product UI bytes and compiled bundle are unchanged; local 74 units/build are not repeated. Fresh complete hosted verification at the corrected head remains required."
+  }
+}
