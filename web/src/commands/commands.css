@@ -11,6 +11,8 @@
   .command-option small { display: block; font-size: 10px; color: var(--muted); }
   .command-option[aria-selected='true'] { background: var(--selected); }
   .command-empty { color: var(--secondary); text-align: center; padding: 30px 20px; font-size: 13px; overflow-wrap: anywhere; }
+  .command-scope { color: var(--secondary); padding: 8px 20px; font-size: 12px; }
+  .command-error > strong { display: block; padding: 8px 20px 0; font-size: 12px; }
   .command-footer { display: flex; justify-content: flex-end; gap: 18px; padding: 12px 18px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); }
   .command-footer span { display: flex; align-items: center; gap: 4px; }
   .command-trigger kbd { flex-shrink: 0; }
