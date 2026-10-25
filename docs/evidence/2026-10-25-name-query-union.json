@@ -27,7 +27,8 @@
     "web/e2e/board.browser.ts": "3c3843928d08db2e895b1e772b19876d6b1ef2a358b72b82f3f0aaaee66b6364",
     "web/e2e/projects.browser.ts": "8c8b4fab9693e009fc934e100f5b5272388d1e144b61eae5e427651969777c54",
     "web/e2e/identity.browser.ts": "5f2de9f29cd99aa25e401e27f741937d55a6661b11513e0cbedfbbddf9d2494b",
-    "web/e2e/team-settings.browser.ts": "9384b4f73d50a88f12ee09f10c08a6f9784e76d6cc2ba00ee1aae12ed9044fc2"
+    "web/e2e/team-settings.browser.ts": "9384b4f73d50a88f12ee09f10c08a6f9784e76d6cc2ba00ee1aae12ed9044fc2",
+    "web/e2e/workspace-creation.browser.ts": "321913e1874cc51c9767ef5c855d275dcf5dc7d30dc8b13d80816f56896b3c2f"
   },
   "individual_browser_qualification": [
     {
@@ -128,7 +129,7 @@
     "private_failed_step_log_sha256": "890a7bba7a2e9e9a19d29691cec1c23cab3fe5226b03945343ad8196276d1f64",
     "source_hazard": "Session workspaces are ordered by name and ID; the fixture incorrectly treated position zero as the canonical synthetic workspace.",
     "observation_limit": "The CI receipt does not record session values or database collation; the controlled regression establishes the ordering hazard independently.",
-    "correction": "Select exactly one named synthetic workspace after validating the same synthetic owner, preserve server order, and pass its ID explicitly through every SavedWorkspace constructor.",
+    "correction": "Select exactly one named synthetic workspace after validating the same synthetic owner, preserve server order, and pass its ID explicitly through every SavedWorkspace constructor. Workspace-creation proof checks require unique expected-ID membership instead of list position, preserving their identity/count/version/handoff assertions.",
     "safety": "Disposable-mode, fixed-origin and synthetic identity checks remain; ambiguous or missing canonical workspaces fail closed. No data cleanup, product ordering, auth limit, assertion, timeout or retry relaxation.",
     "isolated_legacy_guard_regression": {
       "scope": "Isolated extraction of the exact prior session-index guard, not a complete old-browser run.",
@@ -162,6 +163,13 @@
           "check": "typescript-browser",
           "exit_code": 0,
           "elapsed_seconds": 0.438,
+          "owned_process_reaped": true,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "check": "typescript-browser-final-membership-proofs",
+          "exit_code": 0,
+          "elapsed_seconds": 0.453,
           "owned_process_reaped": true,
           "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         }
