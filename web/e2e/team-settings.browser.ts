@@ -13,7 +13,7 @@ test('team settings deep links load and save a team beyond the first 50 without 
   expect(created.status()).toBe(201);
   const workspace = await created.json() as WorkspaceDetail;
   const bootstrapResponse = await saved.http.get(`/api/v1/workspaces/${workspace.id}/bootstrap`); expect(bootstrapResponse.ok()).toBe(true);
-  const isolated = new SavedWorkspace(saved.http, { ...saved.session, workspaces: [workspace] }, await bootstrapResponse.json() as Bootstrap, saved.origin);
+  const isolated = new SavedWorkspace(saved.http, { ...saved.session, workspaces: [workspace] }, await bootstrapResponse.json() as Bootstrap, saved.origin, workspace.id);
   const teams: TeamDetail[] = [];
   for (let index = 0; index < 51; index++) teams.push(await isolated.request<TeamDetail>('/teams', 'POST', { name: `Directory team ${index}`, key: `T${String(index).padStart(2, '0')}`, private: false }, { 'Idempotency-Key': randomUUID() }));
   const first = await isolated.request<Page<TeamDetail>>('/teams?state=active&limit=50');

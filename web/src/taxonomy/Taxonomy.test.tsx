@@ -38,6 +38,48 @@ function picker(label: string) { return [...container.querySelectorAll<HTMLEleme
 async function open(label: string) { await act(async () => picker(label).querySelector<HTMLButtonElement>('.reference-trigger')!.click()); await settle(); }
 async function choose(name: string) { const option = [...container.querySelectorAll<HTMLElement>('[role=option]')].find(option => option.textContent?.includes(name))!; await act(async () => option.click()); }
 
+it.each(['create', 'edit'])('retains a rejected supplementary label %s draft and submits its repaired scalar boundary once', async mode => {
+  const name = '\u{1F308}'.repeat(100); const writes: RequestInit[] = [];
+  const original = { ...label, team_id: 't' }; let current: Label | null = mode === 'edit' ? original : null;
+  const fetch = vi.fn((_url: string, options: RequestInit) => {
+    if (options.method !== 'POST' && options.method !== 'PATCH') return Promise.resolve(json(page(current ? [current] : [])));
+    writes.push(options);
+    if (writes.length === 1) return Promise.resolve(json({ code: 'validation_failed', detail: 'Label name must contain 1–100 characters without control characters' }, 422));
+    current = { ...original, name, color: mode === 'create' ? 'gray' : 'blue', version: mode === 'create' ? '1' : '2' };
+    return Promise.resolve(json(current, mode === 'create' ? 201 : 200));
+  });
+  vi.stubGlobal('fetch', fetch);
+  await render(<LabelSettings workspaceId="w" teamId="t" scopeName="Engineering" session={session} canCreate />); await settle();
+  await click(mode === 'create' ? 'New label' : 'Edit Customer');
+  const nameInput = container.querySelector<HTMLInputElement>('dialog input')!;
+  await input(nameInput, name + '\u{1F308}'); await submit(container.querySelector('dialog form')!);
+  expect(nameInput.value).toBe(name + '\u{1F308}'); expect(nameInput.matches(':disabled')).toBe(false);
+  expect(container.textContent).toContain('Label name must contain'); expect(current).toEqual(mode === 'edit' ? original : null);
+  await input(nameInput, name); await submit(container.querySelector('dialog form')!);
+  expect(container.querySelector('dialog')).toBeNull(); expect(writes).toHaveLength(2);
+  for (const [index, write] of writes.entries()) {
+    expect(write.method).toBe(mode === 'create' ? 'POST' : 'PATCH');
+    expect(JSON.parse(write.body as string)).toEqual({ name: name + (index === 0 ? '\u{1F308}' : ''), color: mode === 'create' ? 'gray' : 'blue', ...(mode === 'create' ? { team_id: 't' } : {}) });
+    if (mode === 'edit') expect(new Headers(write.headers).get('If-Match')).toBe('"label:l1:1:true"');
+  }
+});
+
+it('sends complete supplementary label queries and preserves 422 text without retrying an unfiltered directory', async () => {
+  const name = '\u{1F31F}'.repeat(100); const overlong = name + '\u{1F31F}'; const queries: string[] = [];
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    const query = new URL(url, 'http://example.test').searchParams.get('q') ?? ''; queries.push(query);
+    return Promise.resolve(query === overlong ? json({ code: 'validation_failed', detail: 'Search must contain at most 100 characters' }, 422) : json(page(query === name ? [{ ...label, name }] : [])));
+  }));
+  await render(<LabelSettings workspaceId="w" scopeName="Workspace" session={session} canCreate />); await settle();
+  const search = container.querySelector<HTMLInputElement>('[aria-label="Search labels"]')!;
+  await input(search, name); await settle(260); expect(queries.at(-1)).toBe(name); expect(button(`Edit ${name}`)).toBeTruthy();
+  const beforeRejected = queries.length;
+  await input(search, overlong); await settle(260);
+  expect(search.value).toBe(overlong); expect(container.textContent).toContain('Search must contain at most 100 characters');
+  expect(container.querySelectorAll('.settings-row')).toHaveLength(0); expect(queries.slice(beforeRejected)).toEqual([overlong]);
+  await input(search, name); await settle(260); expect(button(`Edit ${name}`)).toBeTruthy(); expect(queries.at(-1)).toBe(name);
+});
+
 it('offers Assign to me independently of candidate pages and supports keyboard selection with focus restoration', async () => {
   const fetch = vi.fn((_url: string) => Promise.resolve(json({ ...page(Array.from({ length: 20 }, (_, i) => ({ id: `u${i}`, display_name: `Candidate ${i}` })), 'page2'), self_assignable: true })));
   vi.stubGlobal('fetch', fetch);
