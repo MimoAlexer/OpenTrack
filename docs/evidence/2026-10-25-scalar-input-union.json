@@ -1,0 +1,108 @@
+{
+  "date": "2026-10-25",
+  "scope": "Combined template and planning Unicode input correction.",
+  "base_commit": "8b730204089f0ce63c61e0615c9bb7a49ebeaa98",
+  "code_union_commit": "5166bfbd7ddc917962dce3f9bf649bee6bc9e71f",
+  "source_sha256": {
+    "docs/evidence/2026-10-25-planning-scalar-inputs.json": "e6adf1583da4c1d3505bae03eba8b372d39a852855ad699b47b535590befedbc",
+    "docs/evidence/2026-10-25-planning-scalar-inputs.md": "7ba53684e6633aa525d1bba1a8eeaecaf527205f8a6099153f255649a733526f",
+    "docs/evidence/2026-10-25-template-scalar-inputs.json": "4c87769deddc078c9b1a549d4ec87d0927c3f5d377fa0991ecc5d84d71656336",
+    "docs/evidence/2026-10-25-template-scalar-inputs.md": "b6ff564920313d244d0fbeb992107f5919ad7c4ba4844aa69a96d72a8a8b3401",
+    "web/e2e/planning-scalar-inputs.browser.ts": "b476a72bfeb7a490464d25a4ccd9725580865a727d6aec095d69015d1306c9ba",
+    "web/e2e/template-scalar-inputs.browser.ts": "b4f22dcd46f22bed0b32c8c6899de93a00f854dd43c35481db2147a8ecc793c1",
+    "web/src/cycles/CycleEditor.tsx": "c34565af2d3a586ab4beee56962781dd4e495e690ea6305b526a19d0c86371ca",
+    "web/src/cycles/Planning.test.tsx": "9078f6b0e184bfa604d5f5530068ce8bb5dfa9cf5d528ce52484604e59c146c4",
+    "web/src/projects/Milestones.tsx": "cde128ac09a14bb6802367eb76e341232d9c0a56ab5af849ab96e327eb223aa6",
+    "web/src/projects/ProjectEditor.tsx": "d30f2b95b5ebc6901d1f67e55d563a6179f90c27bbbb9123c9a2267a4a133c77",
+    "web/src/projects/Projects.test.tsx": "0d40252577041c34209b0e4e46ebb5fdc780e517d2070eda8af46557e42ccc8b",
+    "web/src/templates/TemplateSettings.test.tsx": "da2466e92f41c01f36696b7099820ee9fe9c956277e0401dd8a7fe7c34126688",
+    "web/src/templates/TemplateSettings.tsx": "b3f58fb283bd2aaa927b9af83e99fad5a284635da650f18326c5c699ecbb90e3",
+    "docs/REQUIREMENTS_STATUS.md": "7bd74593352773e7c623a087b541553839af9b77aa5646dc5887b85561f69c20",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "web/e2e/fixtures.ts": "97c8f8183457a7b4af966090b12fbe58166c0f7fa37822643c5511d4fb469445",
+    "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667"
+  },
+  "individual_browser_qualification": [
+    {
+      "scope": "template",
+      "worker_head": "64341961ff6317e5dcac3e81fa2ab1fbba14a54b",
+      "root_commit": "b84b6e94df9e2169df9d6d555f438e4c198e6dd4",
+      "baseline_expected_failures": 3,
+      "corrected_passes": 3,
+      "spec_sha256": "b4f22dcd46f22bed0b32c8c6899de93a00f854dd43c35481db2147a8ecc793c1",
+      "evidence": "docs/evidence/2026-10-25-template-scalar-inputs.json",
+      "evidence_sha256": "4c87769deddc078c9b1a549d4ec87d0927c3f5d377fa0991ecc5d84d71656336"
+    },
+    {
+      "scope": "planning",
+      "worker_head": "6bf5f6301ec545c6341fcc39acafc1a9dde9ee18",
+      "root_commit": "5166bfbd7ddc917962dce3f9bf649bee6bc9e71f",
+      "baseline_expected_failures": 6,
+      "corrected_passes": 6,
+      "spec_sha256": "b476a72bfeb7a490464d25a4ccd9725580865a727d6aec095d69015d1306c9ba",
+      "evidence": "docs/evidence/2026-10-25-planning-scalar-inputs.json",
+      "evidence_sha256": "e6adf1583da4c1d3505bae03eba8b372d39a852855ad699b47b535590befedbc"
+    }
+  ],
+  "local_browser_scope": "Nine corrected journeys were executed against two independent candidate bundles; this is not a local combined-bundle browser run.",
+  "combined_checks": [
+    {
+      "check": "focused-units",
+      "exit_code": 0,
+      "elapsed_seconds": 34.469,
+      "owned_process_reaped": true,
+      "log_sha256": "f6700cc87328fabf2cc56aca59c8232d86e24ef292c5df1739b69f99b99116db",
+      "passed": 99,
+      "files": 6
+    },
+    {
+      "check": "typescript-app",
+      "exit_code": 0,
+      "elapsed_seconds": 1.812,
+      "owned_process_reaped": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "typescript-browser",
+      "exit_code": 0,
+      "elapsed_seconds": 0.469,
+      "owned_process_reaped": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "production-bundle",
+      "exit_code": 0,
+      "elapsed_seconds": 2.188,
+      "owned_process_reaped": true,
+      "log_sha256": "9bbd26c3296f1d7a817cde703f4a78c3dfb441a45fab9907ba93b73984e5b1af"
+    }
+  ],
+  "combined_frontend_build": {
+    "sha256": "02f24e6913997b4e6545832f93dd166d80480447db827e8b622d744c6f74d483",
+    "files": {
+      "assets/index-B9yoYYJd.css": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+      "assets/index-Dn1D0Foa.js": "7c573fcb556743a3bce9f5444f7bd1938ec8ccff3d14905600e82fb2826f3edf",
+      "assets/index-Dn1D0Foa.js.map": "ebbadf02c6ea91a57f2c1f81d84a0248b354f90cd3e46e597dd106b2f3a48616",
+      "assets/portability.worker-DEvlQVr4.js": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+      "assets/portability.worker-DEvlQVr4.js.map": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+      "assets/RichTextEditor-BbKTdfsZ.js": "b7b9c17c6887840ff543ff97285ba07feff9cdf20abf87d3437e6303f2332539",
+      "assets/RichTextEditor-BbKTdfsZ.js.map": "5abe6d13dc1a79425c241a8d382998290c0a30184cc5c7c4223c37546ec01b14",
+      "index.html": "ae873dd63a9e375656b1ad8d2770de6534a4337f42a1c5b7aca9adcef2f297d1",
+      "theme.js": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e"
+    },
+    "tracked_sources_unchanged": true,
+    "served_locally": false
+  },
+  "production_delta": "Remove six native UTF-16 caps across four editor components; existing Rust scalar policy and failure handling remain authoritative.",
+  "data_impact": "No Rust, API, migration, persisted format or dependency change. Frontend rollback restores the cutoff without changing saved values.",
+  "integration_requirements": [
+    "Independent exact-head source/evidence/privacy review and clear conversations.",
+    "All four configured hosted checks at the final unchanged head.",
+    "Current-main prospective tree checked under the integration lock."
+  ],
+  "limits": [
+    "Individual browser receipts retain original failures and contain only the supported browser/API input profile.",
+    "No local global browser matrix or new native/physical/IME/assistive-technology acceptance is claimed.",
+    "F23/M04/M05 and whole-product acceptance remain open; known unrelated blockers are not waived."
+  ]
+}
