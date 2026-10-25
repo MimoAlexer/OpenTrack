@@ -1082,7 +1082,7 @@
     }
   ],
   "reason_persistence": {
-    "method": "After verified browser namespace termination, parent validates exact fact UUIDs/engine/digest/count and reads only those own private-DB rows through API role, READ ONLY, bounded two rows, 3s statement/1s lock timeout. Node has no PG/database/service authority. Raw fact/query/result files stay private; public values are count/scalar length/digest only.",
+    "method": "After verified browser namespace termination, parent validates exact fact UUIDs/engine/digest/count and reads only those own private-DB rows using configured OPENTRACK_DATABASE_URL in a READ ONLY transaction; PostgreSQL session-role identity was not separately recorded. Bounded two rows, 3s statement/1s lock timeout. Node has no PG/database/service authority. Raw fact/query/result files stay private; public values are count/scalar length/digest only.",
     "baseline": [
       {
         "engine": "chromium",
