@@ -4,6 +4,14 @@
 `8b730204089f0ce63c61e0615c9bb7a49ebeaa98`. The [JSON record](2026-10-25-invite-name-scalars.json)
 binds source, tests, bundles, selected facts and receipts by SHA-256.
 
+This browser/evidence-only correction follows `df71f449`. Its original small-directory
+proof is retained separately: reading only the first50 rows could not establish
+absence in arbitrary retained directories. Corrected helpers exhaust returned
+cursors and fail on missing/repeated cursors or a256-page budget. Actual page-size1
+calls, an unrelated synthetic invitation and owner/new-member data exercise
+multi-page member, pending and all-invitation directories in each corrected engine
+journey. No50-account seed, application rebuild or successful unit rerun was needed.
+
 Removed only `JoinWorkspace`'s invited-new-account name100 native cap. Existing
 Rust invitation acceptance validates the Name100 scalar limit. Required fields,
 email/password/token controls, expiry/single-use, sign-in and existing-account
@@ -31,26 +39,29 @@ counts; full credentials or request bodies are not asserted or published.
 
 | Executed check | Result |
 | --- | --- |
-| Focused `Settings.test.tsx`, `--maxWorkers=1` | 25/25 |
-| `npm --prefix web run typecheck` | Application and e2e targets pass |
-| `npm --prefix web run build` | One final production build passes; existing chunk warning retained |
+| Focused `Settings.test.tsx`, `--maxWorkers=1` | Original25/25 retained; source unchanged, no rerun |
+| Corrected e2e TypeScript target | Pass; original application target unchanged |
+| `npm --prefix web run build` | Original final build/bundles retained; no rebuild |
 | Approved scoped `invite-name-scalar-inputs.browser.ts` | Baseline0/3; corrected3/3 |
 
-The new unit verifies rejected-name draft preservation and one repaired
+The preserved unit verifies rejected-name draft preservation and one repaired
 authentication callback without comparing credential-bearing request bodies.
 Existing Settings units cover simulated invitation errors, sign-in focus,
 permissions, request retry and scoped directory behavior. Existing-account and
 expiry lifecycle behavior is unchanged, without new runtime qualification here.
 
-All nine immutable pinned8b baseline assets were reused after hash/size and exact
-JoinWorkspace source-map verification. No earlier successful test or baseline
-build was repeated. Both new bundles are frozen privately under
-`$OPENTRACK_DEV_STATE/invite-name-scalar/frontends/{baseline,corrected}`. The exact
-phase files, asset roots, baseline-reuse receipt and shutdown receipt are indexed
-by `artifact-index.json` under the same task root.
+Both original bundles are unchanged and remain frozen under
+`$OPENTRACK_DEV_STATE/invite-name-scalar/frontends/{baseline,corrected}`; the nine
+pinned8b baseline assets retain their exact source-map proof. No unchanged unit
+or build was rerun. The changed browser spec ran against both frozen bundles.
+New phase files, actual page-count facts, unchanged bundle references and shutdown
+receipts are indexed by
+`$OPENTRACK_DEV_STATE/invite-name-pagination/artifact-index.json`. Original small-directory
+receipts/index remain under the old task root and are explicitly referenced.
 
 Both run receipts verify empty browser namespaces, reaped API processes and no
-scope-cleanup failure. Own database shutdown/data retention is recorded there in
+scope-cleanup failure. Own database shutdown/data retention is recorded under the
+correction root in
 `shutdown-audit.json`, `db-stop.log` and `db-status.log`; this is handoff-time
 evidence. Private directories/files use0700/0600 and output drains retain at most
 2MiB each. The approved scope/backend and verified private environment are reused.
