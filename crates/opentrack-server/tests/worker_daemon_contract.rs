@@ -284,6 +284,77 @@ async fn daemon_continues_healthy_workspace_work_after_capture_error() {
 
 type DiscoveryCall = (i64, i64, Option<Uuid>, i32);
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn default_daemon_dispatches_issue_order_normalization() {
+    let h = Harness::with_connections(6).await;
+    let directory = std::sync::Arc::new(PrivateDirectory::new());
+    let runner = h.clone();
+    let location = directory.0.clone();
+    let temporary = directory.clone();
+    let result=tokio::spawn(async move {
+        let h=&runner;
+        let (session,cookie)=h.app.setup(serde_json::from_value(json!({
+            "setup_token":h.setup_token,"email":"order-daemon@example.test",
+            "password":"Synthetic ordering daemon password 2026!","display_name":"Example Owner",
+            "workspace_name":"Ordering daemon","team_name":"Engineering","team_key":"ORD"
+        })).unwrap()).await.unwrap();
+        let actor=h.app.authenticate(&cookie).await.unwrap();
+        let w=session.workspaces[0].id;
+        let bootstrap=h.app.bootstrap(&actor,w).await.unwrap();
+        let t=bootstrap.teams[0].id;
+        let status=bootstrap.statuses.iter().find(|s|s.team_id==t&&s.is_default).unwrap().id;
+        let mut tx=h.context(actor.user.id,w).await;
+        sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,status_id,rank) SELECT gen_random_uuid(),$1,$2,$3,n,'Default daemon ordering',$4,CASE WHEN n=501 THEN 99999999999999999999::numeric ELSE n::numeric*1024 END FROM generate_series(1,501)n")
+            .bind(w).bind(t).bind(actor.user.id).bind(status).execute(&mut *tx).await.unwrap();
+        sqlx::query("UPDATE teams SET next_issue_number=502 WHERE workspace_id=$1 AND id=$2")
+            .bind(w).bind(t).execute(&mut *tx).await.unwrap();
+        tx.commit().await.unwrap();
+        let request=serde_json::from_value(json!({"team_id":t,"status_id":status,"title":"Explicit retry after maintenance"})).unwrap();
+        let operation=match h.app.create_issue(&actor,w,"default-order-create",request).await.unwrap_err() {
+            opentrack_domain::Error::IssueOrderMaintenance(mut items) => { assert_eq!(items.len(),1);items.remove(0) },
+            _ => panic!("Exhaustion must enqueue typed maintenance"),
+        };
+        let worker_url=h.worker_url().await;
+        let (mut daemon,log)=start_discovery_worker(&temporary,&worker_url);
+        let started=Instant::now();
+        loop {
+            let progress=h.app.issue_order_maintenance(&actor,w,t,operation.id).await.unwrap();
+            if progress.state=="succeeded" {
+                assert_eq!(progress.staged_count,"501");
+                assert_eq!(progress.applied_count,"501");
+                assert_eq!(progress.total_count.as_deref(),Some("501"));
+                break;
+            }
+            assert!(matches!(progress.state.as_str(),"queued"|"running"),"Default daemon blocked normalization");
+            assert!(started.elapsed()<Duration::from_secs(30),"Default daemon exceeded its dispatch completion bound");
+            assert!(daemon.0.try_wait().unwrap().is_none(),"Owned daemon exited before completing normalization");
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        stop_discovery_worker(&mut daemon).await;
+        let output=fs::read_to_string(log).unwrap();
+        assert!(output.len()<=1_048_576);
+        assert!(!output.contains(&worker_url)&&!output.contains(worker_url.split('@').next().unwrap()));
+        assert!(!output.contains(location.to_str().unwrap()));
+        let startup=output.lines().filter_map(|line|serde_json::from_str::<Value>(line).ok())
+            .find(|entry|entry["fields"]["message"]=="Worker started with isolated database authority").expect("Actual daemon profile diagnostic");
+        assert_eq!(startup["fields"]["poll_interval_ms"],2000);
+        assert_eq!(startup["fields"]["max_connections"],5);
+        assert_eq!(startup["fields"]["lease_seconds"],60);
+        let issue=h.app.create_issue(&actor,w,"default-order-create",serde_json::from_value(json!({"team_id":t,"status_id":status,"title":"Explicit retry after maintenance"})).unwrap()).await.unwrap();
+        assert_eq!(issue.key,"ORD-502");
+        let mut tx=h.context(actor.user.id,w).await;
+        let result:(i64,i64,bool)=sqlx::query_as("SELECT count(*),count(*) FILTER(WHERE version=1),bool_and(rank=number::numeric*1024) FROM issues WHERE workspace_id=$1 AND team_id=$2")
+            .bind(w).bind(t).fetch_one(&mut *tx).await.unwrap();
+        assert_eq!(result,(502,502,true));
+        tx.commit().await.unwrap();
+    }).await;
+    if let Err(error) = result {
+        std::mem::forget(directory);
+        std::panic::resume_unwind(error.into_panic());
+    }
+    h.cleanup().await;
+}
+
 async fn measure_discovery(h: &Harness, worker_url: &str) -> (String, Value) {
     sqlx::raw_sql(
         "CREATE TABLE test_worker_selector_calls(
