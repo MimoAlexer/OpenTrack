@@ -1,8 +1,8 @@
 {
   "date": "2026-10-25",
-  "scope": "Moderation/reopen reasons, project update bodies, invited names, palette/reference/Trash queries.",
+  "scope": "Moderation/reopen reasons, project update bodies, invited names, palette/reference/Trash queries. First-time setup owner/workspace/team names.",
   "base_commit": "25ca33cc3c1f9de87d96f2f5658febd1f617124a",
-  "code_union_commit": "ed6b112d5555aaab26afb2afc691e41f22c70308",
+  "code_union_commit": "02baf389ff861b7bc7bd87cb0c80f61313333464",
   "source_sha256": {
     "docs/evidence/2026-10-25-comment-moderation-scalars.json": "f02cc3cf2e5175852a95105044afd1d6b51592c1179e7e47f73d869b82ccc09d",
     "docs/evidence/2026-10-25-comment-moderation-scalars.md": "021cbc740037f3a746239506bfa86279db9758a7e09b61f34732ce785b7f0c2a",
@@ -14,14 +14,14 @@
     "docs/evidence/2026-10-25-palette-query-scalars.md": "b2e355022db87261930b7dc1e0aadc555873929c3724195974990966958f8be7",
     "docs/evidence/2026-10-25-picker-query-scalars.json": "b9ed375a4628e4433c6818758e0efa3531d51e569d04233f0ead6cd066f020c9",
     "docs/evidence/2026-10-25-picker-query-scalars.md": "fdaa2b4dfdea8a460ba8c3ef91ef6fab056451755ef1dc56903476c23ce06292",
-    "docs/evidence/2026-10-25-trash-query-scalars.json": "d6464df674f70d95a72093d819ff7027b242ff381d977ee2d9f0f2ad07dcc667",
-    "docs/evidence/2026-10-25-trash-query-scalars.md": "dd563fb69439d80096917a87e1c4e5c62b29cf42fd910f86a7e772be64ae5f68",
+    "docs/evidence/2026-10-25-trash-query-scalars.json": "74d6d080d209d01300424866198f552e0c4cd86435daeb3b9ede7d0068c44e34",
+    "docs/evidence/2026-10-25-trash-query-scalars.md": "661510d5968e12f92f950dae8ef484efc14d53305733dccdfa19f846113b52c6",
     "web/e2e/comment-moderation-scalar-inputs.browser.ts": "198ab88637b360581cc9374c7cf5b832c9c44f82673d4b961ded496f55050105",
     "web/e2e/cycle-update-scalar-inputs.browser.ts": "4e26396ebc83a4cc42c6918ae2125fe6c9060dba4d8e85f55ae72f84511f4bba",
     "web/e2e/invite-name-scalar-inputs.browser.ts": "939f1d0912744a2472efabe8db0df7bd974c32ac7edc643a1dbb2dfd8dc32ed2",
     "web/e2e/palette-query-scalar-inputs.browser.ts": "9aaa41ff6a068427130e571ad0c9db75490149cafd2cadb404c889c7b8219f9d",
     "web/e2e/picker-query-scalar-inputs.browser.ts": "081f13a4a12bcdf48144f2812365a88e81394fd2aa2d8dbb18c69da97dd66dfd",
-    "web/e2e/trash-query-scalar-inputs.browser.ts": "459f4d997d1c35b8738b1f9f384c9ebfdb8861d0a3324bad45c4486086106362",
+    "web/e2e/trash-query-scalar-inputs.browser.ts": "e2a84364a83dcf1bc790ec8d4d1a93314942ab52e5d38616ea4ed73494a400db",
     "web/src/commands/CommandPalette.tsx": "0ec9800e1f1e35bce168b3e56a8a60d96651eb8df253d6650d944c4df293cee0",
     "web/src/commands/palette-issues.test.tsx": "21596dd9f7a19f8abf7e274b478e7149a02ba24ea3fc84e5b4f5cf931f2e3b6a",
     "web/src/cycles/Cycles.tsx": "e290b07b1ed3983277244af224250f72d34bdc3a0e8d34117174947f8cb75e17",
@@ -36,12 +36,17 @@
     "web/src/settings/Settings.test.tsx": "20e1a436110ea8a53f11288e45c81390689fbe9146533e587095c30b78483fcf",
     "web/src/taxonomy/Picker.tsx": "c8db7b30c3f2b6704ca40270db26643a931eaa747a4bd905d4022b6b15d4ed81",
     "web/src/taxonomy/PickerKeyboard.test.tsx": "fdfc8be1fba0f6501046d65872f9ea074337c4207c56ac9bd103078efb658aaa",
-    "docs/REQUIREMENTS_STATUS.md": "55eddb245da7b05a541c78de980c5fded66d91318e8a3ba9d14b3469eccab0e3",
+    "docs/REQUIREMENTS_STATUS.md": "8bc4324a05011e85c132d8393909db6ebb07f6097a0f13e64842f91caa06147b",
     "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
     "web/e2e/fixtures.ts": "231ed3b47c40321e2419cf1f122d1ece64767f93cab07d35e1462eed0f06d45b",
     "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667",
     "web/e2e/fixture-session.ts": "d8be4e0d00c0840998046b3e4572e941fd8cdca0b5fa666a13af4ebe59bea575",
-    "web/src/fixture-session.test.ts": "d03dd17ecdc645d0f646612b11aa1322218e3153b894c5c3393a3e38851df306"
+    "web/src/fixture-session.test.ts": "d03dd17ecdc645d0f646612b11aa1322218e3153b894c5c3393a3e38851df306",
+    "web/src/auth/AuthScreen.tsx": "badb3f5dd3ca16c5f38a5b668ad62f3a51caeabb4a1f6cf0f627513527db7394",
+    "web/src/auth/AuthScreen.test.tsx": "563f1dbbb3e08c9bd6f06e995b1b8d3b3ce137b78a438fb3dee4f04fd9e07106",
+    "web/e2e/setup-name-scalar-inputs.acceptance.ts": "afd7b2142ea546f314f6b83d7ae07c3afcc3f64275e0b235c849beafa32de410",
+    "docs/evidence/2026-10-25-setup-name-scalars.json": "3ef492697b278d12475674970ad7ea54446d5e639fcccdbfaffb0e4a94c484b0",
+    "docs/evidence/2026-10-25-setup-name-scalars.md": "9a0d85926d90b9c7a006c23d6fac1e579fc3e17a091ec5498b8f820fe3b2edf6"
   },
   "individual_browser_qualification": [
     {
@@ -86,62 +91,85 @@
     },
     {
       "scope": "trash-query",
-      "worker_head": "9b474788ed25c3c187a342ae065a39f3c8653fbb",
+      "worker_head": "28f9b3b59c9b4be42566ef863e56249d38e521f2",
       "baseline_expected_failures": 3,
       "corrected_passes": 3,
       "evidence": "docs/evidence/2026-10-25-trash-query-scalars.json",
-      "evidence_sha256": "d6464df674f70d95a72093d819ff7027b242ff381d977ee2d9f0f2ad07dcc667"
+      "evidence_sha256": "74d6d080d209d01300424866198f552e0c4cd86435daeb3b9ede7d0068c44e34",
+      "supersedes_incomplete_recorder_head": "9b474788ed25c3c187a342ae065a39f3c8653fbb"
+    },
+    {
+      "scope": "setup-name",
+      "worker_head": "e5d064e8405ef2b8eefc9ed41f0e2f5459e0da97",
+      "baseline_expected_failed_cases": 3,
+      "baseline_native_cutoffs": 9,
+      "corrected_passes": 3,
+      "default_browser_matrix": false,
+      "evidence": "docs/evidence/2026-10-25-setup-name-scalars.json",
+      "evidence_sha256": "3ef492697b278d12475674970ad7ea54446d5e639fcccdbfaffb0e4a94c484b0"
     }
   ],
-  "local_browser_scope": "24 corrected journeys on six separate retained candidate bundles; no local combined-bundle browser execution.",
+  "local_browser_scope": "27 corrected journeys on seven separate retained candidate bundles, including three dedicated fresh-database setup cases outside the default matrix. No local combined-bundle browser execution.",
   "combined_checks": [
     {
       "check": "focused-units",
       "exit_code": 0,
-      "elapsed_seconds": 2.891,
+      "elapsed_seconds": 2.156,
       "owned_process_reaped": true,
-      "log_sha256": "fd0dd8464532e7b7f8a264f5658391677fe0c6856dc340006b345e834992413c",
-      "passed": 27,
+      "log_sha256": "a56bd010503f3196a2039e66afb09dfa67826c3b942ab684d8901c47b8a86943",
+      "passed": 5,
       "files": 1
     },
     {
       "check": "typescript-app",
       "exit_code": 0,
-      "elapsed_seconds": 0.797,
+      "elapsed_seconds": 0.813,
       "owned_process_reaped": true,
       "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
       "check": "typescript-browser",
       "exit_code": 0,
-      "elapsed_seconds": 0.453,
+      "elapsed_seconds": 0.469,
       "owned_process_reaped": true,
       "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
       "check": "production-bundle",
       "exit_code": 0,
-      "elapsed_seconds": 1.422,
+      "elapsed_seconds": 1.344,
       "owned_process_reaped": true,
-      "log_sha256": "f690312e750e6303b8b51e6acb2492519fa613ff77406e0655a8084209188998"
+      "log_sha256": "a9d7177ac0e4134af207efd5c3ee2485b39df1554efc3abd4dde7e44f1fa2150"
     }
   ],
-  "retained_focused_units": {
-    "head": "a12ec33868df52124d3a2fed27381f53c9be9d4b",
-    "passed": 115,
-    "files": 6,
-    "paths": [
-      "web/src/issues/IssueDeletion.test.tsx",
-      "web/src/documents/IssueComments.test.tsx",
-      "web/src/projects/Projects.test.tsx",
-      "web/src/settings/Settings.test.tsx",
-      "web/src/commands/palette-issues.test.tsx",
-      "web/src/taxonomy/PickerKeyboard.test.tsx"
-    ],
-    "source_and_production_dependencies_unchanged": true,
-    "log_sha256": "4622ae523d06091190f9400e9a09fb027b4e8a847707be10560813a9e6af2509"
-  },
-  "focused_unique_passes": 142,
+  "retained_focused_units": [
+    {
+      "head": "a12ec33868df52124d3a2fed27381f53c9be9d4b",
+      "passed": 115,
+      "files": 6,
+      "paths": [
+        "web/src/issues/IssueDeletion.test.tsx",
+        "web/src/documents/IssueComments.test.tsx",
+        "web/src/projects/Projects.test.tsx",
+        "web/src/settings/Settings.test.tsx",
+        "web/src/commands/palette-issues.test.tsx",
+        "web/src/taxonomy/PickerKeyboard.test.tsx"
+      ],
+      "source_and_production_dependencies_unchanged": true,
+      "log_sha256": "4622ae523d06091190f9400e9a09fb027b4e8a847707be10560813a9e6af2509"
+    },
+    {
+      "head": "ed6b112d5555aaab26afb2afc691e41f22c70308",
+      "passed": 27,
+      "files": 1,
+      "paths": [
+        "web/src/cycles/Planning.test.tsx"
+      ],
+      "source_and_production_dependencies_unchanged": true,
+      "log_sha256": "fd0dd8464532e7b7f8a264f5658391677fe0c6856dc340006b345e834992413c"
+    }
+  ],
+  "focused_unique_passes": 147,
   "original_union_failure": {
     "head": "a12ec33868df52124d3a2fed27381f53c9be9d4b",
     "passed": 141,
@@ -159,20 +187,20 @@
       "firefox": 71,
       "webkit": 71
     },
-    "log_sha256": "f65b774540df0ea98567a4d5fa6d30d2d025182190a15074dcbcba933cb394fc",
-    "prior_default_reporter": "exit0; custom receipt reporter did not print a test listing; original log retained"
+    "setup_standalone_not_selected": true,
+    "log_sha256": "f65b774540df0ea98567a4d5fa6d30d2d025182190a15074dcbcba933cb394fc"
   },
   "combined_frontend_build": {
-    "sha256": "33e8b4e4fbbc9c0f6a61e58ade08286b21411ce83e717b2334084b2d198e4220",
+    "sha256": "715b754e9414ba21e2e0461ad4322989e132ab97dcc807776eaddfdbac4ee9d7",
     "files": {
+      "assets/index-3rtmOJGq.js": "47397b9b1523f29a655c5fc77aa1cb85486aacbadaf1a0d26b6cfdd0595b2ca0",
+      "assets/index-3rtmOJGq.js.map": "8ae018618bfa1914aba4508e2d7459a6fe004337bbf65fd6a2c4e29f645cec7b",
       "assets/index-B9yoYYJd.css": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
-      "assets/index-D0Pgr1fI.js": "429abf0b79408d1986c8cf03c07c2c2543c0e22638e75f82015db50cd1e782af",
-      "assets/index-D0Pgr1fI.js.map": "d84c97e2800193acb0bd3cfdd811f59961173477908d3e03cab095ab010006d0",
       "assets/portability.worker-DEvlQVr4.js": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
       "assets/portability.worker-DEvlQVr4.js.map": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
-      "assets/RichTextEditor-CIZdifo1.js": "8e6486b9f7be540a9d005688d9af18695f18b0f14c5162230f9774e900162013",
-      "assets/RichTextEditor-CIZdifo1.js.map": "b18145d74f3d4035eca9743a4515ec17ede177d220594b59a75c1e80a630756b",
-      "index.html": "a61576feca6bc4c1dab13bd083c1c1f52da513e6982d758b82b8a636a8e17f8a",
+      "assets/RichTextEditor-pNv9ROTU.js": "bd374dc2e0b596e1d9e418267bf27729d79c194bc4fcb5e666dfb1c8fe0f27e8",
+      "assets/RichTextEditor-pNv9ROTU.js.map": "00293d55fb8f90e5f89c7942db7648cdacc1ae18c5d60f4adb2894cacd233be2",
+      "index.html": "8c3b729a2a205b7190b10e8c24faf9e68db81ab9709bf774cb3adac5c66cc3c4",
       "theme.js": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e"
     },
     "tracked_sources_unchanged": true,
@@ -228,15 +256,24 @@
       "sha256": "7d42b0d134bcdd755aca4d1587e2f4c8eaaea857fc8fee2aa9ed96dff6eadc48"
     },
     "web/e2e/trash-query-scalar-inputs.browser.ts": {
-      "head": "9b474788ed25c3c187a342ae065a39f3c8653fbb",
-      "sha256": "459f4d997d1c35b8738b1f9f384c9ebfdb8861d0a3324bad45c4486086106362"
+      "head": "28f9b3b59c9b4be42566ef863e56249d38e521f2",
+      "sha256": "e2a84364a83dcf1bc790ec8d4d1a93314942ab52e5d38616ea4ed73494a400db"
+    },
+    "web/src/auth/AuthScreen.tsx": {
+      "head": "e5d064e8405ef2b8eefc9ed41f0e2f5459e0da97",
+      "sha256": "badb3f5dd3ca16c5f38a5b668ad62f3a51caeabb4a1f6cf0f627513527db7394"
+    },
+    "web/e2e/setup-name-scalar-inputs.acceptance.ts": {
+      "head": "e5d064e8405ef2b8eefc9ed41f0e2f5459e0da97",
+      "sha256": "afd7b2142ea546f314f6b83d7ae07c3afcc3f64275e0b235c849beafa32de410"
     }
   },
   "integration_adaptations": [
     "Compose planning, project and settings regression tests with previously accepted tests; preserve all assertions.",
-    "Cycle reason evidence wording now states configured OPENTRACK_DATABASE_URL and READ ONLY transaction; PostgreSQL session-role identity was not separately recorded. No new database query or runtime rerun."
+    "Cycle reason evidence wording now states configured OPENTRACK_DATABASE_URL and READ ONLY transaction; PostgreSQL session-role identity was not separately recorded. No new database query or runtime rerun.",
+    "Trash recorder now observes all exact-list GET queries including null and emitted detail requests; same-spec before/after correction proof replaces the incomplete original recorder claims."
   ],
-  "production_delta": "Remove eight native UTF-16 caps across seven components; project update scalar counter matches existing Rust scalar bound. Existing Rust authorization, validation, version and retry rules remain authoritative.",
+  "production_delta": "Remove eleven native UTF-16 caps across eight components, including three first-time setup names; project update scalar counter matches the existing Rust scalar bound. Rust authorization, validation, version and retry rules remain authoritative.",
   "data_impact": "No backend, API, schema, persisted-format or dependency change. Frontend rollback restores former native cutoffs without data changes.",
   "integration_requirements": [
     "Independent final immutable source/evidence/privacy review.",
@@ -247,6 +284,12 @@
     "Original cutoff/discovery failures, earlier small-directory invitation evidence and combined helper failure remain retained.",
     "Application owner role is not a PostgreSQL session-role attestation.",
     "Listing is not execution; no local global matrix, forced cancellation, native GUI, physical input, IME or assistive-technology acceptance.",
-    "No broader milestone, issue or whole-product completion claimed."
-  ]
+    "No broader milestone, issue or whole-product completion claimed.",
+    "Setup selected row counts are not a universal orphan-absence claim; initial missing-public-URL migration diagnostic and original credentials/data are retained."
+  ],
+  "harness_path_failure": {
+    "head": "02baf389ff861b7bc7bd87cb0c80f61313333464",
+    "cause": "First final runner used an incorrect AuthScreen test path and exited with no matching tests; no build ran in that attempt. Corrected path only; original log retained.",
+    "log_sha256": "f7e409ae0833567126a8277388ff18a2452706e164fe3270aee3297d08b562ae"
+  }
 }
