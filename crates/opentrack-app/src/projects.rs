@@ -186,18 +186,27 @@ pub(crate) fn version(etag: &str, item: &Project) -> Result<()> {
     }
 }
 async fn progress(tx: &mut store::Tx, w: Uuid, t: Uuid, id: Uuid) -> Result<ProjectProgress> {
-    let r=sqlx::query("SELECT count(*) AS total,count(*) FILTER(WHERE s.category='completed') AS completed,count(*) FILTER(WHERE s.category='canceled') AS canceled,statement_timestamp() AS as_of FROM project_issues pi JOIN issues i ON i.workspace_id=pi.workspace_id AND i.team_id=pi.team_id AND i.id=pi.issue_id JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id WHERE pi.workspace_id=$1 AND pi.team_id=$2 AND pi.project_id=$3 AND i.deleted_at IS NULL AND i.archived_at IS NULL").bind(w).bind(t).bind(id).fetch_one(&mut **tx).await.map_err(db_error)?;
-    let total: i64 = r.try_get("total").map_err(db_error)?;
-    let completed: i64 = r.try_get("completed").map_err(db_error)?;
-    let canceled: i64 = r.try_get("canceled").map_err(db_error)?;
-    let eligible = total - canceled;
+    let r=sqlx::query("WITH buckets AS (SELECT s.category,(i.deleted_at IS NOT NULL OR i.archived_at IS NOT NULL) AS excluded,count(*) AS count FROM project_issues pi JOIN issues i ON i.workspace_id=pi.workspace_id AND i.team_id=pi.team_id AND i.id=pi.issue_id JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id WHERE pi.workspace_id=$1 AND pi.team_id=$2 AND pi.project_id=$3 GROUP BY s.category,excluded) SELECT coalesce(jsonb_agg(jsonb_build_array(category,excluded,count)),'[]'::jsonb) AS buckets,statement_timestamp() AS as_of FROM buckets").bind(w).bind(t).bind(id).fetch_one(&mut **tx).await.map_err(db_error)?;
+    progress_counts(&r)
+}
+pub(crate) fn progress_counts(r: &PgRow) -> Result<ProjectProgress> {
+    let sqlx::types::Json(buckets): sqlx::types::Json<Vec<(String, bool, i64)>> =
+        r.try_get("buckets").map_err(db_error)?;
+    let counts = PlanningCounts::from_buckets(buckets.iter().map(|(category, excluded, count)| {
+        PlanningBucket {
+            category,
+            excluded: *excluded,
+            count: *count,
+            estimate_total: None,
+        }
+    }));
     Ok(ProjectProgress {
-        total,
-        completed,
-        canceled,
-        eligible,
-        open: eligible - completed,
-        unscoped: eligible == 0,
+        total: counts.total,
+        completed: counts.completed,
+        canceled: counts.canceled,
+        eligible: counts.eligible(),
+        open: counts.unfinished(),
+        unscoped: counts.unscoped(),
         as_of: r.try_get("as_of").map_err(db_error)?,
     })
 }

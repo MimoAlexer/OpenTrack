@@ -156,12 +156,7 @@ async fn current_scope(tx: &mut store::Tx, c: &Cycle, kind: &str) -> Result<Cycl
     .fetch_one(&mut **tx)
     .await
     .map_err(db_error)?;
-    let eligible = items.iter().filter(|i| !i.excluded).collect::<Vec<_>>();
-    let completed = eligible
-        .iter()
-        .filter(|i| i.category == "completed")
-        .count() as i64;
-    let canceled = eligible.iter().filter(|i| i.category == "canceled").count() as i64;
+    let counts = scope_counts(&items);
     Ok(CycleSnapshot {
         redacted: false,
         id: Uuid::new_v4(),
@@ -170,18 +165,22 @@ async fn current_scope(tx: &mut store::Tx, c: &Cycle, kind: &str) -> Result<Cycl
         captured_at: now,
         kind: kind.into(),
         definition_version: 1,
-        scope_count: eligible.len() as i64,
-        completed_count: completed,
-        canceled_count: canceled,
-        unfinished_count: eligible.len() as i64 - completed - canceled,
-        excluded_count: items.iter().filter(|i| i.excluded).count() as i64,
-        estimate_total: eligible
-            .iter()
-            .filter(|i| i.category != "canceled")
-            .map(|i| i.estimate.unwrap_or(0) as i64)
-            .sum(),
+        scope_count: counts.total,
+        completed_count: counts.completed,
+        canceled_count: counts.canceled,
+        unfinished_count: counts.unfinished(),
+        excluded_count: counts.excluded,
+        estimate_total: counts.estimate_total,
         items,
     })
+}
+fn scope_counts(items: &[CycleScopeItem]) -> PlanningCounts {
+    PlanningCounts::from_buckets(items.iter().map(|item| PlanningBucket {
+        category: &item.category,
+        excluded: item.excluded,
+        count: 1,
+        estimate_total: item.estimate.map(i64::from),
+    }))
 }
 async fn save_snapshot(tx: &mut store::Tx, c: &Cycle, s: &CycleSnapshot) -> Result<()> {
     graph::one(sqlx::query("INSERT INTO cycle_snapshots(id,workspace_id,team_id,cycle_id,local_date,captured_at,kind,definition_version,scope_count,completed_count,canceled_count,unfinished_count,excluded_count,estimate_total,items) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)").bind(s.id).bind(c.workspace_id).bind(c.team_id).bind(c.id).bind(s.local_date).bind(s.captured_at).bind(&s.kind).bind(s.definition_version).bind(s.scope_count).bind(s.completed_count).bind(s.canceled_count).bind(s.unfinished_count).bind(s.excluded_count).bind(s.estimate_total).bind(serde_json::to_value(&s.items).map_err(|_|Error::Internal)?).execute(&mut **tx).await.map_err(db_error)?.rows_affected())
@@ -1100,25 +1099,13 @@ async fn redact_snapshot(
     }
     s.redacted = true;
     s.items.retain(|i| visible.contains(&i.issue_id));
-    s.scope_count = s.items.iter().filter(|i| !i.excluded).count() as i64;
-    s.completed_count = s
-        .items
-        .iter()
-        .filter(|i| !i.excluded && i.category == "completed")
-        .count() as i64;
-    s.canceled_count = s
-        .items
-        .iter()
-        .filter(|i| !i.excluded && i.category == "canceled")
-        .count() as i64;
-    s.unfinished_count = s.scope_count - s.completed_count - s.canceled_count;
-    s.excluded_count = s.items.iter().filter(|i| i.excluded).count() as i64;
-    s.estimate_total = s
-        .items
-        .iter()
-        .filter(|i| !i.excluded && i.category != "canceled")
-        .map(|i| i.estimate.unwrap_or(0) as i64)
-        .sum();
+    let counts = scope_counts(&s.items);
+    s.scope_count = counts.total;
+    s.completed_count = counts.completed;
+    s.canceled_count = counts.canceled;
+    s.unfinished_count = counts.unfinished();
+    s.excluded_count = counts.excluded;
+    s.estimate_total = counts.estimate_total;
     Ok(())
 }
 
