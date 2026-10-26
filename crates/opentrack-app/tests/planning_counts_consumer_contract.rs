@@ -79,16 +79,14 @@ async fn initial(h: &Harness) {
         .bind(w)
         .fetch_all(&worker.pool)
         .await
-        .err()
-        .expect("NULL event limit must reject");
+        .expect_err("NULL event limit must reject");
     let null_backfill = sqlx::query("SELECT worker_planning_backfill_batch($1,$2,$3,1,NULL)")
         .bind(w)
         .bind(Uuid::nil())
         .bind(Uuid::nil())
         .fetch_one(&worker.pool)
         .await
-        .err()
-        .expect("NULL backfill limit must reject");
+        .expect_err("NULL backfill limit must reject");
     for error in [null_events, null_backfill] {
         assert_eq!(
             error.as_database_error().unwrap().code().as_deref(),
