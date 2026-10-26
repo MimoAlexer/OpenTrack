@@ -136,6 +136,20 @@ impl Operator {
         Ok(correlation)
     }
 
+    pub async fn rebuild_planning_counts(&self, workspace: Uuid, reason: &str) -> Result<Uuid> {
+        let reason = operator_reason(reason)?;
+        let mut tx = store::begin(&self.pool).await.map_err(db_error)?;
+        consumer_bounds(&mut tx).await?;
+        let correlation = sqlx::query_scalar("SELECT operator_planning_rebuild($1,$2)")
+            .bind(workspace)
+            .bind(reason)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(operator_error)?;
+        tx.commit().await.map_err(db_error)?;
+        Ok(correlation)
+    }
+
     pub async fn consumer_disposition(
         &self,
         workspace: Uuid,

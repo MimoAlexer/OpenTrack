@@ -26,10 +26,12 @@ async fn setup(h: &Harness) -> (Actor, Uuid) {
         })))
         .await
         .unwrap();
-    (
-        h.app.authenticate(&cookie).await.unwrap(),
-        session.workspaces[0].id,
-    )
+    let actor = h.app.authenticate(&cookie).await.unwrap();
+    let workspace = session.workspaces[0].id;
+    let planner = worker(h).await;
+    planning_baseline(&planner, workspace).await;
+    planner.pool.close().await;
+    (actor, workspace)
 }
 async fn fixture(h: &Harness, workspace: Uuid) -> store::Tx {
     let mut tx = store::begin(&h.owner).await.unwrap();
@@ -56,9 +58,9 @@ async fn snapshot(h: &Harness, workspace: Uuid) -> Value {
     let result = sqlx::query_scalar("SELECT jsonb_build_object(
       'registration',(SELECT to_jsonb(r) FROM consumer_registrations r WHERE workspace_id=$1 AND consumer_name='assignment_cleanup' AND consumer_version=1),
       'checkpoint',(SELECT to_jsonb(c) FROM consumer_checkpoints c WHERE workspace_id=$1 AND consumer_name='assignment_cleanup' AND consumer_version=1),
-      'jobs',(SELECT coalesce(jsonb_agg(to_jsonb(j) ORDER BY j.id),'[]') FROM jobs j WHERE workspace_id=$1),
+      'jobs',(SELECT coalesce(jsonb_agg(to_jsonb(j) ORDER BY j.id),'[]') FROM jobs j WHERE workspace_id=$1 AND kind='assignment.reconcile'),
       'progress',(SELECT coalesce(jsonb_agg(to_jsonb(p) ORDER BY p.id),'[]') FROM assignment_reconciliations p WHERE workspace_id=$1),
-      'receipts',(SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY r.seq),'[]') FROM consumer_receipts r WHERE workspace_id=$1),
+      'receipts',(SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY r.seq),'[]') FROM consumer_receipts r WHERE workspace_id=$1 AND consumer_name='assignment_cleanup'),
       'events',(SELECT coalesce(jsonb_agg(to_jsonb(e) ORDER BY e.seq),'[]') FROM workspace_events e WHERE workspace_id=$1),
       'floor',(SELECT purged_through_seq FROM event_retention_state WHERE workspace_id=$1),
       'head',(SELECT last_seq FROM workspace_stream_heads WHERE workspace_id=$1))")
@@ -99,7 +101,7 @@ async fn due(h: &Harness, workspace: Uuid) {
 async fn letter(h: &Harness, workspace: Uuid, seq: i64) -> Value {
     let mut tx = fixture(h, workspace).await;
     let result = sqlx::query_scalar(
-        "SELECT to_jsonb(d) FROM consumer_dead_letters d WHERE workspace_id=$1 AND seq=$2",
+        "SELECT to_jsonb(d) FROM consumer_dead_letters d WHERE workspace_id=$1 AND consumer_name='assignment_cleanup' AND seq=$2",
     )
     .bind(workspace)
     .bind(seq)
@@ -133,6 +135,29 @@ async fn unsuppress(h: &Harness, table: &str) {
     .execute(&h.owner)
     .await
     .unwrap();
+}
+async fn planning_baseline(worker: &Worker, workspace: Uuid) {
+    if worker
+        .apply_planning_events(workspace)
+        .await
+        .unwrap()
+        .backfilled
+    {
+        let claim = worker.claim(workspace).await.unwrap().unwrap();
+        assert_eq!(claim.kind, "planning.backfill");
+        assert_eq!(
+            worker.run_claim(&claim).await.unwrap(),
+            WorkerTick::Completed
+        );
+    }
+}
+async fn retain(
+    worker: &Worker,
+    workspace: Uuid,
+    limit: u32,
+) -> opentrack_domain::Result<opentrack_app::consumer::RetentionOutcome> {
+    worker.apply_planning_events(workspace).await?;
+    worker.retain(workspace, limit).await
 }
 async fn drain(worker: &Worker, workspace: Uuid) {
     for _ in 0..200 {
@@ -244,7 +269,7 @@ async fn capture_contract(h: &Harness) {
         .fetch_one(&mut *gate)
         .await
         .unwrap();
-    sqlx::query("SELECT last_seq FROM consumer_checkpoints WHERE workspace_id=$1 FOR UPDATE")
+    sqlx::query("SELECT last_seq FROM consumer_checkpoints WHERE workspace_id=$1 AND consumer_name='assignment_cleanup' FOR UPDATE")
         .bind(w)
         .execute(&mut *gate)
         .await
@@ -267,7 +292,7 @@ async fn capture_contract(h: &Harness) {
     assert_eq!(a.captured + b.captured, 1);
     let before_replay = snapshot(h, w).await;
     let mut tx = fixture(h, w).await;
-    sqlx::query("UPDATE consumer_checkpoints SET last_seq=last_seq-1 WHERE workspace_id=$1")
+    sqlx::query("UPDATE consumer_checkpoints SET last_seq=last_seq-1 WHERE workspace_id=$1 AND consumer_name='assignment_cleanup'")
         .bind(w)
         .execute(&mut *tx)
         .await
@@ -305,7 +330,7 @@ async fn retention_contract(h: &Harness) {
     let operator = Operator::connect(&h.operator_url().await).await.unwrap();
     age_events(h, w).await;
     assert_eq!(
-        worker.retain(w, 1000).await.unwrap().deleted,
+        retain(&worker, w, 1000).await.unwrap().deleted,
         0,
         "No pruning before required snapshot intent"
     );
@@ -326,14 +351,14 @@ async fn retention_contract(h: &Harness) {
     }
     let failure = letter(h, w, poison_seq).await;
     let letter_id = Uuid::parse_str(failure["id"].as_str().unwrap()).unwrap();
-    let retained = worker.retain(w, 1000).await.unwrap();
+    let retained = retain(&worker, w, 1000).await.unwrap();
     assert_eq!(retained.purged_through_seq, cutoff);
     assert_eq!(
         snapshot(h, w).await["events"].as_array().unwrap().len(),
         2,
         "Poison and following event remain after nine days"
     );
-    assert_eq!(worker.retain(w, 1000).await.unwrap().deleted, 0);
+    assert_eq!(retain(&worker, w, 1000).await.unwrap().deleted, 0);
     let mut tx = fixture(h, w).await;
     assert_eq!(
         sqlx::query_scalar::<_, i64>(
@@ -411,8 +436,8 @@ async fn retention_contract(h: &Harness) {
     );
     tx.commit().await.unwrap();
     worker.capture(w).await.unwrap();
-    assert_eq!(worker.retain(w, 1).await.unwrap().deleted, 1);
-    assert_eq!(worker.retain(w, 1).await.unwrap().deleted, 1);
+    assert_eq!(retain(&worker, w, 1).await.unwrap().deleted, 1);
+    assert_eq!(retain(&worker, w, 1).await.unwrap().deleted, 1);
     drain(&worker, w).await;
     operator
         .set_consumer_enabled(w, false, "Maintenance pause after drain")
@@ -424,7 +449,7 @@ async fn retention_contract(h: &Harness) {
     let (_, paused_seq) = event(h, &actor, w, "access.changed", 1, true).await;
     assert_eq!(worker.capture(w).await.unwrap().captured, 0);
     assert_eq!(
-        worker.retain(w, 1000).await.unwrap().deleted,
+        retain(&worker, w, 1000).await.unwrap().deleted,
         0,
         "Disabled required consumer still pins uncaptured work"
     );
@@ -434,13 +459,13 @@ async fn retention_contract(h: &Harness) {
         .unwrap();
     assert_eq!(worker.capture(w).await.unwrap().captured, 1);
     assert_eq!(
-        worker.retain(w, 1000).await.unwrap().purged_through_seq,
+        retain(&worker, w, 1000).await.unwrap().purged_through_seq,
         paused_seq
     );
     event(h, &actor, w, "issue.updated", 1, false).await;
     worker.capture(w).await.unwrap();
     assert_eq!(
-        worker.retain(w, 1000).await.unwrap().deleted,
+        retain(&worker, w, 1000).await.unwrap().deleted,
         0,
         "Captured recent rows keep the browser replay guarantee"
     );
@@ -550,6 +575,7 @@ async fn failure_contract(h: &Harness) {
         assert_eq!(letter(h, w, seq).await["state"], "resolved");
     }
     age_events(h, w).await;
+    worker.apply_planning_events(w).await.unwrap();
     for (table, operation) in [
         ("workspace_events", "DELETE"),
         ("event_retention_state", "UPDATE"),
@@ -558,7 +584,7 @@ async fn failure_contract(h: &Harness) {
         let before = snapshot(h, w).await;
         suppress(h, table, operation).await;
         assert!(
-            worker.retain(w, 1000).await.is_err(),
+            retain(&worker, w, 1000).await.is_err(),
             "Missing {table} must reject retention"
         );
         assert_eq!(
@@ -568,7 +594,7 @@ async fn failure_contract(h: &Harness) {
         );
         unsuppress(h, table).await;
     }
-    assert!(worker.retain(w, 1000).await.unwrap().deleted > 0);
+    assert!(retain(&worker, w, 1000).await.unwrap().deleted > 0);
 
     for query in [
         "SELECT * FROM consumer_receipts",
@@ -731,10 +757,11 @@ async fn selectors_isolate_poisoned_workspaces_and_reclaim_exact_bytes() {
         let [poisoned, healthy] = workspaces;
         let worker = worker(h).await;
         for workspace in workspaces {
+            planning_baseline(&worker,workspace).await;
             assert!(worker.capture(workspace).await.unwrap().backfilled);
             drain(&worker, workspace).await;
             age_events(h, workspace).await;
-            worker.retain(workspace, 1000).await.unwrap();
+            retain(&worker, workspace, 1000).await.unwrap();
             assert!(snapshot(h, workspace).await["events"].as_array().unwrap().is_empty());
             assert_bytes(h, workspace, 0).await;
         }
@@ -751,6 +778,8 @@ async fn selectors_isolate_poisoned_workspaces_and_reclaim_exact_bytes() {
             assert!(!worker.capture(poisoned).await.unwrap().dead_lettered);
         }
         due(h, poisoned).await;
+        worker.apply_planning_events(poisoned).await.unwrap();
+        worker.apply_planning_events(healthy).await.unwrap();
         let poisoned_before = snapshot(h, poisoned).await;
         let healthy_before = snapshot(h, healthy).await;
         let mut capture_cursor = None;

@@ -2145,6 +2145,7 @@ export interface components {
             issue_version: string;
         };
         CycleSnapshot: {
+            calculation_source: components["schemas"]["PlanningCalculationSource"];
             /** Format: int64 */
             canceled_count: number;
             /** Format: date-time */
@@ -2159,6 +2160,8 @@ export interface components {
             estimate_total: number;
             /** Format: int64 */
             excluded_count: number;
+            /** Format: date-time */
+            facts_as_of: string | null;
             /** Format: uuid */
             id: string;
             items: components["schemas"]["CycleScopeItem"][];
@@ -3118,6 +3121,8 @@ export interface components {
             can_detach: boolean;
             target: components["schemas"]["IssueGraphTarget"] | null;
         };
+        /** @enum {string} */
+        PlanningCalculationSource: "live" | "projection" | "snapshot";
         PositionIssue: {
             /** Format: uuid */
             after_id?: string | null;
@@ -3199,12 +3204,15 @@ export interface components {
         ProjectProgress: {
             /** Format: date-time */
             as_of: string;
+            calculation_source: components["schemas"]["PlanningCalculationSource"];
             /** Format: int64 */
             canceled: number;
             /** Format: int64 */
             completed: number;
             /** Format: int64 */
             eligible: number;
+            /** Format: date-time */
+            facts_as_of: string | null;
             /** Format: int64 */
             open: number;
             /** Format: int64 */

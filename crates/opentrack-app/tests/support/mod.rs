@@ -93,6 +93,15 @@ impl Harness {
                 .await
                 .expect("Grant restricted runtime access");
         }
+        let planning: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
+            .bind(format!("{schema}.planning_issue_facts"))
+            .fetch_one(&base_owner)
+            .await
+            .unwrap();
+        if planning {
+            sqlx::raw_sql(AssertSqlSafe(format!("REVOKE ALL ON {schema}.planning_backfills,{schema}.planning_issue_facts FROM \"{role}\"; GRANT SELECT ON {schema}.planning_issue_facts TO \"{role}\"")))
+                .execute(&base_owner).await.unwrap();
+        }
         let consumers: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
             .bind(format!("{schema}.consumer_receipts"))
             .fetch_one(&base_owner)
@@ -371,6 +380,21 @@ impl Harness {
         }
         if sqlx::query_scalar::<_, bool>("SELECT to_regprocedure('operator_event_admission_limits(uuid,bigint,bigint,text)') IS NOT NULL").fetch_one(&self.owner).await.unwrap() {
             sqlx::query(AssertSqlSafe(format!("GRANT EXECUTE ON FUNCTION {}.operator_event_admission_limits(uuid,bigint,bigint,text),{}.operator_event_admission_status(uuid) TO \"{role}\"",self.schema,self.schema))).execute(&self.owner).await.unwrap();
+        }
+        if sqlx::query_scalar::<_, bool>(
+            "SELECT to_regprocedure('operator_planning_rebuild(uuid,text)') IS NOT NULL",
+        )
+        .fetch_one(&self.owner)
+        .await
+        .unwrap()
+        {
+            sqlx::query(AssertSqlSafe(format!(
+                "GRANT EXECUTE ON FUNCTION {}.operator_planning_rebuild(uuid,text) TO \"{role}\"",
+                self.schema
+            )))
+            .execute(&self.owner)
+            .await
+            .unwrap();
         }
         scoped_url(operator, &self.schema).to_string()
     }

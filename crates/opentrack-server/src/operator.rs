@@ -126,6 +126,11 @@ async fn run_consumer(cli: &Cli, operator: &Operator) -> Result<(), String> {
                         .await,
                 )
             }
+            Action::OperatorPlanningRebuild => (
+                "planning_rebuild",
+                None,
+                operator.rebuild_planning_counts(workspace, reason).await,
+            ),
             Action::OperatorCleanupResume => {
                 let target = cli.operator_job.ok_or("Cleanup resume requires --job")?;
                 (

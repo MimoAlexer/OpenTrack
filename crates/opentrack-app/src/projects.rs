@@ -208,6 +208,8 @@ pub(crate) fn progress_counts(r: &PgRow) -> Result<ProjectProgress> {
         open: counts.unfinished(),
         unscoped: counts.unscoped(),
         as_of: r.try_get("as_of").map_err(db_error)?,
+        calculation_source: PlanningCalculationSource::Live,
+        facts_as_of: None,
     })
 }
 async fn emit(tx: &mut store::Tx, a: &Actor, w: Uuid, item: &Project, action: &str) -> Result<()> {
@@ -369,7 +371,10 @@ impl App {
     ) -> Result<ProjectProgress> {
         let mut tx = self.scoped(a, w, false).await?;
         project(&mut tx, a, w, t, id).await?;
-        let p = progress(&mut tx, w, t, id).await?;
+        let row = store::project_planning_counts(&mut tx, w, t, id, None)
+            .await
+            .map_err(db_error)?;
+        let p = crate::planning_counts::progress(&row)?;
         tx.commit().await.map_err(db_error)?;
         Ok(p)
     }

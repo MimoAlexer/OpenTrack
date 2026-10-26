@@ -1,0 +1,83 @@
+{
+  "status": "local_review_candidate_browser_pending",
+  "scope": [
+    "M05-T06",
+    "#31"
+  ],
+  "base": "7a63dc60579d21a9fcfd22bba1521fc696af5ee7",
+  "canonical_fold_commit": "7cccc908ea0d7f54ae9caf3e5a19678a7e53d1f4",
+  "consumer": {
+    "name": "planning_counts",
+    "version": 1,
+    "required": true,
+    "event_batch_limit": 100,
+    "backfill_batch_limit": 100,
+    "migration": 28
+  },
+  "contract": {
+    "memberships_and_acl": "current_authoritative_source",
+    "stale_or_missing_visible_fact": "whole_scope_live_fallback",
+    "empty_scope": "live_without_fact_timestamp",
+    "as_of": "selected_source_validation_statement_time",
+    "facts_as_of": "oldest_contributing_fact_only_for_projection",
+    "equal_version_replay": "preserve_calculated_at",
+    "captured_snapshots": "original_metric_facts_and_capture_time_with_current_source_redaction"
+  },
+  "verified_checks": {
+    "domain_fold_cases": 3,
+    "frontend_planning_cases": 70,
+    "frontend_recovery_cases": 36,
+    "typescript_targets": [
+      "application",
+      "e2e"
+    ],
+    "real_postgresql_cases": 19,
+    "cli_cases": 1,
+    "worker_scheduler_cases": 8,
+    "production_frontend_bundle": true,
+    "old_frontend_dist_unchanged": true,
+    "openapi_and_client_generated_from_rust": true,
+    "strict_clippy_all_five_crates_all_targets": true
+  },
+  "final_cycle_statement_clock_check": {
+    "passed": true,
+    "api_cases": 5,
+    "formatting": true,
+    "strict_store_app_clippy": true
+  },
+  "browser": {
+    "planned_cases": 12,
+    "cases_per_engine": 4,
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "file_authentication_cost": 3,
+    "executed": false
+  },
+  "runtime": {
+    "same_private_namespace_and_cluster": true,
+    "existing_four_roles_reused": true,
+    "fresh_isolated_test_schema_migration": 28,
+    "retained_application_database_not_upgraded_or_reset": true
+  },
+  "proof_root": "$OPENTRACK_DEV_STATE/planning-projection-20261026-d49b6308",
+  "integration": {
+    "pushed": false,
+    "hosted_ci": false,
+    "reviewed_on_integrated_main": false,
+    "issue_closed": false,
+    "product_completion_claimed": false
+  },
+  "populated_upgrade": {
+    "from": 27,
+    "to": 28,
+    "existing_workspaces": 2,
+    "enrollment_and_zero_baseline_verified": true,
+    "logical_source_and_planning_links_history_preserved": true,
+    "injected_migration_failure_rollback": true,
+    "failed_migration_ledger_unchanged": true,
+    "migration_connections_close_on_drop": true
+  }
+}

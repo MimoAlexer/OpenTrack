@@ -1451,6 +1451,9 @@
       },
       "CycleSnapshot": {
         "properties": {
+          "calculation_source": {
+            "$ref": "#/components/schemas/PlanningCalculationSource"
+          },
           "canceled_count": {
             "format": "int64",
             "type": "integer"
@@ -1478,6 +1481,13 @@
           "excluded_count": {
             "format": "int64",
             "type": "integer"
+          },
+          "facts_as_of": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "uuid",
@@ -1514,6 +1524,8 @@
           "cycle_id",
           "local_date",
           "captured_at",
+          "calculation_source",
+          "facts_as_of",
           "kind",
           "definition_version",
           "scope_count",
@@ -5134,6 +5146,14 @@
         ],
         "type": "object"
       },
+      "PlanningCalculationSource": {
+        "enum": [
+          "live",
+          "projection",
+          "snapshot"
+        ],
+        "type": "string"
+      },
       "PositionIssue": {
         "additionalProperties": false,
         "properties": {
@@ -5422,6 +5442,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "calculation_source": {
+            "$ref": "#/components/schemas/PlanningCalculationSource"
+          },
           "canceled": {
             "format": "int64",
             "type": "integer"
@@ -5433,6 +5456,13 @@
           "eligible": {
             "format": "int64",
             "type": "integer"
+          },
+          "facts_as_of": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "open": {
             "format": "int64",
@@ -5453,7 +5483,9 @@
           "open",
           "total",
           "unscoped",
-          "as_of"
+          "as_of",
+          "calculation_source",
+          "facts_as_of"
         ],
         "type": "object"
       },

@@ -128,12 +128,64 @@ async fn emit(tx: &mut store::Tx, a: &Actor, c: &Cycle, action: &str) -> Result<
     .map_err(db_error)
 }
 async fn current_scope(tx: &mut store::Tx, c: &Cycle, kind: &str) -> Result<CycleSnapshot> {
-    let rows=sqlx::query("SELECT i.id,i.version,i.estimate,s.category,(i.deleted_at IS NOT NULL OR i.archived_at IS NOT NULL) AS excluded FROM issues i JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id WHERE i.workspace_id=$1 AND i.team_id=$2 AND i.id=ANY(ARRAY(SELECT issue_id FROM cycle_issues WHERE workspace_id=$1 AND team_id=$2 AND cycle_id=$3 ORDER BY issue_id LIMIT 10001)) ORDER BY i.id").bind(c.workspace_id).bind(c.team_id).bind(c.id).fetch_all(&mut **tx).await.map_err(db_error)?;
+    let (mut rows, clock) = if kind == "current" {
+        let (rows, now, date) =
+            store::current_cycle_planning_rows(tx, c.workspace_id, c.team_id, c.id, &c.timezone)
+                .await
+                .map_err(db_error)?;
+        (rows, Some((now, date)))
+    } else {
+        (sqlx::query("SELECT i.id,i.version,i.estimate,s.category,(i.deleted_at IS NOT NULL OR i.archived_at IS NOT NULL) AS excluded FROM issues i JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id WHERE i.workspace_id=$1 AND i.team_id=$2 AND i.id=ANY(ARRAY(SELECT issue_id FROM cycle_issues WHERE workspace_id=$1 AND team_id=$2 AND cycle_id=$3 ORDER BY issue_id LIMIT 10001)) ORDER BY i.id").bind(c.workspace_id).bind(c.team_id).bind(c.id).fetch_all(&mut **tx).await.map_err(db_error)?,None)
+    };
     if rows.len() > 10000 {
         return Err(Error::Conflict(
             "A cycle scope is limited to 10,000 issues".into(),
         ));
     }
+    let mut redacted = false;
+    if kind == "current" {
+        let mut visible = Vec::with_capacity(rows.len());
+        for row in rows {
+            if row.try_get::<bool, _>("deleted").map_err(db_error)? {
+                redacted = true;
+            } else {
+                visible.push(row);
+            }
+        }
+        rows = visible;
+    }
+    let ready = kind == "current"
+        && !rows.is_empty()
+        && rows.iter().try_fold(true, |ready, row| {
+            Ok::<_, Error>(ready && row.try_get::<bool, _>("fact_current").map_err(db_error)?)
+        })?;
+    let projected = if ready {
+        let buckets = rows
+            .iter()
+            .map(|row| {
+                Ok(PlanningBucket {
+                    category: row.try_get("fact_category").map_err(db_error)?,
+                    excluded: row.try_get("fact_excluded").map_err(db_error)?,
+                    count: 1,
+                    estimate_total: row
+                        .try_get::<Option<i32>, _>("fact_estimate")
+                        .map_err(db_error)?
+                        .map(i64::from),
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let counts = PlanningCounts::from_buckets(buckets);
+        let dates = rows
+            .iter()
+            .map(|row| {
+                row.try_get::<DateTime<Utc>, _>("calculated_at")
+                    .map_err(db_error)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        (counts.total > 0).then_some((counts, dates.into_iter().min()))
+    } else {
+        None
+    };
     let items = rows
         .into_iter()
         .map(|r| {
@@ -149,20 +201,35 @@ async fn current_scope(tx: &mut store::Tx, c: &Cycle, kind: &str) -> Result<Cycl
             })
         })
         .collect::<Result<Vec<_>>>()?;
-    let (now, date): (DateTime<Utc>, NaiveDate) = sqlx::query_as(
-        "SELECT statement_timestamp(),(statement_timestamp() AT TIME ZONE $1)::date",
-    )
-    .bind(&c.timezone)
-    .fetch_one(&mut **tx)
-    .await
-    .map_err(db_error)?;
-    let counts = scope_counts(&items);
+    let (now, date): (DateTime<Utc>, NaiveDate) = if let Some(clock) = clock {
+        clock
+    } else {
+        sqlx::query_as("SELECT statement_timestamp(),(statement_timestamp() AT TIME ZONE $1)::date")
+            .bind(&c.timezone)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(db_error)?
+    };
+    let (counts, calculation_source, facts_as_of) = match projected {
+        Some((counts, date)) => (counts, PlanningCalculationSource::Projection, date),
+        None => (
+            scope_counts(&items),
+            if kind == "current" {
+                PlanningCalculationSource::Live
+            } else {
+                PlanningCalculationSource::Snapshot
+            },
+            None,
+        ),
+    };
     Ok(CycleSnapshot {
-        redacted: false,
+        redacted,
         id: Uuid::new_v4(),
         cycle_id: c.id,
         local_date: date,
         captured_at: now,
+        calculation_source,
+        facts_as_of,
         kind: kind.into(),
         definition_version: 1,
         scope_count: counts.total,
@@ -192,6 +259,8 @@ fn snapshot_row(r: PgRow) -> Result<CycleSnapshot> {
         cycle_id: r.try_get("cycle_id").map_err(db_error)?,
         local_date: r.try_get("local_date").map_err(db_error)?,
         captured_at: r.try_get("captured_at").map_err(db_error)?,
+        calculation_source: PlanningCalculationSource::Snapshot,
+        facts_as_of: None,
         kind: r.try_get("kind").map_err(db_error)?,
         definition_version: r.try_get("definition_version").map_err(db_error)?,
         scope_count: r.try_get("scope_count").map_err(db_error)?,
@@ -1098,6 +1167,10 @@ async fn redact_snapshot(
         return Ok(());
     }
     s.redacted = true;
+    if s.kind == "current" {
+        s.calculation_source = PlanningCalculationSource::Live;
+        s.facts_as_of = None;
+    }
     s.items.retain(|i| visible.contains(&i.issue_id));
     let counts = scope_counts(&s.items);
     s.scope_count = counts.total;

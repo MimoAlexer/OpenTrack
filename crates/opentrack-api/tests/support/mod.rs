@@ -143,6 +143,15 @@ impl Harness {
                 .await
                 .unwrap();
         }
+        let planning: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
+            .bind(format!("{schema}.planning_issue_facts"))
+            .fetch_one(&owner_base)
+            .await
+            .unwrap();
+        if planning {
+            sqlx::raw_sql(AssertSqlSafe(format!("REVOKE ALL ON {schema}.planning_backfills,{schema}.planning_issue_facts FROM \"{role}\"; GRANT SELECT ON {schema}.planning_issue_facts TO \"{role}\"")))
+                .execute(&owner_base).await.unwrap();
+        }
         let consumers: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
             .bind(format!("{schema}.consumer_receipts"))
             .fetch_one(&owner_base)

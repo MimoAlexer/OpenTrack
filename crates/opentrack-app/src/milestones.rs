@@ -127,8 +127,9 @@ impl App {
             .map(|c| self.taxonomy_cursor_decode("milestones-v1", &binding, c))
             .transpose()?;
         // Aggregate all milestones in the requested page together; no count query per row.
-        let rows=sqlx::query("WITH page AS (SELECT * FROM milestones WHERE workspace_id=$1 AND project_id=$2 AND ($3::bigint IS NULL OR (rank,id)>($3,$4)) ORDER BY rank,id LIMIT $5), buckets AS (SELECT m.id,coalesce(s.category,'') AS category,(i.archived_at IS NOT NULL OR i.deleted_at IS NOT NULL) AS excluded,count(*) AS count FROM page m JOIN project_issues pi ON pi.workspace_id=m.workspace_id AND pi.project_id=m.project_id AND pi.milestone_id=m.id JOIN issues i ON i.workspace_id=pi.workspace_id AND i.id=pi.issue_id LEFT JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id GROUP BY m.id,s.category,excluded), counts AS (SELECT id,jsonb_agg(jsonb_build_array(category,excluded,count)) AS buckets FROM buckets GROUP BY id) SELECT m.*,coalesce(c.buckets,'[]'::jsonb) AS buckets,statement_timestamp() AS as_of FROM page m LEFT JOIN counts c ON c.id=m.id ORDER BY m.rank,m.id")
-            .bind(w).bind(p).bind(after.as_ref().map(|v|v.0)).bind(after.as_ref().map(|v|v.1)).bind(i64::from(limit)+1).fetch_all(&mut *tx).await.map_err(db_error)?;
+        let rows = store::milestone_planning_page(&mut tx, w, p, after, i64::from(limit) + 1)
+            .await
+            .map_err(db_error)?;
         let has_more = rows.len() > limit as usize;
         let next_cursor = if has_more {
             let r = &rows[limit as usize - 1];
@@ -149,7 +150,7 @@ impl App {
             .map(|r| {
                 Ok(MilestoneOverview {
                     milestone: milestone(r, a, &project)?,
-                    progress: projects::progress_counts(r)?,
+                    progress: crate::planning_counts::progress(r)?,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -186,9 +187,10 @@ impl App {
         let mut tx = self.scoped(a, w, false).await?;
         let project = project_scope(&mut tx, a, w, t, p, false, false).await?;
         get(&mut tx, a, &project, id).await?;
-        let r=sqlx::query("WITH buckets AS (SELECT s.category,(i.deleted_at IS NOT NULL OR i.archived_at IS NOT NULL) AS excluded,count(*) AS count FROM project_issues pi JOIN issues i ON i.workspace_id=pi.workspace_id AND i.team_id=pi.team_id AND i.id=pi.issue_id JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id WHERE pi.workspace_id=$1 AND pi.project_id=$2 AND pi.milestone_id=$3 GROUP BY s.category,excluded) SELECT coalesce(jsonb_agg(jsonb_build_array(category,excluded,count)),'[]'::jsonb) AS buckets,statement_timestamp() AS as_of FROM buckets")
-            .bind(w).bind(p).bind(id).fetch_one(&mut *tx).await.map_err(db_error)?;
-        let out = projects::progress_counts(&r)?;
+        let row = store::project_planning_counts(&mut tx, w, t, p, Some(id))
+            .await
+            .map_err(db_error)?;
+        let out = crate::planning_counts::progress(&row)?;
         tx.commit().await.map_err(db_error)?;
         Ok(out)
     }

@@ -21,7 +21,7 @@ const data: Bootstrap = { auth_epoch: '1', teams: [team], issues: [], members: [
 const project: Project = { id: 'project', workspace_id: 'workspace', team_id: 'team', name: 'New onboarding', summary: 'Help people reach their first result', state: 'planned', health: 'on_track', lead_id: null, lead: null, start_date: null, target_date: null, version: '1', etag: '"project-metadata:project:1"', created_at: '2026-10-20T10:00:00Z', updated_at: '2026-10-20T10:00:00Z', archived_at: null, can_edit: true, can_manage: true };
 function fullProject(overrides: Partial<FullProject> = {}): FullProject { return { ...project, narrative: { body: EMPTY_BODY, plain_text: '', schema_supported: true, schema_version: 1 }, narrative_version: '1', etag: '"project:project:1:document:1"', metadata_etag: project.etag, ...overrides }; }
 function documentRecord(text = 'Saved project brief', version = '1'): StructuredDocument { return { id: 'document', owner_id: project.id, owner_type: 'project', body: fromPlainText(text), plain_text: text, schema_version: 1, schema_supported: true, version, etag: `"document:document:${version}"`, can_edit: true, mentions: [], issue_references: [], created_at: project.created_at, updated_at: project.updated_at }; }
-const progress: ProjectProgress = { completed: 2, eligible: 5, canceled: 1, open: 3, total: 6, unscoped: false, as_of: '2026-10-20T10:00:00Z' };
+const progress: ProjectProgress = { completed: 2, eligible: 5, canceled: 1, open: 3, total: 6, unscoped: false, as_of: '2026-10-20T10:00:00Z', calculation_source: 'live', facts_as_of: null };
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 const page = (data: unknown[], next: string | null = null) => ({ data, has_more: !!next, next_cursor: next });
 let container: HTMLDivElement; let root: Root;
@@ -392,4 +392,16 @@ describe('planning refresh consistency', () => {
     expect(fetch.mock.calls.filter(([url]) => url.includes('/projects/project/issues?'))).toHaveLength(2);
     expect(fetch.mock.calls.every(([, options]) => !options.method || options.method === 'GET')).toBe(true);
   });
+});
+
+it('distinguishes projection validation time from its oldest contributing fact', async () => {
+  const facts = '2026-10-19T09:00:00Z';
+  await act(async () => root.render(<Progress value={{ ...progress, calculation_source: 'projection', facts_as_of: facts }}/>));
+  expect(container.textContent).toContain('Projection verified against current issues');
+  expect(container.textContent).toContain('Oldest contributing fact calculated');
+  expect(container.querySelector('time[data-planning-calculation]')?.getAttribute('datetime')).toBe(progress.as_of);
+  expect(container.querySelector('time[data-planning-facts]')?.getAttribute('datetime')).toBe(facts);
+  await act(async () => root.render(<Progress value={{ ...progress, total: 0, eligible: 0, completed: 0, open: 0, canceled: 0, unscoped: true }}/>));
+  expect(container.textContent).toContain('Live issue data');
+  expect(container.querySelector('[data-planning-facts]')).toBeNull();
 });

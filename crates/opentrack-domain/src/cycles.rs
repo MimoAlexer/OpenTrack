@@ -94,6 +94,13 @@ pub struct CycleSnapshot {
     pub cycle_id: Uuid,
     pub local_date: NaiveDate,
     pub captured_at: DateTime<Utc>,
+    #[serde(default = "crate::snapshot_calculation_source")]
+    #[schema(required = true)]
+    pub calculation_source: crate::PlanningCalculationSource,
+    #[serde(default)]
+    #[schema(required = true)]
+    pub facts_as_of: Option<DateTime<Utc>>,
+
     pub kind: String,
     pub definition_version: i32,
     pub scope_count: i64,

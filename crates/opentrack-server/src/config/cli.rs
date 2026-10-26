@@ -16,6 +16,7 @@ pub enum Action {
     OperatorConsumerDisable,
     OperatorEventLimits,
     OperatorCleanupResume,
+    OperatorPlanningRebuild,
     CheckConfig,
     PrintConfig,
     ConfigSchema,
@@ -32,6 +33,7 @@ impl Action {
                 | Self::OperatorConsumerDisable
                 | Self::OperatorEventLimits
                 | Self::OperatorCleanupResume
+                | Self::OperatorPlanningRebuild
         )
     }
     pub fn is_operator(self) -> bool {
@@ -112,6 +114,7 @@ impl Cli {
                     "operator-consumer-disable" => Action::OperatorConsumerDisable,
                     "operator-event-limits" => Action::OperatorEventLimits,
                     "operator-cleanup-resume" => Action::OperatorCleanupResume,
+                    "operator-planning-rebuild" => Action::OperatorPlanningRebuild,
                     "check-config" => Action::CheckConfig,
                     "print-config" => Action::PrintConfig,
                     "config-schema" => Action::ConfigSchema,
@@ -345,6 +348,8 @@ impl Cli {
                           Re-enable the registered consumer
   operator-cleanup-resume --workspace UUID --job UUID --reason TEXT
                           Resume a failed assignment cleanup with a new retry budget
+  operator-planning-rebuild --workspace UUID --reason TEXT
+                          Reconcile planning facts without advancing their checkpoint before completion
   operator-event-limits --workspace UUID --max-pending-events INTEGER --max-event-bytes INTEGER --reason TEXT
                           Set durable event admission limits with an audited reason
   check-config            Validate settings and secrets for serving, without connecting

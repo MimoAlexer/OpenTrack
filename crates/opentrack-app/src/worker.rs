@@ -1,5 +1,5 @@
 //! One durable batch per claim. No sessions, operator credential, or external effects.
-use crate::{assignment_cleanup, db_error, issue_ordering, workflow};
+use crate::{assignment_cleanup, db_error, issue_ordering, planning_counts, workflow};
 use opentrack_domain::{Error, Result};
 use opentrack_store as store;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
@@ -93,12 +93,14 @@ impl Worker {
               OR has_table_privilege(current_user,c.oid,'DELETE,TRUNCATE,TRIGGER')
               OR has_column_privilege(current_user,c.oid,a.attnum,'REFERENCES')))
              OR EXISTS(SELECT 1 FROM pg_proc p WHERE p.pronamespace=current_schema()::regnamespace AND p.proowner=current_user::regrole)
-             OR EXISTS(SELECT 1 FROM pg_proc p WHERE p.pronamespace=current_schema()::regnamespace AND p.prorettype<>'trigger'::regtype AND has_function_privilege(current_user,p.oid,'EXECUTE') AND p.proname NOT IN('worker_ready_workspaces','worker_lock_context','worker_lock_maintenance_context','worker_assignee_eligible','worker_clear_assignment','worker_capture_events','worker_retain_events','worker_prune_document_revisions','worker_claim_attachment_gc','worker_ack_attachment_gc','worker_issue_order_batch'))
+             OR EXISTS(SELECT 1 FROM pg_proc p WHERE p.pronamespace=current_schema()::regnamespace AND p.prorettype<>'trigger'::regtype AND has_function_privilege(current_user,p.oid,'EXECUTE') AND p.proname NOT IN('worker_ready_workspaces','worker_lock_context','worker_lock_maintenance_context','worker_assignee_eligible','worker_clear_assignment','worker_capture_events','worker_retain_events','worker_prune_document_revisions','worker_claim_attachment_gc','worker_ack_attachment_gc','worker_issue_order_batch','worker_apply_planning_events','worker_planning_backfill_batch'))
              OR has_database_privilege(current_user,current_database(),'CREATE,TEMP')"
         ).fetch_one(&pool).await.map_err(db_error)?;
         let revision_capability:bool=sqlx::query_scalar("SELECT to_regclass('documents') IS NULL OR coalesce(has_function_privilege(current_user,to_regprocedure(format('%I.worker_prune_document_revisions(uuid,integer)',current_schema())),'EXECUTE'),false)").fetch_one(&pool).await.map_err(db_error)?;
         let attachment_capability:bool=sqlx::query_scalar("SELECT to_regclass('attachments') IS NULL OR (coalesce(has_function_privilege(current_user,to_regprocedure(format('%I.worker_claim_attachment_gc(uuid,integer)',current_schema())),'EXECUTE'),false) AND coalesce(has_function_privilege(current_user,to_regprocedure(format('%I.worker_ack_attachment_gc(uuid,uuid,bigint,uuid)',current_schema())),'EXECUTE'),false))").fetch_one(&pool).await.map_err(db_error)?;
         let ordering_capability: bool = sqlx::query_scalar("SELECT to_regclass('issue_order_normalizations') IS NULL OR (to_regclass('issue_order_staging') IS NOT NULL AND to_regclass('issue_order_guards') IS NOT NULL AND coalesce(has_function_privilege(current_user,to_regprocedure(format('%I.worker_issue_order_batch(uuid,uuid,uuid,uuid,bigint)',current_schema())),'EXECUTE'),false))")
+            .fetch_one(&pool).await.map_err(db_error)?;
+        let planning_capability: bool = sqlx::query_scalar("SELECT to_regclass('planning_issue_facts') IS NULL OR (coalesce(has_function_privilege(current_user,to_regprocedure(format('%I.worker_apply_planning_events(uuid,integer)',current_schema())),'EXECUTE'),false) AND coalesce(has_function_privilege(current_user,to_regprocedure(format('%I.worker_planning_backfill_batch(uuid,uuid,uuid,bigint,integer)',current_schema())),'EXECUTE'),false))")
             .fetch_one(&pool).await.map_err(db_error)?;
         if forbidden
             || unsafe_tables
@@ -106,6 +108,7 @@ impl Worker {
             || !capabilities
             || !revision_capability
             || !attachment_capability
+            || !planning_capability
             || !ordering_capability
         {
             tracing::error!(
@@ -152,7 +155,7 @@ impl Worker {
     pub async fn claim(&self, workspace: Uuid) -> Result<Option<JobClaim>> {
         let mut tx = store::begin(&self.pool).await.map_err(db_error)?;
         sqlx::query("SELECT set_config('opentrack.workspace_id',$1,true),set_config('statement_timeout','3000',true),set_config('lock_timeout','1000',true),set_config('idle_in_transaction_session_timeout','5000',true)").bind(workspace.to_string()).execute(&mut *tx).await.map_err(db_error)?;
-        let row=sqlx::query("SELECT id,kind,requested_by,state,lease_token,attempt_count,retry_count,max_attempts FROM jobs WHERE workspace_id=$1 AND kind IN('workflow.status_replace','assignment.reconcile','issues.order_normalize') AND ((state IN('queued','retry_wait') AND available_at<=clock_timestamp()) OR (state='running' AND lease_expires_at<=clock_timestamp())) ORDER BY available_at,id FOR UPDATE SKIP LOCKED LIMIT 1").bind(workspace).fetch_optional(&mut *tx).await.map_err(db_error)?;
+        let row=sqlx::query("SELECT id,kind,requested_by,state,lease_token,attempt_count,retry_count,max_attempts FROM jobs WHERE workspace_id=$1 AND kind IN('workflow.status_replace','assignment.reconcile','issues.order_normalize','planning.backfill') AND ((state IN('queued','retry_wait') AND available_at<=clock_timestamp()) OR (state='running' AND lease_expires_at<=clock_timestamp())) ORDER BY available_at,id FOR UPDATE SKIP LOCKED LIMIT 1").bind(workspace).fetch_optional(&mut *tx).await.map_err(db_error)?;
         let Some(row) = row else {
             tx.commit().await.map_err(db_error)?;
             return Ok(None);
@@ -218,7 +221,7 @@ impl Worker {
                     .await
                     .map_err(db_error)?
             }
-            ("assignment.reconcile", None) => {
+            ("assignment.reconcile" | "planning.backfill", None) => {
                 sqlx::query_scalar("SELECT worker_lock_maintenance_context($1)")
                     .bind(claim.workspace_id)
                     .fetch_one(&mut *tx)
@@ -239,6 +242,8 @@ impl Worker {
         let outcome = if enabled {
             if claim.kind == "assignment.reconcile" {
                 assignment_cleanup::run_batch(&mut tx, claim).await?
+            } else if claim.kind == "planning.backfill" {
+                planning_counts::run_batch(&mut tx, claim).await?
             } else if claim.kind == "issues.order_normalize" {
                 issue_ordering::run_batch(&mut tx, claim).await?
             } else {

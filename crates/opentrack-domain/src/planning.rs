@@ -1,3 +1,19 @@
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PlanningCalculationSource {
+    #[default]
+    Live,
+    Projection,
+    Snapshot,
+}
+
+pub(crate) fn snapshot_calculation_source() -> PlanningCalculationSource {
+    PlanningCalculationSource::Snapshot
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct PlanningBucket<'a> {
     pub category: &'a str,
