@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-25",
+  "scope": "Single shared browser qualification deadline correction",
+  "parent_candidate": "4c6bf8032996168b48e7cba8e2537905a9447062",
+  "original_base": "7f8e0aa3eb1a02f4257c080e21ff9f40bfab811e",
+  "preserved_prior_evidence": "docs/evidence/2026-10-25-browser-order-ci-fixtures.json",
+  "original_candidate_limitation": "The original candidate capped parent preparation at 300 seconds but then granted Node a fresh 900 seconds; this incorrectly extended the total qualification window.",
+  "source_sha256": {
+    "scripts/browser-acceptance.py": "2e776f767ecc5d1e1ed4a8552f42bbb3fa927d9d8737cbe85265716e24c20995",
+    "scripts/browser_order_fixtures.py": "5e5cedb8e6aba8b951594cd2318d108b6c16ed009778356870c59612e560b4fa",
+    "scripts/test-browser-acceptance.py": "9299e6af3f0071e416a6080c33a9a465069e8fa28c7d67ed73dc0ba77b734e4d"
+  },
+  "deadline_contract": {
+    "suite_seconds": 900,
+    "starts": "Immediately before parent fixture preparation, after Docker stack startup and setup-token retrieval",
+    "preparation_seconds_maximum": 300,
+    "preparation_deadline": "min(suite_deadline, preparation_started + 300)",
+    "node_timeout": "Positive remaining monotonic suite time only; expiry raises before subprocess launch",
+    "cleanup": "Same owned worker restoration and disposable project cleanup still execute after expiry under their existing independent cleanup bounds; no extra qualification time",
+    "unchanged": {
+      "worker_poll_interval_ms": 2000,
+      "worker_lease_seconds": 60,
+      "worker_connections": 5,
+      "browser_test_seconds": 60,
+      "browser_action_seconds": 10,
+      "workers": 1,
+      "retries": 0
+    }
+  },
+  "verification": {
+    "command": "python scripts/test-browser-acceptance.py",
+    "pure_tests_passed": 30,
+    "failed": 0,
+    "new_clock_cases": [
+      "Simulated stack startup consumes 240 seconds outside the suite; parent preparation consumes 137 seconds inside it and Node receives exactly 763 seconds",
+      "Preparation consuming the full 900-second suite budget launches no Node subprocess and still removes the owned disposable project",
+      "Only 40 suite seconds remaining clips the preparation cap and work-command timeouts to 40; restoration start retains its separate 55-second cleanup bound",
+      "Expiry immediately after stopping the owned worker still restores that same worker and performs no fixture SQL"
+    ],
+    "prior_assertions": "Original exact 900 timeout assertion retained with a frozen clock and zero simulated preparation time; existing boundary and secrecy assertions remain",
+    "prior_proof_preserved": "Original 4c6 candidate and its 26-test evidence remain byte-for-byte historical artifacts",
+    "whitespace": "git diff --check passed"
+  },
+  "not_executed": [
+    "Docker commands",
+    "real HTTP/database preparation",
+    "browser acceptance",
+    "configured GitHub CI",
+    "full repository test matrix"
+  ],
+  "acceptance": "Corrected source and pure clock/boundary checks only; exact combined-head runtime qualification remains lead-owned CI. No issue or product completion claimed.",
+  "rollback": "No schema or production changes; revert this focused correction if required. The original candidate has a documented deadline gap and is not qualified for integration on its own."
+}

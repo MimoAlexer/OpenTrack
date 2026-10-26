@@ -286,18 +286,30 @@ async fn upgrade(h: &Harness) {
         json!({"team_id":t,"title":"Pre19 receipt","description":"Legacy body unchanged","assignee_id":user.user.id}),
     );
     let bytes = serde_json::to_vec(&command).unwrap();
-    let item = h
-        .app
-        .create_issue(&a, w, "legacy-mentions-receipt", command.clone())
-        .await
-        .unwrap();
+    let item = historical_issue(
+        h,
+        &a,
+        w,
+        t,
+        serde_json::to_value(&command).unwrap(),
+        Some("legacy-mentions-receipt"),
+    )
+    .await;
     // Capture schema 18 directly; current document owner resolution requires schema 26.
     let mut tx = h.context(a.user.id, w).await;
     let mut olddoc: Document = req(sqlx::query_scalar::<_, serde_json::Value>("SELECT jsonb_build_object('id',id,'owner_type','issue','owner_id',issue_id,'schema_supported',schema_version=1,'schema_version',schema_version,'body',body,'plain_text',plain_text,'mentions','[]'::jsonb,'issue_references','[]'::jsonb,'version',version::text,'etag','','created_at',created_at,'updated_at',updated_at,'can_edit',true) FROM documents WHERE workspace_id=$1 AND issue_id=$2")
         .bind(w).bind(item.id).fetch_one(&mut *tx).await.unwrap());
     tx.commit().await.unwrap();
     olddoc.refresh_etag();
-    let hidden = issue(h, &a, w, private, json!({"assignee_id":removed.user.id})).await;
+    let hidden = historical_issue(
+        h,
+        &a,
+        w,
+        private,
+        json!({"assignee_id":removed.user.id}),
+        None,
+    )
+    .await;
     let hiddenmember = h
         .app
         .get_team_member(&a, w, private, removed.user.id)
@@ -307,15 +319,28 @@ async fn upgrade(h: &Harness) {
         .remove_team_member(&a, w, private, removed.user.id, &hiddenmember.etag(private))
         .await
         .unwrap();
-    let unavailable = issue(h, &disabled, w, t, json!({"assignee_id":disabled.user.id})).await;
+    let unavailable = historical_issue(
+        h,
+        &disabled,
+        w,
+        t,
+        json!({"assignee_id":disabled.user.id}),
+        None,
+    )
+    .await;
     let op = Operator::connect(&h.operator_url().await).await.unwrap();
     op.disable_account(disabled.user.id, "Pre-upgrade disabled account")
         .await
         .unwrap();
-    let worker = Worker::connect(&h.worker_url().await, WorkerOptions::default())
+    let worker_url = h.worker_url().await;
+    let worker = Worker::connect(&worker_url, WorkerOptions::default())
         .await
         .unwrap();
     store::MIGRATOR.run(&h.owner).await.unwrap();
+    assert!(
+        h.worker_url().await == worker_url,
+        "Post-migration grants must retain the existing worker role"
+    );
     assert_eq!(
         sqlx::query_scalar::<_, i64>("SELECT max(version) FROM _sqlx_migrations")
             .fetch_one(&h.owner)

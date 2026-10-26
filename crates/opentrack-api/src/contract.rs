@@ -287,6 +287,9 @@ pub(crate) struct IssuePatch {
         super::workflows::replace_status,
         super::workflows::replacement,
         super::workflows::resume_replacement,
+        super::issue_ordering::position_issue,
+        super::issue_ordering::issue_order_maintenance,
+        super::issue_ordering::resume_issue_order_maintenance,
         super::taxonomy::labels,
         super::taxonomy::label,
         super::taxonomy::create_label,
@@ -480,6 +483,7 @@ pub fn openapi() -> Value {
                             "/api/v1/workspaces/{w}/teams/{t}/templates/{id}",
                             "/api/v1/workspaces/{w}/teams/{t}/cycles/{id}",
                             "/api/v1/workspaces/{w}/teams/{t}/cycles/{id}/carry-forward/{operation}",
+                            "/api/v1/workspaces/{w}/teams/{t}/issue-order-maintenance/{job}",
                             "/api/v1/workspaces/{w}/teams/{t}/projects/{id}",
                             "/api/v1/workspaces/{w}/teams/{t}/projects/{id}/metadata",
                             "/api/v1/workspaces/{w}/teams/{t}/projects/{id}/document",
@@ -495,10 +499,18 @@ pub fn openapi() -> Value {
                     || path.contains("/workflow-replacements/")
                     || (path.contains("/statuses/{status}/") && method == "post")
                     || (path == "/api/v1/workspaces/{w}/issues/{id}/move" && method == "post")
+                    || (method == "post"
+                        && [
+                            "/api/v1/workspaces/{w}/issues/{id}/position",
+                            "/api/v1/workspaces/{w}/teams/{t}/issue-order-maintenance/{job}/resume",
+                        ]
+                        .contains(&path.as_str()))
                     || (path == "/api/v1/workspaces/{w}/issues/{id}/relations/{relation}"
                         && method == "delete")
                 {
-                    let description = if path == "/api/v1/workspaces/{w}/teams/{t}/projects/{id}/metadata" {
+                    let description = if path.contains("/issue-order-maintenance/") {
+                        "Strong validator bound to the current maintenance state, caller authority and resume capability. Use If-None-Match for reads and the current value as If-Match when resuming."
+                    } else if path == "/api/v1/workspaces/{w}/teams/{t}/projects/{id}/metadata" {
                         "Strong validator for the complete currently authorized metadata representation, independent of the project brief. Send as If-Match on metadata changes."
                     } else if path.ends_with("/revisions/{revision}") {
                         "Strong validator for the complete currently authorized revision representation, including reference labels. Revisions are read-only."

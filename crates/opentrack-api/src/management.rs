@@ -11,8 +11,8 @@ use axum::{
 use opentrack_domain::{
     AcceptInvitation, CreateInvitation, CreateTeam, CreateWorkspace, DirectoryQuery, Error,
     Invitation, InvitationIssued, InvitationPreview, InvitationToken, OrganizationSummary, Page,
-    PutTeamMember, Session, TeamDetail, TeamMember, UpdateMember, UpdateTeam, UpdateWorkspace,
-    WorkspaceAccess, WorkspaceDetail, WorkspaceMember,
+    PutTeamMember, Session, TeamDetail, TeamMember, TeamQuery, UpdateMember, UpdateTeam,
+    UpdateWorkspace, WorkspaceAccess, WorkspaceDetail, WorkspaceMember,
 };
 use uuid::Uuid;
 
@@ -149,12 +149,12 @@ pub(crate) async fn update_workspace(
     let tag = format!("\"workspace:{w}:{}\"", item.version);
     entity(item, StatusCode::OK, tag, String::new())
 }
-#[utoipa::path(get, path="/api/v1/workspaces/{w}/teams", params(("w"=Uuid,Path),("limit"=Option<u32>,Query),("cursor"=Option<String>,Query),("state"=Option<String>,Query)),responses((status=200,body=Page<TeamDetail>)))]
+#[utoipa::path(get, path="/api/v1/workspaces/{w}/teams", params(("w"=Uuid,Path),("q"=Option<String>,Query,description="Literal name or key search, trimmed and at most 100 Unicode scalars without control characters"),("limit"=Option<u32>,Query),("cursor"=Option<String>,Query),("state"=Option<String>,Query)),responses((status=200,body=Page<TeamDetail>)))]
 pub(crate) async fn teams(
     State(s): State<ApiState>,
     Auth(a): Auth,
     Path(w): Path<Uuid>,
-    Query(q): Query<DirectoryQuery>,
+    Query(q): Query<TeamQuery>,
 ) -> Result<Json<Page<TeamDetail>>, ApiError> {
     Ok(Json(s.app.list_teams(&a, w, q).await?))
 }

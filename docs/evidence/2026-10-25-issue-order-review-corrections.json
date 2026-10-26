@@ -1,0 +1,153 @@
+{
+  "date": "2026-10-25",
+  "status": "Private corrective source qualification; connected UI and integrated acceptance remain open",
+  "corrected_code_head": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+  "prior_backend_code_head": "8a5c25f14df0f13cd5bd8560851598e05378e476",
+  "source_sha256": {
+    "crates/opentrack-domain/src/lib.rs": "8a3ec4affcc4ebfd4478e1d9ae75b09aced8c43be3348383c25925c4e1701a14",
+    "crates/opentrack-app/src/tracking.rs": "788cb201e5bcdbded994fbad127c7b3f4f138f083ef35b0ddbcc776c36b40693",
+    "crates/opentrack-api/src/contract.rs": "fe1348f449d9284d60e498f27ef450068eb8ec2889faa64f8bc4af69b3859066",
+    "crates/opentrack-api/tests/issue_order_contract.rs": "f2f4d87692af0b0c523f5f609feb8cbd552ba21cb03f240c709918018f3c802e",
+    "docs/api/openapi.json": "df43d618e42f10f55409d877c2d41f63e5248ec78bafa8a75b2f16f01171bbcb",
+    "web/src/generated/api.d.ts": "3e118fb4a986aa9914c8dd2b887b64ceaa8679689a1f36806e43cf948fb4ed20",
+    "crates/opentrack-server/tests/worker_daemon_contract.rs": "1ef3c6c948240006dd489f50842deb71eda3af209fdafe2a7502500c94e687f9"
+  },
+  "review_corrections": {
+    "utf8": {
+      "files": 2,
+      "literal_occurrences_restored": 6,
+      "baseline": "330d1bf829398ffe10f0dcf641f46c681e7f2fce",
+      "audit_scope": "Every changed existing UTF-8 text file compared with baseline non-ASCII runs and their CP1252 misdecodings; exact known runs restored, no blanket reencoding",
+      "audit_sha256": "6e85b096953277a0597bcf618f2501935f99bc2234fe9f27dcb295f445abbc14"
+    },
+    "openapi_semantic_additions": [
+      "/paths//api/v1/workspaces/{w}/issues/{id}/position/post/responses/200/headers/ETag",
+      "/paths//api/v1/workspaces/{w}/teams/{t}/issue-order-maintenance/{job}/get/responses/200/headers/ETag",
+      "/paths//api/v1/workspaces/{w}/teams/{t}/issue-order-maintenance/{job}/get/responses/304/headers/ETag",
+      "/paths//api/v1/workspaces/{w}/teams/{t}/issue-order-maintenance/{job}/resume/post/responses/200/headers/ETag"
+    ],
+    "conditional_http": "Existing large scenario now executes unchanged304/emptybody, disabled requester401 and private-denied404 with old validators, and same viewer promoted then newly authenticated200 with changedETag/can_resume"
+  },
+  "executed_corrected_source": {
+    "domain": {
+      "passed": 25,
+      "failed": 0,
+      "doc_tests": 0
+    },
+    "http_ordering": {
+      "passed": 9,
+      "failed": 0,
+      "filtered_out": 0,
+      "kind": "In-process HTTP router and real restricted PostgreSQL; not TCP/native GUI"
+    },
+    "generator": "Passed; only four ETag header declarations added to OpenAPI and corresponding generated TypeScript",
+    "clippy": "Strict affected API/test target passed",
+    "checks": [
+      {
+        "check": "format",
+        "exit_code": 0,
+        "elapsed_seconds": 17.489,
+        "owned_session_cleanup_confirmed": true,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "check": "export-contracts",
+        "exit_code": 0,
+        "elapsed_seconds": 91.333,
+        "owned_session_cleanup_confirmed": true,
+        "log_sha256": "545129c3320e411ec58439a966d45ec47599e7c947f5e1e69a5d217f1103926c"
+      },
+      {
+        "check": "domain-units",
+        "exit_code": 0,
+        "elapsed_seconds": 11.433,
+        "owned_session_cleanup_confirmed": true,
+        "log_sha256": "8a95e900d464ece3ff1d404c02efb170f30c6d717467523e40baa451624fb60a"
+      },
+      {
+        "check": "api-corrective-head",
+        "exit_code": 0,
+        "elapsed_seconds": 90.535,
+        "owned_session_cleanup_confirmed": true,
+        "log_sha256": "a22dd9fc5830f8b86671ebc7387994770acf6a0e3c3aec4e09cc4e90bb2264b8"
+      },
+      {
+        "check": "corrective-clippy",
+        "exit_code": 0,
+        "elapsed_seconds": 15.983,
+        "owned_session_cleanup_confirmed": true,
+        "log_sha256": "ff6bee13224c312de1bb7606e8a310555f75d5bc77787caf9906a40e6434a703"
+      }
+    ]
+  },
+  "retained_default_daemon": {
+    "test_code_head": "7d4245d",
+    "backend_source": "8a5c25f",
+    "passed": 1,
+    "issues_normalized": 501,
+    "poll_interval_ms": 2000,
+    "lease_seconds": 60,
+    "max_connections": 5,
+    "explicit_same_key_create_retry": "ORD-502;502 live rows retain version1 and canonical rank",
+    "checks": [
+      {
+        "check": "format",
+        "exit_code": 0,
+        "elapsed_seconds": 9.275,
+        "owned_session_cleanup_confirmed": true,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "check": "default-order-daemon",
+        "exit_code": 0,
+        "elapsed_seconds": 8.84,
+        "owned_session_cleanup_confirmed": true,
+        "log_sha256": "1cb4b4a44308e61eccd5eba7a4ae3e363b1d310f5668733f4161ec248e6e07b4"
+      },
+      {
+        "check": "daemon-clippy",
+        "exit_code": 0,
+        "elapsed_seconds": 16.151,
+        "owned_session_cleanup_confirmed": true,
+        "log_sha256": "258c2a88a72ff83d9fa0a2d8e0633a31690bfb961f1c805c9cc06b8954d18e9a"
+      }
+    ]
+  },
+  "ui_backend_artifact": {
+    "head": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+    "exit_code": 0,
+    "elapsed_seconds": 34.59,
+    "owned_session_cleanup_confirmed": true,
+    "source_unchanged": true,
+    "source_context_sha256": "d8cfccd8ab888caa8a1bca0d54254686183e5da01aa77e622fee79abf088e35b",
+    "binary_sha256": "f9725a64b91ef8df2847abfb7ededf8dd31566caa5601812a8d4b39801c01622",
+    "binary_bytes": 56088456,
+    "binary_mode": "0o700",
+    "build_log_sha256": "ab829ef06bb2e943593c767947478e17d2d08b7dc63438197688e486d60eb7c0"
+  },
+  "migration": {
+    "version": 27,
+    "sha256": "30afd8a7ff4158f4969dd4860490c2e4cdbbfb386f0814db36fb37b7fe9f33c3",
+    "changed_by_correction": false,
+    "retained_public_26_upgraded": false
+  },
+  "private_artifact_index": {
+    "sha256": "72f36958b8596216eeb78b60ed5cd1bdb2cd5db9d460c36c86993346095ee599",
+    "entries": 14,
+    "originals_private": true,
+    "logs_published": false
+  },
+  "preserved_history": [
+    "Prior8a nine-case run and ingress three-case run remain exact historical evidence, not this corrected run",
+    "Original daemon compile attempt failed on absent Issue.number; corrected to public issue key, original source/log retained",
+    "Corrupted source snapshots and literal audit retained; no claim that the whole domain suite had passed before this correction",
+    "Existing native50/schema5 and prior route parity retained; not rerun because no native route changed"
+  ],
+  "limits": [
+    "No full workspace runtime pass",
+    "Connected manual-order UI still being implemented",
+    "No native GUI, physical-input, assistive-technology or whole-issue acceptance",
+    "No M27 main migration/integration/retained-data rollout",
+    "Required exact-head hosted CI and final review remain pending"
+  ]
+}

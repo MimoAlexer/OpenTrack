@@ -1,0 +1,216 @@
+{
+  "date": "2026-10-25",
+  "scope": "Correct the three independently reported c319 planning recovery findings; original implementation/evidence remains preserved.",
+  "base_commit": "c3190bddc2cfd6cdee034e9dedc2f6d7d6747198",
+  "implementation_commit": "4c659a9cd73dbce6a51a59390ec390f15dbbcf2e",
+  "source_sha256": {
+    "web/e2e/planning-write-recovery.browser.ts": "fc50a7110f9af415e25e2b70cc9f749100bd51c7efe746d688ee7c49108b4191",
+    "web/src/projects/Milestones.tsx": "089bcb899f215d5455a0c5d2eca518569e20e8e66dde4c9048f71d31542171c3",
+    "web/src/projects/PlanningWriteRecovery.test.tsx": "600ed5e6176711c1d7fd72053a207406483f2384c45ae3d434b36a497dd008be",
+    "web/src/projects/ProjectIssues.tsx": "eb178aa7c863847f9620f96e4942742b59e2bdf6894880aa3b0e669fd7290d9b",
+    "web/src/projects/Projects.test.tsx": "8890a2e97692904f93119eb3cf6f843a0b1f17ce75bc84c6cef5c94234331c20",
+    "web/src/projects/useProjectData.ts": "e2368465ca450488e5030603c3dc0bad4a55b44cec2f14ff1642b353f05ba6ec",
+    "web/src/projects/types.ts": "4e4e5e62119272499917b3589dea356e2e89521e71c6ca33d5dfe7205d28c730",
+    "web/src/api.ts": "6030abc0142d297f4fc5341bb0b30d9a7e94aa5266098b5304e5e63596587858",
+    "web/src/settings/shared.tsx": "271b27a21f51705b466c027af0bdd17d6bbe32b9b6f4a5d566cd047d328111e4",
+    "web/src/desktop/context.tsx": "f5e7faf27783674c6ba4244e6bce4073d309ae1f3d823e96e76710ca6060d21b",
+    "web/src/components.tsx": "97fa54265f395b59728fa2236de22a907c8fc8258151c35a9dcfed61700ff30e",
+    "web/src/router.tsx": "af9b74a29f67de9b7757fe8cd6ae68d75bcb4d65de669a08e0839b01956e1e16",
+    "web/src/generated/api.d.ts": "3361bdc058a9c9f288889a3bc3fbae1ce330f014226f0163efc3fe07c6c63517",
+    "web/e2e/fixtures.ts": "97c8f8183457a7b4af966090b12fbe58166c0f7fa37822643c5511d4fb469445",
+    "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5"
+  },
+  "review_findings": [
+    {
+      "priority": 2,
+      "finding": "Terminal malformed project-issue rows could falsely confirm a cleared milestone or membership absence.",
+      "correction": "Each recovery row requires a nonempty string ID and an own explicit milestone_id field containing null or a nonempty string. Validation precedes complete-scan/state confirmation. Missing or malformed decisions preserve unresolved intent and disable retry; no null fallback masks missing data."
+    },
+    {
+      "priority": 2,
+      "finding": "Selected-milestone404 was always treated as deletion, masking project access loss and retaining private labels/intent.",
+      "correction": "A selected-milestone404 revalidates the matching current project. Project403/404 propagates the existing denial cleanup and removes labels/intent. Authorized matching200 leaves the target missing and intent unresolved; it does not enable retry."
+    },
+    {
+      "priority": 3,
+      "finding": "Discard after concurrent anchor deletion could wait forever for the surviving moved milestone at its obsolete index.",
+      "correction": "Discard restores by surviving ID or section fallback; successful reorder retains its expected-index fence. Refresh errors also restore the section when available."
+    }
+  ],
+  "source_scope": "Two production components, focused recovery tests, the two existing browser journeys and one required milestone_id:null field in the previously released legacy Projects recovery mock. No assertion was removed, no other production/backend/schema/contract/dependency change.",
+  "units": {
+    "new_regressions_baseline": {
+      "command": "npm test -- src/projects/PlanningWriteRecovery.test.tsx -t 'review correction:'",
+      "failed": 8,
+      "controls_passed": 2,
+      "existing_skipped": 26,
+      "production": "exact c319",
+      "log_sha256": "15c633c4fc93b9a49b8a303118fe83d63b8dc0286c3d09286eedbfda0f3e5ba6"
+    },
+    "corrected_recovery_file": {
+      "passed": 36,
+      "log_sha256": "aaa3a42c4b2b2c57bb4071fd1bb4ecd0fc7475f8dc964e277b0a2686df3a3d25"
+    },
+    "initial_affected": {
+      "passed": 52,
+      "failed": 1,
+      "total": 53,
+      "log_sha256": "8b2034669c3ed5ad384e8ec27d9cceddb67541c1949aa1c2d53b965b7d98c1a8",
+      "failure": "The previously released Projects conflict fixture omitted required milestone_id; only that object was corrected to explicit null."
+    },
+    "corrected_projects_file": {
+      "passed": 31,
+      "log_sha256": "73400c98bb450546086f3b45833c5f5f723de997191a7fa774ffd59947ce46ac"
+    },
+    "retained_planning_file": {
+      "passed": 22,
+      "source": "The other passing file in the initial53-case affected run; its source and all production dependencies remain unchanged afterward."
+    },
+    "unique_current_passes": 89,
+    "qualification": "36 recovery +31 corrected project +22 retained current-source planning cases. No single89-case all-green run is claimed."
+  },
+  "checks": {
+    "typescript_application": {
+      "passed": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "typescript_browser_final": {
+      "passed": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "changed_frontend_build": {
+      "passed": true,
+      "count": 1,
+      "log_sha256": "5e428eb631ff7ecaef5be2d1dde88c293d0fa4a07196866425c1063c61215eb5",
+      "files": {
+        "index.html": "4d4787252a94e57d9b9f13ae1c75a8bd2d008667af844c195e55a6d7699698d5",
+        "theme.js": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+        "assets/index-Clx98Nfy.js.map": "422f739f75cabad43f20f385cd0a68145ec28178fd952770c87ae2ecf4fdf625",
+        "assets/portability.worker-DEvlQVr4.js": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+        "assets/index-Clx98Nfy.js": "4859b030be93bb7cefb378b4e4b235ba3651fca05c5e014c2236333c74c27071",
+        "assets/index-BruWXOVL.css": "a235b37aaaf4ccf4a43e323f9c8d08ca15471a558373f3a102fcabc306cdf155",
+        "assets/portability.worker-DEvlQVr4.js.map": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+        "assets/RichTextEditor-Bn5oRuDC.js.map": "080ac197d67680990fe8f234317d434208d816def97fb2b21944faf31e0cb14c",
+        "assets/RichTextEditor-Bn5oRuDC.js": "ab31af07d1a4b56296aa3fd4c25bc97d9baa283b903021de09750b5432d6cc76"
+      }
+    },
+    "diff_privacy_utf8_lf": "clear"
+  },
+  "browser": {
+    "unique_passed_cases": 6,
+    "journey_types_per_engine": 2,
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "backend_sha256": "901551446f9b9a8691049dfca4bea8859d94201f3aa7def294a7e42f07349f45",
+    "backend_and_bundle": "Same unchanged frozen901551 backend and one new immutable corrected frontend for both runs. No backend rebuild or migration.",
+    "first_run": {
+      "passed": 6,
+      "failed": 0,
+      "receipt_sha256": "c0314e93d40cc0e7285473f46f476418ff845e80dcad1b2c6c1f36f886c29544"
+    },
+    "final_focus_cases": [
+      {
+        "browser": "chromium",
+        "check": "milestone conflicts preserve relative intent and new milestones; a lost committed response is reconciled without replay",
+        "status": "passed",
+        "duration_ms": 2152
+      },
+      {
+        "browser": "firefox",
+        "check": "milestone conflicts preserve relative intent and new milestones; a lost committed response is reconciled without replay",
+        "status": "passed",
+        "duration_ms": 4079
+      },
+      {
+        "browser": "webkit",
+        "check": "milestone conflicts preserve relative intent and new milestones; a lost committed response is reconciled without replay",
+        "status": "passed",
+        "duration_ms": 2895
+      }
+    ],
+    "retained_membership_cases": [
+      {
+        "browser": "chromium",
+        "check": "project assignment review exhausts pagination, preserves milestone intent and reconciles absence without replay or stale private labels",
+        "status": "passed",
+        "duration_ms": 8276
+      },
+      {
+        "browser": "firefox",
+        "check": "project assignment review exhausts pagination, preserves milestone intent and reconciles absence without replay or stale private labels",
+        "status": "passed",
+        "duration_ms": 10406
+      },
+      {
+        "browser": "webkit",
+        "check": "project assignment review exhausts pagination, preserves milestone intent and reconciles absence without replay or stale private labels",
+        "status": "passed",
+        "duration_ms": 9405
+      }
+    ],
+    "membership_body_sha256": "7f06c3aedd5dbb83e96ce2f331430d87dacaa538be8916bdcf3cfb754c894246",
+    "membership_body_and_imports_byte_identical": true,
+    "final_spec_sha256": "fc50a7110f9af415e25e2b70cc9f749100bd51c7efe746d688ee7c49108b4191",
+    "qualification": "The first run passed all six changed cases. The focus journey then added stricter refresh gates/stale-order/disabled-invoker assertions and its three cases passed again. The unchanged three membership cases are retained by byte equivalence; no single six-case final-spec run is claimed.",
+    "actual_scenarios": [
+      "A real milestone deletion changes the project version and produces412 for a move against the removed anchor. Recovery reads current order; every background refresh is held while the stale four-row order and disabled invoker remain visible. Discard occurs before release; the surviving milestone at a different index receives focus after authorized refresh, without retry.",
+      "A real102-issue project keeps its target beyond the first100. A narrowly fault-injected readback from the real API removes target milestone_id; the client preserves clear intent but cannot report observed success or enable retry. Reload confirms the real milestone assignment remained unchanged. This is controlled malformed-response injection, not a claim that the backend emits malformed DTOs.",
+      "Private-team access is actually revoked between the first authorized project metadata read and selected-milestone GET. The selected GET returns404, the new project revalidation returns404, and project/issue labels plus the review intent disappear. Authorized-project200 and403 classification controls are covered by focused units."
+    ],
+    "preserved_criteria": "Original late-page membership, explicit reviewed retry, real412, committed response-loss without replay/actor acknowledgment, exhausted100+1 absence, stable live issue, reload and normal focus assertions remain in the two journeys.",
+    "profile": {
+      "workers": 1,
+      "retries": 0,
+      "test_timeout_ms": 60000,
+      "expect_action_timeout_ms": 10000,
+      "locale": "en-US",
+      "timezone": "UTC",
+      "trace_screenshot_video": false
+    },
+    "scope_cleanup": {
+      "corrected-01": {
+        "phase": "corrected-01",
+        "backend_sha256": "901551446f9b9a8691049dfca4bea8859d94201f3aa7def294a7e42f07349f45",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "4ae3c4cead35e2e6c2860c6c3c10625aa57e0e4262affe70e2bd46646bdb9ee9",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 0,
+        "cleanup_failures": []
+      },
+      "corrected-02": {
+        "phase": "corrected-02",
+        "backend_sha256": "901551446f9b9a8691049dfca4bea8859d94201f3aa7def294a7e42f07349f45",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "fc50a7110f9af415e25e2b70cc9f749100bd51c7efe746d688ee7c49108b4191",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 0,
+        "cleanup_failures": []
+      }
+    }
+  },
+  "preserved_history": {
+    "planning_candidate": "c3190bddc2cfd6cdee034e9dedc2f6d7d6747198",
+    "original_evidence": "2026-10-25-planning-write-recovery.json",
+    "original_79_units_and_failures_and_6_browsers": "Historical evidence remains unchanged; its coverage does not prove these newly reported failure paths.",
+    "fault_candidate": "0cb1f9bf0979ef9949aa4888e92729bc6992e8c5",
+    "old_artifacts": "No old artifact audit, scalar workflow, backend build or global execution repeated."
+  },
+  "data_and_rollback": "Frontend/session-only correction. No migration, stored format, schema or dependency change. Rollback restores the earlier malformed-readback/denial/focus behavior without modifying stored entities.",
+  "limits": [
+    "Pending one focused independent review of this new delta; no full CLEAR or merge acceptance is claimed.",
+    "Exact integration union, all hosted checks, native, physical input, OS IME and assistive-technology gates remain separate.",
+    "No fullF14/M04/M05, issue, milestone or product completion is claimed."
+  ]
+}

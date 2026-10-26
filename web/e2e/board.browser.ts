@@ -1,9 +1,11 @@
+import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import type { Locator, Page, Request as BrowserRequest, Response as BrowserResponse, Route } from '@playwright/test';
 import { test, expect, SavedWorkspace } from './fixtures';
 import type { Bootstrap, Issue, IssuePage, Session, Status } from '../src/types';
 import type { InvitationIssued, TeamDetail, TeamMember } from '../src/settings/types';
 import type { Workflow } from '../src/workflows/types';
+registerAdmission(4);
 
 async function fixture(owner: SavedWorkspace, count = 3, privateTeam = false) {
   const team = await owner.request<TeamDetail>('/teams', 'POST', {

@@ -1,0 +1,22 @@
+# Planning write recovery
+
+Implementation `d508cd2cfec7b4ca75e98012e0d04aa9e6a86be1`, based on `f0a0de6`. The [machine receipt](2026-10-25-planning-write-recovery.json) records exact source, bundle, log and browser hashes.
+
+Milestone moves and project membership/milestone choices now retain their intent after a version conflict or uncertain response. Authorized readback prepares an explicit review. Another mutation requires confirmation and the reviewed current project validator. Relative milestone moves preserve concurrently added milestones. Readback may confirm the desired current state; it never identifies which request or person applied it.
+
+Milestone review requires a complete order of at most 500 rows, consistent full-project page validators, current metadata, valid distinct cursors and matching scope. Assignment review exhausts at most ten 100-row pages within a shared 10-second read deadline. Stable project metadata and stable live expected-team issue reads bracket that scan. An absent first-page row, incomplete pagination, archived/deleted/moved issue, unstable version or invalid cursor cannot confirm absence or enable retry. Current and desired milestone labels come from newly authorized scoped reads.
+
+Deleted targets and unresolved reads retain the intent without enabling mutation. Authoritative denial removes cached component labels. Session/workspace/team/project changes discard obsolete state and abort requests. Pending writes/review use the existing navigation guard. Completing review returns focus to a useful milestone control or the project issues section when its origin row has disappeared. Discarding review over an existing add-issue dialog preserves that dialog's draft and focus.
+
+Verified locally:
+
+- 79 focused tests pass: 26 new recovery cases and 53 existing affected planning/project cases. Both TypeScript targets and the final production build pass.
+- Six final connected cases pass: exactly two journeys in Chromium, Firefox and WebKit. Real concurrent writes produce 412; explicit retry preserves new milestones and the chosen assignment. Actual committed PUT responses are narrowly relayed as client loss; authorized readback confirms the desired state without a second mutation or causal acknowledgment claim.
+- The real assignment fixture contains 102 issues, with its target beyond the first 100. Positive membership uses both pages. Later removal readback exhausts 100+1 rows and checks stable live-issue/project validators before confirming current absence. Reload preserves project version and unchanged issue data. Actual private-team revocation returns 404 and removes stale project/issue labels.
+- Browser assertions verify focus after reviewed reorder, observed move completion and observed removal completion. All scopes verify containment, no browser service/database authority, zero remaining processes, reaped monitor/API and clean cleanup. Canonical one-worker, zero-retry, 60-second test and 10-second action/expect bounds remain unchanged.
+
+Retained history remains explicit. Two old conflict mocks initially failed because they returned metadata or collections for newly required detail reads; only those two named cases were updated, preserving payload, If-Match and no-replay assertions. Seven new tests exposed disabled review-footer buttons, and two later focus regressions demonstrated focus falling to the page body; both production defects were corrected. The first six browser cases stopped during fixture creation because milestone POST omitted required If-Match (HTTP428). Corrected fixtures then passed all six functional cases on the same bundle. The demonstrated focus defect required a changed frontend build and the final six-case run with focus assertions. All original logs and bundles remain retained.
+
+The previously qualified backend is reused unchanged. No backend, migration, schema, generated contract, dependency or persisted-format change; rollback restores earlier frontend recovery behavior without changing stored data. The separate untouched worker-fault preparation branch remains preserved and was not executed or applied to any schema.
+
+This is private development qualification, pending independent final review, integration and all four hosted checks. Native desktop, physical input/layout, OS IME and assistive-technology acceptance remain separate. No full F14, M04/M05, issue or whole-product completion is claimed.

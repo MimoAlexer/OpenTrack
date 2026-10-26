@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-26",
+  "composed_code_head": "eeb553e260b526c712d32c090e284e3f27e5fd28",
+  "milestone_fixture_source": "0fb31637c091ff676af3778b048e6ae284038df4",
+  "client_tmpfs_original": "61e0b69480fdbc698e5d595c4d4413e4a39dedda",
+  "client_tmpfs_import": "eeb553e260b526c712d32c090e284e3f27e5fd28",
+  "failed_head": "5431c785be39efde95a351b8404d1232c09e0c24",
+  "failed_head_checks": {
+    "verify": "failure",
+    "native-contracts": "success",
+    "runtime_amd64": "failure",
+    "runtime_arm64": "success"
+  },
+  "failed_head_browser_cases": 0,
+  "failed_head_browser_end_receipt": false,
+  "change": "Combine the single schema22 milestone test-fixture repair with one bounded PostgreSQL-client tmpfs declaration and strict tmpfs policy validation. Database durable mounts, current product logic, defaults, deadlines and assertions remain unchanged.",
+  "root_mocked_verification": {
+    "passed": 58,
+    "mocked_only": true,
+    "check": {
+      "check": "mocked-browser-boundaries",
+      "exit_code": 0,
+      "elapsed_seconds": 1.746,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "72c1b9e5088eece322da1cde4afea7fd46cd57f0a5e3a41be75214dae18f1844",
+      "services_started": false,
+      "source_sha256": {
+        "scripts/browser-acceptance.py": "3898c87c469423d3bcd813fd77f3a55e713e2631e6df370d66eb34b593741a65",
+        "scripts/test-browser-acceptance.py": "eace77ea2d599cbce7c5c37bad42880f310fe0dd722061b5cfe39963b0f4f471",
+        "scripts/browser_order_fixtures.py": "5e5cedb8e6aba8b951594cd2318d108b6c16ed009778356870c59612e560b4fa",
+        "compose.yaml": "024d33cf4f0f542a82aa527ca5e62965c23ebd785f4d23f313053afafc3e83b5"
+      }
+    },
+    "private_root": "$OPENTRACK_DEV_STATE/manual-ci-fixture-union-v5",
+    "private_index_sha256": "2f48382827f80bb1ea83e96cc9a51ca03816060fe737808b6df46c6d209d3d45",
+    "original_files": 2
+  },
+  "retained_leaf_evidence": {
+    "path": "docs/evidence/2026-10-26-milestone-order-upgrade-fixture.json",
+    "sha256": "0990414395514528028d9483364637f5b7d76cdfc9f2dd84fd3079b48d2bce46",
+    "passed": 1,
+    "before_failed": 1,
+    "fmt_and_strict_target_clippy": "pass"
+  },
+  "peer_evidence": "docs/evidence/2026-10-26-browser-order-ci-client-tmpfs.json",
+  "limits": [
+    "Local combined source/pure evidence only; no local Docker/service/browser execution",
+    "Pinned image/source mechanism and prior observed mount-count predicate remain separate from corrected runtime proof",
+    "All four fresh exact-head checks, complete240-case browser/end/JSON accounting and resolved conversations remain required",
+    "Native GUI, physical input, assistive technology, recovery and complete-product gates remain open"
+  ]
+}

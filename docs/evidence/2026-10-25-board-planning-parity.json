@@ -1,0 +1,70 @@
+{
+  "status": "The one strengthened API parity case passes",
+  "base": "c1859b811f343a22aba4ca287fa5595d61643424",
+  "test": "crates/opentrack-api/tests/cycles_contract.rs",
+  "test_sha256": "8dc9b04da448a49f4f6e4aae2adefbd9cc8f14ad4ccdede9b1f282096c955601",
+  "case": "current_scope_matches_project_and_milestone_without_rewriting_daily_snapshot",
+  "scope": "Existing case extended with read helpers and position commands; the original five issues/project/milestone/cycle, assertions and other two cases are preserved",
+  "live_views": {
+    "sorts": ["created", "manual"],
+    "page_size": 1,
+    "page_budget_per_query": 6,
+    "cursors": "Server-issued opaque cursors are echoed; missing/repeated cursors and duplicate issue IDs fail",
+    "comparison": "Full authorized issue representations agree by ID between created/manual pages. Their exact live row set equals the current cycle's non-excluded items.",
+    "board_equivalent": "Both sorts are also read through every workflow status filter. The columns partition the exact same live rows, including empty columns, without duplicate cards.",
+    "category_counts": "Completed/canceled/open counts derived from those live rows equal the existing authoritative project, milestone and current-cycle counts at every original and added checkpoint"
+  },
+  "position_journeys": [
+    "A real within-status reorder moves the first of three open issues after the last; exact lane order changes while row sets and planning counts remain equal",
+    "A cross-status position after the existing completed issue changes the live category counts consistently across all compared surfaces",
+    "Matching request/key replay uses the original precondition and returns the same acknowledgement, current issue and order token without double-applying counts",
+    "A fresh reviewed command returns the issue to its original status/order before the original PATCH transition, preserving that original scenario's meaning"
+  ],
+  "original_outcomes_preserved": [
+    "Initial empty scope and no captures",
+    "Five linked issues and the original captured daily facts",
+    "Status transition, archived exclusion and deleted-item redaction",
+    "Canceled-only eligibility and final empty live pages",
+    "Original repeated daily response and two historical capture points",
+    "Full stored daily row remains byte-equivalent as JSON after every live mutation"
+  ],
+  "live_capture_boundary": {
+    "worker_run": false,
+    "observed_consumer_tables": ["consumer_registrations", "consumer_checkpoints", "consumer_receipts"],
+    "observation": "Full existing registration/checkpoint rows and the receipt count are compared unchanged between the owner-side daily-capture observation and final preservation check",
+    "meaning": "Current APIs reflect the live authoritative rows immediately while the stored daily capture remains immutable. This does not qualify any future delayed-reporting consumer."
+  },
+  "checks": {
+    "format": "rustfmt on this file with skip_children=true",
+    "compile": "cargo test --locked -p opentrack-api --test cycles_contract --no-run",
+    "compile_exit": 0,
+    "runtime": "Compiled target with --exact current_scope_matches_project_and_milestone_without_rewriting_daily_snapshot --test-threads=1 --nocapture",
+    "passed": 1, "failed": 0, "ignored": 0, "filtered_out": 2,
+    "runtime_seconds": 5.82,
+    "clippy": "cargo clippy --locked -p opentrack-api --test cycles_contract -- -D warnings",
+    "clippy_exit": 0,
+    "preservation_audit": "Removing the additions and restoring only the expected cleanup order reproduces the entire original file exactly",
+    "retained_compile_iterations": "Initial cursor type-inference and serializer Send errors are retained separately; the final compile and selected runtime pass",
+    "browser_or_global_run": false
+  },
+  "execution": {
+    "environment": "Existing private namespace/original cluster and unchanged four-role test configuration; fresh harness schema only",
+    "selected_case_failure_retention": "Panic is checked before cleanup; success uses normal cleanup",
+    "database_stopped": true,
+    "original_data_retained": true,
+    "new_database_role_migration_or_production_change": false
+  },
+  "evidence": {
+    "root": "$OPENTRACK_DEV_STATE/board-planning-parity",
+    "index": "artifact-index.json",
+    "index_sha256": "e8dfbab4ad4759e9cbd9e5da591acf1d621773e7ff841a14e5509e61708d450f",
+    "indexed_files": 14,
+    "runtime_log_sha256": "3ff514a0faeac3348e99d266c2a23bc49854a3188d946ee0e94ec8bffc083b8e"
+  },
+  "limits": [
+    "One API case passes; the other two cases, prior suites, browser UI and global checks were not rerun.",
+    "The fixture has five issues in one authorized team with matching planning memberships; broader private/cross-team, concurrency, lag, load and recovery qualification remain separate.",
+    "This does not close issue 31 or establish complete issue 30, connected UI/native/physical/assistive/performance or whole-product acceptance."
+  ],
+  "migration_rollback": "Test/evidence only; schema, production, generated contracts and UI are unchanged."
+}

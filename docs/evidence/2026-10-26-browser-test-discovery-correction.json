@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-26",
+  "scope": "Node test entry-point relocation; no test-body or application behavior change.",
+  "failed_head": "bbb970a0062edabb6aadad828807838f0fcde839",
+  "failed_verify": {
+    "run": 40267035599,
+    "job": 121391678065,
+    "full_log_sha256": "4f4da287b7d2308823c667a4ee5e009b21fcd2e54e373d8e5eeecf58ce2259f5",
+    "frontend_tests_passed": 848,
+    "frontend_files_passed": 78,
+    "extra_failed_suite": "e2e/fixture-admission.test.mjs",
+    "error": "No test suite found"
+  },
+  "source_path_aliases": {
+    "web/e2e/fixture-admission.test.mjs": "web/e2e/fixture-admission-check.mjs"
+  },
+  "renamed_test_sha256": "aace55e23ab9f35d0082283e6ba0f5f88bd1c95411fcc4a43bff00fd51041f06",
+  "test_bytes_unchanged": true,
+  "workflow_sha256": "1c45fe3dc86dfb5f3a658a37459fae9321679f024a68edc60f20742a948a84b5",
+  "previous_source_receipt_sha256": "547e71a316aef63f7de48ffc3b29c4766f69e10e5e953799246cafa2c260ae64",
+  "verification": {
+    "checks": [
+      {
+        "check": "node-wrapper",
+        "exit_code": 0,
+        "elapsed_seconds": 0.187,
+        "process_reaped": true,
+        "log_sha256": "a4ad588ea420c81703978a72c37440acc51ca449d3630a03ee2b0460a10e76d0"
+      },
+      {
+        "check": "vitest-file-discovery",
+        "exit_code": 0,
+        "elapsed_seconds": 5.515,
+        "process_reaped": true,
+        "log_sha256": "92fd8bff37d00e08e4e2e99197a38361e8f54b261758c3af74060fa8f531f748"
+      }
+    ],
+    "node_version": "v24.14.1",
+    "test_sha256": "aace55e23ab9f35d0082283e6ba0f5f88bd1c95411fcc4a43bff00fd51041f06",
+    "old_path": "web/e2e/fixture-admission.test.mjs",
+    "new_path": "web/e2e/fixture-admission-check.mjs",
+    "test_bytes_unchanged": true,
+    "node_wrapper_tests": 7,
+    "node_wrapper_failed": 0,
+    "vitest_discovered_files": 78,
+    "exact_tracked_frontend_file_set": true,
+    "frontend_test_bodies_executed_locally": false,
+    "scope": "Relocated Node wrapper checks and default file discovery only; prior CI848passes remain historical evidence."
+  },
+  "retained_component_evidence": "Original Python 72, privacy 15 and source/type checks remain separate evidence on unchanged inputs. They were not repeated for a filename relocation.",
+  "private_artifacts": {
+    "index": "$OPENTRACK_DEV_STATE/test-discovery-correction-v2/artifact-index.json",
+    "sha256": "8f55cba3156c39d9159a4b3d8e9d75b2f5539111e9ca89510f28301e76ca82ab",
+    "files": 8,
+    "modes": "0700/0600",
+    "raw_logs_published": false,
+    "retained_original_index_sha256": "10d33a88a3722b7180092c9c8cf06e080bfbbd7d0301bdd61699263e060cc0e6",
+    "packaging_history": "Original protected index is retained; current role-based labels reference byte-identical payloads."
+  },
+  "migration_and_rollback": "No migration, application source, fixture action, assertion, server policy, timeout, worker or retry change. Dedicated Node CI still runs all seven wrapper tests.",
+  "remaining": [
+    "Independent exact-head review",
+    "Fresh all-four configured CI and actual 240-case text/end/JSON evidence on the correction"
+  ]
+}

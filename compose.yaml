@@ -18,6 +18,7 @@ x-postgres-client: &postgres-client
     context: .
     dockerfile: deploy/postgres.Dockerfile
   read_only: true
+  tmpfs: ['/var/lib/postgresql:size=1m,mode=0700']
   cap_drop: [ALL]
   security_opt: [no-new-privileges:true]
   restart: 'no'

@@ -11,8 +11,10 @@ import type { Workflow } from '../workflows/types';
 import { useIssueWorkflow } from '../workflows/useIssueWorkflow';
 import { readWorkflow } from '../workflows/useWorkflow';
 import { restoreIssueRowFocus } from './focus';
+import { IssueOrderActions, type IssueOrderDrag, type IssueOrderingController } from './IssueOrdering';
 
 interface Props {
+  ordering?: IssueOrderingController; orderVersion?: string | null; orderDrag?: IssueOrderDrag;
   workspaceId: string; teamId: string; data: Bootstrap; session: Session; items: Issue[]; statuses: Status[];
   params: URLSearchParams; selectedId?: string; disabled: boolean; readOnly: boolean;
   headingRef?: RefObject<HTMLHeadingElement | null>;
@@ -27,10 +29,36 @@ const accessFailure = (error: unknown) => error instanceof ApiError && [401, 403
 const inFlight = (move: Move | null) => move?.phase === 'saving' || move?.phase === 'checking';
 
 export function IssueBoard(props: Props) {
+  if (props.params.get('sort') === 'manual') return props.ordering && props.orderDrag ? <ManualBoard {...props} ordering={props.ordering} orderDrag={props.orderDrag}/> : <div role="alert">Manual ordering controls are unavailable until workspace access is ready.</div>;
+  return <StatusBoard {...props}/>;
+}
+function StatusBoard(props: Props) {
   const account = useSessionScope(props.session);
   const filters = ['team_id', 'status_id', 'assignee_id', 'priority', 'q', 'archived', 'label_ids', 'label_mode', 'sort', 'view', 'layout', 'display_version'].map(key => [key, props.params.get(key)]);
   const scope = JSON.stringify([props.workspaceId, props.teamId, account, props.data.auth_epoch, filters]);
   return <Board key={scope} {...props} />;
+}
+
+function ManualBoard({ ordering, orderDrag, ...props }: Props & { ordering: IssueOrderingController; orderDrag: IssueOrderDrag }) {
+  const { workspaceId, teamId, data, session, items, params, selectedId, disabled, readOnly, workflowChanged } = props;
+  const workflow = useIssueWorkflow(workspaceId, teamId, session, data, undefined, workflowChanged);
+  const [columnStart, setColumnStart] = useState(0);
+  const statuses = workflow.data ? ordered(workflow.data.statuses.filter(status => status.team_id === teamId && !status.archived_at)) : [];
+  const missing = [...new Set(items.map(issue => issue.status_id))].filter(id => !statuses.some(status => status.id === id));
+  const columns = [...statuses.map(status => ({ id: status.id, name: statusLabel(status), status })), ...missing.map(id => ({ id, name: 'Status unavailable', status: undefined }))];
+  const start = Math.min(columnStart, Math.max(0, columns.length - 1));
+  const blocked = disabled || readOnly || workflow.loading || !!workflow.error;
+  useLayoutEffect(() => { if (accessFailure(workflow.error)) props.denied(workflow.error); }, [workflow.error]);
+  useEffect(() => { props.blockingChanged(!!ordering.state || !!orderDrag.drag); return () => props.blockingChanged(false); }, [!!ordering.state, !!orderDrag.drag]);
+  return <div className="issue-board-shell"><ErrorBanner error={workflow.error} retry={workflow.refresh}/>
+    <nav className="issue-board-controls" aria-label="Board columns"><button type="button" className="button compact" disabled={blocked || !!ordering.state || start === 0} onClick={() => setColumnStart(Math.max(0, start - 5))}>Previous columns</button><select aria-label="Board columns" value={columns[start]?.id ?? ''} disabled={blocked || !!ordering.state || !columns.length} onChange={event => setColumnStart(columns.findIndex(column => column.id === event.target.value))}>{columns.map(column => <option value={column.id} key={column.id}>{column.name}</option>)}</select><span>Columns {columns.length ? start + 1 : 0}–{Math.min(start + 5, columns.length)} of {columns.length}</span><button type="button" className="button compact" disabled={blocked || !!ordering.state || start + 5 >= columns.length} onClick={() => setColumnStart(start + 5)}>Next columns</button></nav>
+    <p className="project-help">Drag before or after an issue, or into a status to append. Keyboard Position controls offer the same destinations.</p>
+    <div className="issue-groups issue-board">{columns.slice(start, start + 5).map(column => {
+      const cards = items.filter(issue => issue.status_id === column.id);
+      const target = column.status && selectable(column.status) ? column.id : undefined;
+      return <section key={column.id} className={`issue-board-column${orderDrag.drag?.target === column.id ? ' is-order-target' : ''}`} aria-label={column.name} data-order-status={target}><h2 className="issue-board-column-heading"><StatusMark status={column.status}/>{column.name}<span>{cards.length} on this page</span></h2>{!cards.length && <p className="issue-board-empty">No issues on this page</p>}{cards.map(issue => <article key={issue.id} data-order-issue={issue.id} className={`issue-board-card${orderDrag.drag?.issue === issue.id ? ' issue-order-lifted' : ''}${orderDrag.drag?.target === issue.id ? ' is-order-target' : ''}`}><Link id={`row-${issue.id}`} className={`issue-row${selectedId === issue.id ? ' selected' : ''}`} href={issuesUrl(workspaceId, params, issue.id)} aria-current={selectedId === issue.id ? 'page' : undefined}><span className="issue-key">{issue.key}</span><span className="issue-title">{issue.title}</span><Avatar small user={issue.assignee ?? undefined}/></Link><IssueOrderActions issue={issue} teamId={teamId} orderVersion={props.orderVersion} controller={ordering} drag={orderDrag} disabled={blocked || !!issue.archived_at || selectedId === issue.id}/></article>)}</section>;
+    })}</div><p role="status" aria-live="polite">{orderDrag.drag ? 'Issue lifted. Release before or after a reference issue, or in a status. Escape cancels.' : ordering.announcement}</p>
+  </div>;
 }
 
 function Board(props: Props) {

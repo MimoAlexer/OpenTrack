@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-26",
+  "scope": "Inspect the complete Compose model without enabling runtime profiles",
+  "parent_candidate": "af778de6dbab2f78cd0d0997cc8fc878ad6fa892",
+  "source_sha256": {
+    "scripts/browser-acceptance.py": "fd2e720a7947ec374111e41224ceeeb82d1e6b8a90b14f58d127b629ba3bb4c6",
+    "scripts/browser_order_fixtures.py": "5e5cedb8e6aba8b951594cd2318d108b6c16ed009778356870c59612e560b4fa",
+    "scripts/test-browser-acceptance.py": "f6530c13611f41e6781d83079f0a5be339917aa1cb21a6e55e188b5f758487fd"
+  },
+  "finding": "Plain config with empty COMPOSE_PROFILES can omit inactive services and operator_output, while the guarded validator requires every declared role/resource.",
+  "primary_sources": [
+    {
+      "url": "https://github.com/docker/compose/blob/v2.39.4/cmd/compose/config.go#L187-L220",
+      "fact": "Config renders a selected Project."
+    },
+    {
+      "url": "https://github.com/docker/compose/blob/v2.39.4/cmd/compose/compose.go#L313-L347",
+      "fact": "Project selection drops unnecessary resources."
+    },
+    {
+      "url": "https://github.com/compose-spec/compose-go/blob/v2.9.0/types/project.go#L341-L442",
+      "fact": "Profile filtering disables unmatched services and retains only referenced resources."
+    },
+    {
+      "url": "https://docs.docker.com/compose/how-tos/profiles/",
+      "fact": "The wildcard selects all profiles."
+    }
+  ],
+  "source_review_date": "2026-10-26",
+  "change": "Only the read-only preflight invocation gains --profile *. Every runtime up/run command retains empty COMPOSE_PROFILES and no wildcard flag; validation stays strict.",
+  "verification": {
+    "pure_command": "python scripts/test-browser-acceptance.py",
+    "passed": 51,
+    "failed": 0,
+    "exit_code": 0,
+    "original_combined_output": "...................................................\r\n----------------------------------------------------------------------\r\nRan 51 tests in 0.237s\r\n\r\nOK\r\n",
+    "before_correction": {
+      "selected_test_cases": 1,
+      "errors": 1,
+      "inner_python_exit_code": 1,
+      "expected_error": "Browser Compose service roles changed",
+      "scope": "Mocked profile projection using the unchanged af preflight and new regression; not an installed Docker observation."
+    },
+    "regression": "The mocked default projection omits profiled services/unused volume, while wildcard config retains all12 roles and8 volumes. Test also checks runtime up arguments lack --profile and environment profiles remain empty.",
+    "prior_proof": "All original26/30/43/50 files and candidate history preserved unchanged.",
+    "whitespace": "git diff --check passed"
+  },
+  "unchanged": "Shared900/prep300/read55/cleanup120, worker profile, tests/actions/workers/retries, creation claims, ownership/lifecycle deletion, SQL and Node credential-minimization guards.",
+  "not_executed": [
+    "Docker commands",
+    "installed CI Compose version inspection",
+    "actual fixture preparation",
+    "browsers",
+    "configured CI",
+    "full repository matrix"
+  ],
+  "acceptance": "Primary-source contract review and pure model regression only. Installed-version behavior and complete candidate runtime remain lead-owned CI gates; this new delta requires exact-head review.",
+  "rollback": "One-line runner delta plus focused regression/evidence; no workflow, Compose definition, UI, backend, helper or migration changes."
+}

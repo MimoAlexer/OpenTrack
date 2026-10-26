@@ -62,6 +62,13 @@ impl Harness {
                 "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {schema} TO \"{role}\""
             ),
             format!("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA {schema} TO \"{role}\""),
+            format!("REVOKE ALL ON {schema}.issue_order_staging FROM \"{role}\""),
+            format!(
+                "REVOKE UPDATE,DELETE,TRUNCATE ON {schema}.issue_order_normalizations,{schema}.issue_order_guards FROM \"{role}\""
+            ),
+            format!(
+                "GRANT EXECUTE ON FUNCTION {schema}.issue_order_rebalance_inline(uuid,uuid,uuid) TO \"{role}\""
+            ),
             format!(
                 "REVOKE INSERT,UPDATE,DELETE ON {schema}.workspace_stream_heads FROM \"{role}\""
             ),

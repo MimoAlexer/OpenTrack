@@ -1,4 +1,4 @@
-import { useDesktop, useSessionScope } from './desktop/context';
+import { useDesktop, useSessionBoundary, useSessionScope } from './desktop/context';
 import { useServerReview } from './desktop/DesktopFrame';
 import { useNativeConfirmation } from './desktop/ConfirmAction';
 import { NativeSignIn } from './desktop/NativeSignIn';
@@ -18,6 +18,7 @@ import { IssueKeyResolver } from './relations/IssueKeyResolver';
 import { Cycles } from './cycles/Cycles';
 import { Projects } from './projects/Projects';
 import { IssueList } from './issues/IssueList';
+import { IssueOrderingDialog, useIssueOrdering } from './issues/IssueOrdering';
 import { restoreIssueRowFocus } from './issues/focus';
 import { Trash } from './issues/Trash';
 import { CommandPalette, CommandHelp } from './commands/CommandPalette';
@@ -124,10 +125,11 @@ function NoWorkspace({ session, authenticated, signedOut }: { session: Session; 
 }
 
 function WorkspaceApp({ session, theme, setTheme, signedOut, authenticated }: { session: Session; theme: Theme; setTheme: (theme: Theme) => void; signedOut: () => void; authenticated: (session: Session) => void }) {
+  const desktop = useDesktop(); const boundary = useSessionBoundary(session);
   const location = useLocation(); const route = parseRoute(location);
   const workspace = session.workspaces.find(workspace => workspace.id === route.workspaceId) ?? session.workspaces[0];
   // A workspace switch gets a new subtree: no issue, form, or member state is reused across tenants.
-  return <WorkspaceScreen key={`${session.user.id}:${workspace.id}`} workspace={workspace} session={session} theme={theme} setTheme={setTheme} signedOut={signedOut} authenticated={authenticated} />;
+  return <WorkspaceScreen key={`${desktop ? boundary : session.user.id}:${workspace.id}`} workspace={workspace} session={session} theme={theme} setTheme={setTheme} signedOut={signedOut} authenticated={authenticated} />;
 }
 
 function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authenticated }: { workspace: Workspace; session: Session; theme: Theme; setTheme: (theme: Theme) => void; signedOut: () => void; authenticated: (session: Session) => void }) {
@@ -162,9 +164,22 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
   const [accessBlocked, setAccessBlocked] = useState(true);
   const [lastKnownEpoch, setLastKnownEpoch] = useState<string | null>(null);
   const [workspaceArchived, setWorkspaceArchived] = useState(false);
+  const [orderingHidden, setOrderingHidden] = useState<string[]>([]);
   const paletteScope = accessBlocked ? '' : `${sessionScope}:${workspace.id}:${accessRevision}:${lastKnownEpoch}`;
   const recentIssues = useRecentIssues(paletteScope, accessBlocked ? undefined : route.issueId);
   const readOnly = workspace.role === 'viewer' || workspaceArchived;
+  const ordering = useIssueOrdering({
+    workspaceId: workspace.id, session, authority: `${sessionScope}:${sessionGeneration}:${accessRevision}:${data?.auth_epoch ?? ''}`, ready: !!data && !accessBlocked, readOnly,
+    updated: update,
+    reload: () => setRefresh(value => value + 1),
+    sourceDenied: id => { setOrderingHidden(previous => [...new Set([...previous, id])]); setData(previous => previous ? { ...previous, issues: previous.issues.filter(issue => issue.id !== id) } : previous); },
+    teamDenied: teamId => { teamAccessLost(teamId); },
+  });
+  useEffect(() => {
+    if (!ordering.focus || accessBlocked) return;
+    const frame = requestAnimationFrame(() => restoreIssueRowFocus(ordering.focus!.id, [], headingRef.current, () => authorityCurrent(authorityGeneration)));
+    return () => cancelAnimationFrame(frame);
+  }, [ordering.focus]);
   const activeTeams = data?.teams.filter(team => !team.archived_at) ?? [];
   const team = data?.teams.find(team => team.id === route.search.get('team_id'));
   const mine = route.search.get('view') === 'mine';
@@ -199,7 +214,7 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
   useEffect(() => {
     bootstrapScope.current = { key: sessionScope, generation: sessionGeneration };
     const abort = new AbortController(); const generation = ++bootstrapGeneration.current; setData(null); setAccessBlocked(true); setError(null); setNotice(''); setCreating(false); setPalette(false); setShortcuts(false);
-    Promise.all([request<Bootstrap>(`/workspaces/${workspace.id}/bootstrap`, { signal: abort.signal }), request<{ role: string; archived: boolean; auth_epoch: string }>(`/workspaces/${workspace.id}/access`, { signal: abort.signal })]).then(([result, access]) => { if (!abort.signal.aborted && authorityScope.current.key === sessionScope && currentSessionGeneration() === sessionGeneration && generation === bootstrapGeneration.current) { if (result.auth_epoch !== access.auth_epoch) { setRetry(value => value + 1); return; } if (access.role !== workspace.role) { void refreshAuthority(false, generation); return; } setData(result); setLastKnownEpoch(result.auth_epoch); setWorkspaceArchived(access.archived); setAccessBlocked(false); } }).catch(error => { if (!abort.signal.aborted && authorityScope.current.key === sessionScope && currentSessionGeneration() === sessionGeneration && generation === bootstrapGeneration.current) setError(error); });
+    Promise.all([request<Bootstrap>(`/workspaces/${workspace.id}/bootstrap`, { signal: abort.signal }), request<{ role: string; archived: boolean; auth_epoch: string }>(`/workspaces/${workspace.id}/access`, { signal: abort.signal })]).then(([result, access]) => { if (!abort.signal.aborted && authorityScope.current.key === sessionScope && currentSessionGeneration() === sessionGeneration && generation === bootstrapGeneration.current) { if (result.auth_epoch !== access.auth_epoch) { setRetry(value => value + 1); return; } if (access.role !== workspace.role) { void refreshAuthority(false, generation); return; } setData(result); setOrderingHidden([]); setLastKnownEpoch(result.auth_epoch); setWorkspaceArchived(access.archived); setAccessBlocked(false); } }).catch(error => { if (!abort.signal.aborted && authorityScope.current.key === sessionScope && currentSessionGeneration() === sessionGeneration && generation === bootstrapGeneration.current) setError(error); });
     return () => abort.abort();
   }, [workspace.id, retry]);
   useEffect(() => {
@@ -217,7 +232,8 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
     }
   }, [location]);
   function update(issue: Issue, options?: { refreshList?: boolean }) {
-    setData(previous => previous ? { ...previous, issues: previous.issues.some(old => old.id === issue.id) ? previous.issues.map(old => old.id === issue.id ? issue : old) : [issue, ...previous.issues] } : previous);
+    setOrderingHidden(previous => previous.filter(id => id !== issue.id));
+    setData(previous => previous ? { ...previous, issues: previous.issues.some(old => old.id === issue.id) ? previous.issues.map(old => old.id === issue.id && BigInt(old.version) <= BigInt(issue.version) ? issue : old) : [issue, ...previous.issues] } : previous);
     if (options?.refreshList !== false) setRefresh(value => value + 1);
   }
   function deleted(issue: Issue) {
@@ -258,7 +274,7 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
     { id: 'shortcut-help', label: 'Keyboard shortcuts', section: 'Help', shortcut: { key: '?' }, run: () => setShortcuts(true) },
     { id: 'commands', label: 'Search commands', section: 'Help', available: !accessBlocked, shortcut: { key: 'k', primary: true }, run: () => { setMobileOpen(false); setPalette(true); } },
   ];
-  useCommandShortcuts(shortcuts ? [{ id: 'close-help', label: 'Close keyboard shortcuts', section: 'Help', shortcut: { key: 'Escape' }, run: () => setShortcuts(false) }] : commands, creating || creatingWorkspace || reauth || mobileOpen || palette || accessBlocked, shortcutPreference.charactersEnabled, `${sessionScope}:${workspace.id}:${accessRevision}:${location}`);
+  useCommandShortcuts(shortcuts ? [{ id: 'close-help', label: 'Close keyboard shortcuts', section: 'Help', shortcut: { key: 'Escape' }, run: () => setShortcuts(false) }] : commands, creating || creatingWorkspace || reauth || mobileOpen || palette || !!ordering.state || accessBlocked, shortcutPreference.charactersEnabled, `${sessionScope}:${workspace.id}:${accessRevision}:${location}`);
   const sidebar = <>
     <div className="workspace-heading">
       <details className="workspace-menu" onKeyDown={event => { if (event.key === 'Escape' && event.currentTarget.open) { event.preventDefault(); event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); } }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false; }}>
@@ -282,12 +298,13 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
         {workspaceArchived && !settings && <div className="notice">This workspace is archived. Restore it in <Link href={settingsUrl(workspace.id)}>workspace settings</Link> before making changes.</div>}
         {notice && <div className="workspace-notice" role="status">{notice}<button className="icon-button" aria-label="Dismiss message" onClick={() => setNotice('')}><X aria-hidden="true" /></button></div>}
         <ErrorBanner error={error} retry={() => { if (accessBlocked) void refreshAuthority(false); else setRetry(n => n + 1); }} />
-        {inaccessibleWorkspace ? <div className="empty-state"><h2>Workspace unavailable.</h2><p>This workspace may have been removed, or you may no longer have access.</p><Link className="button" href={issuesUrl(workspace.id)}>Open {workspace.name}</Link></div> : accessBlocked ? <Loading label="Refreshing workspace access…" /> : settings ? <SettingsScreen workspaceArchived={workspaceArchived} key={accessRevision} workspace={workspace} session={session} section={route.settingsSection} changed={settingsChanged} workflowChanged={workflowChanged} authenticated={authenticated} /> : !data ? !error && <Loading /> : cycles ? <Cycles key={accessRevision} workspaceId={workspace.id} session={session} data={data} cycleId={route.cycleId} params={route.search} refresh={refresh} readOnly={readOnly}/> : projects ? <Projects key={accessRevision} workspaceId={workspace.id} session={session} data={data} projectId={route.projectId} params={route.search} refresh={refresh} readOnly={readOnly}/> : trash ? <Trash workspaceId={workspace.id} data={data} session={session} params={route.search} selectedId={route.deletedIssueId} refresh={refresh} restored={issue => { update(issue); setNotice(`${issue.key} restored. Its connections remain detached.`); }} workflowChanged={workflowChanged} /> : !data.teams.length ? <div className="empty-state"><h2>No teams are available.</h2><p>Ask a workspace owner to add you to a team.</p></div> : <div className="issue-workspace"><IssueList charactersEnabled={shortcutPreference.charactersEnabled} workspaceArchived={workspaceArchived} key={workspace.id} workspaceId={workspace.id} data={data} session={session} params={route.search} selectedId={route.issueId} refresh={refresh} create={() => setCreating(true)} searchRef={searchRef} headingRef={headingRef} updated={update} workflowChanged={workflowChanged} teamAccessLost={teamAccessLost} />{route.issueKey && <IssueKeyResolver key={`${workspace.id}:${route.issueKey}`} workspaceId={workspace.id} issueKey={route.issueKey} search={route.search} />}{route.issueId && <IssueEditor workspaceArchived={workspaceArchived} key={`${workspace.id}:${route.issueId}`} workspaceId={workspace.id} issueId={route.issueId} data={data} session={session} close={() => navigate(issuesUrl(workspace.id, route.search))} updated={update} deleted={deleted} workflowChanged={workflowChanged} />}</div>}
+        {inaccessibleWorkspace ? <div className="empty-state"><h2>Workspace unavailable.</h2><p>This workspace may have been removed, or you may no longer have access.</p><Link className="button" href={issuesUrl(workspace.id)}>Open {workspace.name}</Link></div> : accessBlocked ? <Loading label="Refreshing workspace access…" /> : settings ? <SettingsScreen workspaceArchived={workspaceArchived} key={accessRevision} workspace={workspace} session={session} section={route.settingsSection} changed={settingsChanged} workflowChanged={workflowChanged} authenticated={authenticated} /> : !data ? !error && <Loading /> : cycles ? <Cycles key={accessRevision} workspaceId={workspace.id} session={session} data={data} cycleId={route.cycleId} params={route.search} refresh={refresh} readOnly={readOnly}/> : projects ? <Projects key={accessRevision} workspaceId={workspace.id} session={session} data={data} projectId={route.projectId} params={route.search} refresh={refresh} readOnly={readOnly}/> : trash ? <Trash workspaceId={workspace.id} data={data} session={session} params={route.search} selectedId={route.deletedIssueId} refresh={refresh} restored={issue => { update(issue); setNotice(`${issue.key} restored. Its connections remain detached.`); }} workflowChanged={workflowChanged} /> : !data.teams.length ? <div className="empty-state"><h2>No teams are available.</h2><p>Ask a workspace owner to add you to a team.</p></div> : <div className="issue-workspace"><IssueList ordering={ordering} orderingHidden={orderingHidden} charactersEnabled={shortcutPreference.charactersEnabled} workspaceArchived={workspaceArchived} key={workspace.id} workspaceId={workspace.id} data={data} session={session} params={route.search} selectedId={route.issueId} refresh={refresh} create={() => setCreating(true)} searchRef={searchRef} headingRef={headingRef} updated={update} workflowChanged={workflowChanged} teamAccessLost={teamAccessLost} />{route.issueKey && <IssueKeyResolver key={`${workspace.id}:${route.issueKey}`} workspaceId={workspace.id} issueKey={route.issueKey} search={route.search} />}{route.issueId && <IssueEditor workspaceArchived={workspaceArchived} key={`${workspace.id}:${route.issueId}`} workspaceId={workspace.id} issueId={route.issueId} data={data} session={session} close={() => navigate(issuesUrl(workspace.id, route.search))} updated={update} deleted={deleted} workflowChanged={workflowChanged} />}</div>}
       </main>
     </div>
     {creating && data && <CreateIssue workspaceId={workspace.id} data={data} session={session} initialTeam={team?.id} close={() => setCreating(false)} created={created} workflowChanged={workflowChanged} />}
     {creatingWorkspace && <CreateWorkspace session={session} close={() => setCreatingWorkspace(false)} reauthenticate={() => setReauth(true)} created={async item => { const updatedSession = await request<Session>('/auth/session'); authenticated(updatedSession); if (updatedSession.user.id !== session.user.id) return; setCreatingWorkspace(false); navigate(issuesUrl(item.id)); }} />}
     {reauth && <Reauthenticate session={session} close={() => setReauth(false)} authenticated={authenticated} />}
+    <IssueOrderingDialog controller={ordering} workspaceId={workspace.id} session={session} teamDenied={teamId => { teamAccessLost(teamId); }}/>
     {palette && !accessBlocked && <CommandPalette key={paletteScope} charactersEnabled={shortcutPreference.charactersEnabled} commands={commands.filter(command => command.id !== 'commands')} issueSource={{ workspaceId: workspace.id, scope: paletteScope, recentIds: recentIssues, open: id => navigate(issuesUrl(workspace.id, new URLSearchParams(), id)) }} close={() => setPalette(false)} />}
     {shortcuts && <CommandHelp preference={shortcutPreference} commands={commands} close={() => setShortcuts(false)} />}
   </div>;

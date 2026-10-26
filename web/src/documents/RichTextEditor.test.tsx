@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { createRoot,type Root } from 'react-dom/client';
 import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest';
+import type { TiptapEditorHTMLElement } from '@tiptap/core';
 import RichTextEditor from './RichTextEditor';
 import { canonicalBody,fromPlainText,type RichBody } from './model';
 let root:Root;let container:HTMLDivElement;
@@ -14,6 +15,18 @@ describe('real Tiptap surface',()=>{
  {type:'taskList',content:[{type:'taskItem',attrs:{checked:true},content:[{type:'paragraph',content:[{type:'text',text:'Done'}]}]}]}
  ]} as RichBody,true);await act(async()=>root.render(<RichTextEditor value={body} onChange={()=>{}} label="Description"/>));expect(container.querySelector('h2')?.textContent).toBe('Heading');expect(container.querySelector('strong')?.textContent).toBe('Bold');expect(container.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked).toBe(true);expect(container.querySelector('[aria-label="Task list"]')).toBeTruthy();});
  it('retains the same editable DOM, focus and selection when the same body is acknowledged',async()=>{const body=fromPlainText('A stable caret');const change=vi.fn();await act(async()=>root.render(<RichTextEditor value={body} onChange={change} label="Description"/>));const editable=container.querySelector<HTMLElement>('[contenteditable="true"]')!;const text=editable.querySelector('p')!.firstChild!;const selection=window.getSelection()!;await act(async()=>{editable.focus();const range=document.createRange();range.setStart(text,5);range.collapse(true);selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));await new Promise(resolve=>setTimeout(resolve,30));});expect(selection.anchorOffset).toBe(5);await act(async()=>root.render(<RichTextEditor value={JSON.parse(JSON.stringify(body))} onChange={change} label="Description"/>));expect(container.querySelector('[contenteditable="true"]')).toBe(editable);expect(document.activeElement).toBe(editable);expect(selection.anchorNode).toBe(text);expect(selection.anchorOffset).toBe(5);expect(change).not.toHaveBeenCalled();});
+});
+
+it('updates textbox readonly semantics without replacing the editor or changing its document', async () => {
+ const body = fromPlainText('Preserved editor draft'); const change = vi.fn();
+ const render = async (disabled: boolean) => { await act(async () => root.render(<RichTextEditor value={body} onChange={change} label="Description" disabled={disabled} />)); };
+ await render(false); const textbox = container.querySelector<TiptapEditorHTMLElement>('[role="textbox"]')!; const editor = textbox.editor!; const document = editor.state.doc;
+ const check = (disabled: boolean) => {
+  expect(container.querySelector('[role="textbox"]')).toBe(textbox); expect(textbox.editor).toBe(editor); expect(editor.state.doc).toBe(document);
+  expect(editor.getJSON()).toEqual(body); expect(editor.isEditable).toBe(!disabled); expect(textbox.getAttribute('contenteditable')).toBe(String(!disabled));
+  expect(textbox.getAttribute('aria-readonly')).toBe(String(disabled)); expect(change).not.toHaveBeenCalled();
+ };
+ check(false); await render(true); check(true); await render(false); check(false);
 });
 
 it('keeps legacy IME and AltGraph confirmation out of the editor save shortcut', async () => {

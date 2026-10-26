@@ -1,0 +1,74 @@
+{
+  "status": "Three additional HTTP/PostgreSQL ingress cases verified",
+  "base": "8a5c25f14df0f13cd5bd8560851598e05378e476",
+  "test": "crates/opentrack-api/tests/issue_order_ingress_contract.rs",
+  "test_sha256": "a76db5a4149124a19410997a87a247028b187f274003b0551e7dc0143c0acba2",
+  "scope": "One new test target and dated evidence only; production, existing contracts, shared harness, migrations and generated files unchanged",
+  "coverage_review": "The existing nine-case source was inspected. Its simple active-maintenance status/archive/delete/restore, ordinary title edit, eligible-assignee no-op and position event-failure cases are not rerun here.",
+  "new_cases": [
+    {
+      "name": "team_move_checks_both_guarded_groups_without_transfer_effects",
+      "verified": [
+        "Actual move preview and HTTP move commands from and into a guarded status group return typed 409 with the one current maintenance entry and applied=false",
+        "Both rejections leave complete issue/rank/team/counter/key/document/history/event/link/job/progress/receipt snapshots unchanged; no move receipt is acknowledged or retained",
+        "A normal move into a different unguarded status in that same team succeeds, so maintenance does not freeze unrelated groups"
+      ]
+    },
+    {
+      "name": "terminal_same_status_noop_preserves_history_and_reopening_requires_assignee_repair",
+      "variants": ["completed", "canceled"],
+      "verified": [
+        "A historical assignee made ineligible through a fixture role change remains recorded and is projected as not assignable",
+        "Explicit same-status positioning is a true no-op with unchanged issue/order versions and domain snapshots; one successful idempotency acknowledgement is allowed and checked separately",
+        "Reopening returns 422 and rolls back its request receipt and every captured domain effect",
+        "Explicitly clearing the assignee through the normal API permits a fresh reviewed reopen with one version increment and unchanged document body/version"
+      ]
+    },
+    {
+      "name": "compound_document_status_rejection_is_atomic_and_same_status_text_remains_writable",
+      "verified": [
+        "Compound description plus status-change or archive requests return typed maintenance 409 and preserve complete snapshots, including document body/revisions and receipts",
+        "A description edit carrying the unchanged status remains writable during maintenance",
+        "The allowed edit advances issue and document versions once, adds exactly one document revision and issue activity entry, and appends exactly one issue.updated plus one document.updated event under one actor/mutation and two stream sequences",
+        "The queued normalization guard and staged/applied progress remain unchanged"
+      ]
+    }
+  ],
+  "snapshot_boundary": {
+    "tables": 20,
+    "audit_exclusions": "None: guards are seeded as valid queued fixture operations before the measured HTTP requests; these commands do not enqueue or resume maintenance",
+    "rank_precision": "Issue rank is captured as numeric text rather than a lossy JSON floating-point value",
+    "no_op_acknowledgement": "The no-op domain comparison excludes only idempotency records, with the exact successful receipt count asserted separately"
+  },
+  "checks": {
+    "format": "rustfmt --edition 2024 --config skip_children=true on the new target",
+    "compile": "cargo test --locked -p opentrack-api --test issue_order_ingress_contract --no-run",
+    "compile_exit": 0,
+    "runtime": "The compiled target ran with --test-threads=1 --nocapture in the existing private namespace",
+    "passed": 3, "failed": 0, "ignored": 0, "filtered_out": 0,
+    "clippy": "cargo clippy --locked -p opentrack-api --test issue_order_ingress_contract -- -D warnings",
+    "clippy_exit": 0,
+    "existing_api_or_worker_cases_executed": 0
+  },
+  "environment": {
+    "fixture": "Unchanged shared application Harness::new, current migration 27 and real HTTP router",
+    "roles": "Existing separate runtime/migration/worker/operator test configuration retained; these new cases exercise the serving role and owner fixture preparation/assertions",
+    "data": "Synthetic current-version issues are created through HTTP; scoped owner writes prepare valid maintenance guards and historical assignee eligibility",
+    "cleanup": "The harness cleans its successful fresh schemas; the original cluster/database data remain retained, and PostgreSQL stopped successfully",
+    "role_database_or_environment_recreation": false
+  },
+  "evidence": {
+    "root": "$OPENTRACK_DEV_STATE/issue-order-ingress",
+    "index": "artifact-index.json",
+    "index_sha256": "489c96c134a1c99d4db7331c8ab8ae8273cb379013a7ec49ac7cd5e13893a1ec",
+    "files": 11,
+    "runtime_log_sha256": "6f3676d2a012072148950dabd5a4ee4b5f41bcac26fdc68380329e5f32ee8858",
+    "clippy_log_sha256": "d3babaf667ad2f6baa6723a0135d0fc3ebf1d79075fa2b6401eb4a934cf068b8"
+  },
+  "limits": [
+    "These are three new cases in one focused run, not a new combined execution of all existing API cases.",
+    "Fixture role changes and directly seeded maintenance intents isolate ingress behavior; they do not requalify account management, enqueue/resume or worker capabilities.",
+    "Connected UI, integration/hosted checks, native/physical/assistive/performance and whole-product acceptance remain separate."
+  ],
+  "migration_rollback": "Test/evidence only; no new migration, storage-format or runtime rollback is required."
+}

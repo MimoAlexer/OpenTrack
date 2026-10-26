@@ -1,14 +1,16 @@
 import { priorities, type ActivityEntry } from '../types';
 
-const labels: Record<string, string> = { title: 'title', description: 'description', status_id: 'status', priority: 'priority', assignee_id: 'assignee', label_ids: 'labels', estimate: 'estimate', due_date: 'due date', archived: 'archive state' };
+const labels: Record<string, string> = { title: 'title', description: 'description', status_id: 'status', priority: 'priority', assignee_id: 'assignee', label_ids: 'labels', estimate: 'estimate', due_date: 'due date', archived: 'archive state', position: 'position' };
 const lowValueFields = new Set(['priority', 'label_ids', 'estimate', 'due_date']);
 
 export function activityFields(entry: ActivityEntry): string[] {
-  if (Array.isArray(entry.changes.fields)) return [...new Set(entry.changes.fields.filter(field => typeof field === 'string' && (Object.hasOwn(labels, field) || ['parent', 'relations'].includes(field))))];
-  return ['status_id', 'priority', 'assignee_id', 'label_ids', 'estimate', 'due_date', 'archived'].filter(field => {
+  const fields = Array.isArray(entry.changes.fields) ? [...new Set(entry.changes.fields.filter(field => typeof field === 'string' && (Object.hasOwn(labels, field) || ['parent', 'relations'].includes(field))))]
+    : ['status_id', 'priority', 'assignee_id', 'label_ids', 'estimate', 'due_date', 'archived'].filter(field => {
     const value = entry.changes[field as keyof ActivityEntry['changes']];
     return value && typeof value === 'object' && 'before' in value && 'after' in value && JSON.stringify(value.before) !== JSON.stringify(value.after);
   });
+  if (entry.changes.source === 'manual_order' && !fields.includes('position')) fields.push('position');
+  return fields;
 }
 
 export function activitySummary(entry: ActivityEntry): string {

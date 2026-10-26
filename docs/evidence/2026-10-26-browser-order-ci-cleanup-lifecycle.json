@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-26",
+  "scope": "Browser CI cleanup claim consumption and AutoRemove reconciliation",
+  "parent_candidate": "884e36f5ddec9dc57bbf789534c2ac73bccdd509",
+  "preserved_candidates": [
+    "4c6bf8032996168b48e7cba8e2537905a9447062",
+    "93c3bffb84bf94639854e51921d24c52b89bb401",
+    "884e36f5ddec9dc57bbf789534c2ac73bccdd509"
+  ],
+  "source_sha256": {
+    "scripts/browser-acceptance.py": "c738f7c9dac35373d74be6db08d231dcffe8b2b2705418e8bc89f26fe4b9ccdc",
+    "scripts/browser_order_fixtures.py": "5e5cedb8e6aba8b951594cd2318d108b6c16ed009778356870c59612e560b4fa",
+    "scripts/test-browser-acceptance.py": "f2d0121aa4fc49355151e5bd6c95d72c5fc37a136821258cc7ad92c5d19d6eec"
+  },
+  "confirmed_gaps": [
+    "Successful or already-empty cleanup retained reusable same-run creation authority",
+    "Stopping an owned compose run --rm helper can remove it before an unconditional container rm, interrupting network/volume cleanup"
+  ],
+  "behavior": {
+    "claim": "Unlink only after all validated cleanup operations finish successfully, including an already-empty owned state. Retain on validation, Docker, identity or cleanup deadline failure. A later no-claim cleanup performs no inventory or deletion.",
+    "container_identity": "The inspected full IDs must exactly match the validated inventory. Inspect AutoRemove and reconcile only those exact full IDs before stop and after stop/remove; names or replacement IDs never gain authority.",
+    "automatic_removal": "Wait for naturally auto-removed helpers to disappear inside the existing cleanup deadline; skip a redundant rm and continue verified network/volume cleanup.",
+    "errors": "A nonzero stop/remove is reconciled only through a healthy exact-ID absence observation. A still-present target, daemon/query error, replacement ID or timeout fails and retains the claim.",
+    "limits": "Existing ownership-read deadline55s and deletion deadline120s unchanged. AutoRemove polling sleeps at most0.1s within that remaining deadline. No force deletion or broad Compose sweep."
+  },
+  "verification": {
+    "command": "python scripts/test-browser-acceptance.py",
+    "pure_tests_passed": 50,
+    "failed": 0,
+    "exit_code": 0,
+    "original_combined_output": "..................................................\r\n----------------------------------------------------------------------\r\nRan 50 tests in 0.212s\r\n\r\nOK\r\n",
+    "original_output_source": "Untruncated retained command output from the final source run, not a reconstruction or additional run",
+    "new_cases": [
+      "Success and already-empty claim consumption, later matching-name resources protected by no-claim no-op",
+      "Validation, real stop/remove, network/volume deletion failures retain claim",
+      "Immediate and delayed stop-to-AutoRemove continue exact network/volume cleanup without redundant container rm",
+      "Natural exact-ID disappearance before stop and during stop/remove",
+      "Reconciliation daemon errors and replacement-ID rejection retain claim",
+      "AutoRemove cleanup deadline exhaustion retains claim and does not remove remaining targets"
+    ],
+    "prior_checks": "All existing collision/claim/resource/secret/staging/shared-suite deadline tests remain; original26/30/43 proof files unchanged",
+    "whitespace": "git diff --check passed"
+  },
+  "unchanged": {
+    "shared_suite_seconds": 900,
+    "preparation_cap_seconds": 300,
+    "per_test_seconds": 60,
+    "action_seconds": 10,
+    "workers": 1,
+    "retries": 0,
+    "worker_poll_interval_ms": 2000,
+    "worker_lease_seconds": 60,
+    "worker_connections": 5
+  },
+  "not_executed": [
+    "Docker commands",
+    "real fixture preparation",
+    "browser acceptance",
+    "configured GitHub CI",
+    "full repository test matrix"
+  ],
+  "acceptance": "Source and pure mocked evidence only. Exact-head reviewer recheck remains required before CI; this candidate does not self-clear the source hold.",
+  "rollback": "No schema or production changes. Focused runner/test delta; prior candidates/proof remain immutable historical checkpoints with their documented lifecycle gaps."
+}

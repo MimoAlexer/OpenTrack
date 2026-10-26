@@ -5,6 +5,7 @@ import type { StructuredDocument } from '../src/documents/types';
 import type { RichBody } from '../src/documents/model';
 import type { SavedReadiness } from './receipt-reporter';
 import { selectSyntheticWorkspace } from './fixture-session';
+import { admission } from './fixture-admission';
 
 export const paragraph = (text: string): RichBody => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] });
 export const native = (body: RichBody) => JSON.stringify({ format: 'opentrack.document', format_version: 1, schema_version: 1, body });
@@ -81,9 +82,17 @@ export class SavedWorkspace {
   }
 }
 
-type WorkerFixtures = { saved: SavedWorkspace };
+type WorkerFixtures = { saved: SavedWorkspace; fixtureAdmission: number };
 export const test = base.extend<Record<never, never>, WorkerFixtures>({
-  saved: [async ({ playwright }, use) => {
+  fixtureAdmission: [async ({}, use, worker) => {
+    if (worker.config.workers !== 1 || worker.project.retries !== 0 || worker.config.fullyParallel) {
+      throw new Error('Browser fixture admission requires the unchanged serial acceptance configuration.');
+    }
+    await admission('worker', worker.workerIndex);
+    await use(worker.workerIndex);
+  }, { scope: 'worker' }],
+  saved: [async ({ playwright, fixtureAdmission }, use, worker) => {
+    const deadline = performance.now() + worker.project.timeout;
     const ci = process.env.GITHUB_ACTIONS === 'true' && process.env.RUNNER_OS === 'Linux';
     const local = !process.env.GITHUB_ACTIONS && process.env.OPENTRACK_BROWSER_LOCAL === 'disposable';
     if ((!ci && !local) || !process.env.OPENTRACK_BROWSER_SETUP_TOKEN || !process.env.OPENTRACK_BROWSER_PASSWORD) {
@@ -93,20 +102,25 @@ export const test = base.extend<Record<never, never>, WorkerFixtures>({
     if (!/^http:\/\/(localhost|127\.0\.0\.1):18081\/?$/.test(origin)) throw new Error('Browser workflows require the dedicated HTTP loopback port.');
     const http = await playwright.request.newContext({ baseURL: origin, extraHTTPHeaders: { Origin: origin } });
     try {
-      const status = await http.get('/api/v1/setup/status');
-      if (!status.ok()) throw new Error('Fresh installation status is unavailable.');
-      const setup = (await status.json() as { setup_required: boolean }).setup_required;
-      const login = { email: 'owner@example.test', password: process.env.OPENTRACK_BROWSER_PASSWORD };
-      const response = await http.post(setup ? '/api/v1/setup' : '/api/v1/auth/login', { data: setup
-        ? { ...login, setup_token: process.env.OPENTRACK_BROWSER_SETUP_TOKEN, display_name: 'Example Owner',
-          workspace_name: 'Browser acceptance', team_name: 'Example Team', team_key: 'EXA' }
-        : login });
-      if (!response.ok()) throw new Error(`Synthetic owner authentication failed: HTTP ${response.status()}`);
-      const session = await response.json() as Session;
-      const workspace = selectSyntheticWorkspace(session);
-      const bootstrap = await http.get(`/api/v1/workspaces/${workspace.id}/bootstrap`);
-      if (!bootstrap.ok()) throw new Error('Synthetic workspace bootstrap failed.');
-      await use(new SavedWorkspace(http, session, await bootstrap.json() as Bootstrap, origin, workspace.id));
+      const lease = await admission('begin', fixtureAdmission, 1, Math.floor(deadline - performance.now()));
+      let saved: SavedWorkspace;
+      try {
+        const status = await http.get('/api/v1/setup/status');
+        if (!status.ok()) throw new Error('Fresh installation status is unavailable.');
+        const setup = (await status.json() as { setup_required: boolean }).setup_required;
+        const login = { email: 'owner@example.test', password: process.env.OPENTRACK_BROWSER_PASSWORD };
+        const response = await http.post(setup ? '/api/v1/setup' : '/api/v1/auth/login', { data: setup
+          ? { ...login, setup_token: process.env.OPENTRACK_BROWSER_SETUP_TOKEN, display_name: 'Example Owner',
+            workspace_name: 'Browser acceptance', team_name: 'Example Team', team_key: 'EXA' }
+          : login });
+        if (!response.ok()) throw new Error(`Synthetic owner authentication failed: HTTP ${response.status()}`);
+        const session = await response.json() as Session;
+        const workspace = selectSyntheticWorkspace(session);
+        const bootstrap = await http.get(`/api/v1/workspaces/${workspace.id}/bootstrap`);
+        if (!bootstrap.ok()) throw new Error('Synthetic workspace bootstrap failed.');
+        saved = new SavedWorkspace(http, session, await bootstrap.json() as Bootstrap, origin, workspace.id);
+      } finally { await admission('finish', fixtureAdmission, lease, Math.floor(deadline - performance.now())); }
+      await use(saved);
     } finally { await http.dispose(); }
   }, { scope: 'worker' }],
   storageState: async ({ saved }, use) => { await use(await saved.http.storageState()); },
@@ -120,6 +134,22 @@ export const test = base.extend<Record<never, never>, WorkerFixtures>({
   },
 });
 export { expect };
+
+export function registerAdmission(count: number) {
+  if (!Number.isInteger(count) || count < 1 || count > 20) throw new Error('Browser admission phase is invalid.');
+  let lease = 0;
+  test.beforeAll(async ({ saved, fixtureAdmission }, info) => {
+    void saved;
+    lease = await admission('begin', fixtureAdmission, count, info.timeout);
+  });
+  test.afterAll(async ({ fixtureAdmission }) => {
+    if (lease) {
+      const acquired = lease;
+      lease = 0;
+      await admission('finish', fixtureAdmission, acquired);
+    }
+  });
+}
 
 export async function transfer(page: Page) {
   await page.getByRole('region', { name: 'Description', exact: true }).getByRole('button', { name: 'Import / export text' }).click();

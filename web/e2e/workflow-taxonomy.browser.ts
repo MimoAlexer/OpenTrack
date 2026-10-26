@@ -1,9 +1,11 @@
+import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import { test, expect, type SavedWorkspace } from './fixtures';
 import type { Issue, Session } from '../src/types';
 import type { InvitationIssued, TeamDetail, TeamMember } from '../src/settings/types';
 import type { Workflow, WorkflowReplacement, WorkflowStatus } from '../src/workflows/types';
 import { labelETag, type Label } from '../src/taxonomy/types';
+registerAdmission(1);
 
 async function team(saved: SavedWorkspace) {
   return saved.request<TeamDetail>('/teams', 'POST', {

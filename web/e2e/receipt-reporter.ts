@@ -2,6 +2,27 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import type { FullResult, Reporter, TestCase, TestResult } from '@playwright/test/reporter';
 
+export type SyntheticAuthFailure = { operation: 'invitation_accept' | 'owner_authentication'; status: number };
+
+export function parseSyntheticAuthFailure(description: unknown): SyntheticAuthFailure | undefined {
+  if (typeof description !== 'string' || description.length > 128) return;
+  let data: unknown;
+  try { data = JSON.parse(description); } catch { return; }
+  if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length !== 2
+      || !Object.hasOwn(data, 'operation') || !Object.hasOwn(data, 'status')) return;
+  const value = data as Record<string, unknown>;
+  if (!['invitation_accept', 'owner_authentication'].includes(value.operation as string)
+      || typeof value.status !== 'number' || !Number.isInteger(value.status)
+      || value.status < 100 || value.status > 599) return;
+  return { operation: value.operation as SyntheticAuthFailure['operation'], status: value.status };
+}
+
+function ownerAuthFailure(message: unknown): SyntheticAuthFailure | undefined {
+  const match = typeof message === 'string' && message.length <= 128
+    ? message.match(/^(?:Error: )?Synthetic owner authentication failed: HTTP ([1-5][0-9]{2})$/) : null;
+  if (match && match[0] === message) return { operation: 'owner_authentication', status: Number(match[1]) };
+}
+
 export type SavedReadiness = Record<'setup_status' | 'session' | 'bootstrap' | 'access', {
   state: 'unobserved' | 'pending' | 'completed' | 'failed'; status: number | null; elapsed_ms: number;
 }>;
@@ -112,7 +133,7 @@ export function parseProjectLeadReadiness(description: unknown): ProjectLeadRead
 }
 
 export default class ReceiptReporter implements Reporter {
-  private checks: { browser: string; check: string; status: string; duration_ms: number; failure?: string; saved_readiness?: SavedReadiness; project_lead_readiness?: ProjectLeadReadiness }[] = [];
+  private checks: { browser: string; check: string; status: string; duration_ms: number; failure?: string; saved_readiness?: SavedReadiness; project_lead_readiness?: ProjectLeadReadiness; auth_failure?: SyntheticAuthFailure }[] = [];
   onTestEnd(test: TestCase, result: TestResult) {
     // Deliberately exclude steps, request/response data, stdout, attachments and
     // raw errors: those can contain session headers or credential-bearing calls.
@@ -122,13 +143,20 @@ export default class ReceiptReporter implements Reporter {
     const readiness = result.status !== 'passed' && annotations.length === 1 ? parseSavedReadiness(annotations[0].description) : undefined;
     const projectAnnotations = result.annotations.filter(item => item.type === 'project-lead-readiness');
     const projectLead = projectAnnotations.length === 1 ? parseProjectLeadReadiness(projectAnnotations[0].description) : undefined;
+    const authAnnotations = result.annotations.filter(item => item.type === 'synthetic-auth-failure');
+    let authFailure: SyntheticAuthFailure | undefined;
+    if (result.status !== 'passed' && result.status !== 'skipped') {
+      if (authAnnotations.length === 1) authFailure = parseSyntheticAuthFailure(authAnnotations[0].description);
+      else if (authAnnotations.length === 0 && failure.startsWith('fixtures.ts:')) authFailure = ownerAuthFailure(result.error?.message);
+    }
     const check = { browser: test.parent.project()?.name ?? 'unknown', check: test.title,
       status: result.status, duration_ms: result.duration,
       ...(result.status !== 'passed' ? { failure } : {}), ...(readiness ? { saved_readiness: readiness } : {}),
-      ...(projectLead ? { project_lead_readiness: projectLead } : {}) };
+      ...(projectLead ? { project_lead_readiness: projectLead } : {}), ...(authFailure ? { auth_failure: authFailure } : {}) };
     this.checks.push(check);
     console.log(`${check.status.toUpperCase()} [${check.browser}] ${check.check}${check.failure ? ` (${check.failure})` : ''}`);
     if (projectLead) console.log(`PROJECT_LEAD_READINESS [${check.browser}] ${JSON.stringify(projectLead)}`);
+    if (authFailure) console.log(`SYNTHETIC_AUTH_FAILURE [${check.browser}] ${JSON.stringify(authFailure)}`);
   }
   onError() { console.error('Browser runner error; raw diagnostic details withheld to protect authentication state.'); }
   onEnd(result: FullResult) {

@@ -1,3 +1,4 @@
+import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import type { Locator, Page, Request, Response } from '@playwright/test';
 import { test, expect, paragraph, SavedWorkspace } from './fixtures';
@@ -5,6 +6,7 @@ import type { StructuredDocument } from '../src/documents/types';
 import type { Bootstrap, Team } from '../src/types';
 import type { FullProject, Project, ProjectIssue, ProjectProgress, ProjectUpdate } from '../src/projects/types';
 import type { ProjectLeadReadiness } from './receipt-reporter';
+registerAdmission(1);
 
 const projectsPath = (saved: SavedWorkspace, id?: string) => `/teams/${saved.team.id}/projects${id ? `/${id}` : ''}`;
 const projectURL = (saved: SavedWorkspace, id: string) => `/w/${saved.workspace}/projects/${id}?team_id=${saved.team.id}`;

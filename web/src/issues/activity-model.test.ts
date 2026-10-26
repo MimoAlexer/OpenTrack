@@ -36,6 +36,19 @@ describe('activity facts', () => {
     const cleanup = entry(0, { actor: 'OpenTrack', actor_id: null, changes: { source: 'access_cleanup', assignee_id: { before: 'former-account-id', after: null } } });
     expect(activitySummary(cleanup)).toContain('no longer have access'); expect(activityFacts(cleanup)).toEqual([]);
   });
+  it('describes a manual move from the projected source without inventing position facts', () => {
+    for (const fields of [[], ['position']]) {
+      const move = entry(1, { changes: { source: 'manual_order', fields } });
+      expect(activityFields(move)).toEqual(['position']); expect(activitySummary(move)).toBe('changed position'); expect(activityFacts(move)).toEqual([]);
+      expect(groupActivity([entry(0), move, entry(2)]).map(group => group.entries.length)).toEqual([1, 1, 1]);
+    }
+  });
+  it('retains captured status facts for a manual move while keeping it separate from low-value edits', () => {
+    const move = entry(1, { changes: { source: 'manual_order', fields: ['status_id'], status_id: { before: 'old-status-id', after: 'new-status-id' }, status_names: { before: 'Backlog', after: 'In progress' } } });
+    expect(activityFields(move)).toEqual(['status_id', 'position']); expect(activitySummary(move)).toBe('changed status and position');
+    expect(activityFacts(move)).toEqual([{ label: 'Status', value: 'Backlog → In progress' }]);
+    expect(groupActivity([entry(0), move, entry(2)]).map(group => group.entries.length)).toEqual([1, 1, 1]);
+  });
 });
 
 describe('bounded activity groups', () => {

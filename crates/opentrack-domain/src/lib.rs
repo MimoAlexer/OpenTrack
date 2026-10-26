@@ -18,9 +18,11 @@ mod deletion;
 pub use deletion::*;
 mod graph;
 mod native;
+mod ordering;
 use chrono::{DateTime, NaiveDate, Utc};
 pub use graph::*;
 pub use native::*;
+pub use ordering::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -47,6 +49,8 @@ pub enum Error {
     NotFound,
     #[error("{0}")]
     Conflict(String),
+    #[error("Issue order maintenance is active; this change was not applied")]
+    IssueOrderMaintenance(Vec<IssueOrderMaintenance>),
     #[error("This item changed since you opened it")]
     Stale(Box<Issue>),
     #[error("This item changed since you opened it")]
@@ -492,7 +496,9 @@ impl IssueFilter {
             || self.q.as_ref().is_some_and(|q| q.chars().count() > 256)
             || self.label_ids.len() > 50
             || !["any", "all"].contains(&self.label_mode.as_deref().unwrap_or("any"))
-            || !["created", "priority"].contains(&self.sort.as_deref().unwrap_or("created"))
+            || !["created", "priority", "manual"]
+                .contains(&self.sort.as_deref().unwrap_or("created"))
+            || self.sort.as_deref() == Some("manual") && (self.team_id.is_none() || self.archived)
         {
             return Err(Error::Invalid("Invalid issue filter or page size".into()));
         }
@@ -748,6 +754,15 @@ pub struct InvitationPreview {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DirectoryQuery {
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+    pub state: Option<String>,
+}
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TeamQuery {
+    #[schema(max_length = 100)]
+    pub q: Option<String>,
     pub limit: Option<u32>,
     pub cursor: Option<String>,
     pub state: Option<String>,

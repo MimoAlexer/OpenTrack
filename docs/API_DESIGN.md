@@ -85,13 +85,49 @@ Document schema 1 accepts the implemented common text formats under a 256 KiB se
 
 Comments default to 25 items (maximum 100), ordered newest first by creation time and ID; the UI renders them chronologically. `GET /comments/{id}` supports reconciliation after an interrupted mutation. POST requires an idempotency key, PATCH and DELETE require If-Match, and another author's moderation additionally requires a bounded `moderation_reason` (optional JSON body on DELETE). Deleted comments return tombstones without document bodies. `GET /documents/{id}/revisions` returns paginated metadata; `GET /documents/{id}/revisions/{revision}` loads one body. `GET /issues/{id}/activity-page` adds cursor pagination without changing the legacy activity response. Cursors bind caller, issue/document, query and workspace authorization epoch. Historical comments and revisions require both current issue access and access to their recorded team audience.
 
-POST /issues/{id}/position accepts If-Match, optional target status and before_id/after_id. Server checks current neighbors and assigns rank under the team ordering lock; stale neighbor/group state is 409. POST /issues/{id}/restore is versioned and must revalidate current workflow/project references. The API inventory is a resource family contract; implementation OpenAPI enumerates every action and error before release.
+POST /issues/{id}/position requires If-Match, Idempotency-Key and the server-issued `order_version`, with optional target status and before_id/after_id. The opaque order token binds ordering and workflow generations as two canonical positive bigint decimal components separated by a colon. Clients echo it rather than constructing it. Source authorization and the source ETag precede stale generation/neighbour409 checks. Successful matching replay reauthorizes the current issue and recorded team before returning its acknowledgement; clients refresh current issue/order state rather than overwriting newer data with that historical response. Server checks full live, unfiltered group neighbors and assigns rank under the team ordering lock. `before_id` identifies the successor (insert immediately before it); `after_id` identifies the predecessor (insert immediately after it). A single anchor derives its other neighbor on the server; two anchors must be adjacent after excluding the source. A source-as-neighbor or equal anchors is invalid. Neither anchor means append. Maintenance409 confirms the original move was not applied; a refreshed, explicitly reviewed attempt uses a new key. POST /issues/{id}/restore is versioned and must revalidate current workflow/project references. This remains a resource-family target contract; implementation OpenAPI enumerates every action and error before release.
+
+### Manual-order maintenance (migration0027 slice)
+
+The generated OpenAPI on the manual-order branch implements the position contract;
+its connected UI and integrated acceptance remain separate qualification. `sort=manual`
+requires an explicit `team_id` and rejects `archived=true`. Manual pages carry
+`order_version` and use a signed cursor bound to current principal/workspace,
+authorization epoch, normalized filters/limit, ordering generation and workflow
+generation. The key orders status category/position/ID, exact database rank and
+issue ID. Rank remains outside the public Issue representation. The team shared
+lock precedes generation and row reads. Existing created/priority cursor formats
+remain unchanged; their optional maintenance metadata does not broaden scope.
+
+`GET /teams/{t}/issue-order-maintenance/{job}` reauthorizes before returning progress
+or304. Its canonical ETag binds operation version, current resume capability and
+current authorization. Progress distinguishes staging/applied counts and keeps
+`total_count:null` until staging ends. `POST` to the same resource's `/resume` action
+requires its current If-Match and actual manager/private-team access; it preserves
+original requester, job identity and staged/applied state while assigning the
+current execution requester and recording the real resumer.
+
+`issue_order_maintenance` is409 with `details.maintenance` (an array of visible
+operation projections) and `details.applied:false`. Manual reads fail closed while
+a team has a maintenance marker, including blocked/dead-letter work; created and
+priority reads remain usable. A mutation receiving this response was not applied.
+Precision exhaustion normalizes at most500 live siblings inline; larger scopes
+atomically enqueue one typed intent. Create keeps its matching NULL-success receipt
+without allocating an issue number/row/document or Issue effects. Its draft,
+attachments and unchanged request/key remain retryable, and confirmed noncreation
+permits explicit edit/cancel. Position retries after maintenance require canonical
+refresh and a new explicitly reviewed request/key. Transport uncertainty instead
+retains the original immutable body, key and source validator until acknowledged.
 
 ## Pagination, filters and search
 
 Return data, next_cursor and has_more; counts are omitted unless requested and cheap. Cursors bind sort, filters, workspace and permission epoch and expire after 24 hours. Keyset ordering always includes immutable ID as tie-breaker. Concurrent changes may move an item between pages; clients deduplicate by ID and invalidate when events affect the current sort. No promise of a permanently frozen listing.
 
 Filter AST version 1: all/any nodes, maximum depth 4 and 50 predicates; fields status,priority,assignee,project,cycle,label,team,created_at,updated_at,due_date; operators eq,in,not_in,before,after,is_null. In/not_in lists max 100. Server maps known names to prepared SQL; no regex, arbitrary JSON paths, SQL fragments or user-provided sort expression. Datetime relative filters resolve with a recorded workspace/team timezone and request time. Saved query values are data, not executable queries.
+
+Structured-query transport is an M06 target, not an implemented endpoint. Use `POST /workspaces/{w}/issues/query` for structured issue queries and, when F24 search is implemented, `POST /workspaces/{w}/search/query`. Both are read-only: require normal session/origin/CSRF checks, do not create a saved definition or an idempotency receipt, and invoke the same Rust query validator/compiler as the existing listing path. Carry the query and cursor as JSON within the existing 1 MiB JSON bound. The server binds its recorded timezone/request-time context to continuation cursors; a client cannot replace that context when continuing a page sequence. The native broker must allow that body size only on these exact method/path pairs; retain its ordinary path, query and body limits elsewhere. Existing flat GET queries retain their behavior. The largest permitted AST must remain usable without reducing the predicate or value limits above.
+
+For structured filters, the versioned display/query state belongs in the frontend URL fragment. The frontend validates that state before sending the parsed query as JSON; it does not forward the fragment as an HTTP query string. This preserves reload/back/forward state without sending a large AST through the static-server, proxy or native query limits, and requires no server-side query-token store. Unknown, malformed or oversized state blocks execution and offers explicit repair/clear actions; never execute an unfiltered query as recovery. The full supported AST and URL roundtrip require real browser and native transport boundary evidence before M06 acceptance. These target contracts do not qualify the current flat filters or satisfy the M05 prerequisite.
 
 Search accepts q <=256 characters and optional validated filter; result types issue/project initially. Results include type,id,authorized title,escaped snippet,rank and next cursor. Exact issue key lookup outranks lexical matches. Empty q uses recent accessible items; 150 ms client debounce, abort older requests, server timeout. Fuzzy matching is fallback for short misspelled titles, not an unrestricted edit-distance scan.
 

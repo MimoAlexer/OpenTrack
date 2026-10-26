@@ -1,27 +1,201 @@
 #!/usr/bin/env python3
 """Pure boundary tests; no containers, app server, browser or network are started."""
 import copy
+from contextlib import redirect_stderr, redirect_stdout
 import importlib.util
+import io
+import json
+import os
 from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import time
+from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock, patch
+from uuid import UUID
+
+import browser_order_fixtures as fixtures
 
 spec = importlib.util.spec_from_file_location("browser_acceptance", Path(__file__).with_name("browser-acceptance.py"))
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 
+def uid(number):
+    return str(UUID(int=number))
+
+
+def manifest():
+    return {"COMPLETE": True, "workspace_id": uid(1), "maintenance": {
+        browser: {"team_id": uid(10 + index * 4), "status_id": uid(11 + index * 4),
+                  "job_id": uid(12 + index * 4), "requester_id": uid(13 + index * 4),
+                  "staged_count": "300", "total_count": None}
+        for index, browser in enumerate(fixtures.BROWSERS)}}
+
+
+class PreparationHarness:
+    """API/Compose double: progress can change only through the worker command."""
+    def __init__(self):
+        self.url = "http://localhost:18081"
+        self.fresh, self.running, self.staged = True, True, "300"
+        self.operations, self.groups = [], []
+        self.fail_sql, self.fail_stop, self.displace_baseline = False, False, False
+        self.fail_start, self.changed_worker, self.bad_block = False, False, False
+        self.sql = []
+
+    def owned_service(self, service, running=True, timeout=55):
+        self.operations.append(("inspect", service))
+        if running is not None:
+            assert self.running is running
+        return ("b" if self.changed_worker and not self.running else "a") * 64
+
+    def owned_sql(self, statement, timeout):
+        self.operations.append(("sql",))
+        self.sql.append(statement)
+        if self.fail_sql:
+            raise RuntimeError("Mock fixture input failure")
+
+    def dc(self, *arguments, timeout):
+        self.operations.append(arguments)
+        if arguments[0] == "stop":
+            self.running = False
+            if self.fail_stop:
+                raise RuntimeError("Mock partial stop failure")
+        elif arguments == ("start", "worker"):
+            if self.fail_start:
+                raise RuntimeError("Mock worker restoration failure")
+            self.running = True
+        else:
+            assert arguments == ("run", "--rm", "--no-deps", "-T", "worker", "worker", "--once")
+            assert not self.running
+            for group in self.groups:
+                if group["state"] == "queued":
+                    if group["revoked"]:
+                        group.update(state="blocked", error_code="access_lost", can_resume=not self.bad_block)
+                    else:
+                        group["staged_count"] = self.staged
+                    break
+
+    def client(self, origin, deadline):
+        harness = self
+
+        class FakeClient:
+            group = None
+
+            def authenticate(self, path, body, expected=(200,)):
+                harness.operations.append(("http", "POST", path))
+                if path == "/api/v1/setup":
+                    assert body == {"setup_token": "synthetic-token", "email": "owner@example.test",
+                                    "password": "synthetic-password", "display_name": "Example Owner",
+                                    "workspace_name": "Browser acceptance", "team_name": "Example Team", "team_key": "EXA"}
+                    return {"user": {"id": uid(2)}, "workspaces": [{"id": uid(1), "name": "Browser acceptance"}]}
+                assert path == "/api/v1/invitations/accept" and body["token"] == "synthetic-invitation"
+                self.group = harness.groups[-1]
+                return {"user": {"id": self.group["requester_id"]}}
+
+            def request(self, path, method="GET", body=None, headers=None, expected=(200,)):
+                harness.operations.append(("http", method, path))
+                if path == "/api/v1/setup/status":
+                    return {"setup_required": harness.fresh}
+                if path.endswith("/bootstrap"):
+                    first = {"id": uid(3), "name": "Example Team", "key": "EXA"}
+                    if harness.displace_baseline and harness.groups:
+                        first["id"] = harness.groups[0]["team_id"]
+                    return {"teams": [first]}
+                if path.endswith("/teams"):
+                    assert method == "POST" and body["private"] is True
+                    index = len(harness.groups)
+                    group = {**manifest()["maintenance"][fixtures.BROWSERS[index]], "state": "queued",
+                             "phase": "staging", "staged_count": "0", "applied_count": "0", "revoked": False}
+                    harness.groups.append(group)
+                    return {"id": group["team_id"]}
+                if path.endswith("/workflow"):
+                    return {"statuses": [{"id": harness.groups[-1]["status_id"], "is_default": True}]}
+                if path.endswith("/invitations"):
+                    assert body["role"] == "member" and body["team_ids"] == [harness.groups[-1]["team_id"]]
+                    return {"token": "synthetic-invitation"}
+                if path.endswith("/issues"):
+                    assert method == "POST" and expected == (409,)
+                    return {"code": "issue_order_maintenance", "details": {"applied": False, "maintenance": [{"id": self.group["job_id"]}]}}
+                if "/members/" in path:
+                    group = harness.groups[-1]
+                    if method == "DELETE":
+                        assert headers["If-Match"] == f'"team-member:{group["team_id"]}:{group["requester_id"]}:1"'
+                        group["revoked"] = True
+                        return None
+                    return {"version": "1"}
+                if "/issue-order-maintenance/" in path:
+                    group = next(group for group in harness.groups if path.endswith(group["job_id"]))
+                    if self.group:
+                        assert group["revoked"] and expected == (404,)
+                        return {"code": "not_found"}
+                    return {**group, "id": group["job_id"]}
+                raise AssertionError("Unexpected mocked API route")
+
+        return FakeClient()
+
+
 class Boundaries(unittest.TestCase):
     def setUp(self):
+        uid_patch = patch.object(module.os, "getuid", return_value=0, create=True)
+        uid_patch.start()
+        self.addCleanup(uid_patch.stop)
+        admission_patch = patch.object(module, "AdmissionBudget")
+        self.admission = admission_patch.start()
+        self.admission.create.return_value.begin.return_value = 1
+        self.addCleanup(admission_patch.stop)
         self.env = {"GITHUB_ACTIONS": "true", "RUNNER_OS": "Linux", "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "2"}
         self.project = "opentrack-browser-123-2-amd64"
-        self.config = {"name": self.project, "volumes": {"database": {"name": self.project + "_database"}},
-                       "services": {"app": {"ports": [{"host_ip": "127.0.0.1", "published": "18081", "target": 8080}]}, "database": {}}}
+        names = {source for mounts in module.SERVICE_MOUNTS.values() for source, _, _ in mounts}
+        self.config = {"name": self.project, "volumes": {name: {"name": self.project + "_" + name} for name in names},
+                       "services": {name: {"volumes": [{"type": "volume", "source": source, "target": target, "read_only": readonly}
+                                                         for source, target, readonly in sorted(mounts)]}
+                                    for name, mounts in module.SERVICE_MOUNTS.items()}}
+        self.config["services"]["app"]["ports"] = [{"host_ip": "127.0.0.1", "published": "18081", "target": 8080}]
+        self.config["networks"] = {name: {"name": self.project + "_" + name, "internal": name == "database"}
+                                   for name in ("database", "web")}
+        for name, service in self.config["services"].items():
+            if name == "app":
+                service["tmpfs"] = ["/tmp:size=64m,mode=1777"]
+            elif name in ("worker-provision", "worker-grant", "operator-provision", "operator-grant"):
+                service["tmpfs"] = ["/var/lib/postgresql:size=1m,mode=0700"]
+            if name in ("initialize", "credentials", "operator-output-init"):
+                service["network_mode"] = "none"
+            else:
+                service["networks"] = {network: {} for network in (("database", "web") if name == "app" else ("database",))}
+            if name == "credentials":
+                service["profiles"] = ["tools"]
+            elif name.startswith("operator"):
+                service["profiles"] = ["operator"]
 
     def test_only_current_disposable_project(self):
         self.assertEqual(module.validate_target(self.project, "http://localhost:18081/", self.env), "http://localhost:18081")
         for project in ("opentrack", "opentrack-smoke-123-amd64", "opentrack-browser-123-1-amd64", "opentrack-browser-124-2-amd64", ""):
             with self.subTest(project=project), self.assertRaises(RuntimeError):
                 module.validate_target(project, "http://localhost:18081", self.env)
+
+    def test_preflight_inspects_inactive_profiles_without_enabling_runtime_services(self):
+        runner = self.runner()
+        active = copy.deepcopy(self.config)
+        active["services"] = {name: service for name, service in active["services"].items() if not service.get("profiles")}
+        referenced = {mount["source"] for service in active["services"].values() for mount in service["volumes"]}
+        active["volumes"] = {name: volume for name, volume in active["volumes"].items() if name in referenced}
+
+        def config(*arguments, **kwargs):
+            self.assertIn(arguments, (("config", "--format", "json"), ("--profile", "*", "config", "--format", "json")))
+            return json.dumps(self.config if arguments[0] == "--profile" else active)
+
+        runner.dc = Mock(side_effect=config)
+        resolved = module.BrowserAcceptance.preflight(runner)
+        self.assertEqual(set(resolved["services"]), set(module.SERVICE_MOUNTS))
+        self.assertIn("operator_output", resolved["volumes"])
+        self.assertEqual(runner.dc.call_args.args, ("--profile", "*", "config", "--format", "json"))
+        self.assertEqual(runner.environment["COMPOSE_PROFILES"], "")
+        runner.command.reset_mock()
+        module.BrowserAcceptance.dc(runner, "up", "--detach", timeout=1)
+        self.assertNotIn("--profile", runner.command.call_args.args[0])
 
     def test_no_local_or_non_loopback_runtime(self):
         for url in ("http://example.test:18081", "http://0.0.0.0:18081", "http://localhost:8080", "https://localhost:18081", "http://localhost:18081/path", "http://user@localhost:18081", "http://localhost:18081?target=elsewhere"):
@@ -36,6 +210,15 @@ class Boundaries(unittest.TestCase):
         changes = [lambda c: c.update(name="opentrack"),
                    lambda c: c["volumes"]["database"].update(name="opentrack_database"),
                    lambda c: c["volumes"]["database"].update(external=True),
+                   lambda c: c["volumes"]["database"].update(driver_opts={"type": "none", "o": "bind", "device": "/outside"}),
+                   lambda c: c["volumes"]["api_secrets"].update(name=self.project + "_other"),
+                   lambda c: c["services"]["credentials"]["volumes"][0].update(read_only=False),
+                   lambda c: c["services"]["worker"]["volumes"][1].update(source="migration_secrets"),
+                   lambda c: c["services"]["credentials"].update(profiles=[]),
+                   lambda c: c["networks"]["database"].update(external=True),
+                   lambda c: c["networks"]["web"].update(name="other_web"),
+                   lambda c: c["services"]["worker"].update(network_mode="host"),
+                   lambda c: c["services"]["credentials"].update(networks={"web": {}}),
                    lambda c: c["services"]["app"]["ports"][0].update(host_ip="0.0.0.0"),
                    lambda c: c["services"]["database"].update(ports=[5432]),
                    lambda c: c["services"]["app"].update(volumes=[{"type": "bind", "source": "/tmp"}])]
@@ -44,6 +227,1096 @@ class Boundaries(unittest.TestCase):
             change(config)
             with self.assertRaises(RuntimeError):
                 module.validate_compose(config, self.project)
+
+    def runner(self):
+        with patch.dict(os.environ, self.env, clear=True):
+            runner = module.BrowserAcceptance(self.project, "http://localhost:18081")
+        runner.preflight = Mock(return_value=self.config)
+        runner.validate_live_resources = Mock()
+        runner.validate_cleanup_resources = Mock(return_value=None)
+        runner.create_claim = Mock()
+        services = {name for name, value in self.config["services"].items() if not value.get("profiles")} | {"credentials"}
+        claim = {"project": self.project, "services": sorted(services), "creation_volumes": sorted({
+            self.project + "_" + mount["source"] for name in services for mount in self.config["services"][name]["volumes"]})}
+        runner.claim_contents = Mock(return_value=claim)
+        runner.claim_path = Mock()
+        runner.claim_path.exists.return_value = True
+        runner.claim_path.unlink.side_effect = lambda: setattr(runner.claim_path.exists, "return_value", False)
+        runner.claim_path.lstat.return_value = SimpleNamespace(st_mode=module.stat.S_IFREG | 0o600, st_uid=0, st_size=100)
+        runner.claim_path.read_bytes.return_value = json.dumps(claim).encode()
+        runner.dc = Mock(return_value="a" * 64)
+        self.container = self.container_for("worker")
+        runner.command = Mock(side_effect=lambda *args, **kwargs: json.dumps([self.container]))
+        return runner
+
+    def container_for(self, service):
+        return {"Name": "/" + self.project + "-" + service + "-1",
+                "Id": f"{1:064x}", "HostConfig": {"AutoRemove": False, "Tmpfs": dict(
+                    entry.split(":", 1) for entry in self.config["services"][service].get("tmpfs", []))},
+                "Config": {"Labels": {"com.docker.compose.project": self.project,
+                           "com.docker.compose.service": service}, "Cmd": [service], "Env": []},
+                "State": {"Running": True}, "NetworkSettings": {"Networks": {}}, "Mounts": [
+                    {"Type": "volume", "Name": self.project + "_" + mount["source"],
+                     "Destination": mount["target"], "RW": not mount["read_only"]}
+                    for mount in self.config["services"][service]["volumes"]]}
+
+    def test_service_scope_and_default_profile_reject_before_control(self):
+        changes = [lambda c: c["Config"]["Labels"].update({"com.docker.compose.project": "other"}),
+                   lambda c: c["Config"]["Labels"].update({"com.docker.compose.service": "database"}),
+                   lambda c: c["Mounts"][0].update(Name="other_database"),
+                   lambda c: c["Mounts"][0].update(Type="bind"),
+                   lambda c: c["Mounts"][0].update(RW=not c["Mounts"][0]["RW"]),
+                   lambda c: c["Mounts"][0].update(Destination="/elsewhere"),
+                   lambda c: c["Config"].update(Cmd=["worker", "--once"]),
+                   lambda c: c["Config"].update(Env=["OPENTRACK__WORKER__POLL_INTERVAL_MS=100"]),
+                   lambda c: c["State"].update(Running=False)]
+        for change in changes:
+            runner = self.runner()
+            change(self.container)
+            with self.assertRaises(RuntimeError):
+                runner.owned_service("worker")
+            self.assertEqual(runner.dc.call_count, 1)
+            self.assertEqual(runner.dc.call_args.args, ("ps", "--all", "--quiet", "worker"))
+
+    def test_inspect_rejection_reports_only_fixed_role_and_predicate_codes(self):
+        changes = [
+            (lambda c: c["Config"]["Labels"].update({"com.docker.compose.project": "synthetic-private-value"}), "project"),
+            (lambda c: c["Config"]["Labels"].update({"com.docker.compose.service": "synthetic-private-value"}), "service"),
+            (lambda c: c["State"].update(Running=False), "state"),
+            (lambda c: c.update(Mounts=None), "mount_shape"),
+            (lambda c: c["Mounts"][0].update(Type="bind", Source="/private/synthetic-private-value"), "mount_type"),
+            (lambda c: c["Mounts"].append({"Type": "volume", "Name": "synthetic-private-value",
+                                         "Destination": "/private/synthetic-private-value", "RW": True}), "mount_count"),
+            (lambda c: c["Mounts"][0].update(Name="synthetic-private-value"), "mount_names"),
+            (lambda c: c["Mounts"][0].update(Destination="/private/synthetic-private-value"), "mount_targets"),
+            (lambda c: (c["Mounts"][0].update(Name=self.project + "_worker_secrets"),
+                        c["Mounts"][1].update(Name=self.project + "_blobs")), "mount_mapping"),
+            (lambda c: c["Mounts"][0].update(RW=not c["Mounts"][0]["RW"]), "mount_access"),
+        ]
+        for change, code in changes:
+            container = self.container_for("worker")
+            container["Config"]["Env"] = ["DATABASE_URL=synthetic-private-value", "PASSWORD=synthetic-private-value"]
+            change(container)
+            with self.subTest(code=code):
+                with self.assertRaisesRegex(RuntimeError, rf"role=worker, code={code}\)") as raised:
+                    module.validate_container(container, self.config, self.project, "worker", running=True)
+                self.assertNotIn("synthetic-private-value", str(raised.exception))
+                self.assertNotIn("/private", str(raised.exception))
+
+    def test_legacy_compose_tmpfs_is_separate_from_named_volume_inspection(self):
+        container = self.container_for("app")
+        container["HostConfig"]["Tmpfs"] = {"/tmp": "size=64m,mode=1777"}
+        module.validate_container(container, self.config, self.project, "app", running=True)
+        container["Mounts"].append({"Type": "tmpfs", "Source": "", "Destination": "/tmp", "RW": True})
+        with self.assertRaisesRegex(RuntimeError, r"role=app, code=mount_type\)"):
+            module.validate_container(container, self.config, self.project, "app", running=True)
+
+    def test_unknown_expected_role_never_echoes_inspect_supplied_names(self):
+        with self.assertRaisesRegex(RuntimeError, r"code=role\)") as raised:
+            module.validate_container(self.container_for("worker"), self.config, self.project, "synthetic-private-value")
+        self.assertNotIn("synthetic-private-value", str(raised.exception))
+
+    def test_unexpected_image_volume_on_postgres_clients_stays_rejected_with_fixed_code(self):
+        for service in ("worker-provision", "worker-grant"):
+            container = self.container_for(service)
+            container["Mounts"].append({"Type": "volume", "Name": "f" * 64,
+                                        "Source": "/synthetic-volume-root/opaque", "Destination": "/var/lib/postgresql",
+                                        "Driver": "local", "Mode": "", "RW": True, "Propagation": ""})
+            with self.subTest(service=service):
+                with self.assertRaisesRegex(RuntimeError, rf"role={service}, code=mount_count\)") as raised:
+                    module.validate_container(container, self.config, self.project, service)
+                self.assertNotIn("f" * 64, str(raised.exception))
+                self.assertNotIn("/synthetic-volume-root", str(raised.exception))
+
+    def test_client_tmpfs_suppresses_image_volume_model(self):
+        source = Path(__file__).resolve().parent.parent.joinpath("compose.yaml").read_bytes().decode("utf-8").replace("\r\n", "\n")
+        anchor = source.split("x-postgres-client: &postgres-client\n", 1)[1].split("\nservices:", 1)[0]
+        declared = module.re.search(r"^  tmpfs: \['([^']+)'\]$", anchor, module.re.MULTILINE)
+        tmpfs = dict([declared[1].split(":", 1)]) if declared else {}
+        for service in ("worker-provision", "worker-grant", "operator-provision", "operator-grant"):
+            container = self.container_for(service)
+            container["HostConfig"]["Tmpfs"] = tmpfs.copy()
+            # Engine 28 HasMountFor checks named mounts and legacy HostConfig.Tmpfs before image volumes.
+            if "/var/lib/postgresql" not in {mount["Destination"] for mount in container["Mounts"]} | set(tmpfs):
+                container["Mounts"].append({"Type": "volume", "Name": "f" * 64,
+                                            "Destination": "/var/lib/postgresql", "RW": True})
+            with self.subTest(service=service):
+                module.validate_container(container, self.config, self.project, service)
+                self.assertEqual(tmpfs, {"/var/lib/postgresql": "size=1m,mode=0700"})
+                self.assertEqual(len(container["Mounts"]), 1)
+                body = module.re.search(rf"(?ms)^  {service}:\n(.*?)(?=^  [a-z][a-z-]*:|\Z)", source)[1]
+                self.assertIn("<<: *postgres-client", body)
+        database = source.split("\n  database:\n", 1)[1].split("\n  migrate:", 1)[0]
+        self.assertIn("source: database, target: /var/lib/postgresql", database)
+        self.assertNotIn("tmpfs:", database)
+
+    def test_tmpfs_policy_rejects_config_and_inspect_drift(self):
+        for service, values in (("worker-grant", ["/var/lib/postgresql:size=2m,mode=0700"]),
+                                ("worker-provision", ["/var/lib/postgresql:size=1m,mode=0777"]),
+                                ("operator-grant", []), ("operator-provision", ["/elsewhere:size=1m,mode=0700"]),
+                                ("worker-grant", ["/var/lib/postgresql:size=1m,mode=0700,uid=999"]),
+                                ("worker-grant", ["/var/lib/postgresql:size=1m,mode=0700", "/unapproved:size=1m,mode=0700"]),
+                                ("operator-provision", ["/synthetic-private-value:size=1m,mode=0700"]),
+                                ("app", ["/tmp:size=64m,mode=0700"]),
+                                ("database", ["/var/lib/postgresql:size=1m,mode=0700"]),
+                                ("worker", ["/tmp:size=64m,mode=1777"])):
+            config = copy.deepcopy(self.config)
+            config["services"][service]["tmpfs"] = values
+            with self.subTest(service=service, boundary="config"), self.assertRaises(RuntimeError):
+                module.validate_compose(config, self.project)
+            container = self.container_for(service)
+            container["HostConfig"]["Tmpfs"] = dict(value.split(":", 1) for value in values)
+            with self.subTest(service=service, boundary="inspect"):
+                with self.assertRaisesRegex(RuntimeError, r"code=tmpfs\)") as raised:
+                    module.validate_container(container, self.config, self.project, service)
+                self.assertNotIn("synthetic-private-value", str(raised.exception))
+
+    def test_correct_client_tmpfs_keeps_exact_cleanup_closure(self):
+        runner = self.runner()
+        container = self.container_for("worker-grant")
+        volume = self.volume_for("migration_secrets")
+        self.cleanup_runner(runner, [container], [volume])
+        runner.cleanup()
+        removals = [call.args[0] for call in runner.command.call_args_list if "rm" in call.args[0]]
+        self.assertEqual(removals, [["docker", "container", "rm", f"{1:064x}"],
+                                   ["docker", "volume", "rm", volume["Name"]]])
+        runner.claim_path.unlink.assert_called_once()
+
+    def test_service_cannot_control_another_role_or_multiple_containers(self):
+        runner = self.runner()
+        self.assertEqual(runner.environment["COMPOSE_PROFILES"], "")
+        with self.assertRaises(RuntimeError):
+            runner.owned_service("app")
+        runner.dc.assert_not_called()
+        runner.dc.return_value = "a" * 64 + "\n" + "b" * 64
+        with self.assertRaises(RuntimeError):
+            runner.owned_service("worker")
+        runner.command.assert_not_called()
+
+    def test_database_exec_is_blocked_by_live_resource_mismatch(self):
+        runner = self.runner()
+        with self.assertRaises(RuntimeError):
+            runner.owned_sql("SELECT 1", timeout=20)
+        self.assertEqual(runner.dc.call_count, 1)
+        self.assertEqual(runner.dc.call_args.args[0], "ps")
+
+    def test_all_secret_blob_and_data_volume_labels_are_checked(self):
+        for changed in (None, "api_secrets", "database_secrets", "migration_secrets", "worker_secrets", "operator_secrets", "blobs", "database"):
+            runner = self.runner()
+            services = [name for name, service in self.config["services"].items() if not service.get("profiles")]
+            runner.dc.return_value = "\n".join(f"{index:064x}" for index in range(1, len(services) + 1))
+            containers = [self.container_for(service) for service in services]
+            names = {source for service in services for source, _, _ in module.SERVICE_MOUNTS[service]}
+            volumes = [{"Name": self.project + "_" + name, "Driver": "local", "Options": None,
+                        "Labels": {"com.docker.compose.project": self.project, "com.docker.compose.volume": name}}
+                       for name in names]
+            if changed:
+                next(item for item in volumes if item["Labels"]["com.docker.compose.volume"] == changed)["Labels"]["com.docker.compose.project"] = "other"
+            runner.command.side_effect = [json.dumps(containers), json.dumps(volumes)]
+            with self.subTest(volume=changed):
+                if changed:
+                    with self.assertRaises(RuntimeError):
+                        module.BrowserAcceptance.validate_live_resources(runner)
+                else:
+                    module.BrowserAcceptance.validate_live_resources(runner)
+
+    def test_live_readonly_secret_mounts_cannot_change_after_config_validation(self):
+        for service in ("app", "database", "migrate", "worker", "worker-grant", "worker-provision", "initialize"):
+            container = self.container_for(service)
+            mount = next(item for item in container["Mounts"] if "secrets" in item["Name"])
+            mount["RW"] = not mount["RW"]
+            with self.subTest(service=service), self.assertRaises(RuntimeError):
+                module.validate_container(container, self.config, self.project, service)
+
+    def test_all_resource_failure_precedes_credential_reads_and_preparation(self):
+        runner = self.runner()
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
+        runner.dc.side_effect = lambda *args, **kwargs: "127.0.0.1:18081" if args[0] == "port" else ""
+        runner.validate_live_resources.side_effect = RuntimeError("Mock secret volume ownership mismatch")
+        with patch.object(module, "prepare") as preparation, patch.object(module.subprocess, "run") as node:
+            with self.assertRaises(RuntimeError):
+                runner.run()
+        self.assertFalse(any("credentials" in call.args for call in runner.dc.call_args_list))
+        preparation.assert_not_called()
+        node.assert_not_called()
+        runner.validate_cleanup_resources.assert_called_once()
+
+    def test_existing_project_rejected_before_start_setup_or_cleanup(self):
+        runner = self.runner()
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "existing"])
+        with patch.object(module, "prepare") as preparation, patch.object(module.subprocess, "run") as child:
+            with self.assertRaises(RuntimeError):
+                runner.run()
+        runner.dc.assert_not_called()
+        preparation.assert_not_called()
+        child.assert_not_called()
+
+    def test_name_collisions_rejected_before_start_even_without_project_labels(self):
+        targets = {"container": ["collision"], "volume": [item["name"] for item in self.config["volumes"].values()],
+                   "network": [item["name"] for item in self.config["networks"].values()]}
+        for index, (kind, names) in enumerate(targets.items()):
+            for name in names:
+                runner = self.runner()
+                version = json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"})
+                runner.command = Mock(side_effect=[version] + [""] * (index * 2 + 1) + [name])
+                with self.subTest(kind=kind, name=name), patch.object(module, "prepare") as preparation, \
+                        patch.object(module.subprocess, "run") as node, self.assertRaises(RuntimeError):
+                    runner.run()
+                runner.dc.assert_not_called()
+                runner.create_claim.assert_not_called()
+                runner.validate_cleanup_resources.assert_not_called()
+                preparation.assert_not_called()
+                node.assert_not_called()
+                self.assertTrue(all("--all" in call.args[0] for call in runner.command.call_args_list
+                                    if call.args[0][1:3] == ["container", "ls"]))
+
+    def cleanup_runner(self, runner, containers, volumes, networks=()):
+        for index, container in enumerate(containers, 1):
+            container["Id"] = f"{index:064x}"
+        ids = "\n".join(f"{index:064x}" for index in range(1, len(containers) + 1))
+        names = "\n".join(volume["Name"] for volume in volumes)
+        network_ids = "\n".join(network["Id"] for network in networks)
+        replies = [ids, ids, names, names, network_ids, network_ids]
+        if volumes:
+            replies.append(json.dumps(volumes))
+        if containers:
+            replies.append(json.dumps(containers))
+        if networks:
+            replies.append(json.dumps(networks))
+        runner.cleanup_model = {"present": {container["Id"] for container in containers},
+                                "automatic": {container["Id"] for container in containers if container["HostConfig"]["AutoRemove"]},
+                                "pending": {}, "auto_delay": 0}
+
+        def execute(arguments, **kwargs):
+            if replies:
+                return replies.pop(0)
+            identifier = arguments[-1]
+            if arguments[1:3] == ["container", "ls"]:
+                identifier = identifier.removeprefix("id=")
+                pending = runner.cleanup_model["pending"]
+                if identifier in pending:
+                    if pending[identifier]:
+                        pending[identifier] -= 1
+                    else:
+                        runner.cleanup_model["present"].discard(identifier)
+                return identifier if identifier in runner.cleanup_model["present"] else ""
+            if arguments[1:3] == ["container", "stop"] and identifier in runner.cleanup_model["automatic"]:
+                runner.cleanup_model["pending"].setdefault(identifier, runner.cleanup_model["auto_delay"])
+            if arguments[1:3] == ["container", "rm"]:
+                runner.cleanup_model["present"].discard(identifier)
+            return ""
+
+        runner.command = Mock(side_effect=execute)
+        runner.validate_cleanup_resources = lambda: module.BrowserAcceptance.validate_cleanup_resources(runner)
+
+    def volume_for(self, name):
+        return {"Name": self.project + "_" + name, "Driver": "local", "Options": None,
+                "Labels": {"com.docker.compose.project": self.project, "com.docker.compose.volume": name}}
+
+    def network_for(self, name="database"):
+        return {"Name": self.project + "_" + name, "Id": f"{11 if name == 'database' else 12:064x}",
+                "Driver": "bridge", "Options": {}, "Internal": name == "database", "Containers": {},
+                "Labels": {"com.docker.compose.project": self.project, "com.docker.compose.network": name}}
+
+    def test_private_creation_claim_records_exact_absent_and_eligible_resources(self):
+        runner = self.runner()
+        runner.command = Mock(return_value="synthetic-engine-id")
+        claim = module.BrowserAcceptance.claim_contents(runner, self.config)
+        self.assertEqual(len(claim["absent_volumes"]), 8)
+        self.assertEqual(len(claim["absent_networks"]), 2)
+        self.assertEqual(len(claim["creation_volumes"]), 7)
+        self.assertNotIn(self.project + "_operator_output", claim["creation_volumes"])
+        self.assertNotIn("operator", claim["services"])
+        self.assertEqual((claim["run"], claim["attempt"]), ("123", "2"))
+        self.assertNotIn("synthetic-engine-id", json.dumps(claim))
+        runner.claim_contents.return_value = claim
+        with module.tempfile.TemporaryDirectory() as directory:
+            runner.claim_path = Path(directory) / "ownership.json"
+            with patch.object(module.os, "open", wraps=os.open) as opened:
+                module.BrowserAcceptance.create_claim(runner, self.config)
+            self.assertEqual(json.loads(runner.claim_path.read_bytes()), claim)
+            self.assertTrue(opened.call_args.args[1] & os.O_EXCL)
+            self.assertEqual(opened.call_args.args[2], 0o600)
+            with self.assertRaises(FileExistsError):
+                module.BrowserAcceptance.create_claim(runner, self.config)
+            self.assertEqual(json.loads(runner.claim_path.read_bytes()), claim)
+
+    def test_claim_is_created_only_after_absence_checks_and_before_start(self):
+        runner = self.runner()
+        events = []
+        runner.command = Mock(side_effect=lambda args, **kwargs: events.append(args) or (
+            json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}) if args[1] == "version" else ""))
+        runner.create_claim.side_effect = lambda config: events.append("claim")
+        runner.dc.side_effect = RuntimeError("Mock interrupted startup")
+        with self.assertRaises(RuntimeError):
+            runner.run()
+        self.assertEqual(len(events), 8)
+        self.assertEqual(events[-1], "claim")
+        self.assertEqual(runner.dc.call_args.args[0], "up")
+        runner.validate_cleanup_resources.assert_called_once()
+
+    def test_missing_or_foreign_claim_never_sweeps(self):
+        runner = self.runner()
+        runner.claim_path.exists.return_value = False
+        runner.validate_cleanup_resources = lambda: module.BrowserAcceptance.validate_cleanup_resources(runner)
+        runner.cleanup()
+        runner.command.assert_not_called()
+        runner.dc.assert_not_called()
+        for field in ("project", "run", "attempt", "engine_sha256", "config_sha256"):
+            runner = self.runner()
+            stored = {**runner.claim_contents.return_value, field: "foreign"}
+            runner.claim_path.read_bytes.return_value = json.dumps(stored).encode()
+            runner.validate_cleanup_resources = lambda: module.BrowserAcceptance.validate_cleanup_resources(runner)
+            with self.subTest(field=field), self.assertRaises(RuntimeError):
+                runner.cleanup()
+            runner.command.assert_not_called()
+            runner.dc.assert_not_called()
+
+    def test_claim_symlink_shared_permissions_owner_and_size_are_rejected(self):
+        for changes in ({"st_mode": module.stat.S_IFLNK | 0o600}, {"st_mode": module.stat.S_IFREG | 0o644},
+                        {"st_uid": 1}, {"st_size": 16385}):
+            runner = self.runner()
+            for key, value in changes.items():
+                setattr(runner.claim_path.lstat.return_value, key, value)
+            runner.validate_cleanup_resources = lambda: module.BrowserAcceptance.validate_cleanup_resources(runner)
+            with self.assertRaises(RuntimeError):
+                runner.cleanup()
+            runner.command.assert_not_called()
+
+    def test_network_closure_rejects_foreign_networks_and_attached_containers(self):
+        changes = [lambda n: n.update(Name="other_database"),
+                   lambda n: n["Labels"].update({"com.docker.compose.project": "other"}),
+                   lambda n: n["Labels"].update({"com.docker.compose.network": "web"}),
+                   lambda n: n.update(Containers={"f" * 64: {}}),
+                   lambda n: n.update(Internal=False), lambda n: n.update(Driver="other")]
+        for change in changes:
+            runner = self.runner()
+            network = self.network_for()
+            change(network)
+            self.cleanup_runner(runner, [], [], [network])
+            with self.assertRaises(RuntimeError):
+                runner.cleanup()
+            self.assertFalse(any("rm" in call.args[0] or "stop" in call.args[0] for call in runner.command.call_args_list))
+
+    def test_exact_network_cleanup_and_already_missing_targets_are_idempotent(self):
+        runner = self.runner()
+        container = self.container_for("worker")
+        network = self.network_for()
+        network["Containers"] = {f"{1:064x}": {}}
+        container["NetworkSettings"]["Networks"] = {network["Name"]: {"NetworkID": network["Id"]}}
+        volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+        self.cleanup_runner(runner, [container], volumes, [network])
+        runner.cleanup()
+        self.assertIn(["docker", "network", "rm", network["Id"]], [call.args[0] for call in runner.command.call_args_list])
+        self.cleanup_runner(runner, [], [])
+        runner.cleanup()
+        self.assertEqual(runner.command.call_count, 0)
+        runner.dc.assert_not_called()
+
+    def test_partial_created_container_with_already_missing_network_remains_cleanable(self):
+        runner = self.runner()
+        container = self.container_for("worker")
+        container["State"]["Running"] = False
+        container["NetworkSettings"]["Networks"] = {self.project + "_database": {"NetworkID": ""}}
+        volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+        self.cleanup_runner(runner, [container], volumes)
+        runner.cleanup()
+        self.assertIn(["docker", "container", "rm", f"{1:064x}"], [call.args[0] for call in runner.command.call_args_list])
+
+    def test_cleanup_never_removes_a_foreign_expected_name_volume(self):
+        for name in self.config["volumes"]:
+            runner = self.runner()
+            foreign = self.volume_for(name)
+            foreign["Labels"]["com.docker.compose.project"] = "other"
+            self.cleanup_runner(runner, [], [foreign])
+            with self.subTest(volume=name), self.assertRaises(RuntimeError):
+                runner.cleanup()
+            runner.dc.assert_not_called()
+
+    def test_cleanup_accepts_partial_owned_stacks_and_cancelled_helper_containers(self):
+        for service in ("credentials", "worker"):
+            runner = self.runner()
+            container = self.container_for(service)
+            if service == "worker":
+                container["Config"]["Cmd"] = ["worker", "--once"]
+                with self.assertRaises(RuntimeError):
+                    module.validate_container(container, self.config, self.project, service)
+            volumes = [self.volume_for(mount["source"]) for mount in self.config["services"][service]["volumes"]]
+            self.cleanup_runner(runner, [container], volumes)
+            runner.cleanup()
+            removals = [call.args[0] for call in runner.command.call_args_list if "rm" in call.args[0]]
+            self.assertEqual(removals, [["docker", "container", "rm", f"{1:064x}"],
+                                       ["docker", "volume", "rm", *sorted(volume["Name"] for volume in volumes)]])
+            runner.dc.assert_not_called()
+
+    def test_cleanup_rejects_foreign_container_labels_names_or_mounts(self):
+        changes = [lambda c: c["Config"]["Labels"].update({"com.docker.compose.project": "other"}),
+                   lambda c: c.update(Name="/other-worker-1"),
+                   lambda c: c["Mounts"][0].update(Name="other_blobs"),
+                   lambda c: c["Mounts"][0].update(RW=not c["Mounts"][0]["RW"])]
+        for change in changes:
+            runner = self.runner()
+            container = self.container_for("worker")
+            change(container)
+            volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+            self.cleanup_runner(runner, [container], volumes)
+            with self.assertRaises(RuntimeError):
+                runner.cleanup()
+            runner.dc.assert_not_called()
+
+    def test_cleanup_rejects_incomplete_volume_inventory_or_inspection_failure(self):
+        runner = self.runner()
+        self.cleanup_runner(runner, [self.container_for("worker")], [])
+        with self.assertRaises(RuntimeError):
+            runner.cleanup()
+        runner.dc.assert_not_called()
+        runner = self.runner()
+        runner.validate_cleanup_resources = lambda: module.BrowserAcceptance.validate_cleanup_resources(runner)
+        runner.command = Mock(side_effect=RuntimeError("Mock Docker inventory failure"))
+        with self.assertRaises(RuntimeError):
+            runner.cleanup()
+        runner.dc.assert_not_called()
+
+    def test_cleanup_empty_project_is_idempotent(self):
+        runner = self.runner()
+        self.cleanup_runner(runner, [], [])
+        runner.cleanup()
+        self.assertEqual(runner.command.call_count, 6)
+        runner.claim_path.unlink.assert_called_once()
+        runner.command.reset_mock()
+        runner.cleanup()
+        runner.command.assert_not_called()
+        runner.claim_path.unlink.assert_called_once()
+        runner.dc.assert_not_called()
+
+    def test_success_consumes_claim_before_later_matching_name_resources_can_be_swept(self):
+        runner = self.runner()
+        self.cleanup_runner(runner, [], [self.volume_for("blobs")])
+        runner.cleanup()
+        runner.claim_path.unlink.assert_called_once()
+        runner.command = Mock(side_effect=AssertionError("A successful old claim must authorize no later inventory or deletion"))
+        runner.cleanup()
+        runner.command.assert_not_called()
+
+    def test_cleanup_retains_claim_on_validation_and_real_deletion_failures(self):
+        for phase in ("validation", "stop", "rm", "network", "volume"):
+            runner = self.runner()
+            container = self.container_for("worker")
+            network = self.network_for()
+            network["Containers"] = {f"{1:064x}": {}}
+            container["NetworkSettings"]["Networks"] = {network["Name"]: {"NetworkID": network["Id"]}}
+            volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+            if phase == "validation":
+                volumes[0]["Labels"]["com.docker.compose.project"] = "foreign"
+            self.cleanup_runner(runner, [container], volumes, [network])
+            command = runner.command.side_effect
+            target = {"stop": ["container", "stop"], "rm": ["container", "rm"],
+                      "network": ["network", "rm"], "volume": ["volume", "rm"]}.get(phase)
+
+            def fail(arguments, **kwargs):
+                if arguments[1:3] == target:
+                    raise RuntimeError("Mock real Docker deletion failure")
+                return command(arguments, **kwargs)
+
+            runner.command.side_effect = fail
+            with self.subTest(phase=phase), self.assertRaises(RuntimeError):
+                runner.cleanup()
+            runner.claim_path.unlink.assert_not_called()
+            self.assertTrue(runner.claim_path.exists())
+
+    def test_autoremove_after_stop_finishes_networks_volumes_and_consumes_claim(self):
+        for delay in (0, 2):
+            runner = self.runner()
+            container = self.container_for("worker")
+            container["HostConfig"]["AutoRemove"] = True
+            container["Config"]["Cmd"] = ["worker", "--once"]
+            network = self.network_for()
+            network["Containers"] = {f"{1:064x}": {}}
+            container["NetworkSettings"]["Networks"] = {network["Name"]: {"NetworkID": network["Id"]}}
+            volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+            self.cleanup_runner(runner, [container], volumes, [network])
+            runner.cleanup_model["auto_delay"] = delay
+            with patch.object(module.time, "sleep") as sleep:
+                runner.cleanup()
+            mutations = [call.args[0] for call in runner.command.call_args_list if call.args[0][2] in ("stop", "rm")]
+            self.assertEqual(mutations, [["docker", "container", "stop", "--time", "35", f"{1:064x}"],
+                                         ["docker", "network", "rm", network["Id"]],
+                                         ["docker", "volume", "rm", *sorted(volume["Name"] for volume in volumes)]])
+            self.assertEqual(sleep.call_count, delay)
+            runner.claim_path.unlink.assert_called_once()
+
+    def test_naturally_missing_exact_container_before_stop_does_not_block_volume_cleanup(self):
+        runner = self.runner()
+        container = self.container_for("worker")
+        volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+        self.cleanup_runner(runner, [container], volumes)
+        runner.cleanup_model["present"].clear()
+        runner.cleanup()
+        self.assertFalse(any(call.args[0][1:3] in (["container", "stop"], ["container", "rm"])
+                             for call in runner.command.call_args_list))
+        self.assertIn(["docker", "volume", "rm", *sorted(volume["Name"] for volume in volumes)],
+                      [call.args[0] for call in runner.command.call_args_list])
+        runner.claim_path.unlink.assert_called_once()
+
+    def test_disappearance_during_stop_or_remove_requires_healthy_exact_id_reconciliation(self):
+        for phase in ("stop", "rm"):
+            runner = self.runner()
+            container = self.container_for("worker")
+            volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+            self.cleanup_runner(runner, [container], volumes)
+            command = runner.command.side_effect
+
+            def disappear(arguments, **kwargs):
+                if arguments[1:3] == ["container", phase]:
+                    runner.cleanup_model["present"].clear()
+                    raise RuntimeError("Mock exact container disappeared naturally")
+                return command(arguments, **kwargs)
+
+            runner.command.side_effect = disappear
+            runner.cleanup()
+            runner.claim_path.unlink.assert_called_once()
+
+    def test_reconciliation_docker_errors_and_replacement_ids_retain_claim(self):
+        for outcome in (RuntimeError("Mock daemon error"), "f" * 64):
+            runner = self.runner()
+            container = self.container_for("worker")
+            volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+            self.cleanup_runner(runner, [container], volumes)
+            command = runner.command.side_effect
+
+            def reconcile(arguments, **kwargs):
+                if arguments[-1] == f"id={1:064x}":
+                    if isinstance(outcome, Exception):
+                        raise outcome
+                    return outcome
+                return command(arguments, **kwargs)
+
+            runner.command.side_effect = reconcile
+            with self.assertRaises(RuntimeError):
+                runner.cleanup()
+            runner.claim_path.unlink.assert_not_called()
+
+    def test_autoremove_cleanup_expiry_retains_claim_and_does_not_delete_other_targets(self):
+        runner = self.runner()
+        container = self.container_for("worker")
+        container["HostConfig"]["AutoRemove"] = True
+        volumes = [self.volume_for(mount["source"]) for mount in self.config["services"]["worker"]["volumes"]]
+        self.cleanup_runner(runner, [container], volumes)
+        command = runner.command.side_effect
+        clock = [1000]
+
+        def expire(arguments, **kwargs):
+            result = command(arguments, **kwargs)
+            if arguments[1:3] == ["container", "stop"]:
+                clock[0] += 121
+            return result
+
+        runner.command.side_effect = expire
+        with patch.object(module.time, "monotonic", side_effect=lambda: clock[0]), self.assertRaises(RuntimeError):
+            runner.cleanup()
+        runner.claim_path.unlink.assert_not_called()
+        self.assertFalse(any("rm" in call.args[0] for call in runner.command.call_args_list))
+
+    def test_browser_environment_excludes_parent_secrets_and_controls(self):
+        parent = {**self.env, "PATH": "tooling", "HOME": "cache", "DOCKER_HOST": "forbidden",
+                  "COMPOSE_PROJECT_NAME": "forbidden", "PGPASSWORD": "forbidden", "GITHUB_TOKEN": "forbidden",
+                  "OPENTRACK_MIGRATION_DATABASE_URL": "forbidden", "OPENTRACK_WORKER_DATABASE_URL_FILE": "forbidden",
+                  "OPENTRACK_OPERATOR_DATABASE_URL": "forbidden", "HTTP_PROXY": "forbidden", "NODE_OPTIONS": "forbidden"}
+        child = module.browser_environment(parent, "http://localhost:18081", "setup", "password", "references", "admission")
+        self.assertNotIn("forbidden", child.values())
+        self.assertEqual(child["PATH"], "tooling")
+        self.assertEqual(child["OPENTRACK_BROWSER_PASSWORD"], "password")
+
+    def test_auth_rejection_summary_emits_only_fixed_sources(self):
+        def event(target, source, **extra):
+            return json.dumps({"level": "WARN", "target": target,
+                               "fields": {"message": "Authentication request rejected", "auth_rejection": source, **extra}})
+        output = "\n".join((event("opentrack_api::admission", "peer_budget"),
+                            event("opentrack_app::identity", "password_work_budget"),
+                            event("opentrack_api::admission", "peer_budget"),
+                            event("opentrack_api::admission", "synthetic-private-value"),
+                            event("foreign", "peer_budget"),
+                            event("opentrack_app::identity", "peer_budget"),
+                            event("opentrack_api::admission", "peer_budget", password="synthetic-private-value"),
+                            "not JSON synthetic-private-value", "[]", "null"))
+        result = module.auth_rejection_summary(output)
+        self.assertEqual(result["sources"], ["peer_budget", "password_work_budget"])
+        self.assertFalse(result["tail_limit_reached"])
+        self.assertNotIn("synthetic-private-value", json.dumps(result))
+        self.assertNotIn("foreign", json.dumps(result))
+
+    def test_auth_rejection_summary_bounds_and_types(self):
+        self.assertEqual(module.auth_rejection_summary("x" * (1024 * 1024 + 1)),
+                         {"available": False, "reason": "output_limit"})
+        self.assertEqual(module.auth_rejection_summary("{}\n" * 129),
+                         {"available": False, "reason": "line_limit"})
+        result = module.auth_rejection_summary("{}\n" * 128)
+        self.assertTrue(result["tail_limit_reached"])
+        self.assertEqual(result["sources"], [])
+        poisoned = json.dumps({"level": "WARN", "target": [], "fields": {
+            "message": "Authentication request rejected", "auth_rejection": {"password": "synthetic-private-value"}}})
+        self.assertEqual(module.auth_rejection_summary(poisoned)["sources"], [])
+        self.assertEqual(module.auth_rejection_summary("[" * 2000 + "]" * 2000)["sources"], [])
+
+    def test_completed_private_manifest_lifetime_cleanup_and_suite_watchdog(self):
+        for outcome in (0, 1, subprocess.TimeoutExpired("node", 900)):
+            with self.subTest(outcome=type(outcome).__name__):
+                runner = self.runner()
+                runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
+                runner.dc.side_effect = lambda *args, **kwargs: "127.0.0.1:18081" if args[0] == "port" else "a" * 64
+                observed = []
+
+                def node(arguments, *, cwd, env, timeout):
+                    path = Path(env["OPENTRACK_BROWSER_ORDER_FIXTURES_FILE"])
+                    observed.append(path)
+                    self.assertEqual(json.loads(path.read_bytes()), manifest())
+                    self.assertEqual(timeout, 900)
+                    self.assertNotIn("COMPOSE_PROJECT_NAME", env)
+                    if isinstance(outcome, Exception):
+                        raise outcome
+                    return SimpleNamespace(returncode=outcome)
+
+                with patch.object(module, "prepare", return_value=manifest()), patch.object(module.subprocess, "run", side_effect=node), \
+                        patch.object(module.os, "open", wraps=os.open) as opened, patch.object(module.os, "chmod", wraps=os.chmod) as mode, \
+                        patch.object(module.time, "monotonic", return_value=1000):
+                    if outcome == 0:
+                        runner.run()
+                    else:
+                        with self.assertRaises((RuntimeError, subprocess.TimeoutExpired)):
+                            runner.run()
+                    self.assertTrue(any(call.args[-1] == 0o600 for call in opened.call_args_list))
+                    self.assertTrue(any(call.args[-1] == 0o700 for call in mode.call_args_list))
+                self.assertEqual(len(observed), 1)
+                self.assertFalse(observed[0].exists())
+                runner.validate_cleanup_resources.assert_called_once()
+
+    def test_incomplete_preparation_cannot_launch_node_and_still_cleans_owned_project(self):
+        runner = self.runner()
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
+        runner.dc.side_effect = lambda *args, **kwargs: "127.0.0.1:18081" if args[0] == "port" else "a" * 64
+        incomplete = manifest()
+        del incomplete["maintenance"]["webkit"]
+        with patch.object(module, "prepare", return_value=incomplete), patch.object(module.subprocess, "run") as node:
+            with self.assertRaises(RuntimeError):
+                runner.run()
+        node.assert_not_called()
+        runner.validate_cleanup_resources.assert_called_once()
+
+    def test_preparation_or_restore_failure_cannot_launch_node_and_still_cleans_project(self):
+        runner = self.runner()
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
+        runner.dc.side_effect = lambda *args, **kwargs: "127.0.0.1:18081" if args[0] == "port" else "a" * 64
+        with patch.object(module, "prepare", side_effect=RuntimeError("Worker restoration failed")), \
+                patch.object(module.subprocess, "run") as node:
+            with self.assertRaisesRegex(RuntimeError, "Worker restoration failed"):
+                runner.run()
+        node.assert_not_called()
+        budget = self.admission.create.return_value
+        self.assertEqual(budget.begin.call_args.args[:2], (4, -1))
+        self.assertTrue(0 < budget.begin.call_args.args[2] <= 300_000)
+        budget.finish.assert_called_once_with(1, -1)
+        runner.validate_cleanup_resources.assert_called_once()
+
+    def test_parent_preparation_cannot_consume_more_than_300_seconds_of_the_suite(self):
+        runner = self.runner()
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
+        runner.dc.side_effect = lambda *args, **kwargs: "127.0.0.1:18081" if args[0] == "port" else "a" * 64
+        clock = [1000]
+
+        def preparation(*args, suite_deadline):
+            self.assertEqual(suite_deadline, 1300)
+            clock[0] = 1301
+            return manifest()
+
+        with patch.object(module.time, "monotonic", side_effect=lambda: clock[0]), \
+                patch.object(module, "prepare", side_effect=preparation), patch.object(module.subprocess, "run") as node:
+            with self.assertRaisesRegex(RuntimeError, "bounded deadline"):
+                runner.run()
+        node.assert_not_called()
+        self.admission.create.return_value.finish.assert_called_once_with(1, -1)
+        runner.validate_cleanup_resources.assert_called_once()
+
+    def test_command_failure_withholds_all_captured_credentials(self):
+        with patch.dict(os.environ, self.env, clear=True):
+            runner = module.BrowserAcceptance(self.project, "http://localhost:18081")
+        with patch.object(module.subprocess, "run", return_value=SimpleNamespace(
+                returncode=1, stdout="synthetic-password", stderr="synthetic-token")):
+            with self.assertRaises(RuntimeError) as raised:
+                runner.command(["docker", "version"])
+        self.assertNotIn("synthetic", str(raised.exception))
+
+    def test_preparation_consumes_the_single_suite_budget_before_node(self):
+        runner = self.runner()
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
+        clock = [1000]
+
+        def compose(*args, **kwargs):
+            if args[0] == "up":
+                clock[0] += 240
+            return "127.0.0.1:18081" if args[0] == "port" else "a" * 64
+
+        runner.dc.side_effect = compose
+
+        def preparation(*args, suite_deadline):
+            self.assertEqual(suite_deadline, 1540)
+            clock[0] += 137
+            return manifest()
+
+        with patch.object(module.time, "monotonic", side_effect=lambda: clock[0]), \
+                patch.object(module, "prepare", side_effect=preparation), \
+                patch.object(module.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as node:
+            runner.run()
+        node.assert_called_once()
+        self.assertEqual(node.call_args.kwargs["timeout"], 763)
+        runner.validate_cleanup_resources.assert_called_once()
+
+    def test_exhausted_suite_budget_never_starts_node_and_still_cleans_up(self):
+        runner = self.runner()
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
+        runner.dc.side_effect = lambda *args, **kwargs: "127.0.0.1:18081" if args[0] == "port" else "a" * 64
+        clock = [1000]
+
+        def preparation(*args, suite_deadline):
+            clock[0] = 1900
+            return manifest()
+
+        with patch.object(module.time, "monotonic", side_effect=lambda: clock[0]), \
+                patch.object(module, "prepare", side_effect=preparation), patch.object(module.subprocess, "run") as node:
+            with self.assertRaisesRegex(RuntimeError, "bounded deadline"):
+                runner.run()
+        node.assert_not_called()
+        runner.validate_cleanup_resources.assert_called_once()
+
+
+class FixturePreparation(unittest.TestCase):
+    def test_three_real_lifecycle_sequences_and_variable_partial_count(self):
+        harness = PreparationHarness()
+        with patch.object(fixtures, "Client", side_effect=harness.client):
+            result = fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=time.monotonic() + 900)
+        self.assertEqual(result, manifest())
+        self.assertTrue(harness.running)
+        self.assertEqual(harness.operations[-2:], [("start", "worker"), ("inspect", "worker")])
+        self.assertEqual(len(harness.sql), 3)
+        for statement in harness.sql:
+            self.assertIn("SET LOCAL ROLE opentrack_migrator", statement)
+            self.assertLess(statement.index("database authority mismatch"), statement.index("INSERT INTO issues"))
+            self.assertIn("SET LOCAL opentrack.workspace_id='" + uid(1), statement)
+            self.assertIn("generate_series(1,501)", statement)
+            self.assertNotIn("UPDATE jobs", statement)
+            self.assertNotIn("UPDATE issue_order_", statement)
+        self.assertEqual(sum(op[:2] == ("http", "DELETE") for op in harness.operations), 3)
+        self.assertEqual(sum(op[0] == "run" for op in harness.operations), 6)
+        self.assertNotIn("synthetic", json.dumps(result))
+
+    def test_fresh_database_required_before_any_mutation_or_worker_control(self):
+        harness = PreparationHarness()
+        harness.fresh = False
+        with patch.object(fixtures, "Client", side_effect=harness.client), self.assertRaises(RuntimeError):
+            fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=time.monotonic() + 900)
+        self.assertEqual(harness.operations, [("http", "GET", "/api/v1/setup/status")])
+
+    def test_input_failure_partial_stop_and_missed_checkpoint_restore_worker(self):
+        for failure in ("fail_sql", "fail_stop", "completed_staging", "displace_baseline", "bad_block"):
+            harness = PreparationHarness()
+            if failure == "completed_staging":
+                harness.staged = "501"
+            else:
+                setattr(harness, failure, True)
+            with self.subTest(failure=failure), patch.object(fixtures, "Client", side_effect=harness.client), self.assertRaises(RuntimeError):
+                fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=time.monotonic() + 900)
+            self.assertTrue(harness.running)
+            self.assertEqual(harness.operations[-2:], [("start", "worker"), ("inspect", "worker")])
+
+    def test_restoration_failure_cannot_return_a_completed_manifest(self):
+        harness = PreparationHarness()
+        harness.fail_start = True
+        with patch.object(fixtures, "Client", side_effect=harness.client), self.assertRaisesRegex(RuntimeError, "restoration failure"):
+            fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=time.monotonic() + 900)
+        self.assertFalse(harness.running)
+
+    def test_replaced_worker_is_never_started(self):
+        harness = PreparationHarness()
+        harness.changed_worker = True
+        with patch.object(fixtures, "Client", side_effect=harness.client), self.assertRaisesRegex(RuntimeError, "different worker"):
+            fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=time.monotonic() + 900)
+        self.assertFalse(any(op[0] == "start" for op in harness.operations))
+        self.assertEqual(harness.sql, [])
+
+    def test_live_resource_failure_precedes_setup_and_all_mutations(self):
+        harness = PreparationHarness()
+        harness.owned_service = Mock(side_effect=RuntimeError("Mock foreign resource"))
+        with patch.object(fixtures, "Client", side_effect=harness.client), self.assertRaises(RuntimeError):
+            fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=time.monotonic() + 900)
+        self.assertEqual(harness.operations, [("http", "GET", "/api/v1/setup/status")])
+
+    def test_deadline_prevents_worker_control_and_sql(self):
+        harness = PreparationHarness()
+        with patch.object(fixtures, "Client", side_effect=harness.client), patch.object(fixtures.time, "monotonic", side_effect=[0, 301]), self.assertRaises(RuntimeError):
+            fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=900)
+        self.assertFalse(any(op[0] in ("stop", "run", "sql") for op in harness.operations))
+
+    def test_preparation_cap_is_clipped_to_remaining_suite_time_and_cleanup_is_not(self):
+        harness = PreparationHarness()
+        with patch.object(fixtures.time, "monotonic", return_value=1000), \
+                patch.object(fixtures, "Client", side_effect=harness.client) as clients, \
+                patch.object(harness, "dc", wraps=harness.dc) as commands:
+            result = fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=1040)
+        self.assertEqual(result, manifest())
+        self.assertTrue(all(call.args[1] == 1040 for call in clients.call_args_list))
+        self.assertTrue(all(call.kwargs["timeout"] == 40 for call in commands.call_args_list if call.args[0] != "start"))
+        self.assertEqual(commands.call_args.kwargs["timeout"], 55)
+
+    def test_expiry_after_worker_stop_still_restores_that_owned_worker(self):
+        harness = PreparationHarness()
+        clock = [1000]
+        command = harness.dc
+
+        def expire_after_stop(*args, **kwargs):
+            command(*args, **kwargs)
+            if args[0] == "stop":
+                clock[0] = 1901
+
+        with patch.object(fixtures.time, "monotonic", side_effect=lambda: clock[0]), \
+                patch.object(fixtures, "Client", side_effect=harness.client), \
+                patch.object(harness, "dc", side_effect=expire_after_stop) as commands:
+            with self.assertRaisesRegex(RuntimeError, "bounded deadline"):
+                fixtures.prepare(harness, "synthetic-token", "synthetic-password", suite_deadline=1900)
+        self.assertTrue(harness.running)
+        self.assertEqual(harness.sql, [])
+        self.assertEqual(commands.call_args.args, ("start", "worker"))
+        self.assertEqual(commands.call_args.kwargs["timeout"], 55)
+
+    def test_sql_identifiers_and_team_scope_reject_before_execution(self):
+        for ids in (("not-an-id", uid(2), uid(3), uid(4)), (uid(1), uid(2), "x'; SELECT 1", uid(4))):
+            with self.assertRaises((RuntimeError, ValueError)):
+                fixtures.seed_statement(*ids, "ZBO1", "ZZ Browser order chromium")
+        with self.assertRaises(RuntimeError):
+            fixtures.seed_statement(uid(1), uid(2), uid(3), uid(4), "EXA", "Example Team")
+
+    def test_manifest_rejects_incomplete_secret_extra_duplicate_and_invalid_counts(self):
+        changes = [lambda value: value.update(COMPLETE=False), lambda value: value.update(password="forbidden"),
+                   lambda value: value["maintenance"].pop("webkit"),
+                   lambda value: value["maintenance"]["chromium"].update(cookie="forbidden"),
+                   lambda value: value["maintenance"]["chromium"].update(staged_count="0"),
+                   lambda value: value["maintenance"]["chromium"].update(staged_count="501"),
+                   lambda value: value["maintenance"]["chromium"].update(staged_count=100),
+                   lambda value: value["maintenance"]["chromium"].update(total_count="501"),
+                   lambda value: value["maintenance"]["chromium"].update(job_id=value["maintenance"]["firefox"]["job_id"])]
+        for change in changes:
+            value = manifest()
+            change(value)
+            with self.assertRaises(RuntimeError):
+                fixtures.validate_manifest(value)
+
+    def test_parent_http_rejects_off_origin_paths_and_redirects_without_forwarding_auth(self):
+        for origin in ("http://example.test:18081", "http://localhost:18081@elsewhere", "http://localhost:18081/"):
+            with self.assertRaises(RuntimeError):
+                fixtures.Client(origin, time.monotonic() + 20)
+        client = fixtures.Client("http://localhost:18081", time.monotonic() + 20)
+        client.http = Mock()
+        for path in ("https://example.test/api/v1/setup", "//example.test/api/v1/setup", "/api/v1/\r\nCookie: secret"):
+            with self.assertRaises(RuntimeError):
+                client.request(path)
+        client.http.open.assert_not_called()
+        response = io.BytesIO(b'{"private":"synthetic-secret"}')
+        response.status = 302
+        client.http.open.return_value = response
+        client.csrf = "synthetic-csrf"
+        with self.assertRaisesRegex(RuntimeError, "response withheld") as raised:
+            client.request("/api/v1/setup", "POST", {})
+        self.assertNotIn("synthetic", str(raised.exception))
+        self.assertEqual(client.http.open.call_count, 1)
+        self.assertIsNone(fixtures.NoRedirect().redirect_request(None, None, 302, "", {}, "http://example.test"))
+
+    def test_parent_http_disables_environment_proxies(self):
+        with patch.object(fixtures.urllib.request, "build_opener"), \
+                patch.object(fixtures.urllib.request, "ProxyHandler", wraps=fixtures.urllib.request.ProxyHandler) as proxy:
+            fixtures.Client("http://localhost:18081", time.monotonic() + 20)
+        proxy.assert_called_once_with({})
+
+
+@unittest.skipUnless(os.name == "posix", "Admission storage and locking require POSIX")
+class AdmissionCoordination(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory(prefix="browser-admission-test-")
+        self.addCleanup(self.directory.cleanup)
+        os.chmod(self.directory.name, 0o700)
+        self.path = Path(self.directory.name) / "admission.json"
+        self.clock = 1_000_000_000_000
+        self.real_clock = time.monotonic_ns
+        clock = patch.object(fixtures.time, "monotonic_ns", side_effect=lambda: self.clock)
+        clock.start()
+        self.addCleanup(clock.stop)
+        self.sleep_calls = []
+
+        def sleep(seconds):
+            self.sleep_calls.append(seconds)
+            self.clock += round(seconds * 1_000_000_000)
+
+        sleep_patch = patch.object(fixtures.time, "sleep", side_effect=sleep)
+        sleep_patch.start()
+        self.addCleanup(sleep_patch.stop)
+        self.budget = fixtures.AdmissionBudget.create(self.path, 1900)
+
+    def data(self):
+        return json.loads(self.path.read_bytes())
+
+    def test_parent_and_worker_share_cost_without_new_generation_bursts(self):
+        lease = self.budget.begin(4, -1, 300_000)
+        self.budget.finish(lease, -1)
+        self.budget.worker(0)
+        lease = self.budget.begin(1, 0, 60_000)
+        self.budget.finish(lease, 0)
+        self.assertEqual(sum(item[1] for item in self.data()["history"]), 5)
+        self.budget.worker(1)
+        self.assertEqual(sum(item[1] for item in self.data()["history"]), 5)
+
+    def test_integer_boundary_never_rounds_an_early_wake_into_a_permit(self):
+        lease = self.budget.begin(20, -1, 60_000)
+        self.budget.finish(lease, -1)
+        self.clock += fixtures.ADMISSION_WINDOW_NS - 2
+
+        def early(seconds):
+            self.sleep_calls.append(seconds)
+            self.clock += 1
+
+        with patch.object(fixtures.time, "sleep", side_effect=early):
+            self.budget.begin(1, -1, 60_000)
+        self.assertEqual(self.clock, 1_060_000_000_000)
+        self.assertEqual(len(self.sleep_calls), 2)
+
+    def test_pending_phase_does_not_expire_and_restart_charges_at_transition(self):
+        self.budget.begin(20, -1, 60_000)
+        self.clock += 120_000_000_000
+        with self.assertRaisesRegex(RuntimeError, "overlaps"):
+            self.budget.begin(1, -1, 60_000)
+        self.budget.worker(0)
+        self.assertEqual(self.data()["history"], [[self.clock, 20]])
+        with self.assertRaisesRegex(RuntimeError, "cannot fit"):
+            self.budget.begin(1, 0, 60_000)
+        self.clock += 1
+        self.budget.begin(1, 0, 60_000)
+        self.assertEqual(self.clock, 1_180_000_000_000)
+
+    def test_phase_limits_overlap_and_stale_generation_fail_without_state_reset(self):
+        for cost in (0, 21, -1, True, 1.5):
+            with self.assertRaises(RuntimeError):
+                self.budget.begin(cost, -1, 60_000)
+        self.budget.worker(0)
+        for generation in (-1, 0, True):
+            with self.assertRaises(RuntimeError):
+                self.budget.worker(generation)
+        lease = self.budget.begin(6, 0, 60_000)
+        for action in (lambda: self.budget.begin(1, 0, 60_000), lambda: self.budget.finish(lease + 1, 0),
+                       lambda: self.budget.finish(lease, 1)):
+            with self.assertRaises(RuntimeError):
+                action()
+        self.assertEqual(self.data()["pending"], {"lease": lease, "count": 6})
+
+    def test_hook_and_shared_deadlines_cannot_extend_or_reinitialize_state(self):
+        lease = self.budget.begin(20, -1, 60_000)
+        self.budget.finish(lease, -1)
+        before = self.path.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, "cannot fit"):
+            self.budget.begin(1, -1, 1_000)
+        self.assertEqual(self.path.read_bytes(), before)
+        self.clock = 1_900_000_000_000
+        with self.assertRaisesRegex(RuntimeError, "deadline"):
+            self.budget.begin(1, -1, 60_000)
+        self.path.unlink()
+        with self.assertRaises(OSError):
+            self.budget.worker(0)
+        self.assertFalse(self.path.exists())
+
+    def test_stable_lock_inode_survives_atomic_json_replacement_and_rejects_overlap(self):
+        import fcntl
+        lock = self.path.with_suffix(".lock")
+        inode = lock.stat().st_ino
+        old_data_inode = self.path.stat().st_ino
+        lease = self.budget.begin(1, -1, 60_000)
+        self.assertEqual(lock.stat().st_ino, inode)
+        self.assertNotEqual(self.path.stat().st_ino, old_data_inode)
+        with lock.open("r+b") as stream:
+            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self.assertRaisesRegex(RuntimeError, "already in use"):
+                self.budget.finish(lease, -1)
+        self.assertEqual(self.data()["pending"]["count"], 1)
+
+    def test_corrupt_extra_backward_or_oversized_state_fails_closed(self):
+        valid = self.path.read_bytes()
+        variants = [b"[]", b"{" * 8193, valid.replace(b'"version": 1', b'"version": 1, "version": 1')]
+        for key, value in (("version", True), ("secret", "synthetic-private-marker"),
+                           ("last_ns", self.clock + 1), ("deadline_ns", self.clock + 901_000_000_000),
+                           ("generation", -2), ("history", [[self.clock, 21]]),
+                           ("pending", {"lease": 0, "count": 1})):
+            item = json.loads(valid)
+            item[key] = value
+            variants.append(json.dumps(item).encode())
+        for payload in variants:
+            self.path.write_bytes(payload)
+            with self.assertRaises((RuntimeError, ValueError)):
+                self.budget.worker(0)
+            self.assertEqual(self.path.read_bytes(), payload)
+        self.path.write_bytes(valid)
+
+    def test_clock_cannot_move_backward_within_restart_or_completion(self):
+        lease = self.budget.begin(1, -1, 60_000)
+        for action in (lambda: self.budget.worker(0), lambda: self.budget.finish(lease, -1)):
+            with patch.object(fixtures.time, "monotonic_ns", side_effect=[self.clock, self.clock - 1]), \
+                    self.assertRaisesRegex(RuntimeError, "backward"):
+                action()
+        self.assertIsNotNone(self.data()["pending"])
+
+    def test_private_permissions_symlinks_and_hardlinks_are_required(self):
+        os.chmod(self.path, 0o644)
+        with self.assertRaises(RuntimeError):
+            self.budget.worker(0)
+        os.chmod(self.path, 0o600)
+        os.chmod(self.path.parent, 0o755)
+        with self.assertRaises(RuntimeError):
+            self.budget.worker(0)
+        os.chmod(self.path.parent, 0o700)
+        linked = self.path.parent / "linked.json"
+        os.link(self.path, linked)
+        with self.assertRaises(RuntimeError):
+            self.budget.worker(0)
+        linked.unlink()
+        self.path.rename(linked)
+        self.path.symlink_to(linked.name)
+        with self.assertRaises(OSError):
+            self.budget.worker(0)
+        self.path.unlink()
+        linked.rename(self.path)
+        self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
+
+    def test_cli_never_exposes_invalid_arguments_paths_or_state(self):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            result = fixtures.admission_main(["--admission", "begin", "synthetic-private-marker", "0", "1", "60000"])
+        self.assertEqual(result, 1)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertNotIn("synthetic-private-marker", stderr.getvalue())
+        self.path.write_bytes(b"[" * 2000 + b"]" * 2000)
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            result = fixtures.admission_main(["--admission", "worker", str(self.path), "0", "0", "60000"])
+        self.assertEqual(result, 1)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(stderr.getvalue(), "Browser fixture admission failed; details withheld.\n")
+
+    def test_real_cli_uses_shared_real_monotonic_clock_and_only_returns_a_lease(self):
+        self.path.unlink()
+        self.path.with_suffix(".lock").unlink()
+        with patch.object(fixtures.time, "monotonic_ns", side_effect=self.real_clock):
+            fixtures.AdmissionBudget.create(self.path, self.real_clock() / 1_000_000_000 + 900)
+        for operation, value, expected in (("worker", 0, {}), ("begin", 1, {"lease": 1}), ("finish", 1, {})):
+            result = subprocess.run([sys.executable, "-I", "-B", str(Path(fixtures.__file__).resolve()),
+                                     "--admission", operation, str(self.path), "0", str(value), "60000"],
+                                    capture_output=True, timeout=5, env={"PATH": os.environ.get("PATH", ""), "LANG": "C.UTF-8"})
+            self.assertEqual(result.returncode, 0, "The credential-free real CLI failed")
+            self.assertEqual(json.loads(result.stdout), expected)
+            self.assertEqual(result.stderr, b"")
+        self.assertEqual(sum(item[1] for item in self.data()["history"]), 1)
 
 
 if __name__ == "__main__":

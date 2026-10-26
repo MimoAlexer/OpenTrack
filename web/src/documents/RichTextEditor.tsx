@@ -78,7 +78,7 @@ export default function RichTextEditor(props: RichTextEditorProps) {
   const editor = useEditor({ extensions, content: props.value, editable: !props.disabled, immediatelyRender: true,
     shouldRerenderOnTransaction: false, enableContentCheck: true,
     editorProps: {
-      attributes: { class: 'document-prose', role: 'textbox', 'aria-label': props.label, 'aria-multiline': 'true', spellcheck: 'true' },
+      attributes: { class: 'document-prose', role: 'textbox', 'aria-label': props.label, 'aria-multiline': 'true', 'aria-readonly': String(!!props.disabled), spellcheck: 'true' },
       handlePaste(_view, event) {
         const files = Array.from(event.clipboardData?.files ?? []);
         if (files.length && current.current.attachmentTarget) { uploadEvents.current?.files(files); return true; }

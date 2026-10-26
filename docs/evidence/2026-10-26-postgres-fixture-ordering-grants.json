@@ -1,0 +1,101 @@
+{
+  "date": "2026-10-26",
+  "qualified_fixture_source": "956c12f5651963151ad05805cfb15dcba78af046",
+  "failed_head": "26e70b0fb4aa43e90482916295cffdb5b066ac44",
+  "failed_head_checks": {
+    "verify": "failure",
+    "native-contracts": "success",
+    "runtime_amd64": "success",
+    "runtime_arm64": "success"
+  },
+  "verify_run": 40251295024,
+  "verify_job": 121343662200,
+  "verify_full_log_sha256": "8f6d52696f62afc97657256646966d2c611fa2c39f2ff9b54311c20fc39c0ed2",
+  "failure": "Custom postgres_contract fixture grants included issue_order_staging, so unchanged App::connect rejected the runtime role before assertions.",
+  "change": "One test file adds the three canonical ordering fixture statements: revoke staging access, restrict normalization/guard mutations, grant the scoped inline capability. Application startup checks, production grants, migrations and original case assertions remain unchanged.",
+  "source_sha256": {
+    "crates/opentrack-app/tests/postgres_contract.rs": "0a550adcad1d319a9592733c1b6f920ee01fbaaf1152a5a9780d67f21a213fc9"
+  },
+  "before": [
+    {
+      "check": "postgres_contract",
+      "exit_code": 101,
+      "elapsed_seconds": 5.069,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "305ffcfba9f0fa6bbf233be6d16e16bb47861f7da9d23638a28876032fe06afb",
+      "test_results": [
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s"
+      ]
+    }
+  ],
+  "after": [
+    {
+      "check": "postgres_contract",
+      "exit_code": 0,
+      "elapsed_seconds": 17.344,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "93648e9be958af5f8f514ea7ec4629f910c947eeb5ad8f721bc5c8e692ae5aac",
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.89s"
+      ]
+    },
+    {
+      "check": "format",
+      "exit_code": 0,
+      "elapsed_seconds": 6.608,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "test_results": []
+    },
+    {
+      "check": "clippy",
+      "exit_code": 0,
+      "elapsed_seconds": 1.398,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "706477f7783c5a1748eeffb50e89b603b8eb8ba8e8eed20dcec6dc45ff855a64",
+      "test_results": []
+    }
+  ],
+  "browser_component_evidence": {
+    "head": "26e70b0fb4aa43e90482916295cffdb5b066ac44",
+    "run": 40251295033,
+    "job": 121343606990,
+    "job_conclusion": "success",
+    "reported_completions": 240,
+    "unique_browser_titles": 240,
+    "statuses": {
+      "PASSED": 240
+    },
+    "by_engine": {
+      "chromium": 80,
+      "firefox": 80,
+      "webkit": 80
+    },
+    "end_receipts": [
+      [
+        "passed",
+        "240",
+        "240"
+      ]
+    ],
+    "complete_240": true,
+    "raw_log_sha256": "2be2b5c1f15ab22634881accd33a650c502537482d5df35323d462ce2e96fddd",
+    "actual_json_receipt_parsed": true,
+    "actual_json_receipt_sha256": "ce87067fc9b269d84aea9b7a99d329f99f2e713d792c8e95b657d544d33b920e",
+    "actual_json_cases": 240,
+    "actual_json_all_passed": true
+  },
+  "private_artifacts": {
+    "index": "$OPENTRACK_DEV_STATE/manual-postgres-order-grants-proof-v1/artifact-index.json",
+    "index_sha256": "d2dbd0ab8618f9007e68e84f2ff581525163343c1e6aa21e77ee6bd9ff77cc52",
+    "files": 16,
+    "raw_logs_published": false
+  },
+  "database_scope": "Fresh per-run UUID schemas in the existing isolated test database; no retained application migration/reset or broad cleanup.",
+  "limits": [
+    "The240-case/end/JSON proof belongs to26e, whose verify check failed; it does not make that head merge eligible",
+    "The fixture correction has one focused real PostgreSQL pass plus formatting/strict target Clippy, not a new full workspace run",
+    "The next exact head still requires all four fresh checks, complete current-head browser accounting, independent review and resolved conversations",
+    "Native GUI, physical input, assistive technology, recovery and complete-product gates remain open"
+  ]
+}

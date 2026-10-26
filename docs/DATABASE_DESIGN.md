@@ -139,6 +139,38 @@ Attachment reservation binds uploader and upload_team_id. Before an issue exists
 
 Manual issue rank is numeric(38,18), initially spaced by 1024. Client sends before/after neighbor IDs, never a trusted rank. Server locks the team ordering scope, validates current same-group neighbors and calculates midpoint; tie order includes UUID. If precision is exhausted, rebalance at most 500 affected siblings in a bounded transaction; larger scopes use a visible maintenance job and reject moves until ready. A stale neighbor pair yields 409 and refreshed order. Keep the lock order below consistent across graph, ordering, transfer and counter allocation.
 
+Migration0027's implementation slice adds `teams.ordering_version`, finite signed
+`issues.rank` with no default, typed `issues.order_normalize` jobs,
+`issue_order_normalizations`, group-keyed `issue_order_guards` and private
+`issue_order_staging`. All new relations are workspace-scoped with FORCE RLS and
+scoped foreign keys. The offline owner backfill preserves retained issue metadata,
+versions, documents and relationships; it assigns spacing1024 within each
+workspace/team/status by the previous created-at/ID order. Deferred issue triggers
+are flushed before altering the populated table; they are not disabled.
+
+Logical Issue.version and membership/rank changes advance the ordering generation,
+including source/destination teams in sorted lock order. Body projections that do
+not change Issue.version are exempt. Active markers block group membership/rank
+changes; ordinary title/priority/assignee/label edits remain usable. Workflow
+replacement and normalization exclude one another at source and destination.
+
+The inline definer capability is API-only and bounded to a501-row probe/500-row
+rewrite. The worker-only fixed-path capability stages original(rank,ID) by indexed
+keyset in batches of at most100, then applies consecutive ordinals in batches of
+at most100. The worker receives no general rank/generation/staging write grant.
+Each effect uses the current execution actor, exact marker and live lease/fence;
+permitted logical edits may advance team generation and do not invalidate a
+normalization fence. Physical normalization changes no Issue.version, updated_at,
+document or Issue history. Completion generation, marker removal, progress and
+final fenced job state commit atomically. Blocked work retains its marker and
+progress for explicit versioned manager takeover; original requester is retained.
+
+This is an additive forward migration, not authorization to apply an unpublished
+slice to retained application data. An earlier binary must use its matched database
+snapshot; do not introduce a rank default or edit applied migration checksums as a
+rollback substitute.
+
+
 ## Operational, integration and AI catalog
 
 | Table | Required data / integrity |

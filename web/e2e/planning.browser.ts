@@ -1,9 +1,11 @@
+import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import { test, expect, type SavedWorkspace } from './fixtures';
 import type { Bootstrap, Issue, Team } from '../src/types';
 import type { Milestone, MilestoneOverview } from '../src/projects/Milestones';
 import type { Project } from '../src/projects/types';
 import type { CarryOperation, CloseReport, Cycle, Snapshot, SnapshotPoint } from '../src/cycles/types';
+registerAdmission(1);
 
 const projectPath = (saved: SavedWorkspace, project?: string) => `/teams/${saved.team.id}/projects${project ? `/${project}` : ''}`;
 const projectUrl = (saved: SavedWorkspace, project: string) => `/w/${saved.workspace}/projects/${project}?team_id=${saved.team.id}`;

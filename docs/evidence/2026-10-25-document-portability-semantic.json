@@ -1,0 +1,508 @@
+{
+  "date": "2026-10-25",
+  "parent": "e5d064e8405ef2b8eefc9ed41f0e2f5459e0da97",
+  "backend_base": "8b730204089f0ce63c61e0615c9bb7a49ebeaa98",
+  "scope": "Reviewed replace/append rich-document import and independently specified persisted Markdown semantics; F12-A3/M04 increment only",
+  "implementation": "Append combines the latest current draft blocks with reviewed imported blocks only after explicit confirmation. Existing canonical body bounds and existing editor onImport normalization/actual-state guards apply. Dialog calls no API or onSave; normal save/autosave/conflict behavior is unchanged.",
+  "sources": [
+    {
+      "path": "web/src/documents/DocumentPortability.tsx",
+      "sha256": "ac003ebea0578d944ebde4d27799a12959da543d5311bca117a1397f3a1e9a84"
+    },
+    {
+      "path": "web/src/documents/DocumentPortability.test.tsx",
+      "sha256": "15e70737cc6547d1cd19b2e7773406ecb782bd69623ed4a77a90f6cf00ee9df7"
+    },
+    {
+      "path": "web/src/documents/RichTextEditorPortability.test.tsx",
+      "sha256": "0c7342eaab55f2382089b1d208b45d76fecccf3e64aeee4223e0646070811f96"
+    },
+    {
+      "path": "web/e2e/document-portability-semantic.browser.ts",
+      "sha256": "e36a0f2fdf48f2bd02806afd88697736ecf63a479d16846ff7b31c171720ae63"
+    }
+  ],
+  "accepted_main_readiness": {
+    "reference": "origin/main25ca33cc3c1f9de87d96f2f5658febd1f617124a",
+    "released_editor_files_had_no_substantive_delta": true
+  },
+  "checks": [
+    {
+      "command": "npm --prefix web test -- --maxWorkers=1 src/documents/DocumentPortability.test.tsx src/documents/RichTextEditorPortability.test.tsx",
+      "log": "work/document-portability-units-develop.log",
+      "result": "14 passed across2 impacted files",
+      "sha256": "26a3ca7228c89c6a6c6a33e68fd62ea47ef91cab82060ae1d723b79c45e78cb6"
+    },
+    {
+      "command": "npm --prefix web run typecheck",
+      "log": "work/document-portability-typecheck-final.log",
+      "result": "application and e2e targets passed before test-only locator correction",
+      "sha256": "50791af51b60280d7e513ca60ad69f0d2b8af76c3ac63034a5a590ae70375779"
+    },
+    {
+      "command": "npm exec -- tsc --noEmit -p tsconfig.e2e.json (web cwd)",
+      "log": "work/document-portability-typecheck-final-spec.log",
+      "result": "final corrected spec passed",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm --prefix web run build",
+      "log": "work/document-portability-build-final.log",
+      "result": "one complete application build passed; source unchanged afterward",
+      "sha256": "1f1fbee45696f28ee0f6e6c63327529bce866891799d0f19ba00331275ac3253"
+    }
+  ],
+  "browser_runs": {
+    "candidate": {
+      "receipt": {
+        "status": "failed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "reviewed Markdown replace persists an independent full semantic corpus through export and reimport",
+            "status": "failed",
+            "duration_ms": 12394,
+            "failure": "document-portability-semantic.browser.ts:44"
+          },
+          {
+            "browser": "chromium",
+            "check": "reviewed append preserves an unsaved draft through a real stale save and keeps reference loss explicit",
+            "status": "passed",
+            "duration_ms": 3444
+          },
+          {
+            "browser": "firefox",
+            "check": "reviewed Markdown replace persists an independent full semantic corpus through export and reimport",
+            "status": "failed",
+            "duration_ms": 14780,
+            "failure": "document-portability-semantic.browser.ts:44"
+          },
+          {
+            "browser": "firefox",
+            "check": "reviewed append preserves an unsaved draft through a real stale save and keeps reference loss explicit",
+            "status": "passed",
+            "duration_ms": 4986
+          },
+          {
+            "browser": "webkit",
+            "check": "reviewed Markdown replace persists an independent full semantic corpus through export and reimport",
+            "status": "failed",
+            "duration_ms": 13759,
+            "failure": "document-portability-semantic.browser.ts:44"
+          },
+          {
+            "browser": "webkit",
+            "check": "reviewed append preserves an unsaved draft through a real stale save and keeps reference loss explicit",
+            "status": "passed",
+            "duration_ms": 4201
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "a059c4962cd54f6da8c8d11c50e58b24381ba832acb7e6664994604ad1312cd8",
+      "spec_sha256": "f1b7cb2ac4943ef93bccac535f8fe2629fa3db56307bbf88ed82cdfc88184614",
+      "caller_sha256": "c918e23b90cc679e771fbfa40cbd8dc725e40b28d7c1445f9418be67dd003c68",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "files": [
+        {
+          "path": "api.log",
+          "sha256": "43e4749f8d6c99f4fafc4b50951fad6643cdaa116161801806b12add22d43079",
+          "bytes": 366
+        },
+        {
+          "path": "browser.log",
+          "sha256": "0807646ad2be208693c02b749afde162aecdeb68db071a8b88a9512437d57440",
+          "bytes": 893
+        },
+        {
+          "path": "caller.py",
+          "sha256": "c918e23b90cc679e771fbfa40cbd8dc725e40b28d7c1445f9418be67dd003c68",
+          "bytes": 4976
+        },
+        {
+          "path": "cleanup.json",
+          "sha256": "8dbd52d51fd671df3f496745ceaaf6a273483ebd23a35170f7fd6b81e216a6de",
+          "bytes": 75
+        },
+        {
+          "path": "output/.last-run.json",
+          "sha256": "cfc7380b63c0612f81dee58cb07f6c5bfadcf684721cc91206f5b6f3c70deb8e",
+          "bytes": 194
+        },
+        {
+          "path": "output/document-portability-seman-0388b-through-export-and-reimport-chromium/error-context.md",
+          "sha256": "ac7af556ace9cc8e9e6adf6fb58676bdec0f20f3fd278a954a676febb1c43afe",
+          "bytes": 66147
+        },
+        {
+          "path": "output/document-portability-seman-0388b-through-export-and-reimport-firefox/error-context.md",
+          "sha256": "df2d2fafedf1ca9dc602d50c83e5c9868c47b354bac49f70a9c98c60a963030c",
+          "bytes": 67447
+        },
+        {
+          "path": "output/document-portability-seman-0388b-through-export-and-reimport-webkit/error-context.md",
+          "sha256": "b49662631f659a8db7c618ec14ab4c11dc7a3d6fc7186dc9828a10a10f9a3c17",
+          "bytes": 67639
+        },
+        {
+          "path": "output/document-portability-seman-09a0c-eps-reference-loss-explicit-chromium/append-conflict.json",
+          "sha256": "f9f7d45fb7acfca18e4bd48ab6c3ea2eea71c60177e1f7ee84e47f3af4fb7eae",
+          "bytes": 318
+        },
+        {
+          "path": "output/document-portability-seman-09a0c-eps-reference-loss-explicit-firefox/append-conflict.json",
+          "sha256": "4cc2c4d62f746a59eac5aab9928c9aeb0baea0c2fa90a4a131ff778987e7db22",
+          "bytes": 317
+        },
+        {
+          "path": "output/document-portability-seman-09a0c-eps-reference-loss-explicit-webkit/append-conflict.json",
+          "sha256": "47b6208fb8001b06b50ba4e8150c75fb21c0e307ebefb5db4835471b9776f190",
+          "bytes": 316
+        },
+        {
+          "path": "receipt.json",
+          "sha256": "a059c4962cd54f6da8c8d11c50e58b24381ba832acb7e6664994604ad1312cd8",
+          "bytes": 1820
+        },
+        {
+          "path": "result.json",
+          "sha256": "4e53b3bdb04314b7bcf122e2b25df68c2b00529e84db20a57f799afc8876d125",
+          "bytes": 39
+        },
+        {
+          "path": "spec.browser.ts",
+          "sha256": "f1b7cb2ac4943ef93bccac535f8fe2629fa3db56307bbf88ed82cdfc88184614",
+          "bytes": 12257
+        }
+      ]
+    },
+    "final-candidate": {
+      "receipt": {
+        "status": "passed",
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "reviewed Markdown replace persists an independent full semantic corpus through export and reimport",
+            "status": "passed",
+            "duration_ms": 2736
+          },
+          {
+            "browser": "chromium",
+            "check": "reviewed append preserves an unsaved draft through a real stale save and keeps reference loss explicit",
+            "status": "passed",
+            "duration_ms": 2864
+          },
+          {
+            "browser": "firefox",
+            "check": "reviewed Markdown replace persists an independent full semantic corpus through export and reimport",
+            "status": "passed",
+            "duration_ms": 5122
+          },
+          {
+            "browser": "firefox",
+            "check": "reviewed append preserves an unsaved draft through a real stale save and keeps reference loss explicit",
+            "status": "passed",
+            "duration_ms": 4709
+          },
+          {
+            "browser": "webkit",
+            "check": "reviewed Markdown replace persists an independent full semantic corpus through export and reimport",
+            "status": "passed",
+            "duration_ms": 4065
+          },
+          {
+            "browser": "webkit",
+            "check": "reviewed append preserves an unsaved draft through a real stale save and keeps reference loss explicit",
+            "status": "passed",
+            "duration_ms": 4672
+          }
+        ],
+        "limitations": [
+          "Synthetic composition events do not qualify a real OS IME.",
+          "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+        ],
+        "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+      },
+      "receipt_sha256": "4b7a8b197856d625cf5175609cb2c674a58bd5437e9729c84d38029fa1a5d1a3",
+      "spec_sha256": "e36a0f2fdf48f2bd02806afd88697736ecf63a479d16846ff7b31c171720ae63",
+      "caller_sha256": "c4d4e3bb720dab81ec9b7968de02a66508dc578417921bda407685c6c56bf676",
+      "cleanup": {
+        "browser_namespace_zero": true,
+        "scope_failures": [],
+        "api_reaped": true
+      },
+      "files": [
+        {
+          "path": "api.log",
+          "sha256": "d47df7c37785832bf26d5ab5fa1512d1001c5340dbb0ad45a7b88786c265b6d6",
+          "bytes": 366
+        },
+        {
+          "path": "browser.log",
+          "sha256": "4b924776e2e2955beae711a741d4c3b12199e68c23e2d5f0ad852d8b3a471355",
+          "bytes": 755
+        },
+        {
+          "path": "caller.py",
+          "sha256": "c4d4e3bb720dab81ec9b7968de02a66508dc578417921bda407685c6c56bf676",
+          "bytes": 4993
+        },
+        {
+          "path": "cleanup.json",
+          "sha256": "8dbd52d51fd671df3f496745ceaaf6a273483ebd23a35170f7fd6b81e216a6de",
+          "bytes": 75
+        },
+        {
+          "path": "output/.last-run.json",
+          "sha256": "91d1c43004802cd49950d78eb11c8fa7d05da8ffffe219a8b13b2f561bc00903",
+          "bytes": 45
+        },
+        {
+          "path": "output/document-portability-seman-0388b-through-export-and-reimport-chromium/semantic-roundtrip.json",
+          "sha256": "30883f200263e6328d21b52ed657e76adb9fa494b9414c34170d67cefbe16fc2",
+          "bytes": 304
+        },
+        {
+          "path": "output/document-portability-seman-0388b-through-export-and-reimport-firefox/semantic-roundtrip.json",
+          "sha256": "9a1828cd821565f03d2de1b85b55ede59762b28a37c265cdff2e40ca2b347eb7",
+          "bytes": 303
+        },
+        {
+          "path": "output/document-portability-seman-0388b-through-export-and-reimport-webkit/semantic-roundtrip.json",
+          "sha256": "51adccba7d690468d8c477c728cbca3a69115da1a9d25734e6908894e0da45d6",
+          "bytes": 302
+        },
+        {
+          "path": "output/document-portability-seman-09a0c-eps-reference-loss-explicit-chromium/append-conflict.json",
+          "sha256": "f958990b45fdf6d336685196603a6b351fd892c1dc805d1a51c94bcdb87c2dd4",
+          "bytes": 318
+        },
+        {
+          "path": "output/document-portability-seman-09a0c-eps-reference-loss-explicit-firefox/append-conflict.json",
+          "sha256": "d456d7f23d049e3bf08cabfd67b3be399f9d1f6b91f2f2750256ac98b9d4ebd1",
+          "bytes": 317
+        },
+        {
+          "path": "output/document-portability-seman-09a0c-eps-reference-loss-explicit-webkit/append-conflict.json",
+          "sha256": "a6f6ed2f624ead2041896ba5d91b975071f5a84197ea7e840b6253e3c2265353",
+          "bytes": 316
+        },
+        {
+          "path": "receipt.json",
+          "sha256": "4b7a8b197856d625cf5175609cb2c674a58bd5437e9729c84d38029fa1a5d1a3",
+          "bytes": 1625
+        },
+        {
+          "path": "result.json",
+          "sha256": "0db168fe54041aa0ba50f1ad65b3fa50468334ea2b9ac5b062e4afbae3dbdc6b",
+          "bytes": 45
+        },
+        {
+          "path": "spec.browser.ts",
+          "sha256": "e36a0f2fdf48f2bd02806afd88697736ecf63a479d16846ff7b31c171720ae63",
+          "bytes": 12224
+        }
+      ]
+    }
+  },
+  "selected_journey_proof": [
+    {
+      "engine": "firefox",
+      "expected_sha256": "1ebdd3e8441aa1226bdf283f1f241f8ff7e25207c658ae4b832e425d7bc09160",
+      "persisted_sha256": "1ebdd3e8441aa1226bdf283f1f241f8ff7e25207c658ae4b832e425d7bc09160",
+      "initial_version": "1",
+      "first_saved_version": "2",
+      "final_version": "2",
+      "independently_specified_expected_ast": true
+    },
+    {
+      "engine": "chromium",
+      "expected_sha256": "1ebdd3e8441aa1226bdf283f1f241f8ff7e25207c658ae4b832e425d7bc09160",
+      "persisted_sha256": "1ebdd3e8441aa1226bdf283f1f241f8ff7e25207c658ae4b832e425d7bc09160",
+      "initial_version": "1",
+      "first_saved_version": "2",
+      "final_version": "2",
+      "independently_specified_expected_ast": true
+    },
+    {
+      "engine": "webkit",
+      "expected_sha256": "1ebdd3e8441aa1226bdf283f1f241f8ff7e25207c658ae4b832e425d7bc09160",
+      "persisted_sha256": "1ebdd3e8441aa1226bdf283f1f241f8ff7e25207c658ae4b832e425d7bc09160",
+      "initial_version": "1",
+      "first_saved_version": "2",
+      "final_version": "2",
+      "independently_specified_expected_ast": true
+    },
+    {
+      "engine": "firefox",
+      "stale_status": 412,
+      "expected_sha256": "d9d67ec04f87095becce277b10f0d123d6a14f83677704420538d30594666078",
+      "persisted_sha256": "d9d67ec04f87095becce277b10f0d123d6a14f83677704420538d30594666078",
+      "original_version": "1",
+      "remote_version": "2",
+      "final_version": "3",
+      "explicit_append_and_conflict_review": true
+    },
+    {
+      "engine": "chromium",
+      "stale_status": 412,
+      "expected_sha256": "487a1579e5957215d1d1b6f9ed906b7a9e0d1d1fa0133900dae2616825a6dd61",
+      "persisted_sha256": "487a1579e5957215d1d1b6f9ed906b7a9e0d1d1fa0133900dae2616825a6dd61",
+      "original_version": "1",
+      "remote_version": "2",
+      "final_version": "3",
+      "explicit_append_and_conflict_review": true
+    },
+    {
+      "engine": "webkit",
+      "stale_status": 412,
+      "expected_sha256": "e12905905a746d4bfe3dcc649df06e451ff520441c8d8ba1b32af98a77244c45",
+      "persisted_sha256": "e12905905a746d4bfe3dcc649df06e451ff520441c8d8ba1b32af98a77244c45",
+      "original_version": "1",
+      "remote_version": "2",
+      "final_version": "3",
+      "explicit_append_and_conflict_review": true
+    }
+  ],
+  "expected_semantics": {
+    "independent_handwritten_markdown_and_expected_ast": true,
+    "not_derived_from_importer_exporter": true,
+    "normalization": "Existing canonical schema validation, mark-order sorting and coalescing adjacent equal-mark text only. No structural/task/list-start/link/code/text semantics erased.",
+    "corpus": [
+      "paragraphs",
+      "headings1/2/3",
+      "bold/italic/strike",
+      "inline code",
+      "safe link exact href",
+      "ordered start3/nested bullet",
+      "bullet list",
+      "checked and unchecked tasks",
+      "two-paragraph quote",
+      "hard break",
+      "fenced rust code literal text"
+    ]
+  },
+  "new_failure_path": "Append while a normal prior-draft save is held; a real remote API write commits, released old PATCH receives412, latest appended draft survives, explicit keep-for-review and normal save persist it. Unsafe URL cannot expose append; native reference scope and Markdown identity-loss warnings stay visible.",
+  "retained_failure": "Initial run passed all3 append/412 journeys and all corpus equality checks through reimport, then waited for a save button absent for an unchanged document. Only the test action changed to the existing normal save shortcut; initial3 failures retained, assertions and profile unchanged, no application rebuild/unit rerun.",
+  "private_index": {
+    "root": "$OPENTRACK_DEV_STATE/document-portability-semantic",
+    "file": "artifact-index.json",
+    "sha256": "0ebe97a114255387c4edf00aafd518df3902b3c5a3792d598cc4a7b8f2fcba0b"
+  },
+  "frontend": {
+    "root": "$OPENTRACK_DEV_STATE/document-portability-semantic/frontends/candidate",
+    "files": [
+      {
+        "path": "assets/RichTextEditor-DATyYGEQ.js",
+        "sha256": "94ff7bd193dc1e267a7f775a327f1cf705cec330068380dc110d4cfbfaee82af",
+        "bytes": 444281
+      },
+      {
+        "path": "assets/RichTextEditor-DATyYGEQ.js.map",
+        "sha256": "792fc3c8148a83dc878cfd54bf5251daa70be3acdac5f2deddb87e95334f4064",
+        "bytes": 1964243
+      },
+      {
+        "path": "assets/index-B9yoYYJd.css",
+        "sha256": "ad7bd118cece2d41d9b4c5f7e0c885360f64864d24903849f1228f325c00b03a",
+        "bytes": 90154
+      },
+      {
+        "path": "assets/index-Dj37Zg-W.js",
+        "sha256": "057ccad77c648c99d0f3fbc09e50af09f66135c0180e2cec7ddd5bdaf95e2748",
+        "bytes": 689322
+      },
+      {
+        "path": "assets/index-Dj37Zg-W.js.map",
+        "sha256": "c514ce522d2cc1e8a9145fef878b5c9abceed674e59d163d0281c9095b9e62d3",
+        "bytes": 2392249
+      },
+      {
+        "path": "assets/portability.worker-DEvlQVr4.js",
+        "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+        "bytes": 79037
+      },
+      {
+        "path": "assets/portability.worker-DEvlQVr4.js.map",
+        "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+        "bytes": 224663
+      },
+      {
+        "path": "index.html",
+        "sha256": "9b680d88ea6ded020371037e19cfe22b7570325e3675d9b77d7fc99bb7f7ab34",
+        "bytes": 606
+      },
+      {
+        "path": "theme.js",
+        "sha256": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+        "bytes": 321
+      }
+    ]
+  },
+  "shutdown": {
+    "file": "shutdown-audit.json",
+    "sha256": "6b726a4036a55a7b341a08b38b3c9eea96b5ca876e4cf8b3f89f45efad95b930",
+    "body": {
+      "state": "stopped",
+      "data_preserved": true,
+      "own_api_and_browser_reaped": true,
+      "logs": [
+        {
+          "path": "db-stop.log",
+          "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d",
+          "bytes": 56
+        },
+        {
+          "path": "db-status.log",
+          "sha256": "e138ccb54fdb08283c6eb21159c53207bbbbf07077246e2804e18d22efe6e250",
+          "bytes": 26
+        }
+      ]
+    }
+  },
+  "runtime": {
+    "same_approved_scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+    "backend_unchanged_from_qualified_pinned8b": true,
+    "caller": "work/run-document-portability-browser.py",
+    "final_caller_sha256": "c4d4e3bb720dab81ec9b7968de02a66508dc578417921bda407685c6c56bf676",
+    "command": "source work/browser-env.sh; python3 work/run-document-portability-browser.py final-candidate; node CLI runs only document-portability-semantic.browser.ts",
+    "canonical_profile_unchanged": {
+      "test_timeout_ms": 60000,
+      "action_expect_timeout_ms": 10000,
+      "workers": 1,
+      "retries": 0,
+      "origin": "http://127.0.0.1:18081"
+    },
+    "node_pg_database_service_authority_removed": true,
+    "same_verified_namespace_db_caches_reused": true,
+    "old_data_not_reset": true,
+    "private_directory_mode": "0700",
+    "private_file_mode": "0600",
+    "output_cap_each_stream": 2097152
+  },
+  "unchanged_locked_surfaces": [
+    "RichTextEditor.tsx callback implementation",
+    "IssueDocument",
+    "IssueComments",
+    "App/router",
+    "converters",
+    "Rust/API/types/schema",
+    "shared browser fixtures/global config/docs"
+  ],
+  "rollback": "Revert transfer UI choice; saved canonical documents remain valid. No durable schema/data rewrite.",
+  "limits": [
+    "Existing14 impacted units were necessary for changed dialog behavior. No old global transfer/HTML/paste matrix rerun.",
+    "Only six new actual API-backed cases are claimed; no union/globalCI qualification.",
+    "Physical keyboard/OS IME/AT, zoom, native webview, forced cancellation and whole-product acceptance remain open or separate. F12-A3 is not closed.",
+    "Unknown-schema/hostile HTML existing behaviors are unchanged and covered by retained prior proof, not newly requalified here. No fabricated reference or attachment authority.",
+    "Independent review/exact-head hosted checks/integration remain lead-owned."
+  ]
+}

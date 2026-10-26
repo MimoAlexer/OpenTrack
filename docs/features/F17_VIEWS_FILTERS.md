@@ -16,6 +16,8 @@ List/board, typed filters, group/sort, visible columns, personal/team/workspace 
 
 Filter chips show active conditions, clear and save actions; URL carries a versioned encoded view state without secrets. Unsaved overrides are labeled and do not overwrite shared defaults.
 
+Structured display/filter state uses the URL fragment and the [body-based query transport](../API_DESIGN.md#pagination-filters-and-search); it is validated before execution. Invalid state requires explicit repair or clearing rather than a silent unfiltered reload. This is the M06 target, not current flat-filter acceptance.
+
 ## 4. Data requirements
 
 saved_views.filter_ast, version, layout and sort; per-user preferences separate from shared view definition. No raw SQL or executable expressions.

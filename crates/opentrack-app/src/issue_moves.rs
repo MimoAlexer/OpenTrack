@@ -376,6 +376,16 @@ impl App {
                 "A selected label is incompatible with the destination team".into(),
             ));
         }
+        crate::issue_ordering::require_groups(
+            &mut tx,
+            a,
+            w,
+            &[
+                (issue.team_id, issue.status_id),
+                (req.destination_team_id, req.status_id),
+            ],
+        )
+        .await?;
         // Remove old links while the source team still owns the issue, preserving
         // shared archived links that remain selected. New links follow the move.
         let retained: Vec<Uuid> = issue

@@ -1,0 +1,73 @@
+{
+  "date": "2026-10-26",
+  "scope": "Bounded synthetic authentication HTTP-status diagnostics only",
+  "base": "a08c4ee00eacd29f65ed9d56296092d59d3fc5c7",
+  "source_sha256": {
+    "web/e2e/keyboard.browser.ts": "941b51d5b92a2c53b7b44ab88a2cddc791fca8b7db318fe8930c671f9cb589f3",
+    "web/e2e/receipt-reporter.ts": "bbe6847a21b0ff86475129b36fa8c0099bb83ada27919a5946d541144af19cc1",
+    "web/e2e/receipt-reporter-privacy.mjs": "24ed7338176e7eb1a52c0965f6d3d9c0f02d2f504d609ebfdda846d9b088b234"
+  },
+  "observed_failure": {
+    "receipt_sha256": "1f583b331812d72477c2c8dfed1d82527e53eda71bd1026228a37dd2545423fe",
+    "cases": 240,
+    "passed": 210,
+    "failed": 30,
+    "failed_by_browser": {
+      "chromium": 5,
+      "webkit": 25
+    },
+    "first_failure": {
+      "index": 33,
+      "location": "keyboard.browser.ts:85",
+      "duration_ms": 63
+    },
+    "first_webkit_failure": {
+      "index": 196,
+      "location": "fixtures.ts:116",
+      "duration_ms": 2546
+    },
+    "status_cause": "NOT OBSERVED. Failure locations do not prove rate limiting, hash semaphore exhaustion, invalid credentials or another HTTP result."
+  },
+  "change": {
+    "invitation": "Only when the existing synthetic invitation response differs from200, add the two-field typed annotation immediately before the unchanged status assertion.",
+    "owner": "Recognize only the exact existing synthetic-owner HTTP error format, optionally serialized with Error prefix, and only when the failure frame is fixtures.ts. fixtures.ts itself is unchanged.",
+    "schema": {
+      "operation": [
+        "invitation_accept",
+        "owner_authentication"
+      ],
+      "status": "Integer HTTP status100..599",
+      "description_length_maximum": 128
+    },
+    "reporting": "Publish one validated object in the failed check and immediate fixed diagnostic line. Passed/skipped, duplicate, malformed, extra-field, unknown and poisoned metadata are withheld; no raw message/body/header/cookie/URL/path/ID is added."
+  },
+  "verification": {
+    "local_node": "24.14.1",
+    "typescript": "7.0.2",
+    "playwright_package": "1.64.1",
+    "privacy_command": "node --experimental-strip-types --test e2e/receipt-reporter-privacy.mjs",
+    "privacy_tests": 15,
+    "passed": 15,
+    "failed": 0,
+    "privacy_exit_code": 0,
+    "original_combined_output": "✔ accepts only bounded synthetic authentication operation and status facts (1.5382ms)\n✔ withholds malformed or poisoned synthetic authentication annotations (1.0481ms)\n✔ prints only one validated synthetic authentication failure before the final receipt (0.8169ms)\n✔ recognizes only exact known owner fixture errors without exposing raw error data (0.5578ms)\n✔ persists only validated authentication facts in the credential-free receipt (5.5494ms)\n✔ accepts bounded project lead facts without requiring the owner in the returned page (0.6589ms)\n✔ rejects extra, missing, nested and secret-bearing project lead fields (1.154ms)\n✔ rejects project lead values outside the exact scalar and observation bounds (0.7869ms)\n✔ accepts only fixed click categories and bounded exact geometry objects (1.0718ms)\n✔ prints one validated project lead observation at test end before any final receipt (0.5076ms)\n✔ accepts only the fixed bounded request-state schema (0.3627ms)\n✔ rejects unknown keys, missing routes and unexpected types at every level (0.3357ms)\n✔ rejects out-of-bounds and inconsistent observations (0.2293ms)\n✔ rejects injected marker strings, oversized encodings, malformed JSON and prototype keys (0.2042ms)\n✔ publishes only one validated failure annotation without raw output or errors (4.4269ms)\nℹ tests 15\nℹ suites 0\nℹ pass 15\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 164.3518\n",
+    "browser_typescript": {
+      "command": "node node_modules/typescript/bin/tsc --noEmit -p tsconfig.e2e.json",
+      "exit_code": 0
+    },
+    "frontend_typescript": {
+      "command": "node node_modules/typescript/bin/tsc --noEmit",
+      "exit_code": 0
+    },
+    "preservation": "Exact-byte check: keyboard differs only by the two annotation lines; original assertions/selectors/actions intact. fixtures.ts, Compose, runner/helper/boundary tests and Playwright config byte-identical to base.",
+    "whitespace": "git diff --check passed"
+  },
+  "policy": "No production/auth/admission/hash/rate-policy, retry, wait, timeout, selector, assertion, case, profile, resource or credential-guard changes.",
+  "not_executed": [
+    "Local app/browser/service/container execution",
+    "Configured CI/head update",
+    "CI restart/cancellation",
+    "Rust/full test matrix"
+  ],
+  "acceptance": "Pure reporter privacy and TypeScript checks only. Numeric failure status and actual cause remain unobserved until the lead's fresh configured execution. No behavior fix or runtime acceptance claim."
+}

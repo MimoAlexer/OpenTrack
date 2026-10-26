@@ -334,11 +334,15 @@ async fn upgrade(h: &Harness) {
         bytes,
         "Absent template attribution must preserve exact old request bytes"
     );
-    let issue = h
-        .app
-        .create_issue(&a, w, "pre-template-create-retry", create.clone())
-        .await
-        .unwrap();
+    let issue = historical_issue(
+        h,
+        &a,
+        w,
+        t,
+        serde_json::to_value(&create).unwrap(),
+        Some("pre-template-create-retry"),
+    )
+    .await;
     let mut tx = h.context(a.user.id, w).await;
     // Current document readers require 0026; retain the exact 0017 representation.
     let stored: Value = sqlx::query_scalar(

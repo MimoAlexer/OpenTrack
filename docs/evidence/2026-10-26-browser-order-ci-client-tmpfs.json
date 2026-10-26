@@ -1,0 +1,97 @@
+{
+  "date": "2026-10-26",
+  "scope": "Suppress unused PostgreSQL client image volumes with reviewed bounded legacy tmpfs",
+  "base": "5431c785be39efde95a351b8404d1232c09e0c24",
+  "source_sha256": {
+    "compose.yaml": "024d33cf4f0f542a82aa527ca5e62965c23ebd785f4d23f313053afafc3e83b5",
+    "scripts/browser-acceptance.py": "3898c87c469423d3bcd813fd77f3a55e713e2631e6df370d66eb34b593741a65",
+    "scripts/test-browser-acceptance.py": "eace77ea2d599cbce7c5c37bad42880f310fe0dd722061b5cfe39963b0f4f471",
+    "scripts/browser_order_fixtures.py": "5e5cedb8e6aba8b951594cd2318d108b6c16ed009778356870c59612e560b4fa",
+    "deploy/postgres.Dockerfile": "36425b1cac86813f6b82a3fa6e8a1aa4edf26b92212c212bfdb8684ad538ab30"
+  },
+  "actual_failure": {
+    "run_id": 40248296611,
+    "amd64_job_id": 121334517770,
+    "code": "role=worker-grant, code=mount_count",
+    "full_private_log_sha256": "37ba4b481a4c12a79050ee0618e0c51130e532edf2b4b40ca02aea5c2cb989bb",
+    "full_private_log_bytes": 691419,
+    "browser_cases": 0,
+    "boundary": "The actual extra mount name/path was not captured. The runtime predicate and pinned-image/source contract are distinguished."
+  },
+  "exact_pinned_parent": {
+    "source": "public OCI metadata only; token/headers not retained",
+    "parent_tag": "18.6-bookworm",
+    "index_digest": "sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c",
+    "linux_amd64_manifest_digest": "sha256:9551dd5bf356409a21b31248f49b33bba9bb1877365f3a7e933aecd9af3cf52d",
+    "config_digest": "sha256:2e182ed2ff8f5d0835353864264437a26dffc542a9a6c677ec495aa54e491627",
+    "all_downloaded_digest_bodies_verified": true,
+    "image_volumes": [
+      "/var/lib/postgresql"
+    ],
+    "PGDATA": "/var/lib/postgresql/18/docker",
+    "PG_VERSION": "18.6-1.pgdg12+2",
+    "platform": {
+      "os": "linux",
+      "architecture": "amd64"
+    }
+  },
+  "primary_contracts": [
+    {
+      "url": "https://github.com/moby/moby/blob/v28.0.4/container/container_unix.go#L130-L145",
+      "fact": "HasMountFor includes legacy HostConfig.Tmpfs."
+    },
+    {
+      "url": "https://github.com/moby/moby/blob/v28.0.4/daemon/create_unix.go#L40-L67",
+      "fact": "An existing mount suppresses automatic image-volume creation."
+    },
+    {
+      "url": "https://github.com/moby/moby/blob/v28.0.4/daemon/container.go#L188-L206",
+      "fact": "Host configuration is retained after explicit mount registration."
+    },
+    {
+      "url": "https://github.com/moby/moby/blob/v28.0.4/container/container_unix.go#L397-L412",
+      "fact": "Inspect mount points are distinct from legacy tmpfs."
+    },
+    {
+      "url": "https://github.com/docker/compose/blob/v2.38.2/pkg/compose/create.go#L223-L291",
+      "fact": "Service tmpfs entries become legacy HostConfig.Tmpfs."
+    }
+  ],
+  "change": {
+    "compose": "Exactly one added x-postgres-client line: /var/lib/postgresql:size=1m,mode=0700; inherited by worker/operator provision/grant clients only.",
+    "validation": "Exact per-service tmpfs config list and HostConfig.Tmpfs map, including unchanged app /tmp 64m/mode1777; absent/null normalize only to an empty map for roles without tmpfs.",
+    "unchanged": "Database durable volume and all other Compose lines byte-identical to base after LF normalization. actual.Mounts still permits only exact declared named volumes with matching access; no anonymous volume exception or broader cleanup."
+  },
+  "verification": {
+    "command": "python scripts/test-browser-acceptance.py",
+    "passed": 58,
+    "failed": 0,
+    "exit_code": 0,
+    "original_combined_output": "..........................................................\r\n----------------------------------------------------------------------\r\nRan 58 tests in 0.239s\r\n\r\nOK\r\n",
+    "red": {
+      "selected_methods": 2,
+      "failures": 14,
+      "errors": 4,
+      "meaning": "Before correction the primary-source client model produced the same mount-count rejection; tmpfs drift was not yet rejected."
+    },
+    "cases": [
+      "Four client roles inherit exact bounded shadow; pure HasMountFor image-volume model suppresses automatic anonymous volume",
+      "Wrong size/mode/target/missing/extra entries/options and unreviewed app/database/worker tmpfs rejected at config and inspect boundaries",
+      "Unknown tmpfs values not echoed; anonymous/foreign mounts remain rejected",
+      "Corrected client cleanup removes only its verified container and secret volume, then consumes claim",
+      "All previous55 boundary/deadline/privacy/worker/claim tests retained"
+    ],
+    "compose_source": "PASS: normalized YAML role/policy inheritance; exact one-line insertion verified against base, database/app definitions unchanged; no Docker invoked.",
+    "whitespace": "git diff --check passed"
+  },
+  "limits_unchanged": "Shared suite900s, prep300s, read55s, cleanup120s, test60s/action10s, workers1/retries0, worker poll2000ms/lease60s/connections5.",
+  "not_executed": [
+    "Local Docker/daemon/container execution",
+    "app/database/worker/fixture services",
+    "browser or native GUI qualification",
+    "global PR head/CI restart/cancellation",
+    "migration/DB/Goal accounting changes"
+  ],
+  "acceptance": "Pinned OCI metadata and Engine/Compose source establish the supported mechanism; pure checks pass. Fresh configured CI must prove corrected actual mount sets and all240 browser cases. No runtime acceptance or inferred prior mount identity claimed.",
+  "rollback": "Revert the single client-anchor line and its strict tmpfs validation delta; no database data/mount migration or durable-volume change."
+}

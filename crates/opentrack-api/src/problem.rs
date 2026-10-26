@@ -83,6 +83,9 @@ impl IntoResponse for ApiError {
                     Error::Forbidden => (StatusCode::FORBIDDEN, "forbidden"),
                     Error::NotFound => (StatusCode::NOT_FOUND, "not_found"),
                     Error::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
+                    Error::IssueOrderMaintenance(_) => {
+                        (StatusCode::CONFLICT, "issue_order_maintenance")
+                    }
                     Error::Stale(_) | Error::VersionConflict(_) => {
                         (StatusCode::PRECONDITION_FAILED, "version_conflict")
                     }
@@ -105,6 +108,8 @@ impl IntoResponse for ApiError {
                     Some(json!({"current":current}))
                 } else if let Error::VersionConflict(current) = &error {
                     Some(json!({"current":current}))
+                } else if let Error::IssueOrderMaintenance(maintenance) = &error {
+                    Some(json!({"maintenance":maintenance,"applied":false}))
                 } else {
                     None
                 };

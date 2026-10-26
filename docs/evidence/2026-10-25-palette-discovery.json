@@ -1,0 +1,224 @@
+{
+  "date": "2026-10-25",
+  "scope": "F22 bounded workspace team discovery and explicit-team project discovery from the command palette.",
+  "base_commit": "0705a9fdfa87dfff2b96eba5d8a492a881a6f0ca",
+  "backend_contract_commit": "a4feb4345fe28d72c24d563ac8d0390ac410ad07",
+  "implementation_commit": "a0fe087be32e621d10e7925a966e301f5fe512ec",
+  "source_sha256": {
+    "crates/opentrack-api/src/management.rs": "f3faafe8789240b4505696a6ecf66504c2a6a8e137086bbe31c5f38d0bde4047",
+    "crates/opentrack-api/tests/team_search_contract.rs": "fa2e77db60db81e99ebc6727fe4394f645ebf7fd8e93c2fec5ab0aa56822dd77",
+    "crates/opentrack-app/src/lifecycle.rs": "c2059b89dcf7ed33fc80914f0e5be3217198cad9a599577b2c0f978eca162f29",
+    "crates/opentrack-app/tests/identity_contract.rs": "71e37888e6aa7708f0e982c4261cce448f9c2241f578aaf78e4a86e0b7ac9109",
+    "crates/opentrack-domain/src/lib.rs": "91d600837c78536fa78a01918bbabcf5fdeb7de2c5d06dbf216aacdf24a69dc6",
+    "web/e2e/palette-discovery.browser.ts": "f1be4bfe9a48d6d72c21cc50ec6f746d7360a031ea90a9b4b413b6e47be77e67",
+    "web/src/commands/CommandPalette.tsx": "206ec3f94179d4645f34938a25132392450593f8fc7f25d4a116bfc452dad85f",
+    "web/src/commands/commands.css": "d3431e7e4a7b9cccab401b82f64fb4666c556b25cc097d6bc74389ea47ca7053",
+    "web/src/commands/usePaletteEntities.test.tsx": "1684fe19b5673f8de098e81d5220997f93b7dbcc39d9d5b2b24617cfec6fa85a",
+    "web/src/commands/usePaletteEntities.ts": "818807526e08012c55079877e9e16bb121ccfaef728345c9b0c3d0e8afd73707",
+    "web/src/commands/usePaletteIssues.ts": "93d07260845c02fc0b759dca9590fa57a645be7cbc581e8626cdd0c1891bd3c7",
+    "web/src/commands/registry.ts": "1ee5f0b71f35eefb2fa2bd8a3cdf1f6dfe574d7f12f992433212c9a88f4b0837",
+    "web/src/router.tsx": "af9b74a29f67de9b7757fe8cd6ae68d75bcb4d65de669a08e0839b01956e1e16",
+    "web/src/projects/types.ts": "4e4e5e62119272499917b3589dea356e2e89521e71c6ca33d5dfe7205d28c730",
+    "web/src/settings/types.ts": "321c546f6f128ab3069a15577e7a75c8f265fcc86b396693bff314f7a8c6359a",
+    "web/src/generated/api.d.ts": "3361bdc058a9c9f288889a3bc3fbae1ce330f014226f0163efc3fe07c6c63517",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5",
+    "web/e2e/fixtures.ts": "97c8f8183457a7b4af966090b12fbe58166c0f7fa37822643c5511d4fb469445",
+    "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667"
+  },
+  "backend_sha256": "901551446f9b9a8691049dfca4bea8859d94201f3aa7def294a7e42f07349f45",
+  "behavior": [
+    "150 ms debounce and fair combined maximum of 20 remote issue/team/project rows; matching static commands remain separate.",
+    "Team query is trimmed, literal case-insensitive name/key search, at most 100 Unicode scalars without control characters; existing private visibility/state rules remain authoritative.",
+    "Team-only signed cursor binds normalized query/state/limit, workspace, principal and authorization epoch; generic directory queries stay unchanged.",
+    "Projects are queried only for the explicit route team, without team fanout or implicit default selection.",
+    "Previous remote rows clear synchronously on query/workspace/authority/team changes; obsolete requests abort and late responses are ignored.",
+    "Each group shows its own API validation or failure and retry; 101-scalar issue queries remain independent of 100-scalar team/project limits.",
+    "Team/project invocation requires a fresh authorized detail GET, matching identity/scope and active state, before normal guarded navigation.",
+    "Cached bootstrap team commands are replaced in the palette by bounded authorized team results, avoiding duplicate IDs and an invocation bypass. Empty queries retain other commands and reference-only issue recents."
+  ],
+  "checks": {
+    "restricted_postgres_team_http_contract": {
+      "passed": 1,
+      "log_sha256": "61681a6764f136f2c1a4d32c5c6658ce6fcca2dfda8b5bc3c3d8a1ed543a09c0"
+    },
+    "restricted_postgres_identity_lifecycle": {
+      "passed": 1,
+      "log_sha256": "bede91548dccc8ada93515c484b462823078f8760c679da8eb56281a9f9efac0"
+    },
+    "focused_frontend_units_final": {
+      "passed": 52,
+      "files": 4,
+      "log_sha256": "26c0cf0efaa82fa8f62133f4668963d7c34662d82238459c9dfc2b5fa9930269"
+    },
+    "typescript_application": {
+      "passed": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "typescript_browser": {
+      "passed": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "server_build": {
+      "passed": true,
+      "log_sha256": "3a91a0189b962a1001eba01859dabf177341f8230b00c22b91c256249356d9de"
+    },
+    "clippy_affected_libraries_warnings_denied": {
+      "passed": true,
+      "log_sha256": "1729c77b56c29565a2bf5beb2e2dc331cd6935ce3cd38e464af5cbb18518358d"
+    },
+    "production_frontend_build": {
+      "passed": true,
+      "log_sha256": "699669c418cc52262fb3a1e9d10b7cd92304a3438af911758ed191b9f7f3bc61",
+      "files": {
+        "index.html": "b7615945b2010f053fe875c9645638bc9126e00e52aa0d25e7a3450d7ffa5cf9",
+        "theme.js": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+        "assets/portability.worker-DEvlQVr4.js": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+        "assets/RichTextEditor-Ddx5R5gP.js.map": "127c77243cb4f5ef2313ed51bacaafd82f6aadb8d93a12a339029d4f274a2fb1",
+        "assets/RichTextEditor-Ddx5R5gP.js": "efdf2fe3e3ce09332854ace1b1531c734ccc4e3fa125aa23210f3e35241e9fb4",
+        "assets/index-BruWXOVL.css": "a235b37aaaf4ccf4a43e323f9c8d08ca15471a558373f3a102fcabc306cdf155",
+        "assets/portability.worker-DEvlQVr4.js.map": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+        "assets/index-CdJdA8ZN.js": "d33231caccce4b9e79d48ef54cae5dfbe689b73f01fe478dd1e2fde33be90844",
+        "assets/index-CdJdA8ZN.js.map": "6dc62583827b78244c1a2dede5d25c80a559e5a546290715669f29473a74c749"
+      }
+    },
+    "rustfmt_and_diff": {
+      "passed": true
+    }
+  },
+  "browser": {
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "unique_passed_cases": 6,
+    "qualification": "Three unchanged visibility-denial cases retained from connected-02, plus three corrected discovery/validation/navigation cases from connected-04, on the same immutable corrected frontend and backend. No single six-case all-green run is claimed.",
+    "retained_denial_body_sha256": "9fec7d05534194581b02a647307ee73a542ae202af27b60d3aff1ccb091d4b19",
+    "retained_denial_body_byte_identical": true,
+    "final_spec_sha256": "f1be4bfe9a48d6d72c21cc50ec6f746d7360a031ea90a9b4b413b6e47be77e67",
+    "denial_cases": [
+      {
+        "browser": "chromium",
+        "check": "palette excludes private controls and refuses team and project suggestions after visibility is revoked",
+        "status": "passed",
+        "duration_ms": 3318
+      },
+      {
+        "browser": "firefox",
+        "check": "palette excludes private controls and refuses team and project suggestions after visibility is revoked",
+        "status": "passed",
+        "duration_ms": 4240
+      },
+      {
+        "browser": "webkit",
+        "check": "palette excludes private controls and refuses team and project suggestions after visibility is revoked",
+        "status": "passed",
+        "duration_ms": 3542
+      }
+    ],
+    "discovery_cases": [
+      {
+        "browser": "chromium",
+        "check": "palette discovers teams and explicit-team projects, preserves group validation and navigates by keyboard after current reads",
+        "status": "passed",
+        "duration_ms": 2349
+      },
+      {
+        "browser": "firefox",
+        "check": "palette discovers teams and explicit-team projects, preserves group validation and navigates by keyboard after current reads",
+        "status": "passed",
+        "duration_ms": 3543
+      },
+      {
+        "browser": "webkit",
+        "check": "palette discovers teams and explicit-team projects, preserves group validation and navigates by keyboard after current reads",
+        "status": "passed",
+        "duration_ms": 2937
+      }
+    ],
+    "canonical_profile": {
+      "workers": 1,
+      "retries": 0,
+      "test_timeout_ms": 60000,
+      "expect_and_action_timeout_ms": 10000,
+      "locale": "en-US",
+      "timezone": "UTC",
+      "traces_screenshots_videos": false
+    },
+    "scope_cleanup": {
+      "connected-01": {
+        "phase": "connected-01",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 1,
+        "cleanup_failures": []
+      },
+      "connected-02": {
+        "phase": "connected-02",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 1,
+        "cleanup_failures": []
+      },
+      "connected-03": {
+        "phase": "connected-03",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 1,
+        "cleanup_failures": []
+      },
+      "connected-04": {
+        "phase": "connected-04",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 0,
+        "cleanup_failures": []
+      }
+    },
+    "retained_failures": [
+      {
+        "phase": "connected-01",
+        "failed": 6,
+        "reason": "Cached App team commands duplicated new server team rows and IDs; count failures and wrong keyboard selection exposed the integration defect.",
+        "receipt_sha256": "b6995157ae5126e5abf9d92f4778feac3f27b2798bbfdadcf4b50477afc63c8f"
+      },
+      {
+        "phase": "connected-02",
+        "passed": 3,
+        "failed": 3,
+        "reason": "Discovery fixture incorrectly expected no issue results for a repeated-rocket query that matched retained earlier fixtures. API returned authorized matches. The query now contains a unique UUID and exactly 101 scalars.",
+        "receipt_sha256": "9b37913c2cf701572eb272cf66e53d5c766927abf1c4210531c7a6cd7f81a00e"
+      },
+      {
+        "phase": "connected-03",
+        "executed": 0,
+        "reason": "An anchored runner grep matched no full Playwright title. The corrected unanchored grep executed the three discovery cases in connected-04.",
+        "receipt_sha256": "699e5ece657bbdcfaf98da8ad787bb4a492b12a2ad3991aa1a18d7a290b7f837"
+      }
+    ]
+  },
+  "contracts": {
+    "openapi_delta": "Only GET /api/v1/workspaces/{w}/teams gains optional q string and description.",
+    "generated_contract_files": "Unchanged here; lead owns regeneration on the integration union.",
+    "typed_callers": "Two identity lifecycle calls now use TeamQuery::default; the server test caller infers TeamQuery without changes."
+  },
+  "data_and_rollback": "No migration, persisted-format or dependency change. Previously issued unsigned team-list cursors are rejected; restart pagination without cursor. Rollback removes team query support and palette team/project discovery without changing stored entities.",
+  "limits": [
+    "Private development browser/API qualification only; final integrated-main review, generated contracts and all four hosted checks remain lead integration gates.",
+    "Native route/query forwarding was inspected statically; no new native GUI or desktop execution is claimed.",
+    "No physical keyboard/layout, OS IME, assistive-technology or screenshot acceptance is claimed.",
+    "No broader F22, milestone, issue or whole-product completion is claimed."
+  ]
+}

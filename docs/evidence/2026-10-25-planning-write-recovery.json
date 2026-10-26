@@ -1,0 +1,222 @@
+{
+  "date": "2026-10-25",
+  "scope": "Preserve milestone move and project assignment intent through conflicts and uncertain writes, with explicit reviewed recovery.",
+  "base_commit": "f0a0de6eb6b6d1487ec95d2057c3ae0d4abb8841",
+  "implementation_commit": "d508cd2cfec7b4ca75e98012e0d04aa9e6a86be1",
+  "source_sha256": {
+    "web/e2e/planning-write-recovery.browser.ts": "0b9729f5b1f9b73257e764217079a3eca11033bc76eb9765104567b8ec6d6789",
+    "web/src/cycles/Planning.test.tsx": "7865120040d15cf0421121762ddccdb2464a0cb8d51d07ff298b84457b8f6c78",
+    "web/src/projects/Milestones.tsx": "56293d2bfdff2c317d6b89955a6b6164392d833bb9a3b91eb413938e410f838c",
+    "web/src/projects/PlanningWriteRecovery.test.tsx": "bfd7fbd869edfa3d3ac34ba228b1d2dc9152d78633e9b2192a66b2d05967945e",
+    "web/src/projects/ProjectIssues.tsx": "eaa7015058e3a5aa7fea657f3f45547568de24effd6916ea8ef0a5a9796fad59",
+    "web/src/projects/Projects.test.tsx": "e7f3cdfe9f294f22ae13881f72abc755d0e7eb6c922384eb9ef8461bc8545e1c",
+    "web/src/projects/useProjectData.ts": "e2368465ca450488e5030603c3dc0bad4a55b44cec2f14ff1642b353f05ba6ec",
+    "web/src/projects/types.ts": "4e4e5e62119272499917b3589dea356e2e89521e71c6ca33d5dfe7205d28c730",
+    "web/src/settings/shared.tsx": "271b27a21f51705b466c027af0bdd17d6bbe32b9b6f4a5d566cd047d328111e4",
+    "web/src/desktop/context.tsx": "f5e7faf27783674c6ba4244e6bce4073d309ae1f3d823e96e76710ca6060d21b",
+    "web/src/api.ts": "6030abc0142d297f4fc5341bb0b30d9a7e94aa5266098b5304e5e63596587858",
+    "web/src/components.tsx": "97fa54265f395b59728fa2236de22a907c8fc8258151c35a9dcfed61700ff30e",
+    "web/src/router.tsx": "af9b74a29f67de9b7757fe8cd6ae68d75bcb4d65de669a08e0839b01956e1e16",
+    "web/src/generated/api.d.ts": "3361bdc058a9c9f288889a3bc3fbae1ce330f014226f0163efc3fe07c6c63517",
+    "web/e2e/fixtures.ts": "97c8f8183457a7b4af966090b12fbe58166c0f7fa37822643c5511d4fb469445",
+    "web/e2e/receipt-reporter.ts": "4f91669b7a6ff9d1c8199053cd8ec427d2c32018c58a41c398f69323a61f0667",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5"
+  },
+  "backend": {
+    "sha256": "901551446f9b9a8691049dfca4bea8859d94201f3aa7def294a7e42f07349f45",
+    "qualification": "Unchanged frozen team-query backend already qualified with the palette candidate; no new backend build, migration, schema, API or generated-contract change."
+  },
+  "behavior": [
+    "A failed 412 or uncertain PUT retains the original relative milestone move or issue/milestone selection. Authorized reads prepare a review; only an explicit action sends another mutation with the reviewed current project validator.",
+    "Milestone recovery reads the full authorized project and at most five 100-row pages. Every page must match the full project ETag and correct workspace/team/project. Final metadata must match the starting metadata validator. Missing anchors, duplicate IDs, incomplete/repeated cursors and the 500-row budget fail closed.",
+    "Rebasing removes only the moved milestone and places it immediately before/after its retained anchor in the current complete order. Concurrently added milestones remain in the reviewed proposal.",
+    "Assignment recovery exhausts at most ten 100-row pages within a shared 10-second read deadline. Stable project metadata and stable live expected-team issue reads bracket the scan; positive/absent membership cannot come from a partial page or archived/deleted/moved issue. Current and desired milestone labels are freshly authorized and scoped.",
+    "Current-state equivalence may confirm the desired position or assignment only. It never identifies the original request or actor, and does not trigger a replay. Unresolved reads preserve intent and disable mutation until another explicit successful review.",
+    "Authority denial removes cached component labels and pending intent. Account/session/workspace/team/project boundaries destroy old state and abort requests. Pending review/write participates in the existing unsaved-navigation guard.",
+    "Completing a review restores meaningful focus to the moved milestone control or the project issues section when the origin row is removed or paginated away. Retained add-issue modal drafts keep their own focus on discard."
+  ],
+  "checks": {
+    "focused_units": {
+      "passed": 79,
+      "files": 3,
+      "new_recovery_cases": 26,
+      "existing_affected_cases": 53,
+      "log_sha256": "5b031b00e6b92bd0862826a44ce7e645e5dd5da77479f1fb3c439b2db76d5f1f"
+    },
+    "typescript_application": {
+      "passed": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "typescript_browser": {
+      "passed": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "final_frontend_build": {
+      "passed": true,
+      "log_sha256": "a5cec4645b4f28cde79559f983d6677a6e42511b3c86e790c1ae9cc47289bb9d",
+      "files": {
+        "index.html": "289d5f19dc05f59feadedb5e08b7135058f878eac2624b3cee1e2cba6a1f7254",
+        "theme.js": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+        "assets/portability.worker-DEvlQVr4.js": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+        "assets/RichTextEditor-DBw0lKKB.js.map": "29e7b03f706821fe039bd0bed331771bf1ffdd7ace291908b3ebde943bbe842c",
+        "assets/RichTextEditor-DBw0lKKB.js": "edc82922060ae139ddc495ba3f1607eccf417df9276a1649ebe2969c144ef746",
+        "assets/index-DVYb_EM_.js": "4b3fddaacfbbd053d27e8542e9d03bd61ec81f8d3fc9bec7af422bad159354dc",
+        "assets/index-BruWXOVL.css": "a235b37aaaf4ccf4a43e323f9c8d08ca15471a558373f3a102fcabc306cdf155",
+        "assets/portability.worker-DEvlQVr4.js.map": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+        "assets/index-DVYb_EM_.js.map": "8520329de2fe24e4d07834a1beb92161a9835d535997a763a9a85236a7e22920"
+      }
+    },
+    "diff_privacy_utf8_lf": "clear"
+  },
+  "browser": {
+    "unique_cases": 6,
+    "journeys_per_engine": 2,
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "final_checks": [
+      {
+        "browser": "chromium",
+        "check": "milestone conflicts preserve relative intent and new milestones; a lost committed response is reconciled without replay",
+        "status": "passed",
+        "duration_ms": 2036
+      },
+      {
+        "browser": "chromium",
+        "check": "project assignment review exhausts pagination, preserves milestone intent and reconciles absence without replay or stale private labels",
+        "status": "passed",
+        "duration_ms": 8738
+      },
+      {
+        "browser": "firefox",
+        "check": "milestone conflicts preserve relative intent and new milestones; a lost committed response is reconciled without replay",
+        "status": "passed",
+        "duration_ms": 4237
+      },
+      {
+        "browser": "firefox",
+        "check": "project assignment review exhausts pagination, preserves milestone intent and reconciles absence without replay or stale private labels",
+        "status": "passed",
+        "duration_ms": 9429
+      },
+      {
+        "browser": "webkit",
+        "check": "milestone conflicts preserve relative intent and new milestones; a lost committed response is reconciled without replay",
+        "status": "passed",
+        "duration_ms": 2378
+      },
+      {
+        "browser": "webkit",
+        "check": "project assignment review exhausts pagination, preserves milestone intent and reconciles absence without replay or stale private labels",
+        "status": "passed",
+        "duration_ms": 8969
+      }
+    ],
+    "final_spec_sha256": "0b9729f5b1f9b73257e764217079a3eca11033bc76eb9765104567b8ec6d6789",
+    "actual_scenarios": [
+      "Real competing milestone creation produces 412. Explicit reviewed retry preserves the new milestone. A later actual committed PUT is relayed as client response loss; complete authorized order readback and reload confirm desired position without replay or actor acknowledgment. Both completion paths restore focus.",
+      "A real 102-issue project places the target after the first 100. A concurrent metadata update produces assignment 412; two complete pages preserve the desired milestone choice for explicit retry. A later actual committed removal is relayed as response loss; exhausted 100+1 pages and stable live issue/metadata reads confirm current absence without replay. Reload preserves version and unchanged issue data. Actual private-team revocation returns 404 and removes cached project/issue labels."
+    ],
+    "profile": {
+      "workers": 1,
+      "retries": 0,
+      "test_timeout_ms": 60000,
+      "action_expect_timeout_ms": 10000,
+      "locale": "en-US",
+      "timezone": "UTC",
+      "trace_screenshot_video": false
+    },
+    "scope_cleanup": {
+      "candidate-01": {
+        "phase": "candidate-01",
+        "backend_sha256": "901551446f9b9a8691049dfca4bea8859d94201f3aa7def294a7e42f07349f45",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "7645e4efdc099ee49822cd8d6df15ca55a47fe445bd5975f3da631e992c076f2",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 1,
+        "cleanup_failures": []
+      },
+      "candidate-02": {
+        "phase": "candidate-02",
+        "backend_sha256": "901551446f9b9a8691049dfca4bea8859d94201f3aa7def294a7e42f07349f45",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "b69ec44e7378459189ad2da66e130590f79bceb4756954f5e31bd805d35120e8",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 0,
+        "cleanup_failures": []
+      },
+      "candidate-03": {
+        "phase": "candidate-03",
+        "backend_sha256": "901551446f9b9a8691049dfca4bea8859d94201f3aa7def294a7e42f07349f45",
+        "scope_sha256": "1088837b37933f07f42dd5f4184181dca1985d1d284bb1f5fcd1a89ea3dd7f23",
+        "spec_sha256": "0b9729f5b1f9b73257e764217079a3eca11033bc76eb9765104567b8ec6d6789",
+        "browser_service_authority_absent": true,
+        "scope_verified": true,
+        "namespace_zero": true,
+        "monitor_reaped": true,
+        "api_reaped": true,
+        "exit_code": 0,
+        "cleanup_failures": []
+      }
+    },
+    "receipt_sha256": "c439830c0e6d0ef6c27298295a9db6315b9c17212f9cc7a4e6b0806f51653380"
+  },
+  "retained_history": [
+    {
+      "check": "Initial existing affected units",
+      "passed": 51,
+      "failed": 2,
+      "cause": "Two legacy conflict mocks returned metadata for full-project reads or collections for current issue detail. Only those two cases were released and corrected to actual contracts, preserving original payload/If-Match/no-replay assertions.",
+      "log_sha256": "75a971f7cd3e41349f00d4465f33f7dfb98ad6e459dd6550e5337ebce660e756"
+    },
+    {
+      "check": "Initial new recovery units",
+      "passed": 16,
+      "failed": 7,
+      "cause": "Review footer buttons disabled themselves while review existed. Actual production conditions were corrected.",
+      "log_sha256": "5e7850cb49f01f129c82ed678894a60ac79b016bb61b9a4c3a3f27f691945a88"
+    },
+    {
+      "check": "Corrected recovery units before focus extension",
+      "passed": 24,
+      "log_sha256": "169fc9f4c7d5be1c5cba8d4ca584b502d20029d12dda0c2ffe91f11cebe648c7"
+    },
+    {
+      "check": "New focus regressions before source repair",
+      "failed": 2,
+      "skipped": 24,
+      "cause": "Focus fell to document.body after reviewed reorder or confirmed removal changed/removed the origin control.",
+      "log_sha256": "ffdc57a1248c1f7a9f0ff8e2d809c8fb68ab428decbe375ce29f665e44ff1395"
+    },
+    {
+      "check": "candidate-01",
+      "failed": 6,
+      "cause": "Fixture milestone creation omitted required If-Match and received HTTP428 before product workflow execution. Only the browser fixture/spec was corrected; no frontend/backend rebuild.",
+      "receipt_sha256": "b92da6484307879c1dbf8557fb17b2892d98b3a47d04ac462fbda4c5aa98d080"
+    },
+    {
+      "check": "candidate-02",
+      "passed": 6,
+      "scope": "Functional connected workflows passed before explicit focus assertions. Bundle and results retained. Final source repair required a changed frontend build and final six-case run with focus assertions.",
+      "receipt_sha256": "bfc3fde11600a0483e60b8112be083aaa961a26cd595265543982573a78c3fc0"
+    }
+  ],
+  "data_and_rollback": "Frontend session state only; no dependency, migration, schema, persisted-format or backend change. Rollback restores the earlier refresh-only conflict handling without changing stored entities.",
+  "limits": [
+    "Readback confirms observed desired state, not original request acknowledgment or actor causality.",
+    "More than 500 milestones or 1,000 project issues, exhausted read deadline, invalid cursor or unstable source remains unresolved and cannot enable a retry.",
+    "Only the named two existing mock cases were adapted; no global fixture, fallback or consistency relaxation.",
+    "Private development qualification only. Independent review, exact integration union, all four hosted checks, native desktop, physical input/layout, OS IME and assistive-technology acceptance remain separate.",
+    "No full M04/M05, F14, issue, milestone or whole-product completion is claimed."
+  ]
+}

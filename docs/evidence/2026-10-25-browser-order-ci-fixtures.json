@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-25",
+  "scope": "Parent-owned disposable CI browser manual-order fixture preparation",
+  "base": "7f8e0aa3eb1a02f4257c080e21ff9f40bfab811e",
+  "source_sha256": {
+    "scripts/browser-acceptance.py": "9bc1e6551ed1a530dfafc3e3b8c29ce016b4c77755c3a35ffbf1ac5afdc9525b",
+    "scripts/browser_order_fixtures.py": "0fea52e01f833f351403510d0fa76248dcefabcc57bbfb0976fa6e4d41cec3e4",
+    "scripts/test-browser-acceptance.py": "7eee806fe853892ac610b4f965f8c0d7a95d9b1e80e3912e23ef9d1735df3b46"
+  },
+  "verification": {
+    "pure_boundary_tests": {
+      "command": "python scripts/test-browser-acceptance.py",
+      "passed": 26,
+      "failed": 0,
+      "docker_http": "mocked only"
+    },
+    "compose_source_contract": "Passed local YAML normalization of generated volume names and published port; Docker was not invoked",
+    "whitespace": "git diff --check passed",
+    "retained_prior_failure": {
+      "tests": 18,
+      "passed": 17,
+      "errors": 1,
+      "cause": "ProxyHandler class mock broke urllib internal isinstance checks",
+      "resolution": "Mock build_opener as well; corrected expanded suite passes"
+    }
+  },
+  "limits": {
+    "preparation_seconds": 300,
+    "fixture_groups": 3,
+    "rows_per_group": 501,
+    "worker_polls_per_group_per_phase_maximum": 12,
+    "worker_once_process_seconds_maximum": 45,
+    "http_request_seconds_maximum": 15,
+    "sql_phase_seconds_maximum": 20,
+    "live_resource_inspection_seconds_maximum": 55,
+    "restoration": "Two owned-worker inspections and start, each at most 55 seconds, outside the preparation deadline",
+    "browser_suite_watchdog_seconds": 900,
+    "browser_test_seconds": 60,
+    "browser_action_seconds": 10,
+    "browser_workers": 1,
+    "browser_retries": 0,
+    "worker_profile": {
+      "poll_interval_ms": 2000,
+      "lease_seconds": 60,
+      "max_connections": 5,
+      "overrides": false
+    },
+    "checkpoint": "Any actual string count strictly between 0 and 501, applied_count 0, total_count null"
+  },
+  "boundaries": [
+    "Existing Linux GitHub run and attempt, exact disposable project, Linux amd64 Engine 28+, dedicated loopback port, and no preexisting containers or volumes remain required",
+    "Exact resolved service volume roles and profiles; all active live containers and seven named data, blob and secret volumes checked before credential read and before each fixture SQL transaction; parent Compose profiles explicitly empty to prevent inherited optional-role activation",
+    "External volumes, custom drivers/options, other-project labels, host binds and changed secret mount access rejected",
+    "Fresh synthetic setup, private teams, invitations, acceptance, enqueue and membership deletion use the application API",
+    "Only issue rank-exhaustion inputs and team counter seeded by scoped transaction under existing table-owning role; no raw job, progress, membership or credential writes",
+    "Only the same owned continuous worker is stopped and restored; actual default worker --once performs staging and access-loss transition",
+    "Three fixture teams sort after Example Team; bootstrap baseline first-team identity verified before manifest return",
+    "Complete IDs/counts-only manifest written to temporary directory mode 0700 and exclusive file mode 0600, removed on child success/failure/timeout",
+    "Node receives an explicit environment whitelist and application authentication inputs; no parent database/operator/worker credentials, proxy, Node options, Docker/Compose controls or fixture service",
+    "Environment filtering minimizes credentials; it is not a new OS sandbox",
+    "Parent HTTP opener disables proxies and redirects; error output withholds HTTP bodies and captured container credentials"
+  ],
+  "not_executed": [
+    "Docker commands",
+    "real HTTP or database fixture preparation",
+    "browser acceptance",
+    "configured GitHub CI"
+  ],
+  "acceptance": "Source and pure boundary verification only. Real fixture preparation, default worker behavior and full browser-suite acceptance remain lead-owned CI gates. No issue, milestone or product completion claimed.",
+  "migration_rollback": "No schema or production changes. Revert these runner/helper changes to restore prior runner behavior; disposable run cleanup removes only its validated project volumes."
+}

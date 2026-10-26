@@ -1,9 +1,11 @@
+import { registerAdmission } from './fixtures';
 import { createHash, randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { devices } from '@playwright/test';
 import { test, expect } from './fixtures';
 import type { Session } from '../src/types';
 import type { Invitation, InvitationIssued, WorkspaceMember } from '../src/settings/types';
+registerAdmission(5);
 
 const digest = (name: string) => createHash('sha256').update(name).digest('hex');
 function fact(name: string, value: object) { writeFileSync(test.info().outputPath(`${name}.json`), JSON.stringify(value)); }

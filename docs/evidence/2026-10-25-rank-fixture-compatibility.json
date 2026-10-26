@@ -1,0 +1,76 @@
+{
+  "status": "Fourteen selected application cases pass with version-correct fixtures",
+  "base": "8a5c25f14df0f13cd5bd8560851598e05378e476",
+  "scope": "Six existing app test targets, one necessary shared historical-fixture helper and dated evidence only",
+  "source_sha256": {
+    "crates/opentrack-app/tests/worker_contract.rs": "27038630732ede8e3d127745ff9b718dfa0cc105ea4e7c76dc2c55a1794d574f",
+    "crates/opentrack-app/tests/workflow_contract.rs": "7a68cd21d2263261ddc2c5d906759a14c3d525852d8cc487d91d4693ee948772",
+    "crates/opentrack-app/tests/graph_contract.rs": "de5fe61610efb69e16c8039fe22451cd2f67c98a772a3789a9bab06253f7b318",
+    "crates/opentrack-app/tests/cycles_races.rs": "90151e7572623f2403c54422da5b4871567f6cecfe6ce35623260f78279ace8f",
+    "crates/opentrack-app/tests/deletion_contract.rs": "c4772bfe61b391a992c76bb2d2421fd3f63fa01b7e59f264ba4fdcd023e101d6",
+    "crates/opentrack-app/tests/assignment_cleanup_contract.rs": "fd65ce614f93b410f616d3d354b6e251bcf38c3003d95a43f1e196ddc311bfd2",
+    "crates/opentrack-app/tests/graph_support/mod.rs": "3ccca2d56eb416bf685612320fec06e6799578aa7fa6f92745473d034fd37ea0"
+  },
+  "changes": {
+    "current_schema_inserts": "Finite explicit ranks derived from existing fixture issue numbers preserve counts, status, archive/delete, parent, fanout, capacity and race inputs",
+    "assignment_seed": "The shared seed retains its original rank-free INSERT before migration 27, including the explicit migration-14 backfill driver; current fixtures supply rank",
+    "historical_creation": "A test-only helper limited to migration 13 and 22 seeds the historical row layout, normalized request/key hashes, original create acknowledgement, initial-document projection, parent versions and account activity/events. Current issue() continues to use App.create_issue.",
+    "snapshot_expectations": "Pre-upgrade rows independently determine the specified M27 backfill ranks. Existing comparisons add only the expected rank and initial team ordering_version fields; original fields, replay, history and rollback assertions remain.",
+    "failure_retention": "Touched panic wrappers check their result before normal cleanup so a failure retains its generated schema; successful schemas still use the unchanged harness cleanup"
+  },
+  "legacy_layouts_unchanged": [
+    "graph_upgrade_contract migration 11",
+    "taxonomy_upgrade_contract migration 10",
+    "documents_contract migration 15",
+    "project_documents_upgrade migration 25",
+    "issue_order_upgrade migration 26"
+  ],
+  "legacy_driver_coverage": {
+    "deletion": "The exact migration-13 to 14 snapshot preservation check, later current-schema comparison, original idempotent-create replay, tombstone/history/rollback, 105-child fanout and 10001-edge refusal assertions pass",
+    "assignment": "Migration-14 debt remains unchanged through migration 15 before the later current-schema comparison and real worker cleanup; current ranked cleanup/rollback cases also pass",
+    "cycles": "The migration-22 historical issue survives upgrade; existing concurrency/privacy/capability cases and fifty 10000-issue snapshots retain their original workload"
+  },
+  "checks": {
+    "compile": "cargo test --locked -p opentrack-app with only the six named --test targets and --no-run",
+    "compile_exit": 0,
+    "format": "rustfmt on the seven changed test files with skip_children=true",
+    "clippy": "cargo clippy --locked -p opentrack-app with only the six named --test targets -- -D warnings",
+    "clippy_exit": 0,
+    "runtime": "One serial batch of the six compiled targets, each with --test-threads=1 --nocapture",
+    "targets": [
+      { "name": "deletion_contract", "passed": 1, "failed": 0, "duration_ms": 41256 },
+      { "name": "assignment_cleanup_contract", "passed": 3, "failed": 0, "duration_ms": 27512 },
+      { "name": "cycles_races", "passed": 7, "failed": 0, "duration_ms": 44002 },
+      { "name": "worker_contract", "passed": 1, "failed": 0, "duration_ms": 10662 },
+      { "name": "workflow_contract", "passed": 1, "failed": 0, "duration_ms": 4745 },
+      { "name": "graph_contract", "passed": 1, "failed": 0, "duration_ms": 57043 }
+    ],
+    "total_passed": 14, "total_failed": 0, "ignored": 0, "filtered_out": 0,
+    "test_assertions_and_timeout_lines_preserved": true,
+    "existing_api_contract_unchanged": true,
+    "global_suite_repeated": false
+  },
+  "execution": {
+    "namespace": "Existing verified private namespace",
+    "database": "Original cluster identity and existing separate runtime/migration/worker/operator test configuration verified; fresh schemas only",
+    "new_roles_databases_or_environments": false,
+    "all_six_test_children_reaped": true,
+    "database_stopped": true,
+    "original_data_retained": true,
+    "logs": "Private head logs bounded to 2 MiB with a retained tail when needed; no log exceeded the bound in this run"
+  },
+  "evidence": {
+    "root": "$OPENTRACK_DEV_STATE/rank-fixture-compatibility",
+    "index": "artifact-index.json",
+    "index_sha256": "a24c543cc1d69d6f4f70ed694cd8e86daed17ffec87f23c043ba6e18238ee5d4",
+    "indexed_files": 26,
+    "results": "candidate/results.json",
+    "results_sha256": "5ca6f36fced08723c33afab6a435b09935acf1fb21323c04eade135070f97f69"
+  },
+  "limits": [
+    "Historical seeding prepares valid persisted migration inputs; it does not qualify creation authorization on obsolete application schemas.",
+    "This run covers the six touched targets, not the whole workspace or the separate API ingress/browser runs.",
+    "Integration/hosted checks and connected UI/native/physical/assistive/performance/product gates remain separate."
+  ],
+  "migration_rollback": "Test-only compatibility changes. Production, migrations, defaults, checksums, generated contracts and runtime formats are unchanged."
+}

@@ -1,4 +1,5 @@
 //! PostgreSQL admission, rollback, accounting and restricted-role contracts.
+mod graph_support;
 #[allow(dead_code)]
 mod support;
 
@@ -20,7 +21,7 @@ fn req<T: serde::de::DeserializeOwned>(value: Value) -> T {
     serde_json::from_value(value).unwrap()
 }
 
-async fn setup(h: &Harness) -> (Actor, Uuid, Uuid) {
+async fn setup_workspace(h: &Harness) -> (Actor, Uuid, Uuid) {
     let (session, cookie) = h
         .app
         .setup(req(json!({
@@ -33,6 +34,11 @@ async fn setup(h: &Harness) -> (Actor, Uuid, Uuid) {
     let actor = h.app.authenticate(&cookie).await.unwrap();
     let w = session.workspaces[0].id;
     let team = h.app.bootstrap(&actor, w).await.unwrap().teams[0].id;
+    (actor, w, team)
+}
+
+async fn setup(h: &Harness) -> (Actor, Uuid, Uuid) {
+    let (actor, w, team) = setup_workspace(h).await;
     h.app
         .create_issue(
             &actor,
@@ -751,16 +757,25 @@ async fn schema_24_upgrade_backfills_charges_and_preserves_existing_grant_bounda
 
 async fn upgrade(h: &Harness) {
     assert!(!store::event_admission_ready(&h.owner).await.unwrap());
-    let (actor, w, team) = setup(h).await;
-    h.app
-        .create_issue(
-            &actor,
-            w,
-            "pre-admission",
-            req(json!({"team_id":team,"title":"Existing issue"})),
-        )
-        .await
-        .unwrap();
+    let (actor, w, team) = setup_workspace(h).await;
+    graph_support::historical_issue(
+        h,
+        &actor,
+        w,
+        team,
+        json!({"title":"Initial committed event"}),
+        Some("admission-baseline"),
+    )
+    .await;
+    graph_support::historical_issue(
+        h,
+        &actor,
+        w,
+        team,
+        json!({"title":"Existing issue"}),
+        Some("pre-admission"),
+    )
+    .await;
     let worker_url = h.worker_url().await;
     let before = state(h, &actor, w).await;
     sqlx::migrate::Migrator {
@@ -841,15 +856,15 @@ async fn upgrade(h: &Harness) {
     age(h, &actor, w).await;
     assert_eq!(worker.retain(w, 1000).await.unwrap().deleted, 2);
     assert_eq!(accounting(h, &actor, w).await, 0);
-    h.app
-        .create_issue(
-            &actor,
-            w,
-            "post-admission",
-            req(json!({"team_id":team,"title":"Issue after upgrade"})),
-        )
-        .await
-        .unwrap();
+    graph_support::historical_issue(
+        h,
+        &actor,
+        w,
+        team,
+        json!({"title":"Issue after upgrade"}),
+        Some("post-admission"),
+    )
+    .await;
     accounting(h, &actor, w).await;
     worker.pool.close().await;
 }

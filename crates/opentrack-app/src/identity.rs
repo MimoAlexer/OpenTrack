@@ -18,11 +18,16 @@ impl App {
         password: String,
         existing: Option<String>,
     ) -> Result<String> {
-        let permit = self
-            .hashes
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| Error::RateLimited)?;
+        let permit = self.hashes.clone().try_acquire_owned().map_err(|_| {
+            static REPORTED: std::sync::Once = std::sync::Once::new();
+            REPORTED.call_once(|| {
+                tracing::warn!(
+                    auth_rejection = "password_work_budget",
+                    "Authentication request rejected"
+                )
+            });
+            Error::RateLimited
+        })?;
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
             let params = Params::new(65536, 3, 1, None).map_err(|_| Error::Internal)?;
@@ -202,6 +207,13 @@ impl App {
 
         let attempts:i32=sqlx::query_scalar("INSERT INTO login_attempts(account_hash,attempts) VALUES($1,1) ON CONFLICT(account_hash) DO UPDATE SET attempts=CASE WHEN login_attempts.window_start<now()-interval '5 minutes' THEN 1 ELSE login_attempts.attempts+1 END,window_start=CASE WHEN login_attempts.window_start<now()-interval '5 minutes' THEN now() ELSE login_attempts.window_start END RETURNING attempts").bind(&account_hash).fetch_one(&self.pool).await.map_err(db_error)?;
         if attempts > 5 {
+            static REPORTED: std::sync::Once = std::sync::Once::new();
+            REPORTED.call_once(|| {
+                tracing::warn!(
+                    auth_rejection = "account_attempt_budget",
+                    "Authentication request rejected"
+                )
+            });
             return Err(Error::RateLimited);
         }
         let record=sqlx::query("SELECT id,email,display_name,password_hash FROM users WHERE email=$1 AND disabled_at IS NULL").bind(email).fetch_optional(&self.pool).await.map_err(db_error)?;

@@ -150,7 +150,7 @@ jobs:
         working-directory: web
         run: |
           npm ci --ignore-scripts
-          node --experimental-strip-types --test e2e/receipt-reporter-privacy.mjs
+          node --experimental-strip-types --test e2e/receipt-reporter-privacy.mjs e2e/fixture-admission-check.mjs
           npm run typecheck
           npm run test:browser:list
           npx playwright install --with-deps chromium firefox webkit

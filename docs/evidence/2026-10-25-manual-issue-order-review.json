@@ -1,0 +1,647 @@
+{
+  "date": "2026-10-25",
+  "scope": "Private manual issue ordering source-review correction and connected browser/data qualification; no issue/product closure.",
+  "review_source_commit": "bff33a0b9c6608957f61f3e28d9bbbf931525465",
+  "editor_source_commit": "a40cd235e2f4017882792ad881860ca84f11d8aa",
+  "final_spec_commit": "e1695fb64dffa384ba08cc2e5173f658e9f042c2",
+  "historical_pointer_packet": {
+    "commit": "4eae55449bc08e134d97e6210e11a1b094efc616",
+    "index_sha256": "83aeef98a6966ba1d145726fa418fe6aba9a081b9d098c938fe1847b83a20ef3",
+    "all121_entries_rehashed": true,
+    "workspace_preimages_retained": 31
+  },
+  "backend": {
+    "source_commit": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+    "binary_sha256": "f9725a64b91ef8df2847abfb7ededf8dd31566caa5601812a8d4b39801c01622",
+    "source_context_sha256": "d8cfccd8ab888caa8a1bca0d54254686183e5da01aa77e622fee79abf088e35b",
+    "migration27_sha256": "30afd8a7ff4158f4969dd4860490c2e4cdbbfb386f0814db36fb37b7fe9f33c3",
+    "worker_rebuild": false
+  },
+  "source_sha256": {
+    "web/e2e/manual-issue-order.browser.ts": "41b6673041c0bcd967e46166772a5895be0a9a1d528253ae4a0ae21bc94e59bd",
+    "web/src/App.tsx": "9da64de97632da8fda0f52bee9a4331874eeacb8f22959183a648076809a27f1",
+    "web/src/issues/CreateIssue.tsx": "6afcb096430256ede0ccfe3ac4be0ab0e486236858fc9027c8d2d7a0a83d0304",
+    "web/src/issues/IssueBoard.tsx": "579bb2de399b60873dafa5adcbd4a8524d5c01a2c155cb45ff0904af1751a902",
+    "web/src/issues/IssueList.tsx": "8b28c8acccd0d46ad4e368d6eb5780780b95b6cc36cd836fee143ccb201765da",
+    "web/src/issues/IssueOrdering.css": "3ffc47d0bcfc99c439a6bd433ad5b4bec5c1798c153a977fd8f0897950375ffa",
+    "web/src/issues/IssueOrdering.test.tsx": "9e94ae5abe326a23264084cdc739771e8354542c0fc0e9712e73dd67d93d5818",
+    "web/src/issues/IssueOrdering.tsx": "14b94692e3ab415d28f8c961067b02c9a2bb3f838912952f6e51790b096c0341",
+    "web/src/issues/IssueOrderingCreate.test.tsx": "42284c8f3a2e8f252bda735af319e536f7be2aed746570f8fe3b974441c1edee",
+    "web/src/issues/IssueOrderingViews.test.tsx": "fa76ab092a9205b4ab9e9e27ab7f8fb750f2ff6ae93de239d8d1150b38517076",
+    "web/src/issues/activity-model.test.ts": "9f2b1cd9d4edb9e09492f736c1bbe335d1ed4eb63c723d43eb21bba94824912a",
+    "web/src/issues/activity-model.ts": "3b57ae9f8f8be4cc47514a88e73338d528aae8b9f9ec680327f9b6603fb69e98",
+    "web/src/issues/IssueList.test.tsx": "0037e657b37826f60e40a63ce31f83d41019d0d6e4b74cd9e7302d1dacb1fa52",
+    "web/src/documents/RichTextEditor.tsx": "f1608b7e866642edb34276f8c20a9390520ac5ac31dc8a194817b8c38d890dcd",
+    "web/src/documents/RichTextEditor.test.tsx": "efe90acb9bb42fd131dd9e92f5cd2c07e0e1e0d17eda6cf489225bc2e0050465"
+  },
+  "frontends": {
+    "candidate-01": {
+      "source_commit": "e50f1b87ff6e37573d024c09ff7a0bf2a1dd7a8d",
+      "manifest_sha256": "1913f8033f31e45bf060a76dbb701b6e54e0dd0807b65fc7e83c9245a527e06a",
+      "files": {
+        "index.html": "e8639f3a1f3fe3bc6caf8e2e1790d6e29c9d73228e99b9b391173cc56e5f00e6",
+        "theme.js": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e",
+        "assets/portability.worker-DEvlQVr4.js": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+        "assets/index-DRU0M1UZ.js": "4c3c2f267225401f57a8bf75c245ae2a6c8ab152470b9d8fac4f95ed7034de04",
+        "assets/RichTextEditor-Br8ZIlxB.js": "58d99218e2abb86d0817806a70c597bfbd149a926d8763698b629b20d4c528b8",
+        "assets/portability.worker-DEvlQVr4.js.map": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+        "assets/index-bam2-7vJ.css": "b6822f7f5efb642c8c52ed70cda6606e6dd4fbf25cd361c46bb7f50ce2e4f4b4",
+        "assets/index-DRU0M1UZ.js.map": "e2df28fbd2b9f660e72007777101fc24880a61ed579d1235fa254371c417883e",
+        "assets/RichTextEditor-Br8ZIlxB.js.map": "05617b36edac6ed7f7de231d7102c2b418b036e36cdde82132d97499c764c109"
+      }
+    },
+    "candidate-02": {
+      "source_commit": "8179c9b6f277d84962b66a44ca9bf04c09d5f15c",
+      "manifest_sha256": "5ff6b8265d1149617444b185ec325a36ed6c12156d3092ed961b4e84be0429e2",
+      "files": {
+        "assets/RichTextEditor-BI-AjIVi.js": "46834b565ca234dc0c6b869a81eb2561f8685e19c304a43474ef4a0d90ba6229",
+        "assets/RichTextEditor-BI-AjIVi.js.map": "82382f391c3afd041ffae8e7e3a0676fbf387e0eaa9445740d82ae74abfc3ba3",
+        "assets/index-BIPrLt5A.js": "c14333a11d66b9c6ae3f62640c9947195544ffc64e7432e7aec213f0aed0981a",
+        "assets/index-BIPrLt5A.js.map": "90d80629fb9311361b800595d89262adb7d44c8e2d5a31d3d5642e87465c66cc",
+        "assets/index-bam2-7vJ.css": "b6822f7f5efb642c8c52ed70cda6606e6dd4fbf25cd361c46bb7f50ce2e4f4b4",
+        "assets/portability.worker-DEvlQVr4.js": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+        "assets/portability.worker-DEvlQVr4.js.map": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+        "index.html": "a96af738888eb6861016f949297e5995fae30b8a549d5df8621c681cf18aa21f",
+        "theme.js": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e"
+      }
+    },
+    "review-01": {
+      "source_commit": "bff33a0b9c6608957f61f3e28d9bbbf931525465",
+      "manifest_sha256": "4b4be6cac647ac88566f2a99bf8b44678ff802a70ba95c6f0c01df2dcb2352a6",
+      "files": {
+        "assets/RichTextEditor-BYainKZt.js": "cbc3073350b4a238f35005c2b45da339295a889e493a48cc712a937c4f1e3804",
+        "assets/RichTextEditor-BYainKZt.js.map": "1404b2dfb7ac5b9d5849d4749c40cbf37784fc40d59c55d64064b2ef9e3426a2",
+        "assets/index-BND0GPqU.js": "84a7cf7d0fc089a4b9390cd84b382db6db599735167e0431633c7dbc460085d3",
+        "assets/index-BND0GPqU.js.map": "4a4da4264ab517336f679ba8a600d278ec442c8800cacf63441c5b1102a6785f",
+        "assets/index-bam2-7vJ.css": "b6822f7f5efb642c8c52ed70cda6606e6dd4fbf25cd361c46bb7f50ce2e4f4b4",
+        "assets/portability.worker-DEvlQVr4.js": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+        "assets/portability.worker-DEvlQVr4.js.map": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+        "index.html": "658e49d6572e4ce5e7210f735fc4c45ad2fdd8a5d1816989221c576abc69ab1a",
+        "theme.js": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e"
+      }
+    },
+    "review-02": {
+      "source_commit": "a40cd235e2f4017882792ad881860ca84f11d8aa",
+      "manifest_sha256": "559e9d7d60f893826e54073831b8e6532b60b9f49c14de7d80bad6e41d730cbe",
+      "files": {
+        "assets/RichTextEditor-DfZ-jVLY.js": "978efdb4c5201453c7e3a1c34727afa785c9fe1e1bd5e6b44617a351a74f081f",
+        "assets/RichTextEditor-DfZ-jVLY.js.map": "58067bdcde25aa428ceb79841550fc9facce4716327649cc2ee5a1b936ef19da",
+        "assets/index-CrYtOdTv.js": "d603803ac9ae37b169eac7238faa0114a9001d94a340febfa25a27311a049684",
+        "assets/index-CrYtOdTv.js.map": "42b5544cf2a572f7f864c652aaad8c2c5183e51a9629812c8ff2ceea90e74347",
+        "assets/index-bam2-7vJ.css": "b6822f7f5efb642c8c52ed70cda6606e6dd4fbf25cd361c46bb7f50ce2e4f4b4",
+        "assets/portability.worker-DEvlQVr4.js": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+        "assets/portability.worker-DEvlQVr4.js.map": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985",
+        "index.html": "ff899f74c47333f3c9b96a16474b69b535d54e51957c06a50b3320053e73490b",
+        "theme.js": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e"
+      }
+    }
+  },
+  "source_corrections": [
+    "Validate current Issue and canonical positive-i64 token before resolving an acknowledgement.",
+    "Keep unknown/exact request on ambiguous or expired successful replay and malformed maintenance; machine codes, not human text, govern justified fresh nonapplication.",
+    "Clear stale create noncreation confirmation for each new attempt, retaining immutable key/body/attachment and uncertain locks.",
+    "Freeze drag-start source/team/token and repeat actual release-coordinate hit-test.",
+    "Recover all-team listing with compatible created sort while retaining unrelated filters.",
+    "Expose reactive aria-readonly matching effective editor disabled state without replacing editor/document or emitting changes."
+  ],
+  "focused_checks": {
+    "consolidated_source_tests": 112,
+    "final_editor_union_tests": 117,
+    "final_editor_union_files": 5,
+    "both_typescript_checks_passed": true,
+    "editor_changed_build_passed": true,
+    "spec_only_oracle_typecheck_passed": true,
+    "logs_sha256": {
+      "review-boundaries-before.log": "f67e95c3d93ec12a7b9be35d1b0c1fdc7d7063b0ec87b847251082693b30d8d3",
+      "review-controller-after.log": "2d6693bdbd524655e3a65a62c76830a9ad4c3ef1c68d61016b730233b3d72dc3",
+      "review-create-before.log": "40a01fba07c992293422f827d5831182e3127771eee046842aee60fc34fa1584",
+      "review-create-after.log": "49c30de1eccfa31f87c3c32c326ce97c3d6c08b2ab22452db167e631afcbfe88",
+      "review-list-before.log": "e896e52514c40928b495c3c4005d89eb3fb8b2ff764ca9c27c300cbed945804d",
+      "review-list-after.log": "9062c5bb15ea3aada4355ac324456419fdfb7c73a559ae66c6a26d37dbae92d1",
+      "review-list-green.log": "bce28fa890d5c14397eb4edf2bc618483db492665109603c662977fd31d597cf",
+      "review-editor-aria-before.log": "5398e2e0c56b518f367fcc9fe667729414c3116b86546be7fb641675c3cfc565",
+      "review-editor-aria-after.log": "64a1101e877c7d1a5503be6b6cd1a5d08270e427117797273b7f8eac6cfc2e39",
+      "review-editor-typescript-final.log": "f9c495bc3f88e10cc53dab48956f796cbd215b458cbb3502386757e8d15338b7",
+      "review-final-editor-union-green.log": "4a53a4744bf05ed3b50d8f08da1fd90aa343b9b1ae64012283f994b684131bf4",
+      "review-editor-typescript-green.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review-editor-browser-typescript-green.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review-editor-production-build.log": "a533f61d6efa5a959870097ba295c7b43963cf7297f6573d0951c628ee7afa85",
+      "review-model-api-confirm.log": "6b7306e6745a22b6eee531ce776e1bc9f4d14f632315e38586a26bbf5325f6a7",
+      "review-model-oracle-typescript-sealed.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "browser": {
+    "fresh_final_editor_bundle_passes": 3,
+    "retained_bff_bundle_passes": 6,
+    "fresh_single_nine_claimed": false,
+    "unchanged_first_two_journey_bodies_sha256": "d2a3e048dfe78c7638d972fc6f29c4fd1f4412e8f75f4d6db66496aaf22eb31a",
+    "equivalence_boundary": "First/second bodies and their position controller/App/list/board/create source remain unchanged after bff. Sole additional product change is truthful editor aria-readonly; no edit/serialization/mutation callback behavior changes. Their six passes retain bff/review-01 identity. Current third3 run on a40/review-02 plus spec-only e169. Combined-head full CI remains separate.",
+    "actual_final_checks": [
+      "Expected document model/paragraph/ready attachment before Create or Resume.",
+      "Real blocked unknown-total100 staging, manager can_resume/current ETag resume, completed501 and no automatic POST.",
+      "Real201 delivery lost, all original readonly/ARIA/native/Title/Cancel locks, ordinary typing cannot alter exact document model.",
+      "Exact original key/body/attachment safe retry recovers cached201 once, saved document/download bytes/reload."
+    ],
+    "response_injections": "Second journey explicitly injects malformed200 and ordinary409 around actual cached position responses; no backend expiry state was fabricated. Real first201 create delivery is aborted; safe retry receives real cached201.",
+    "runs": {
+      "review-01": {
+        "passed": 6,
+        "failed": 3,
+        "runtime": {
+          "mode": "browser",
+          "phase": "review-01",
+          "backend_source": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+          "backend_sha256": "f9725a64b91ef8df2847abfb7ededf8dd31566caa5601812a8d4b39801c01622",
+          "api_reaped": true,
+          "worker_reaped": true,
+          "seed_reaped": true,
+          "monitor_reaped": true,
+          "scope_verified": true,
+          "namespace_zero": true,
+          "continuous_worker_started": true,
+          "browser_scope_started": true,
+          "frontend_phase": "review-01",
+          "selection": "all-three-journeys",
+          "api_ready": true,
+          "actual_worker_profile": {
+            "poll_interval_ms": 2000,
+            "lease_seconds": 60,
+            "max_connections": 5
+          },
+          "browser_service_authority_absent": true,
+          "fixture_guard_has_no_setup_service_authority": true,
+          "spec_sha256": "ea29bf417b4266a0d7536bb89154df3ff7fdb08fb85ba81cf08cfcca3f84ea6d",
+          "worker_exit_code": 0,
+          "api_exit_code": 0,
+          "exit_code": 1,
+          "cleanup_failures": []
+        },
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+            "status": "passed",
+            "duration_ms": 6536
+          },
+          {
+            "browser": "chromium",
+            "check": "an unknown position survives authority refresh with its exact request and conceals an actually denied private source",
+            "status": "passed",
+            "duration_ms": 4093
+          },
+          {
+            "browser": "chromium",
+            "check": "typed large-group maintenance preserves an editable create draft and attachment through reviewed manager resume",
+            "status": "failed",
+            "duration_ms": 13663,
+            "failure": "manual-issue-order.browser.ts:243"
+          },
+          {
+            "browser": "firefox",
+            "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+            "status": "passed",
+            "duration_ms": 8796
+          },
+          {
+            "browser": "firefox",
+            "check": "an unknown position survives authority refresh with its exact request and conceals an actually denied private source",
+            "status": "passed",
+            "duration_ms": 5155
+          },
+          {
+            "browser": "firefox",
+            "check": "typed large-group maintenance preserves an editable create draft and attachment through reviewed manager resume",
+            "status": "failed",
+            "duration_ms": 14057,
+            "failure": "manual-issue-order.browser.ts:243"
+          },
+          {
+            "browser": "webkit",
+            "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+            "status": "passed",
+            "duration_ms": 7576
+          },
+          {
+            "browser": "webkit",
+            "check": "an unknown position survives authority refresh with its exact request and conceals an actually denied private source",
+            "status": "passed",
+            "duration_ms": 5160
+          },
+          {
+            "browser": "webkit",
+            "check": "typed large-group maintenance preserves an editable create draft and attachment through reviewed manager resume",
+            "status": "failed",
+            "duration_ms": 14042,
+            "failure": "manual-issue-order.browser.ts:243"
+          }
+        ],
+        "receipt_sha256": "ac5fd0be1ac65012ceaf426fc50683f351cd01257e055ddaac500eb35310a2c3",
+        "runtime_sha256": "ec31f89c801135e430c5c23c5065af912c2a2bbf01b927911866384e0fc12595",
+        "private_results_sha256": "424533b15d925ff35ed41baed7095dad9015913a73de63d882491016a447d537"
+      },
+      "review-create-01": {
+        "passed": 0,
+        "failed": 3,
+        "runtime": {
+          "mode": "browser",
+          "phase": "review-create-01",
+          "backend_source": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+          "backend_sha256": "f9725a64b91ef8df2847abfb7ededf8dd31566caa5601812a8d4b39801c01622",
+          "api_reaped": true,
+          "worker_reaped": true,
+          "seed_reaped": true,
+          "monitor_reaped": true,
+          "scope_verified": true,
+          "namespace_zero": true,
+          "continuous_worker_started": true,
+          "browser_scope_started": true,
+          "frontend_phase": "review-02",
+          "selection": "third-create-journey-only",
+          "api_ready": true,
+          "actual_worker_profile": {
+            "poll_interval_ms": 2000,
+            "lease_seconds": 60,
+            "max_connections": 5
+          },
+          "browser_service_authority_absent": true,
+          "fixture_guard_has_no_setup_service_authority": true,
+          "spec_sha256": "d9960a9eef78e76738eec5bc6898fa6df039b1135bf158d17d3f5c8165aeb317",
+          "worker_exit_code": 0,
+          "api_exit_code": 0,
+          "exit_code": 1,
+          "cleanup_failures": []
+        },
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "typed large-group maintenance preserves an editable create draft and attachment through reviewed manager resume",
+            "status": "failed",
+            "duration_ms": 5961,
+            "failure": "manual-issue-order.browser.ts:245"
+          },
+          {
+            "browser": "firefox",
+            "check": "typed large-group maintenance preserves an editable create draft and attachment through reviewed manager resume",
+            "status": "failed",
+            "duration_ms": 5396,
+            "failure": "manual-issue-order.browser.ts:245"
+          },
+          {
+            "browser": "webkit",
+            "check": "typed large-group maintenance preserves an editable create draft and attachment through reviewed manager resume",
+            "status": "failed",
+            "duration_ms": 4396,
+            "failure": "manual-issue-order.browser.ts:245"
+          }
+        ],
+        "receipt_sha256": "b6497b5fa76c6c82078e93077e3a93882d5c3b56263b9669401367ee7b952a4e",
+        "runtime_sha256": "b65f275f240faa6e3bfb2e3c8732d19493fb41809f0bf8db38ce33ba0c7038ec",
+        "private_results_sha256": "e388fcfcdab751d076718b0f8c3defe2289fb32be5f21d5d73495c5e5f6930b8"
+      },
+      "review-create-02": {
+        "passed": 3,
+        "failed": 0,
+        "runtime": {
+          "mode": "browser",
+          "phase": "review-create-02",
+          "backend_source": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+          "backend_sha256": "f9725a64b91ef8df2847abfb7ededf8dd31566caa5601812a8d4b39801c01622",
+          "api_reaped": true,
+          "worker_reaped": true,
+          "seed_reaped": true,
+          "monitor_reaped": true,
+          "scope_verified": true,
+          "namespace_zero": true,
+          "continuous_worker_started": true,
+          "browser_scope_started": true,
+          "frontend_phase": "review-02",
+          "selection": "third-create-journey-only",
+          "api_ready": true,
+          "actual_worker_profile": {
+            "poll_interval_ms": 2000,
+            "lease_seconds": 60,
+            "max_connections": 5
+          },
+          "browser_service_authority_absent": true,
+          "fixture_guard_has_no_setup_service_authority": true,
+          "spec_sha256": "41b6673041c0bcd967e46166772a5895be0a9a1d528253ae4a0ae21bc94e59bd",
+          "worker_exit_code": 0,
+          "api_exit_code": 0,
+          "exit_code": 0,
+          "cleanup_failures": []
+        },
+        "checks": [
+          {
+            "browser": "chromium",
+            "check": "typed large-group maintenance preserves an editable create draft and attachment through reviewed manager resume",
+            "status": "passed",
+            "duration_ms": 4404
+          },
+          {
+            "browser": "firefox",
+            "check": "typed large-group maintenance preserves an editable create draft and attachment through reviewed manager resume",
+            "status": "passed",
+            "duration_ms": 6379
+          },
+          {
+            "browser": "webkit",
+            "check": "typed large-group maintenance preserves an editable create draft and attachment through reviewed manager resume",
+            "status": "passed",
+            "duration_ms": 5845
+          }
+        ],
+        "receipt_sha256": "b15ef06fdbd67411be4dac7e40dbb928f963a69be40a3e7d40b7f77f8fe8d695",
+        "runtime_sha256": "85401ab35c23e78d8ea44d529b073ef139451c860a3d0cca92bd51aef1f53af3",
+        "private_results_sha256": "a2988dbcd22ad25bcbc8d5decaff10b01808e0edf3a6f2655cfe27fdf8a6761d"
+      }
+    },
+    "profile": {
+      "cases_per_engine": 3,
+      "engines": [
+        "chromium",
+        "firefox",
+        "webkit"
+      ],
+      "timeout_ms": 60000,
+      "expect_action_timeout_ms": 10000,
+      "workers": 1,
+      "retries": 0,
+      "focused_parent_bound_ms": 600000
+    }
+  },
+  "data": {
+    "one_existing_qualification_database_four_roles": true,
+    "same_cluster_workspace_configuration_backend": true,
+    "exact27_migrations_preserved": true,
+    "reset_requeue_bootstrap_role_rotation": false,
+    "additive_sets": {
+      "02": {
+        "seed_sha256": "59f9a013ea7b45dadad2811676ba6cea1ef2ea4990d2ee8e5831db2b0c9fb455",
+        "seed_receipt_sha256": "c7c83b3e24757c0e015c4b8ebe058561aa627ed3bafa3f8488ef6fa12d7ac4d7",
+        "manifest_sha256": "9f0fc44c41a256b6a2f355c2e2c1d37bbb4d6e43c2cb0f5cb3ae496e19f62544",
+        "postcheck_sha256": "c58c151fee82955d6b837705c2c320b1d3ccb0b0b730cf48bf94196d18354ebf",
+        "postcheck_receipt_sha256": "33cda336947afcd4a0052a3f8a446f3a6e8ec42f39cdaccb718467cc75ed337f",
+        "postcheck": {
+          "status": "passed",
+          "fixture_set": "additive-02",
+          "backend_commit": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+          "retained_old_rowsets_unchanged": true,
+          "original_artifacts_unchanged": true,
+          "actual_ui_resume_audits": true,
+          "new1503_logical_digests_unchanged": true
+        },
+        "bounded_default_once_children": 14,
+        "actual_initial_staged": {
+          "chromium": "100",
+          "firefox": "100",
+          "webkit": "100"
+        },
+        "retained_rowset_digests": {
+          "jobs": {
+            "rows": 3,
+            "sha256": "662ebc08acb6c72d0ca2ea9d462d48f7ccd630bc3bd884e7986cee41fa4d9409"
+          },
+          "audit": {
+            "rows": 12,
+            "sha256": "4620a78a8182c931fbe7d148d41f303741e348ce777ce97f5aa71ba0488e138c"
+          },
+          "events": {
+            "rows": 3,
+            "sha256": "f8c0026dd6ebeaad569bfde795c1dbe06186b9788949d08715c3678fdc93781c"
+          },
+          "guards": {
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "staging": {
+            "rows": 1503,
+            "sha256": "9cacddb50ff06f36857e55e48df8b38957567abe815bf4635b6d053786b942aa"
+          },
+          "activity": {
+            "rows": 3,
+            "sha256": "295c6f9a7b31e7cd25fe6cf4d0bc37b1577834fd4f8a4f7fadace50ddda9af33"
+          },
+          "attempts": {
+            "rows": 6,
+            "sha256": "00077b893dd48437cdaeb6f411e80bc6f0fe2f05686e256536892b290d0f2d6b"
+          },
+          "documents": {
+            "rows": 1506,
+            "sha256": "a21d7af3c8a7bb74e29005af50ad71aa7c13ef28e1e3f9886b7d3f78f69a27fe"
+          },
+          "revisions": {
+            "rows": 1506,
+            "sha256": "b1f2c42f8df08cd667e8d804fb16eec2a353b02ba708b4a994ab3356ac23d55d"
+          },
+          "team_members": {
+            "rows": 3,
+            "sha256": "bc3d96b258eb8d6b217b1766d400af9f71cb8e08d50e8bbb8667d6e0ccea70ce"
+          },
+          "normalizations": {
+            "rows": 3,
+            "sha256": "0fc7ed9245702f8fbe67ec2857c472c4c0719f0e30eb4ae4b9260b39e88149b6"
+          },
+          "workspace_members": {
+            "rows": 4,
+            "sha256": "829b11a9eb8ec15e5aece582d5c7ebf76e9fe17c6a1c95fee53160a9c8c99aae"
+          },
+          "issues_including_rank": {
+            "rows": 1506,
+            "sha256": "07cd1aaa43ccef648f3646a0e3d52e8524402e27e6174222beb2b9dc11b7e6c2"
+          },
+          "teams_including_counter": {
+            "rows": 3,
+            "sha256": "16d80bdb92be11d8e04133138e7a9cad751c51b326295a2f6332ad8176219a3f"
+          }
+        },
+        "old_rows_equal_after_preparation": true
+      },
+      "03": {
+        "seed_sha256": "db730ba03f3dcf6a88d48b33e0c7f0e8f70e49e121883ec54ef3df8471b49f8b",
+        "seed_receipt_sha256": "841c4e02354b2c8ce0a58bf520b61221551cad1687e4619b83e34ac9b3ca7af3",
+        "manifest_sha256": "2661055bb0d427680a071bbf0e165240f0ceec4107d130f8ac8aa25d67252dca",
+        "postcheck_sha256": "b969ad053a8318ee3ec17c5d810811a44cac99965f9389b81d3c8f5aad3bebf7",
+        "postcheck_receipt_sha256": "5db8837f1945d57d1a67b7f7ada6e6fe9ec32f441820b2850e6342226b938a4e",
+        "postcheck": {
+          "status": "passed",
+          "fixture_set": "additive-03",
+          "backend_commit": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+          "retained_old_rowsets_unchanged": true,
+          "original_artifacts_unchanged": true,
+          "actual_ui_resume_audits": true,
+          "new1503_logical_digests_unchanged": true
+        },
+        "bounded_default_once_children": 14,
+        "actual_initial_staged": {
+          "chromium": "100",
+          "firefox": "100",
+          "webkit": "100"
+        },
+        "retained_rowset_digests": {
+          "jobs": {
+            "rows": 6,
+            "sha256": "14fbab1993fdb7f0e29500e75e0a7625745316087baa1891f11240313b9bbe6d"
+          },
+          "audit": {
+            "rows": 24,
+            "sha256": "0bee460a465532a05c9b73b332b59904d536c195ec97fc5f38a52ee715c9e865"
+          },
+          "events": {
+            "rows": 6,
+            "sha256": "31bd8adbbc44a96b2e1606818e4baf57e1501f9f5126fa05f9292c1a280cbbce"
+          },
+          "guards": {
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "staging": {
+            "rows": 3006,
+            "sha256": "801194766d3fe130caeba81594b8774a8d2da71301d501ea5758d59c4081c05a"
+          },
+          "activity": {
+            "rows": 6,
+            "sha256": "6648ac94f322124330dddabc237198a700af80a02e8769e03ac77334c1eaacb5"
+          },
+          "attempts": {
+            "rows": 12,
+            "sha256": "3fcb8c1780579494ed4df230b44d600b472f1dfcff0ac53110c267ae49c4b7ba"
+          },
+          "documents": {
+            "rows": 3012,
+            "sha256": "62636ccbd13641d9d57e66211cdada1589ae1a16a8acfb27283af6fbdb6e7559"
+          },
+          "revisions": {
+            "rows": 3012,
+            "sha256": "23e5de5ab8a65b5ac1336d7d3e2136c82b40c26704be0d8b62e3b6f70d83331c"
+          },
+          "team_members": {
+            "rows": 6,
+            "sha256": "7aa13ef3cf0c7fb711b932a1f28c6d95a2cc7fa5ff665f0bba12bca7acad166c"
+          },
+          "normalizations": {
+            "rows": 6,
+            "sha256": "02961e381affef30d82a2df536bac40e6cb7bcb22688dcb70033b013913785cb"
+          },
+          "workspace_members": {
+            "rows": 7,
+            "sha256": "d9b9daec1263345bf9c70afa21ad68031a0ded0d8f14555f217431590b23c599"
+          },
+          "issues_including_rank": {
+            "rows": 3012,
+            "sha256": "642fe7285dde66c5132d74343e6c9de4df1efcc216180c6f86c92273d9ed0193"
+          },
+          "teams_including_counter": {
+            "rows": 6,
+            "sha256": "6d0eb06ef1f4c92c20675a0cfebbefd5eb997ff1c7b8391e97e6ecf7cc239fdb"
+          }
+        },
+        "old_rows_equal_after_preparation": true
+      },
+      "04": {
+        "seed_sha256": "5acda9f28b94d50a3550818a04e46f7af612518015c12df1eaee550acca0c6ff",
+        "seed_receipt_sha256": "091b711abb26094d2220782c24e6fc9b223ff245a6c980c4ff0f18416bcf1497",
+        "manifest_sha256": "100c1306ccf47f2001c966ef71447229ec14271f97e9018bd9cfa29171a37a29",
+        "postcheck_sha256": "2b439fd53f3d07fc9f22b4379ff269cf4b4db5a62739380c49a399deceaf7061",
+        "postcheck_receipt_sha256": "4b990d9e2ba9a66ce1035bd1da2cdf03a83ee858a4f51a7b93c591cb34f0f02b",
+        "postcheck": {
+          "status": "passed",
+          "fixture_set": "additive-04",
+          "backend_commit": "ab00bf4ec3bfd9ebb68e44d6a39b35202ec5a9bc",
+          "retained_old_rowsets_unchanged": true,
+          "original_artifacts_unchanged": true,
+          "actual_ui_resume_audits": true,
+          "new1503_logical_digests_unchanged": true
+        },
+        "bounded_default_once_children": 14,
+        "actual_initial_staged": {
+          "chromium": "100",
+          "firefox": "100",
+          "webkit": "100"
+        },
+        "retained_rowset_digests": {
+          "jobs": {
+            "rows": 9,
+            "sha256": "ba411074c7d5b910a826f104f02af151e97501ecbfcc21a4709f32c150d62d18"
+          },
+          "audit": {
+            "rows": 36,
+            "sha256": "2a74961747c4a4d7262b76f23bb5cb3299ee1e40d560d6ea8a10d60552ebf029"
+          },
+          "events": {
+            "rows": 9,
+            "sha256": "d92c265f5b22654c38efe245bd7498ebbd6737c9b8627ece536287aa7e512995"
+          },
+          "guards": {
+            "rows": 0,
+            "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "staging": {
+            "rows": 4509,
+            "sha256": "71cf21c4ae0c1345b9e520a8d34c75faefbff59087aceb13047c3bd054d533cb"
+          },
+          "activity": {
+            "rows": 9,
+            "sha256": "536d773cea7b4b2a6f7001aefc0801e6482d2e4fece9d61d0471bd3b67f82201"
+          },
+          "attempts": {
+            "rows": 18,
+            "sha256": "832d13632f5398eef845e8ad33ea0197ea96df4c359f4a8855a19ce83430a64f"
+          },
+          "documents": {
+            "rows": 4518,
+            "sha256": "88d9db2c55c09431f31534f893bb2ff566ef53e455b6f01d5a0b0b9ba240129a"
+          },
+          "revisions": {
+            "rows": 4518,
+            "sha256": "5bded9eee67cb16106a57fede07a877b2360f9ceee634ed08cec370cd9ac758e"
+          },
+          "team_members": {
+            "rows": 9,
+            "sha256": "837be836afacfcdfdf0f465256ef552793110acf5ca7ebb002d79ea2a55a4929"
+          },
+          "normalizations": {
+            "rows": 9,
+            "sha256": "c8b4200aae35a1fa9a994c730f42dcd4576db4b98faf54668119270a38d8cbf2"
+          },
+          "workspace_members": {
+            "rows": 10,
+            "sha256": "5339ff901e1ff90925358ff6dd232b7fc0d3d59a794ed73c3ce60d406b1c04f5"
+          },
+          "issues_including_rank": {
+            "rows": 4518,
+            "sha256": "9bc99d91a9ba63133208bd8e6c08760d806e7b679186060273785044a38bcd1a"
+          },
+          "teams_including_counter": {
+            "rows": 9,
+            "sha256": "8f63bf2c3d8e0b12f8fc7bf29dc7c836c523fdad84c217754b359464a1a7da7b"
+          }
+        },
+        "old_rows_equal_after_preparation": true
+      }
+    },
+    "final_old_scope": "Nine earlier teams/jobs and4518 live issue rows including normalized ranks, documents/revisions/history/provenance/memberships remain exact.",
+    "new_each_set_scope": "1503 original logical/document/history digests remain unchanged except rank. Each job completes501, original requester retained, actual execution manager Owner, ordinal*1024 ranks, guard0, real resume audit1, closed attempts, one new issue502 at tail514048 and counter503.",
+    "shared_metadata_boundary": "Legitimate new application operations advance shared workspace auth epochs, stream heads and new audit rows. Entire workspace immutability is not claimed."
+  },
+  "retained_failures": {
+    "review01": "Three real missing-ARIA readonly failures after actual resume/committed201 delivery loss; data proof passed, safe-retry tail not executed.",
+    "review_create01": "Three overbroad presentation-innerHTML equality failures after all native/ARIA readonly checks and committed201 delivery loss; selection/readonly-control repaint differs, data proof passed. Replaced only with actual model equality; original assertions retained.",
+    "units_and_typechecks": "12 protocol/release red cases, create/recovery/editor red cases, intermediate workflow-count fixture assertion, optional-editor-reference TypeScript failure retained. Earlier packet failures remain unchanged."
+  },
+  "primary_sources": {
+    "aria_readonly": {
+      "url": "https://www.w3.org/TR/wai-aria-1.2/#aria-readonly",
+      "checked": "2026-10-25",
+      "fact": "Readonly textbox semantic state defaults false and true means the user cannot change its value."
+    },
+    "installed_playwright_private_locator": "playwright-readonly-primary-source.json",
+    "installed_playwright_locator_sha256": "785da8a16407382758ad158c947a46b512bf6c40700163b894252dfd54bbec83"
+  },
+  "rollback": "Frontend-only controls/semantic correction; no schema or stored format change. All original and additive fixture data, failed evidence and prior bundles remain retained.",
+  "limits": [
+    "Independent final source review and combined-head configured CI/integrated-main gates remain lead-owned.",
+    "CI fixture integration is a separate assigned runner change; no local focused result claims that integration passed.",
+    "No actual assistive-technology/device/physical-input/native-package/general-recovery/performance/release/whole-product qualification or worker publication/merge/issue closure."
+  ],
+  "private_artifact_locator": "$OPENTRACK_DEV_STATE/manual-issue-order-ui/artifact-index-review-final.json in the existing assigned helper namespace"
+}

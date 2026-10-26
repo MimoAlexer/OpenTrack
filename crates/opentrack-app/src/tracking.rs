@@ -1,6 +1,6 @@
 use super::*;
 use chrono::{DateTime, Utc};
-use opentrack_domain::{Bootstrap, CreateIssue, Issue, IssueFilter, Page, apply_issue_patch};
+use opentrack_domain::{Bootstrap, CreateIssue, Issue, IssueFilter, IssuePage, apply_issue_patch};
 use serde_json::{Value, json};
 use sqlx::Row;
 
@@ -10,6 +10,59 @@ fn required(count: u64) -> Result<()> {
     } else {
         Err(Error::Internal)
     }
+}
+
+pub(crate) async fn status_transition(
+    tx: &mut store::Tx,
+    w: Uuid,
+    old: &Issue,
+    status: Uuid,
+    assignee: Option<Uuid>,
+    restoring: bool,
+) -> Result<()> {
+    if (restoring || status != old.status_id) && !sqlx::query_scalar::<_,bool>("SELECT EXISTS(SELECT 1 FROM workflow_statuses WHERE workspace_id=$1 AND team_id=$2 AND id=$3 AND retiring_at IS NULL AND archived_at IS NULL)").bind(w).bind(old.team_id).bind(status).fetch_one(&mut **tx).await.map_err(db_error)? {
+        return Err(Error::Invalid("Status is unavailable for this team".into()));
+    }
+    let reopening = if status != old.status_id {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT previous.category IN ('completed','canceled') AND current.category NOT IN ('completed','canceled')
+             FROM workflow_statuses previous JOIN workflow_statuses current
+               ON current.workspace_id=previous.workspace_id AND current.team_id=previous.team_id
+             WHERE previous.workspace_id=$1 AND previous.team_id=$2 AND previous.id=$3 AND current.id=$4",
+        )
+        .bind(w)
+        .bind(old.team_id)
+        .bind(old.status_id)
+        .bind(status)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(db_error)?
+    } else {
+        false
+    };
+    if restoring || reopening || assignee != old.assignee_id {
+        // Check assignee eligibility independently: unchanged retiring status
+        // and historical unavailable assignees must not block unrelated edits.
+        let default: Uuid = sqlx::query_scalar(
+            "SELECT id FROM workflow_statuses WHERE workspace_id=$1 AND team_id=$2 AND is_default",
+        )
+        .bind(w)
+        .bind(old.team_id)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(db_error)?;
+        if !store::valid_references(tx, w, old.team_id, default, assignee)
+            .await
+            .map_err(db_error)?
+        {
+            return Err(Error::Invalid(if reopening {
+                "Choose an eligible assignee or Unassigned before reopening this issue".into()
+            } else {
+                "Assignee is unavailable for this team".into()
+            }));
+        }
+    }
+    Ok(())
 }
 
 impl App {
@@ -53,7 +106,7 @@ impl App {
         actor: &Actor,
         w: Uuid,
         mut f: IssueFilter,
-    ) -> Result<Page<Issue>> {
+    ) -> Result<IssuePage> {
         opentrack_domain::normalize_label_ids(&mut f.label_ids)?;
         f.validate()?;
         let mut tx = self.scoped(actor, w, false).await?;
@@ -66,6 +119,9 @@ impl App {
             {
                 return Err(Error::Invalid("A selected label is unavailable".into()));
             }
+        }
+        if f.sort.as_deref() == Some("manual") {
+            return self.manual_issues(tx, actor, w, f, auth_epoch).await;
         }
         let mut fingerprint = f.clone();
         fingerprint.cursor = None;
@@ -82,9 +138,15 @@ impl App {
             .as_deref()
             .map(|cursor| self.taxonomy_cursor_decode("issues-v2", &binding, cursor))
             .transpose()?;
-        let mut data = store::list_issues(&mut tx, w, actor.user.id, &f, after)
-            .await
-            .map_err(db_error)?;
+        let mut data = store::list_issues(
+            &mut tx,
+            w,
+            actor.user.id,
+            &f,
+            after.map(|(p, d, id)| store::IssueListCursor::Standard(p, d, id)),
+        )
+        .await
+        .map_err(db_error)?;
         let limit = f.limit.unwrap_or(50) as usize;
         let has_more = data.len() > limit;
         data.truncate(limit);
@@ -105,11 +167,23 @@ impl App {
         } else {
             None
         };
+        let mut order_maintenance = Vec::new();
+        if let Some(t) = f.team_id
+            && store::visible_team(&mut tx, w, t, actor.user.id, false)
+                .await
+                .map_err(db_error)?
+            && let Some(progress) =
+                crate::issue_ordering::active(&mut tx, actor, w, t, None).await?
+        {
+            order_maintenance.push(progress);
+        }
         tx.commit().await.map_err(db_error)?;
-        Ok(Page {
+        Ok(IssuePage {
             data,
             next_cursor,
             has_more,
+            order_version: None,
+            order_maintenance,
         })
     }
     pub async fn get_issue(&self, actor: &Actor, w: Uuid, id: Uuid) -> Result<Issue> {
@@ -235,6 +309,14 @@ impl App {
                 "A selected label is unavailable for this team".into(),
             ));
         }
+        let rank =
+            match crate::issue_ordering::append(&mut tx, actor, w, req.team_id, status).await? {
+                crate::issue_ordering::RankAllocation::Ready(rank) => rank,
+                crate::issue_ordering::RankAllocation::Maintenance(progress) => {
+                    tx.commit().await.map_err(db_error)?;
+                    return Err(Error::IssueOrderMaintenance(vec![progress]));
+                }
+            };
         let number:i64=sqlx::query_scalar("UPDATE teams SET next_issue_number=next_issue_number+1 WHERE workspace_id=$1 AND id=$2 RETURNING next_issue_number-1").bind(w).bind(req.team_id).fetch_one(&mut *tx).await.map_err(db_error)?;
         let id = Uuid::new_v4();
         sqlx::query("SELECT set_config('opentrack.initial_document',$1,true)")
@@ -242,7 +324,7 @@ impl App {
             .execute(&mut *tx)
             .await
             .map_err(db_error)?;
-        required(sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,description,status_id,priority,assignee_id,estimate,due_date,parent_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)").bind(id).bind(w).bind(req.team_id).bind(actor.user.id).bind(number).bind(&req.title).bind(&initial_plain_text).bind(status).bind(req.priority).bind(req.assignee_id).bind(req.estimate).bind(req.due_date).bind(req.parent_id).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
+        required(sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,description,status_id,priority,assignee_id,estimate,due_date,parent_id,rank) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::numeric)").bind(id).bind(w).bind(req.team_id).bind(actor.user.id).bind(number).bind(&req.title).bind(&initial_plain_text).bind(status).bind(req.priority).bind(req.assignee_id).bind(req.estimate).bind(req.due_date).bind(req.parent_id).bind(rank).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
         if let Some((template, version, hash)) = template_source {
             required(sqlx::query("INSERT INTO issue_template_sources(workspace_id,issue_id,source_team_id,template_id,template_version,definition_sha256) VALUES($1,$2,$3,$4,$5,$6)").bind(w).bind(id).bind(req.team_id).bind(template).bind(version).bind(hash).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
         }
@@ -378,40 +460,23 @@ impl App {
         };
         let item = apply_issue_patch(&old, &patch)?;
         let restoring = old.archived_at.is_some() && item.archived_at.is_none();
-        if (restoring || item.status_id != old.status_id) && !sqlx::query_scalar::<_,bool>("SELECT EXISTS(SELECT 1 FROM workflow_statuses WHERE workspace_id=$1 AND team_id=$2 AND id=$3 AND retiring_at IS NULL AND archived_at IS NULL)").bind(w).bind(old.team_id).bind(item.status_id).fetch_one(&mut *tx).await.map_err(db_error)? {
-            return Err(Error::Invalid("Status is unavailable for this team".into()));
-        }
-        let reopening = if item.status_id != old.status_id {
-            sqlx::query_scalar::<_, bool>(
-                "SELECT previous.category IN ('completed','canceled') AND current.category NOT IN ('completed','canceled')
-                 FROM workflow_statuses previous JOIN workflow_statuses current
-                   ON current.workspace_id=previous.workspace_id AND current.team_id=previous.team_id
-                 WHERE previous.workspace_id=$1 AND previous.team_id=$2 AND previous.id=$3 AND current.id=$4",
+        status_transition(
+            &mut tx,
+            w,
+            &old,
+            item.status_id,
+            item.assignee_id,
+            restoring,
+        )
+        .await?;
+        if old.status_id != item.status_id || old.archived_at != item.archived_at {
+            crate::issue_ordering::require_groups(
+                &mut tx,
+                actor,
+                w,
+                &[(old.team_id, old.status_id), (old.team_id, item.status_id)],
             )
-            .bind(w)
-            .bind(old.team_id)
-            .bind(old.status_id)
-            .bind(item.status_id)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(db_error)?
-        } else {
-            false
-        };
-        if restoring || reopening || item.assignee_id != old.assignee_id {
-            // Check assignee eligibility independently: unchanged retiring status
-            // and historical unavailable assignees must not block unrelated edits.
-            let default:Uuid=sqlx::query_scalar("SELECT id FROM workflow_statuses WHERE workspace_id=$1 AND team_id=$2 AND is_default").bind(w).bind(old.team_id).fetch_one(&mut *tx).await.map_err(db_error)?;
-            if !store::valid_references(&mut tx, w, old.team_id, default, item.assignee_id)
-                .await
-                .map_err(db_error)?
-            {
-                return Err(Error::Invalid(if reopening {
-                    "Choose an eligible assignee or Unassigned before reopening this issue".into()
-                } else {
-                    "Assignee is unavailable for this team".into()
-                }));
-            }
+            .await?;
         }
         if !store::validate_issue_labels(&mut tx, w, old.team_id, &item.label_ids, &old.label_ids)
             .await
