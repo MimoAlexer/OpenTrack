@@ -1,4 +1,5 @@
 //! Upgrade populated project membership without losing scope or requiring runtime grants.
+mod graph_support;
 #[allow(dead_code)]
 mod support;
 use opentrack_domain::*;
@@ -38,16 +39,15 @@ async fn upgrade(h: &Harness) {
         .bind(project_id).bind(w).bind(team).bind(json!({"type":"doc","content":[{"type":"paragraph"}]}))
         .execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
-    let issue = h
-        .app
-        .create_issue(
-            &actor,
-            w,
-            "upgrade-issue",
-            req(json!({"team_id":team,"title":"Existing project issue"})),
-        )
-        .await
-        .unwrap();
+    let issue = graph_support::historical_issue(
+        h,
+        &actor,
+        w,
+        team,
+        json!({"title":"Existing project issue"}),
+        Some("upgrade-issue"),
+    )
+    .await;
     let mut tx = h.context(actor.user.id, w).await;
     sqlx::query(
         "INSERT INTO project_issues(workspace_id,team_id,project_id,issue_id) VALUES($1,$2,$3,$4)",
