@@ -1,0 +1,164 @@
+{
+  "date": "2026-10-26",
+  "failed_head": "a148af442b50b16ce831d82360d5b1afba06ff7a",
+  "failed_head_checks": {
+    "verify": "failure",
+    "native-contracts": "success",
+    "runtime_amd64": "failure",
+    "runtime_arm64": "success"
+  },
+  "verify_run": 40245497619,
+  "verify_job": 121326153788,
+  "verify_full_log_sha256": "02cb6f6e2db03cb82382232d03a85bcc995107f58765f70133b5a325526659f2",
+  "amd64_run": 40245497586,
+  "amd64_job": 121326105742,
+  "amd64_full_log_sha256": "ea396c1bb53779b06b382bdafa4f728a9c42f5cb688f039b22891839355eaf7d",
+  "failed_head_browser_cases": 0,
+  "failed_head_browser_end_receipt": false,
+  "fixture_correction": "0cf67debda500ef57c0158549be30b2e3268c1fe",
+  "diagnostic_original": "13eba8b82899f89b5206e034c01e9ef52f7c1f21",
+  "diagnostic_import": "0edba5108e3f1b953a0497247013d4934eedb20b",
+  "source_sha256": {
+    "crates/opentrack-app/tests/graph_support/mod.rs": "e1272cb0604ff9b544c87be9ed9485536ea4ad2bc9c44444189946fe54bbcd52",
+    "crates/opentrack-app/tests/attachments_contract.rs": "d77e6da5936fa32f5af57ea9aae9971252ccf75f05bac2858d69f46c43579a0e",
+    "crates/opentrack-app/tests/templates_races.rs": "878f1966870e48b0bc12ac3b0811c309beb57c2ed83d75c57402dbfbbe824571",
+    "crates/opentrack-app/tests/mentions_races.rs": "b880f6203e9dec42a363c347863816491f1042a9f6080d8ae4a2e0b90064ba44",
+    "crates/opentrack-app/tests/preferences_contract.rs": "a311354ffd7b95090e948c377c7f86d7d0cfd2207c4bb1923c8eb73798f6f8f7",
+    "crates/opentrack-app/tests/templates_contract.rs": "75cddccfb3082dc0e9a234c87f9601ffad5ee785616e2203451a07099608315b",
+    "crates/opentrack-app/tests/event_admission_contract.rs": "77cfe194572500e11b64a553c3244736b61098c35278a42328340bf919f9f63a",
+    "crates/opentrack-app/tests/deletion_contract.rs": "c4772bfe61b391a992c76bb2d2421fd3f63fa01b7e59f264ba4fdcd023e101d6",
+    "crates/opentrack-app/tests/cycles_races.rs": "90151e7572623f2403c54422da5b4871567f6cecfe6ce35623260f78279ace8f"
+  },
+  "change": "Seed explicitly historical schemas with the existing test-only helper. Preserve request hashes, receipts, documents, events, assertion coverage and original migration boundaries. Reapply the canonical post-migration worker grant to the same existing role/pool in the schema18-to-current driver.",
+  "baseline": {
+    "selected_cases": 6,
+    "failed": 6,
+    "run": "manual-historical-fixtures-before-v2"
+  },
+  "passing_case_evidence": [
+    {
+      "target": "attachments_contract",
+      "kind": "repaired upgrade",
+      "run": "manual-historical-fixtures-after-v2",
+      "check": "attachments_contract",
+      "exit_code": 0,
+      "elapsed_seconds": 11.807,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "d07af4a49d7bda84dafaa1adec6c07080af61868f6b23bf044a5b72de12221a8",
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 3.13s"
+      ]
+    },
+    {
+      "target": "templates_races",
+      "kind": "repaired upgrade",
+      "run": "manual-historical-fixtures-after-v2",
+      "check": "templates_races",
+      "exit_code": 0,
+      "elapsed_seconds": 9.693,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "9a12f20339fdc95ed07c1bb79f6f79b02797e27aafdb812435313be026aa1b45",
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 3.33s"
+      ]
+    },
+    {
+      "target": "preferences_contract",
+      "kind": "repaired upgrade",
+      "run": "manual-historical-fixtures-after-v2",
+      "check": "preferences_contract",
+      "exit_code": 0,
+      "elapsed_seconds": 9.903,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "bc4b28f9cfd09dcbf305af109e4f3a7fb9476ba70bdbe45165960ca57f5e4621",
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 2.95s"
+      ]
+    },
+    {
+      "target": "templates_contract",
+      "kind": "repaired upgrade",
+      "run": "manual-historical-fixtures-after-v2",
+      "check": "templates_contract",
+      "exit_code": 0,
+      "elapsed_seconds": 7.936,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "daa69b63b66e6add47b0e15798106a845c8c1def6e8a2f28da016843a5112bc3",
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 2.87s"
+      ]
+    },
+    {
+      "target": "event_admission_contract",
+      "kind": "repaired upgrade",
+      "run": "manual-historical-fixtures-final-v2",
+      "check": "event_admission_contract",
+      "exit_code": 0,
+      "elapsed_seconds": 7.097,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "b1ad688cd4dccd854db28e8637518986a81084fd919ccea611b097bf01b2ee71",
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 3.42s"
+      ]
+    },
+    {
+      "target": "mentions_races",
+      "kind": "repaired upgrade",
+      "run": "manual-historical-fixtures-grant-v3",
+      "check": "mentions_races",
+      "exit_code": 0,
+      "elapsed_seconds": 15.027,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "8670ef6b7af6bfb097cfb4cfe460c0db0c159ff6d6923d40b93f1a177427adad",
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 10.18s"
+      ]
+    },
+    {
+      "target": "deletion_contract",
+      "kind": "existing regression",
+      "run": "manual-historical-fixtures-final-v2",
+      "check": "deletion_contract",
+      "exit_code": 0,
+      "elapsed_seconds": 45.22,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "72536b3ce2ad82c6af9b72e048a721d48309d14500008b3ff71782c45524ea6d",
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 42.27s"
+      ]
+    },
+    {
+      "target": "cycles_races",
+      "kind": "existing regression",
+      "run": "manual-historical-fixtures-final-v2",
+      "check": "cycles_races",
+      "exit_code": 0,
+      "elapsed_seconds": 7.649,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "a7db4aeb4abc82b2e73a956f9c2c5326540099df29b1d27c8d48e2d698b2d9c0",
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 2.97s"
+      ]
+    }
+  ],
+  "composition": "Six repaired upgrades plus two existing helper regressions, from separately identified focused invocations with exact final target/helper source hashes; not a fresh combined suite.",
+  "intermediate_failures": "Both initial repaired-run failures and the unsuccessful cleanup-drain probe remain retained. The probe was removed; canonical post-migration grants resolved the status-worker rollback. The successful URL equality assertion was subsequently made credential-safe and requalified.",
+  "local_checks": {
+    "affected_format_and_clippy": "pass in the named original result files",
+    "root_mocked_browser_checks": 55,
+    "root_mocked_browser_log_sha256": "9138314cb9eb93e794fa7a4769f95e52b6c37977ace1109c25deade06075cecc"
+  },
+  "private_artifacts": {
+    "index": "$OPENTRACK_DEV_STATE/manual-historical-fixtures-proof-v1/artifact-index.json",
+    "index_sha256": "988cf3c51bc1d255d3b29316941aadfe21d90e098756d80f30e8f933a1d187a0",
+    "files": 48,
+    "raw_logs_published": false
+  },
+  "database_scope": "Fresh per-test UUID schemas in the existing isolated four-role test database. No retained application migration/reset or service recreation. Initial stopped-legacy-cluster launcher attempt aborted before tests because the owned retained cluster already held the port; no test acceptance is derived from that attempt.",
+  "limits": [
+    "No production, migration, deployment grant, role scope, timeout, worker, retry or browser assertion change",
+    "Docker diagnostics identify a predicate only; runtime cause remains unresolved",
+    "All four fresh exact-head checks and complete240-case browser accounting remain required",
+    "Native GUI, physical input, assistive technology, recovery and whole-product acceptance remain open"
+  ]
+}
