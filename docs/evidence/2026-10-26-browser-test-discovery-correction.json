@@ -49,11 +49,13 @@
   },
   "retained_component_evidence": "Original Python 72, privacy 15 and source/type checks remain separate evidence on unchanged inputs. They were not repeated for a filename relocation.",
   "private_artifacts": {
-    "index": "$OPENTRACK_DEV_STATE/test-discovery-correction-v1/artifact-index.json",
-    "sha256": "10d33a88a3722b7180092c9c8cf06e080bfbbd7d0301bdd61699263e060cc0e6",
+    "index": "$OPENTRACK_DEV_STATE/test-discovery-correction-v2/artifact-index.json",
+    "sha256": "8f55cba3156c39d9159a4b3d8e9d75b2f5539111e9ca89510f28301e76ca82ab",
     "files": 8,
     "modes": "0700/0600",
-    "raw_logs_published": false
+    "raw_logs_published": false,
+    "retained_original_index_sha256": "10d33a88a3722b7180092c9c8cf06e080bfbbd7d0301bdd61699263e060cc0e6",
+    "packaging_history": "Original protected index is retained; current role-based labels reference byte-identical payloads."
   },
   "migration_and_rollback": "No migration, application source, fixture action, assertion, server policy, timeout, worker or retry change. Dedicated Node CI still runs all seven wrapper tests.",
   "remaining": [
