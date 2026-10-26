@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "created_utc": "2026-10-26T03:47:01.829905+00:00",
+  "created_utc": "2026-10-26T03:56:11.079859+00:00",
   "base_head": "6fcb481ffc15c5fda8ca33522439b732098044c4",
   "scope": "Fixture admission coordination; no browser runtime qualification.",
   "trigger": {
@@ -89,7 +89,8 @@
         "scripts/browser-acceptance.py",
         "scripts/browser_order_fixtures.py",
         "scripts/test-browser-acceptance.py"
-      ]
+      ],
+      "evidence_head": "664201ab763c2f5a0c71a7980d1534b66cbabdee"
     },
     "node": {
       "command": "node --experimental-strip-types --test e2e/fixture-admission.test.mjs e2e/receipt-reporter-privacy.mjs",
@@ -105,7 +106,8 @@
         "web/e2e/fixture-admission.test.mjs",
         "web/e2e/receipt-reporter.ts",
         "web/e2e/receipt-reporter-privacy.mjs"
-      ]
+      ],
+      "evidence_head": "664201ab763c2f5a0c71a7980d1534b66cbabdee"
     },
     "types": {
       "commands": [
@@ -129,7 +131,8 @@
       },
       "exact_browser_title_set_matches_full_6fcb_receipt": true,
       "sorted_browser_title_json_sha256": "0961efe584b98bb2ff3a3e9154662a694932918c846cc2e7f6e6c118463fdd4e",
-      "runtime_cases_executed": 0
+      "runtime_cases_executed": 0,
+      "evidence_head": "664201ab763c2f5a0c71a7980d1534b66cbabdee"
     },
     "case_preservation": {
       "method": "Removing only each new import and registerAdmission line exactly reproduces git cat-file --filters at the base head.",
@@ -148,7 +151,8 @@
         "web/e2e/projects.browser.ts": "f58ec560de92a5d425eb89e675ff41c3b6b71eb849f070b7c6e8f450cefcdcd5",
         "web/e2e/trash-query-scalar-inputs.browser.ts": "e2a84364a83dcf1bc790ec8d4d1a93314942ab52e5d38616ea4ed73494a400db",
         "web/e2e/workflow-taxonomy.browser.ts": "4798b905fcd70131f16bc96ad7f765924f0c391e5ffa9fee5c56404f86ada87e"
-      }
+      },
+      "evidence_head": "664201ab763c2f5a0c71a7980d1534b66cbabdee"
     },
     "unchanged_source_guards": [
       "web/playwright.config.ts",
@@ -201,7 +205,7 @@
     "scripts/test-browser-acceptance.py": "e517a5623edf1915a3f0ecda97ffec19f1a73a9c4c25b5ed2f847534942e3ea8",
     "web/e2e/board.browser.ts": "2aa30c8a2d20ea3596a41b4a40d9899fd2d31221133f8247e51a94c228e0d851",
     "web/e2e/comment-moderation-scalar-inputs.browser.ts": "f1488364af6eb4129198f41ca54a0b51749bb620072f38a1cd3c35959f59d029",
-    "web/e2e/fixtures.ts": "f1903ed079d4d6f8ec2a5f1a038f5eff205e5dfbf5c8691b0e564a5533d15c42",
+    "web/e2e/fixtures.ts": "e6d3d01eb057e4e6c66ddeab269b6499e0ceead88a002386b0fcf03dc69cc82e",
     "web/e2e/identity.browser.ts": "e32855c30ce7b2996c7dd1f712e398d21e7fc9c7baf9656142bf8f7ec5487dcb",
     "web/e2e/invite-name-scalar-inputs.browser.ts": "7486449342fb373c5778fcd98b1e830980f47914f3fb9d4f8d0563d53d6ce376",
     "web/e2e/keyboard.browser.ts": "51d3c6a676734cb77301b32cf8b7df106487ba2e3a62cb205d2251accaff7cfd",
@@ -227,5 +231,36 @@
     "Independent source/privacy review of this exact candidate.",
     "Configured CI with all 240 real browser cases at the exact integrated head and unchanged time bounds.",
     "Existing native, physical-input, accessibility, provider, recovery and governance gates remain separate."
-  ]
+  ],
+  "correction": {
+    "parent_head": "664201ab763c2f5a0c71a7980d1534b66cbabdee",
+    "scope": "Saved worker fixture remaining slot only.",
+    "change": "Capture performance.now() + worker.project.timeout at fixture entry; pass Math.floor(deadline - performance.now()) to admission begin and finish. Existing validation rejects exhausted slots; no timeout override or minimum-time revival.",
+    "old_fixture_sha256": "f1903ed079d4d6f8ec2a5f1a038f5eff205e5dfbf5c8691b0e564a5533d15c42",
+    "new_fixture_sha256": "e6d3d01eb057e4e6c66ddeab269b6499e0ceead88a002386b0fcf03dc69cc82e",
+    "other_source_hashes_unchanged": 19,
+    "only_deadline_edits_reverse_to_parent_bytes": true,
+    "file_hooks": "Unchanged; beforeAll uses its separate fresh slot.",
+    "verification": {
+      "wrapper_command": "node --experimental-strip-types --test e2e/fixture-admission.test.mjs",
+      "wrapper_tests": 7,
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "types_exit_codes": [
+        0,
+        0
+      ],
+      "local_runtime_cases": 0
+    },
+    "retained_first_candidate": {
+      "head": "664201ab763c2f5a0c71a7980d1534b66cbabdee",
+      "dated_receipt": "docs/evidence/2026-10-26-browser-fixture-admission.json",
+      "private_index": "$HOME/.local/share/opentrack-goals/temp-worker-b/browser-fixture-admission-664201ab/index.json",
+      "private_index_sha256": "048867434bd9c394481a53d0021fea5e7363a4b8aa011b66beb75e317ce51588",
+      "python_tests": 72,
+      "node_tests": 22,
+      "qualification": "Original outputs remain unchanged; no Python or privacy rerun for unchanged algorithm/helper source."
+    }
+  }
 }

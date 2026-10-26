@@ -91,7 +91,8 @@ export const test = base.extend<Record<never, never>, WorkerFixtures>({
     await admission('worker', worker.workerIndex);
     await use(worker.workerIndex);
   }, { scope: 'worker' }],
-  saved: [async ({ playwright, fixtureAdmission }, use) => {
+  saved: [async ({ playwright, fixtureAdmission }, use, worker) => {
+    const deadline = performance.now() + worker.project.timeout;
     const ci = process.env.GITHUB_ACTIONS === 'true' && process.env.RUNNER_OS === 'Linux';
     const local = !process.env.GITHUB_ACTIONS && process.env.OPENTRACK_BROWSER_LOCAL === 'disposable';
     if ((!ci && !local) || !process.env.OPENTRACK_BROWSER_SETUP_TOKEN || !process.env.OPENTRACK_BROWSER_PASSWORD) {
@@ -101,7 +102,7 @@ export const test = base.extend<Record<never, never>, WorkerFixtures>({
     if (!/^http:\/\/(localhost|127\.0\.0\.1):18081\/?$/.test(origin)) throw new Error('Browser workflows require the dedicated HTTP loopback port.');
     const http = await playwright.request.newContext({ baseURL: origin, extraHTTPHeaders: { Origin: origin } });
     try {
-      const lease = await admission('begin', fixtureAdmission, 1);
+      const lease = await admission('begin', fixtureAdmission, 1, Math.floor(deadline - performance.now()));
       let saved: SavedWorkspace;
       try {
         const status = await http.get('/api/v1/setup/status');
@@ -118,7 +119,7 @@ export const test = base.extend<Record<never, never>, WorkerFixtures>({
         const bootstrap = await http.get(`/api/v1/workspaces/${workspace.id}/bootstrap`);
         if (!bootstrap.ok()) throw new Error('Synthetic workspace bootstrap failed.');
         saved = new SavedWorkspace(http, session, await bootstrap.json() as Bootstrap, origin, workspace.id);
-      } finally { await admission('finish', fixtureAdmission, lease); }
+      } finally { await admission('finish', fixtureAdmission, lease, Math.floor(deadline - performance.now())); }
       await use(saved);
     } finally { await http.dispose(); }
   }, { scope: 'worker' }],

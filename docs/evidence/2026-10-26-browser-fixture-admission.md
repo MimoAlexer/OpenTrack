@@ -8,12 +8,16 @@ One Python algorithm uses real integer `monotonic_ns()` values. Pending reservat
 
 Hook/test/action/preparation/suite bounds remain 60/60/10/300/900 seconds, with one worker and zero retries. Waits use computed availability and recheck early wakes. A wait that cannot fit fails explicitly. The fourteen specs add only imports and hook registrations: removing those two lines reproduces their original bytes exactly. Every collected browser/title identity matches the full base receipt.
 
-Verification completed on the source hashes in the JSON evidence:
+Original verification is retained at candidate `664201ab`; unchanged input hashes and the original private proof remain recorded in the JSON evidence:
 
 - 72/72 pure Linux Python tests, including real file permissions, stable locking, failure paths and a real-clock coordinator CLI sequence.
 - 22/22 Node tests: seven coordinator wrapper tests and the existing fifteen privacy tests.
 - Browser and frontend TypeScript checks exited 0.
 - Collection contains exactly 240 unique cases, 80 per engine; no browser runtime case was executed locally.
+
+The saved worker fixture now captures its entry deadline from `performance.now() + worker.project.timeout` and passes the floored remaining time to both admission calls. Exhausted time fails through existing validation; no timeout override or minimum-time revival is added. File hooks retain their separate fresh slot. The correction changes only these deadline lines, and reversing them reproduces the original fixture bytes. All nineteen other executed source hashes are unchanged.
+
+Fresh correction checks passed: 7/7 focused coordinator wrapper tests and both TypeScript checks. The original Python 72/72 and Node 22/22 outputs remain separate retained evidence. The first candidate and its eight private proof files are preserved; no local browser, app, Docker or configured CI run was started.
 
 The failed floating-point prototype and initial TypeScript guard error are retained separately. The integer model passed 160,000 phases and 20,034 restarts. A replay of the earlier passing receipt modeled 15.259 seconds of additional waiting, excluding preparation and harness overhead; this is feasibility evidence only.
 
