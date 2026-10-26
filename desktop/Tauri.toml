@@ -20,6 +20,7 @@ category = "Productivity"
 shortDescription = "OpenTrack workspace desktop client"
 
 [bundle.linux.deb]
+depends = ["ca-certificates"]
 desktopTemplate = "linux/OpenTrack.desktop.hbs"
 
 [bundle.linux.deb.files]

@@ -675,6 +675,282 @@ async fn reporting_parity(h: &Harness) {
 }
 
 #[tokio::test]
+async fn populated_private_planning_counts_match_authorized_rows_through_revocation() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let run = tokio::spawn(async move { private_reporting_parity(&copy).await }).await;
+    if let Err(error) = run {
+        std::panic::resume_unwind(error.into_panic());
+    }
+    h.cleanup().await;
+}
+
+async fn private_reporting_parity(h: &Harness) {
+    let (owner, base, _, boot) = setup(h).await;
+    let private = request(
+        &h.router,
+        Some(&owner),
+        "POST",
+        &format!("{base}/teams"),
+        Some(json!({"name":"Private reporting","key":"RPT","private":true})),
+        &[("idempotency-key", "private-reporting-team")],
+    )
+    .await;
+    private.expect(StatusCode::CREATED);
+    let team = private.body["id"].as_str().unwrap();
+    let workflow = get(h, &owner, &format!("{base}/teams/{team}/workflow")).await;
+    let status = |category: &str| {
+        workflow.body["statuses"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|status| status["category"] == category)
+            .unwrap()["id"]
+            .as_str()
+            .unwrap()
+    };
+    let mut project = request(
+        &h.router,
+        Some(&owner),
+        "POST",
+        &format!("{base}/teams/{team}/projects"),
+        Some(json!({"name":"Private reporting plan"})),
+        &[("idempotency-key", "private-reporting-project")],
+    )
+    .await;
+    project.expect(StatusCode::CREATED);
+    let project_url = project.headers["location"].to_str().unwrap().to_owned();
+    let milestone = request(
+        &h.router,
+        Some(&owner),
+        "POST",
+        &format!("{project_url}/milestones"),
+        Some(json!({"title":"Private reporting outcome"})),
+        &[
+            ("idempotency-key", "private-reporting-milestone"),
+            ("if-match", project.etag()),
+        ],
+    )
+    .await;
+    milestone.expect(StatusCode::CREATED);
+    let milestone_url = milestone.headers["location"].to_str().unwrap().to_owned();
+    project = get(h, &owner, &project_url).await;
+    let mut cycle = create_cycle(
+        h,
+        &owner,
+        &format!("{base}/teams/{team}/cycles"),
+        "2026-06-01",
+        "2026-06-08",
+        "private-reporting-cycle",
+    )
+    .await;
+    let cycle_url = cycle.headers["location"].to_str().unwrap().to_owned();
+    let mut tasks = Vec::new();
+    for (category, title) in [
+        ("unstarted", "Private open"),
+        ("completed", "Private done"),
+        ("canceled", "Private canceled"),
+        ("unstarted", "Private archived"),
+        ("unstarted", "Private deleted"),
+    ] {
+        let task = issue(h, &owner, &base, team, status(category), title).await;
+        let membership = format!("{project_url}/issues/{}", task.body["id"].as_str().unwrap());
+        project = request(
+            &h.router,
+            Some(&owner),
+            "PUT",
+            &membership,
+            Some(json!({"included":true})),
+            &[("if-match", project.etag())],
+        )
+        .await;
+        project.expect(StatusCode::OK);
+        project = request(
+            &h.router,
+            Some(&owner),
+            "PUT",
+            &format!("{membership}/milestone"),
+            Some(json!({"milestone_id":milestone.body["id"]})),
+            &[("if-match", project.etag())],
+        )
+        .await;
+        project.expect(StatusCode::OK);
+        let current = get(
+            h,
+            &owner,
+            &format!("{base}/issues/{}", task.body["id"].as_str().unwrap()),
+        )
+        .await;
+        cycle = attach(h, &owner, &cycle_url, &cycle, &current).await;
+        tasks.push(task);
+    }
+    current_planning_counts(
+        h,
+        &owner,
+        &project_url,
+        &milestone_url,
+        &cycle_url,
+        [1, 1, 3],
+    )
+    .await;
+    cycle = action(h, &owner, &cycle_url, &cycle, "open", None).await;
+    let daily = action(h, &owner, &cycle_url, &cycle, "snapshots", None).await;
+    let workspace = base.rsplit('/').next().unwrap().parse().unwrap();
+    let actor = boot["members"][0]["id"].as_str().unwrap().parse().unwrap();
+    let snapshot = daily.body["id"]
+        .as_str()
+        .unwrap()
+        .parse::<uuid::Uuid>()
+        .unwrap();
+    let mut tx = h.lock_team(workspace, team.parse().unwrap(), actor).await;
+    let recorded: Value = sqlx::query_scalar(
+        "SELECT to_jsonb(s) FROM cycle_snapshots s WHERE workspace_id=$1 AND id=$2",
+    )
+    .bind(workspace)
+    .bind(snapshot)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.rollback().await.unwrap();
+
+    let outsider = invite(h, &owner, &base, "member").await;
+    let invitation = request(
+        &h.router,
+        Some(&owner),
+        "POST",
+        &format!("{base}/invitations"),
+        Some(
+            json!({"email":"private-viewer@cycles.example.test","role":"viewer","team_ids":[team]}),
+        ),
+        &[("idempotency-key", "private-reporting-viewer")],
+    )
+    .await;
+    invitation.expect(StatusCode::CREATED);
+    let accepted = request(
+        &h.router, None, "POST", "/api/v1/invitations/accept",
+        Some(json!({"token":invitation.body["token"],"display_name":"Example Viewer","password":"Private reporting verification password 2026!"})), &[],
+    ).await;
+    accepted.expect(StatusCode::OK);
+    let viewer = client(&accepted);
+    let viewer_id = accepted.body["user"]["id"].as_str().unwrap();
+    let endpoints = [
+        project_url.clone(),
+        format!("{project_url}/progress"),
+        format!("{project_url}/issues"),
+        format!("{project_url}/milestones"),
+        format!("{milestone_url}/progress"),
+        cycle_url.clone(),
+        format!("{cycle_url}/scope"),
+        format!("{cycle_url}/issues"),
+        format!("{cycle_url}/snapshots"),
+    ];
+    for endpoint in &endpoints {
+        request(&h.router, Some(&outsider), "GET", endpoint, None, &[])
+            .await
+            .problem(StatusCode::NOT_FOUND, "not_found");
+    }
+    current_planning_counts(
+        h,
+        &viewer,
+        &project_url,
+        &milestone_url,
+        &cycle_url,
+        [1, 1, 3],
+    )
+    .await;
+    for (index, method, body, counts) in [
+        (3, "PATCH", Some(json!({"archived":true})), [1, 1, 2]),
+        (4, "DELETE", None, [1, 1, 1]),
+    ] {
+        let issue_url = format!(
+            "{base}/issues/{}",
+            tasks[index].body["id"].as_str().unwrap()
+        );
+        let current = get(h, &owner, &issue_url).await;
+        request(
+            &h.router,
+            Some(&owner),
+            method,
+            &issue_url,
+            body,
+            &[("if-match", current.etag())],
+        )
+        .await
+        .expect(if method == "DELETE" {
+            StatusCode::NO_CONTENT
+        } else {
+            StatusCode::OK
+        });
+        let visible =
+            current_planning_counts(h, &viewer, &project_url, &milestone_url, &cycle_url, counts)
+                .await;
+        assert_eq!(visible.body["excluded_count"], 1);
+        current_planning_counts(h, &owner, &project_url, &milestone_url, &cycle_url, counts).await;
+    }
+    let membership_url = format!("{base}/teams/{team}/members/{viewer_id}");
+    let membership = get(h, &owner, &membership_url).await;
+    let etag = format!(
+        "\"team-member:{team}:{viewer_id}:{}\"",
+        membership.body["version"].as_str().unwrap()
+    );
+    request(
+        &h.router,
+        Some(&owner),
+        "DELETE",
+        &membership_url,
+        None,
+        &[("if-match", &etag)],
+    )
+    .await
+    .expect(StatusCode::NO_CONTENT);
+    for endpoint in &endpoints {
+        let denied = request(&h.router, Some(&viewer), "GET", endpoint, None, &[]).await;
+        denied.problem(StatusCode::NOT_FOUND, "not_found");
+        assert!(denied.body.get("total").is_none());
+        assert!(denied.body.get("scope_count").is_none());
+        assert!(!denied.body.to_string().contains("Private reporting"));
+    }
+    current_planning_counts(
+        h,
+        &owner,
+        &project_url,
+        &milestone_url,
+        &cycle_url,
+        [1, 1, 1],
+    )
+    .await;
+    for (index, counts) in [(0, [1, 1, 0]), (1, [0, 1, 0]), (2, [0, 0, 0])] {
+        let issue_url = format!(
+            "{base}/issues/{}",
+            tasks[index].body["id"].as_str().unwrap()
+        );
+        let current = get(h, &owner, &issue_url).await;
+        request(
+            &h.router,
+            Some(&owner),
+            "PATCH",
+            &issue_url,
+            Some(json!({"archived":true})),
+            &[("if-match", current.etag())],
+        )
+        .await
+        .expect(StatusCode::OK);
+        current_planning_counts(h, &owner, &project_url, &milestone_url, &cycle_url, counts).await;
+    }
+    let mut tx = h.lock_team(workspace, team.parse().unwrap(), actor).await;
+    let retained: Value = sqlx::query_scalar(
+        "SELECT to_jsonb(s) FROM cycle_snapshots s WHERE workspace_id=$1 AND id=$2",
+    )
+    .bind(workspace)
+    .bind(snapshot)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    assert_eq!(retained, recorded);
+    tx.rollback().await.unwrap();
+}
+
+#[tokio::test]
 async fn cycle_lifecycle_dst_close_and_reviewed_resumable_carry() {
     let h = Harness::new().await;
     let copy = h.clone();

@@ -1,0 +1,62 @@
+{
+  "date": "2026-10-26",
+  "pull_request": 167,
+  "reviewed_head": "592ffbbc08f93e514c987d1839a8105a4c0125fd",
+  "base": "8cd9f0879750a6658f78822ff671aee1ca603913",
+  "merge_commit": "16bde4ea34541ad177a7d65862888b40651e69d6",
+  "merged_at": "2026-10-26T09:12:24Z",
+  "reviewed_and_merged_tree": "158237d8a488a7b77bde46f7a72495a25c247680",
+  "required_checks": {
+    "verify": { "run": 40270663228, "job": 121402689348, "result": "SUCCESS" },
+    "native-contracts": { "run": 40270663228, "job": 121402689401, "result": "SUCCESS" },
+    "amd64": { "run": 40270663233, "job": 121402636072, "result": "SUCCESS" },
+    "arm64": { "run": 40270663233, "job": 121402636054, "result": "SUCCESS" }
+  },
+  "browser": {
+    "unique": 240,
+    "passed": 240,
+    "per_engine": 80,
+    "text_end_json_agree": true,
+    "same_case_set_as_retained_6fcb": true,
+    "full_log_sha256": "e71494b9aa941ec8546164eba3d6d3c6c6ddb2b7954522279f1d25d4e8d6fafc",
+    "full_log_bytes": 950746,
+    "json_sha256": "7629480065e6a026d808c9033bbedc51d70e1472618e4ae1db2e3df83d3b31d9",
+    "node22_wrapper_privacy_passed": 22,
+    "auth_rejection_summary": { "available": true, "tail_lines": 1, "tail_limit_reached": false, "sources": [] },
+    "auth_summary_limit": "Only the observed bounded tail is reported; no blanket absence claim."
+  },
+  "verification": {
+    "full_log_sha256": "a0523ab924fc3292f0dda1c585c2080dc94a859a45b3f72751958ad73a976cb7",
+    "full_log_bytes": 484248,
+    "rust_successful_suite_summaries": 95,
+    "frontend_files_passed": 78,
+    "frontend_tests_passed": 848,
+    "node_test_discovery_collision_resolved": true
+  },
+  "integration": {
+    "source_and_privacy_review": "CLEAR",
+    "exact_head_runtime_review": "CLEAR",
+    "unresolved_conversations": 0,
+    "integration_lock_used_and_released": true,
+    "fresh_main_and_prospective_tree_verified": true,
+    "actual_merge_tree_verified": true,
+    "neutral_merge_identity_verified": true,
+    "runtime_review_record_sha256": "70ba7e4ca2b2163a16e2a3984e98c39c0d39687b0a59727bdf4f5a5e3c6a7eac",
+    "private_runtime_index": "$OPENTRACK_DEV_STATE/pr167-592-runtime-v1/artifact-index.json",
+    "private_runtime_index_sha256": "8f173fde80648e122dd7128fc4b7af10631a6423a3395622e3b57d0ab3dff1ab",
+    "private_runtime_payloads": 14
+  },
+  "migration": {
+    "version": 27,
+    "sha256": "30afd8a7ff4158f4969dd4860490c2e4cdbbfb386f0814db36fb37b7fe9f33c3",
+    "lead_retained_application_database_version": 26,
+    "rollback": "Restore the matching pre-upgrade database snapshot with its application version."
+  },
+  "remaining": [
+    "Full issue 30 and issue 31 acceptance",
+    "Native authentication, physical input and assistive technology",
+    "Reporting projection and broader recovery qualification",
+    "Provider, governance and complete-product gates"
+  ],
+  "whole_product_complete": false
+}

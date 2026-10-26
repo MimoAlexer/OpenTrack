@@ -176,3 +176,63 @@ describe('cycle planning screens', () => {
     expect(JSON.parse((fetch.mock.calls as unknown as [string, RequestInit][])[0][1].body as string)).toEqual({ name: cycle.name, start_date: '2026-03-28', end_date_exclusive: '2026-03-31', timezone: cycle.timezone }); expect(saved).toHaveBeenCalledWith(cycle);
   });
 });
+
+describe('planning freshness', () => {
+  it('labels retained milestone calculations while updating or failed without inventing an empty scope', async () => {
+    const counts = { ...progress, completed: 1, eligible: 2, open: 1, total: 2, unscoped: false };
+    const items = [{ milestone, progress: counts }];
+    await render(<Milestones project={project} session={session} resource={{ ...resource(items), loading: true }} readOnly changed={() => {}} denied={() => {}}/>);
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('Updating milestone counts');
+    expect(container.textContent).toContain('1 / 2 issues');
+    expect(container.querySelector('time')?.dateTime).toBe(counts.as_of);
+    await render(<Milestones project={project} session={session} resource={{ ...resource(items), error: new Error('Synthetic transport failure') }} readOnly changed={() => {}} denied={() => {}}/>);
+    expect(container.textContent).toContain('Milestone counts could not be refreshed');
+    expect(container.textContent).not.toContain('No eligible issue scope');
+    expect(container.querySelector('time')?.dateTime).toBe(counts.as_of);
+    expect(container.querySelector('[data-edit-id]')).toBeNull();
+  });
+
+  it('retains the cycle calculation time on a failed refresh and recovers empty scope with a read-only action', async () => {
+    let finish!: (value: Response) => void; let reads = 0;
+    const retained = { ...snapshot, kind: 'current', scope_count: 2, completed_count: 1, unfinished_count: 1 };
+    const fresh = { ...snapshot, kind: 'current', captured_at: '2026-10-26T12:00:00Z' };
+    const fetch = vi.fn((url: string, _options: RequestInit) => url.endsWith('/scope')
+      ? ++reads === 1 ? Promise.resolve(json(retained)) : reads === 2 ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(json(fresh))
+      : Promise.resolve(json(url.includes('/snapshots') || url.includes('/issues') ? page([]) : cycle)));
+    vi.stubGlobal('fetch', fetch);
+    const view = (refresh: number) => <Cycles workspaceId="workspace" session={session} data={data} cycleId={cycle.id} params={new URLSearchParams({ team_id: team.id })} refresh={refresh} readOnly/>;
+    await render(view(0));
+    const section = container.querySelector('.cycle-scope')!;
+    await render(view(1));
+    expect(section.querySelector('[role="status"]')?.textContent).toContain('Updating cycle counts');
+    expect(section.querySelector('time')?.dateTime).toBe(retained.captured_at);
+    await act(async () => finish(json({ code: 'unavailable', detail: 'Synthetic transport failure' }, 503)));
+    expect(section.textContent).toContain('Cycle counts could not be refreshed');
+    expect(section.textContent).toContain('1 / 2 eligible issues');
+    expect(section.querySelector('time')?.dateTime).toBe(retained.captured_at);
+    await click('Refresh cycle counts');
+    expect(section.textContent).toContain('No eligible issue scope');
+    expect(section.querySelector('progress')).toBeNull();
+    expect(section.querySelector('time')?.dateTime).toBe(fresh.captured_at);
+    expect(fetch.mock.calls.every(([, options]) => !options.method || options.method === 'GET')).toBe(true);
+  });
+});
+
+describe('planning refresh consistency', () => {
+  it('refreshes the visible cycle source table alongside its current counts', async () => {
+    let changed = false;
+    const issue = { id: 'refresh-issue', key: 'EXA-9', title: 'Cycle refresh source', status_name: 'In progress', estimate: null, archived_at: null };
+    const fetch = vi.fn((url: string, _options: RequestInit) => Promise.resolve(json(url.endsWith('/scope')
+      ? { ...snapshot, kind: 'current', scope_count: 1, completed_count: changed ? 1 : 0, unfinished_count: changed ? 0 : 1 }
+      : url.includes('/issues?') ? page([{ ...issue, status_name: changed ? 'Done' : 'In progress' }])
+      : url.includes('/snapshots?') ? page([]) : cycle)));
+    vi.stubGlobal('fetch', fetch);
+    await render(<Cycles workspaceId="workspace" session={session} data={data} cycleId={cycle.id} params={new URLSearchParams({ team_id: team.id })} refresh={0} readOnly/>);
+    expect(container.querySelector('.cycle-scope tbody tr')?.textContent).toContain('In progress');
+    changed = true; await click('Refresh cycle counts');
+    expect(container.querySelector('.cycle-scope')?.textContent).toContain('1 / 1 eligible issues');
+    expect(container.querySelector('.cycle-scope tbody tr')?.textContent).toContain('Done');
+    expect(fetch.mock.calls.filter(([url]) => url.includes('/issues?'))).toHaveLength(2);
+    expect(fetch.mock.calls.every(([, options]) => !options.method || options.method === 'GET')).toBe(true);
+  });
+});
