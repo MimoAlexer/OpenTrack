@@ -82,6 +82,8 @@ test('private-team revocation removes a real recent issue title and excludes it 
   try {
     expect((await member.get('/api/v1/auth/session')).status()).toBe(401);
     const accepted = await member.post('/api/v1/invitations/accept', { data: { token: issued.token, display_name: 'Example Member', password: process.env.OPENTRACK_BROWSER_PASSWORD } });
+    if (accepted.status() !== 200) test.info().annotations.push({ type: 'synthetic-auth-failure',
+      description: JSON.stringify({ operation: 'invitation_accept', status: accepted.status() }) });
     expect(accepted.status()).toBe(200);
     const session = await accepted.json() as Session;
     const issue = await saved.request<Issue>('/issues', 'POST', { team_id: team.id, title: `Restricted recent ${randomUUID()}` }, { 'Idempotency-Key': randomUUID() });

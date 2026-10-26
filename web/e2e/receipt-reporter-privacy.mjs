@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import ReceiptReporter, { parseProjectLeadReadiness, parseSavedReadiness } from './receipt-reporter.ts';
+import ReceiptReporter, { parseProjectLeadReadiness, parseSavedReadiness, parseSyntheticAuthFailure } from './receipt-reporter.ts';
 
 const marker = 'SYNTHETIC_PRIVATE_MARKER_MUST_NOT_BE_PUBLISHED';
 const sample = () => ({
@@ -25,6 +25,107 @@ const leadSample = () => ({
   center_hit_another_option: null, owner_option_content_rect: null, hit_option_rect: null, hit_option_content_rect: null,
 });
 const parseLead = value => parseProjectLeadReadiness(JSON.stringify(value));
+
+test('accepts only bounded synthetic authentication operation and status facts', () => {
+  for (const operation of ['invitation_accept', 'owner_authentication']) {
+    for (const status of [100, 200, 401, 429, 500, 599]) {
+      assert.deepEqual(parseSyntheticAuthFailure(JSON.stringify({ operation, status })), { operation, status });
+    }
+  }
+});
+
+test('withholds malformed or poisoned synthetic authentication annotations', () => {
+  for (const value of [null, [], 1, true, marker, {}, { operation: 'invitation_accept' }, { status: 429 },
+    { operation: marker, status: 429 }, { operation: 'invitation_accept', status: marker },
+    { operation: 'invitation_accept', status: { body: marker } },
+    ...[99, 600, 429.5, null, true, '429', Infinity].map(status => ({ operation: 'invitation_accept', status })),
+    ...['url', 'headers', 'cookies', 'body', 'token', 'id', 'email', 'password'].map(key => ({ operation: 'invitation_accept', status: 429, [key]: marker }))]) {
+    assert.equal(parseSyntheticAuthFailure(JSON.stringify(value)), undefined);
+  }
+  for (const description of [undefined, null, {}, 429, marker, '{', ' '.repeat(129),
+    '{"operation":"invitation_accept","status":429,"__proto__":{}}']) {
+    assert.equal(parseSyntheticAuthFailure(description), undefined);
+  }
+});
+
+test('prints only one validated synthetic authentication failure before the final receipt', () => {
+  const output = [], log = console.log;
+  try {
+    console.log = value => output.push(String(value));
+    const reporter = new ReceiptReporter();
+    const testCase = { title: 'Synthetic authentication diagnostic', parent: { project: () => ({ name: 'chromium' }) },
+      location: { file: 'keyboard.browser.ts', line: 85 } };
+    const good = { type: 'synthetic-auth-failure', description: JSON.stringify({ operation: 'invitation_accept', status: 429 }) };
+    const bad = { ...good, description: JSON.stringify({ operation: 'invitation_accept', status: 429, url: marker }) };
+    for (const [status, annotations] of [['failed', [good]], ['passed', [good]], ['skipped', [good]],
+      ['failed', [good, good]], ['failed', [bad]], ['failed', [{ type: 'other', description: marker }]]]) {
+      reporter.onTestEnd(testCase, { status, annotations, duration: 10,
+        error: { message: marker, stack: `${marker}\n at keyboard.browser.ts:85:1` },
+        stdout: [marker], stderr: [marker], headers: marker, cookies: marker, body: marker });
+    }
+    const diagnostics = output.filter(line => line.startsWith('SYNTHETIC_AUTH_FAILURE '));
+    assert.equal(diagnostics.length, 1);
+    assert.deepEqual(JSON.parse(diagnostics[0].slice(diagnostics[0].indexOf('{'))), { operation: 'invitation_accept', status: 429 });
+    assert.ok(!output.join('\n').includes(marker));
+  } finally { console.log = log; }
+});
+
+test('recognizes only exact known owner fixture errors without exposing raw error data', () => {
+  const output = [], log = console.log;
+  try {
+    console.log = value => output.push(String(value));
+    const reporter = new ReceiptReporter();
+    const testCase = { title: 'Synthetic owner authentication', parent: { project: () => ({ name: 'webkit' }) },
+      location: { file: 'fixtures.ts', line: 104 } };
+    for (const message of ['Synthetic owner authentication failed: HTTP 401', 'Error: Synthetic owner authentication failed: HTTP 429',
+      `${marker} Synthetic owner authentication failed: HTTP 429`, `Synthetic owner authentication failed: HTTP 429 ${marker}`,
+      'Synthetic owner authentication failed: HTTP 429\n', 'Synthetic owner authentication failed: HTTP 600',
+      'Synthetic owner authentication failed: HTTP 99', 'Synthetic owner authentication failed: HTTP 429.5', marker.repeat(10)]) {
+      reporter.onTestEnd(testCase, { status: 'failed', annotations: [], duration: 1,
+        error: { message, stack: `${marker}\n at fixtures.ts:104:1` } });
+    }
+    const known = { message: 'Error: Synthetic owner authentication failed: HTTP 429', stack: `${marker}\n at fixtures.ts:104:1` };
+    const annotation = { type: 'synthetic-auth-failure', description: marker };
+    for (const [status, annotations] of [['passed', []], ['skipped', []], ['failed', [annotation]], ['failed', [annotation, annotation]]]) {
+      reporter.onTestEnd(testCase, { status, annotations, duration: 1, error: known });
+    }
+    reporter.onTestEnd({ ...testCase, location: { file: 'keyboard.browser.ts', line: 85 } }, {
+      status: 'failed', annotations: [], duration: 1,
+      error: { message: known.message, location: { file: 'keyboard.browser.ts', line: 85 } } });
+    const diagnostics = output.filter(line => line.startsWith('SYNTHETIC_AUTH_FAILURE '));
+    assert.deepEqual(diagnostics.map(line => JSON.parse(line.slice(line.indexOf('{')))), [
+      { operation: 'owner_authentication', status: 401 }, { operation: 'owner_authentication', status: 429 }]);
+    assert.ok(!output.join('\n').includes(marker));
+  } finally { console.log = log; }
+});
+
+test('persists only validated authentication facts in the credential-free receipt', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'opentrack-auth-receipt-'));
+  const previous = process.cwd(), output = [], log = console.log, error = console.error;
+  try {
+    mkdirSync(join(directory, 'run')); process.chdir(join(directory, 'run'));
+    console.log = console.error = value => output.push(String(value));
+    const reporter = new ReceiptReporter();
+    const testCase = { title: 'Synthetic invitation', parent: { project: () => ({ name: 'firefox' }) },
+      location: { file: 'keyboard.browser.ts', line: 85 } };
+    const good = { type: 'synthetic-auth-failure', description: JSON.stringify({ operation: 'invitation_accept', status: 503 }) };
+    reporter.onTestEnd(testCase, { status: 'failed', annotations: [good], duration: 10,
+      error: { message: marker, stack: `${marker}\n at keyboard.browser.ts:85:1` },
+      stdout: [marker], stderr: [marker], body: marker, headers: marker, cookies: marker });
+    reporter.onTestEnd(testCase, { status: 'passed', annotations: [good], duration: 10 });
+    reporter.onEnd({ status: 'failed' });
+    const encoded = readFileSync(join(directory, 'work/browser-acceptance/receipt.json'), 'utf8');
+    const receipt = JSON.parse(encoded);
+    assert.deepEqual(receipt.checks[0].auth_failure, { operation: 'invitation_accept', status: 503 });
+    assert.ok(!Object.hasOwn(receipt.checks[1], 'auth_failure'));
+    assert.ok(!encoded.includes(marker)); assert.ok(!output.join('\n').includes(marker));
+  } finally {
+    console.log = log; console.error = error; process.chdir(previous);
+    assert.equal(dirname(resolve(directory)), resolve(tmpdir()));
+    assert.ok(basename(directory).startsWith('opentrack-auth-receipt-'));
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test('accepts bounded project lead facts without requiring the owner in the returned page', () => {
   assert.deepEqual(parseLead(leadSample()), leadSample());
