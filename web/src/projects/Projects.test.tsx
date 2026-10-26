@@ -329,3 +329,46 @@ describe('refresh and access boundaries', () => {
     await render(<Items refresh={0}/>); await click('More'); expect(container.textContent).toBe('a,bMore'); await render(<Items refresh={1}/>); expect(container.textContent).toBe('aMore'); expect(fetch.mock.calls.at(-1)?.[0]).not.toContain('cursor=');
   });
 });
+
+describe('planning freshness', () => {
+  it('retains confirmed project counts and their time through a failed refresh, then reads a real zero', async () => {
+    let finish!: (value: Response) => void; let reads = 0;
+    const fresh = { completed: 0, eligible: 0, canceled: 0, open: 0, total: 0, unscoped: true, as_of: '2026-10-26T12:00:00Z' };
+    const fetch = vi.fn((url: string, _options: RequestInit) => url.endsWith('/progress')
+      ? ++reads === 1 ? Promise.resolve(json(progress)) : reads === 2 ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(json(fresh))
+      : Promise.resolve(detailFetch(url)));
+    vi.stubGlobal('fetch', fetch);
+    await render(screen({ projectId: project.id }));
+    const section = container.querySelector('.project-progress-section')!;
+    expect(section.textContent).toContain('2 / 5 issues');
+    await render(screen({ projectId: project.id, refresh: 1 }));
+    expect(section.querySelector('[role="status"]')?.textContent).toContain('Updating planning counts');
+    expect(section.querySelector('time')?.dateTime).toBe(progress.as_of);
+    expect(section.textContent).not.toContain('No eligible issue scope');
+    await act(async () => finish(json({ code: 'unavailable', detail: 'Synthetic transport failure' }, 503)));
+    expect(section.textContent).toContain('Counts could not be refreshed');
+    expect(section.textContent).toContain('2 / 5 issues');
+    expect(section.querySelector('time')?.dateTime).toBe(progress.as_of);
+    await click('Refresh planning counts');
+    expect(section.textContent).toContain('No eligible issue scope');
+    expect(section.querySelector('progress')).toBeNull();
+    expect(section.querySelector('time')?.dateTime).toBe(fresh.as_of);
+    expect(fetch.mock.calls.every(([, options]) => !options.method || options.method === 'GET')).toBe(true);
+  });
+
+  it('does not resurrect retained project counts when an older allowed response arrives after denial', async () => {
+    let finish!: (value: Response) => void; let reads = 0;
+    vi.stubGlobal('fetch', vi.fn((url: string) => url.endsWith('/progress')
+      ? ++reads === 1 ? Promise.resolve(json(progress)) : reads === 2 ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(json({ code: 'not_found', detail: 'Unavailable' }, 404))
+      : Promise.resolve(detailFetch(url))));
+    await render(screen({ projectId: project.id }));
+    await render(screen({ projectId: project.id, refresh: 1 }));
+    await render(screen({ projectId: project.id, refresh: 2 }));
+    expect(container.textContent).toContain('Project unavailable');
+    await act(async () => finish(json({ ...progress, completed: 17, eligible: 19 })));
+    expect(container.textContent).toContain('Project unavailable');
+    expect(container.textContent).not.toContain('17 / 19');
+    expect(container.textContent).not.toContain('No eligible issue scope');
+    expect(container.querySelector('.project-progress')).toBeNull();
+  });
+});
