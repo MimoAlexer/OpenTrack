@@ -1,0 +1,113 @@
+{
+  "date": "2026-10-26",
+  "scope": "Credential-free predicate diagnostics for the real browser CI inspect rejection",
+  "base": "a148af442b50b16ce831d82360d5b1afba06ff7a",
+  "prior_worker_candidate": "d80224d59a77aa3d0b64d941b3b0f069cc4bc2f8",
+  "source_sha256": {
+    "scripts/browser-acceptance.py": "72c605a5446c9fb2fcbdb720b42a6b36661a04999e05e5ea2ce7d140edf44509",
+    "scripts/browser_order_fixtures.py": "5e5cedb8e6aba8b951594cd2318d108b6c16ed009778356870c59612e560b4fa",
+    "scripts/test-browser-acceptance.py": "42ba6d28b8a54d489eadf37a01d1e1b56a33e1bc8f963f7657d6d16849a067f6"
+  },
+  "actual_failure": {
+    "pull_request": 167,
+    "run_id": 40245497586,
+    "amd64_job_id": 121326105742,
+    "conclusion": "failure",
+    "full_private_job_log_sha256": "ea396c1bb53779b06b382bdafa4f728a9c42f5cb688f039b22891839355eaf7d",
+    "safe_error": "Browser fixture service or volume ownership did not match this project",
+    "also_failed": "Independent cleanup invocation failed closed with the same message; claim retained",
+    "browser_cases_executed": 0,
+    "observed_engine_version": "28.0.4",
+    "observed_engine_api": "1.48",
+    "observed_compose_version": "2.38.2"
+  },
+  "investigation": {
+    "source_identity": "Runner, fixture helper and pure test bytes matched between the previous worker candidate and failing integrated head before edits.",
+    "primary_sources": [
+      {
+        "url": "https://github.com/docker/compose/blob/v2.38.2/pkg/compose/create.go#L223-L291",
+        "fact": "Legacy service tmpfs is translated into HostConfig.Tmpfs."
+      },
+      {
+        "url": "https://github.com/moby/moby/blob/v28.0.4/container/container_unix.go#L371-L412",
+        "fact": "Legacy tmpfs handling and inspected Container.MountPoints are separate paths."
+      },
+      {
+        "url": "https://github.com/moby/moby/blob/v28.0.4/api/types/container/container.go#L54-L92",
+        "fact": "Inspect mount points expose Name, Destination and RW."
+      }
+    ],
+    "root_cause": "UNRESOLVED. The failure log has no raw inspect snapshot or predicate code. No tmpfs/image-volume/label hypothesis is treated as proven.",
+    "source_hypothesis": {
+      "status": "UNCONFIRMED",
+      "source": "deploy/postgres.Dockerfile and compose.yaml",
+      "description": "The native client image extends official postgres18.6. Database overrides the inherited data-volume destination; active worker-provision/worker-grant clients declare only the secrets mount, so image VOLUME inheritance may create an extra anonymous /var/lib/postgresql volume. Inactive operator clients share that image. This is a source-derived hypothesis, not the proven runtime predicate."
+    }
+  },
+  "delta": {
+    "behavior": "Preserve all existing acceptance guards and split their rejection into fixed codes with a whitelisted expected service role. Do not emit inspected values.",
+    "codes": [
+      "role",
+      "project",
+      "service",
+      "state",
+      "mount_shape",
+      "mount_type",
+      "mount_count",
+      "mount_names",
+      "mount_targets",
+      "mount_mapping",
+      "mount_access"
+    ],
+    "privacy": "No raw mount names/destinations/sources, host paths, labels, state dumps, environment, credentials or captured Docker stdout/stderr enter the error message.",
+    "not_changed": "No mount type or resource allowlist relaxation; state, named-volume mapping/access, worker profile, creation claim and cleanup safeguards retained."
+  },
+  "verification": {
+    "command": "python scripts/test-browser-acceptance.py",
+    "passed": 55,
+    "failed": 0,
+    "exit_code": 0,
+    "original_combined_output": ".......................................................\r\n----------------------------------------------------------------------\r\nRan 55 tests in 0.224s\r\n\r\nOK\r\n",
+    "new_cases": [
+      "All fixed predicate codes with synthetic poisoned environment/names/paths omitted from output",
+      "Primary-source legacy app tmpfs shape with two named volumes remains accepted; extra tmpfs Mounts entry still rejected",
+      "Unknown expected roles fail without echoing the supplied value",
+      "Source-hypothesis PostgreSQL client inspect shape with an extra anonymous data volume remains rejected using only role and mount_count code; no anonymous-volume authorization added"
+    ],
+    "red_proof": {
+      "selected_test_cases": 1,
+      "corrected_harness_subtest_failures": 10,
+      "errors": 0,
+      "expected_reason": "Prior combined message did not expose fixed predicate codes",
+      "earlier_harness_run": {
+        "failures": 6,
+        "errors": 1,
+        "note": "Exception-context access after a failed subtest was corrected; historical failure not treated as product acceptance."
+      }
+    },
+    "whitespace": "git diff --check passed",
+    "older_proof": "All prior candidate/evidence files preserved unchanged.",
+    "intermediate_54": {
+      "passed": 54,
+      "exit_code": 0,
+      "source_sha256": {
+        "scripts/browser-acceptance.py": "72c605a5446c9fb2fcbdb720b42a6b36661a04999e05e5ea2ce7d140edf44509",
+        "scripts/browser_order_fixtures.py": "5e5cedb8e6aba8b951594cd2318d108b6c16ed009778356870c59612e560b4fa",
+        "scripts/test-browser-acceptance.py": "b313725ac290f31afbd17edd3752d9a8bf926daaa5f5a64c2176a32b89b29015"
+      },
+      "original_combined_output": "......................................................\r\n----------------------------------------------------------------------\r\nRan 54 tests in 0.240s\r\n\r\nOK\r\n scripts/browser-acceptance.py      | 29 +++++++++++++++++++++--------\n scripts/test-browser-acceptance.py | 38 ++++++++++++++++++++++++++++++++++++++\n 2 files changed, 59 insertions(+), 8 deletions(-)\n"
+    }
+  },
+  "qualification": "Diagnostic/source and pure mocked verification only. Underlying runtime cause is not remediated or qualified by this commit. Lead-owned configured CI must identify the actual rejected predicate before an authority-safe behavioral correction.",
+  "not_executed_locally": [
+    "Docker commands",
+    "app/database/worker services",
+    "fixture preparation",
+    "browsers",
+    "CI restart/cancellation",
+    "PR head update",
+    "full repository matrix"
+  ],
+  "unchanged_limits": "Shared suite900s, prep300s, read55s, cleanup120s, test60s, action10s, workers1/retries0, default worker2000ms/60s/5.",
+  "rollback": "Focused runner/test diagnostic delta; no workflow/Compose/backend/UI/helper/migration changes."
+}

@@ -266,6 +266,56 @@ class Boundaries(unittest.TestCase):
             self.assertEqual(runner.dc.call_count, 1)
             self.assertEqual(runner.dc.call_args.args, ("ps", "--all", "--quiet", "worker"))
 
+    def test_inspect_rejection_reports_only_fixed_role_and_predicate_codes(self):
+        changes = [
+            (lambda c: c["Config"]["Labels"].update({"com.docker.compose.project": "synthetic-private-value"}), "project"),
+            (lambda c: c["Config"]["Labels"].update({"com.docker.compose.service": "synthetic-private-value"}), "service"),
+            (lambda c: c["State"].update(Running=False), "state"),
+            (lambda c: c.update(Mounts=None), "mount_shape"),
+            (lambda c: c["Mounts"][0].update(Type="bind", Source="/private/synthetic-private-value"), "mount_type"),
+            (lambda c: c["Mounts"].append({"Type": "volume", "Name": "synthetic-private-value",
+                                         "Destination": "/private/synthetic-private-value", "RW": True}), "mount_count"),
+            (lambda c: c["Mounts"][0].update(Name="synthetic-private-value"), "mount_names"),
+            (lambda c: c["Mounts"][0].update(Destination="/private/synthetic-private-value"), "mount_targets"),
+            (lambda c: (c["Mounts"][0].update(Name=self.project + "_worker_secrets"),
+                        c["Mounts"][1].update(Name=self.project + "_blobs")), "mount_mapping"),
+            (lambda c: c["Mounts"][0].update(RW=not c["Mounts"][0]["RW"]), "mount_access"),
+        ]
+        for change, code in changes:
+            container = self.container_for("worker")
+            container["Config"]["Env"] = ["DATABASE_URL=synthetic-private-value", "PASSWORD=synthetic-private-value"]
+            change(container)
+            with self.subTest(code=code):
+                with self.assertRaisesRegex(RuntimeError, rf"role=worker, code={code}\)") as raised:
+                    module.validate_container(container, self.config, self.project, "worker", running=True)
+                self.assertNotIn("synthetic-private-value", str(raised.exception))
+                self.assertNotIn("/private", str(raised.exception))
+
+    def test_legacy_compose_tmpfs_is_separate_from_named_volume_inspection(self):
+        container = self.container_for("app")
+        container["HostConfig"]["Tmpfs"] = {"/tmp": "size=64m,mode=1777"}
+        module.validate_container(container, self.config, self.project, "app", running=True)
+        container["Mounts"].append({"Type": "tmpfs", "Source": "", "Destination": "/tmp", "RW": True})
+        with self.assertRaisesRegex(RuntimeError, r"role=app, code=mount_type\)"):
+            module.validate_container(container, self.config, self.project, "app", running=True)
+
+    def test_unknown_expected_role_never_echoes_inspect_supplied_names(self):
+        with self.assertRaisesRegex(RuntimeError, r"code=role\)") as raised:
+            module.validate_container(self.container_for("worker"), self.config, self.project, "synthetic-private-value")
+        self.assertNotIn("synthetic-private-value", str(raised.exception))
+
+    def test_unexpected_image_volume_on_postgres_clients_stays_rejected_with_fixed_code(self):
+        for service in ("worker-provision", "worker-grant"):
+            container = self.container_for(service)
+            container["Mounts"].append({"Type": "volume", "Name": "f" * 64,
+                                        "Source": "/synthetic-volume-root/opaque", "Destination": "/var/lib/postgresql",
+                                        "Driver": "local", "Mode": "", "RW": True, "Propagation": ""})
+            with self.subTest(service=service):
+                with self.assertRaisesRegex(RuntimeError, rf"role={service}, code=mount_count\)") as raised:
+                    module.validate_container(container, self.config, self.project, service)
+                self.assertNotIn("f" * 64, str(raised.exception))
+                self.assertNotIn("/synthetic-volume-root", str(raised.exception))
+
     def test_service_cannot_control_another_role_or_multiple_containers(self):
         runner = self.runner()
         self.assertEqual(runner.environment["COMPOSE_PROFILES"], "")

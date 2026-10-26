@@ -106,17 +106,30 @@ def browser_environment(environment, url, token, password, manifest):
 
 
 def validate_container(actual, config, project, service, running=None, *, default_worker=True):
+    require(service in SERVICE_MOUNTS, "Browser fixture ownership mismatch (code=role)")
+    diagnostic = f"Browser fixture ownership mismatch (role={service}, code="
     labels = actual["Config"].get("Labels") or {}
     mounts = {(config["volumes"][mount["source"]]["name"], mount["target"], not mount.get("read_only", False))
               for mount in config["services"][service]["volumes"]}
-    require(labels.get("com.docker.compose.project") == project
-            and labels.get("com.docker.compose.service") == service
-            and actual["State"]["Running"] in (True, False)
-            and (running is None or actual["State"]["Running"] is running)
-            and actual.get("Mounts") and all(mount.get("Type") == "volume" for mount in actual["Mounts"])
-            and {(mount.get("Name"), mount.get("Destination"), mount.get("RW"))
-                 for mount in actual["Mounts"]} == mounts,
-            "Browser fixture service or volume ownership did not match this project")
+    require(labels.get("com.docker.compose.project") == project, diagnostic + "project)")
+    require(labels.get("com.docker.compose.service") == service, diagnostic + "service)")
+    require(actual["State"]["Running"] in (True, False)
+            and (running is None or actual["State"]["Running"] is running), diagnostic + "state)")
+    require(isinstance(actual.get("Mounts"), list) and actual["Mounts"], diagnostic + "mount_shape)")
+    require(all(mount.get("Type") == "volume" for mount in actual["Mounts"]), diagnostic + "mount_type)")
+    observed = {(mount.get("Name"), mount.get("Destination"), mount.get("RW")) for mount in actual["Mounts"]}
+    if observed != mounts:
+        if len(observed) != len(mounts):
+            code = "mount_count"
+        elif {name for name, _, _ in observed} != {name for name, _, _ in mounts}:
+            code = "mount_names"
+        elif {target for _, target, _ in observed} != {target for _, target, _ in mounts}:
+            code = "mount_targets"
+        elif {(name, target) for name, target, _ in observed} != {(name, target) for name, target, _ in mounts}:
+            code = "mount_mapping"
+        else:
+            code = "mount_access"
+        raise RuntimeError(diagnostic + code + ")")
     if service == "worker" and default_worker:
         require(actual["Config"].get("Cmd") == ["worker"] and not any(
             item.startswith("OPENTRACK__WORKER__") for item in actual["Config"].get("Env", [])),
