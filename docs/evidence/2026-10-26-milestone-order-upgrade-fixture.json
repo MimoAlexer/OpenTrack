@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-26",
+  "source_head": "0fb31637c091ff676af3778b048e6ae284038df4",
+  "failed_ci_head": "5431c785be39efde95a351b8404d1232c09e0c24",
+  "verify_failure": {
+    "run": 40248296612,
+    "job": 121334570722,
+    "full_log_sha256": "ebc9077ca0953838ad1559f89491ae0e52385411697e6eade12f71a28a6f3276",
+    "case": "populated_schema_22_upgrades_with_existing_membership_and_runtime_grants",
+    "cause": "Current create_issue used to seed a historical schema22 fixture"
+  },
+  "docker_failure": {
+    "run": 40248296611,
+    "job": 121334517770,
+    "full_log_sha256": "37ba4b481a4c12a79050ee0618e0c51130e532edf2b4b40ca02aea5c2cb989bb",
+    "diagnostic": "worker-grant/mount_count in acceptance and independent cleanup",
+    "browser_cases": 0,
+    "end_receipt": false,
+    "raw_extra_mount_name_or_target_observed": false
+  },
+  "source_sha256": {
+    "crates/opentrack-app/tests/milestones_upgrade_contract.rs": "518f4c6e90c2a3259297b3d538c85bafbebcef49d7a2da39ca2feab89812c4b4",
+    "crates/opentrack-app/tests/graph_support/mod.rs": "e1272cb0604ff9b544c87be9ed9485536ea4ad2bc9c44444189946fe54bbcd52"
+  },
+  "change": "One test file reuses historical_issue for its schema22 seed, retaining title, team, idempotency key, original assertions, full migration and inherited runtime grant checks. Shared helper and production are unchanged.",
+  "before": [
+    {
+      "check": "milestones_upgrade_contract",
+      "exit_code": 101,
+      "elapsed_seconds": 7.061,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "98a27c45d45d732e6a68b68051e1d1472fe6bc2f563b980c43ae3514f900b5da",
+      "test_results": [
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.02s"
+      ]
+    }
+  ],
+  "after": [
+    {
+      "check": "milestones_upgrade_contract",
+      "exit_code": 0,
+      "elapsed_seconds": 6.244,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "43fde29891f5ad79c62b37678821fb4fa207dbe66d063a6de560d33edce51a58",
+      "test_results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.19s"
+      ]
+    },
+    {
+      "check": "format",
+      "exit_code": 0,
+      "elapsed_seconds": 6.934,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "test_results": []
+    },
+    {
+      "check": "clippy",
+      "exit_code": 0,
+      "elapsed_seconds": 1.542,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "116f675632b4bd4c301cd3d756d8df22904a560fcc41e2b98df211a5ced99ea9",
+      "test_results": []
+    }
+  ],
+  "qualified_scope": "One original real restricted-PostgreSQL upgrade case, formatting and strict target Clippy; not a full workspace or browser run",
+  "database_scope": "Fresh UUID schema in the existing isolated four-role test database; retained application schema26 and existing cluster unchanged",
+  "private_artifacts": {
+    "index": "$OPENTRACK_DEV_STATE/manual-milestone-upgrade-proof-v1/artifact-index.json",
+    "index_sha256": "651b5f85e041d552305e881242f81d3e1afe2f814a6e3b2292d619a068655130",
+    "files": 14,
+    "raw_logs_published": false
+  },
+  "limits": [
+    "Earlier5431clearance and failed full-job evidence remain retained",
+    "PostgreSQL client mount correction is a separate pending delta",
+    "Fresh all-four exact-head checks and full240 browser/end/JSON accounting remain required",
+    "Native, physical input, assistive technology, recovery and product gates remain open"
+  ]
+}
