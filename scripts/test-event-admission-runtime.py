@@ -23,6 +23,31 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
+class ConsumerRegistrations(unittest.TestCase):
+    def registrations(self):
+        return [{"consumer_name": name, "consumer_version": 1, "required": True, "enabled": True}
+                for name in ("assignment_cleanup", "planning_counts")]
+
+    def test_exact_real_consumers_and_assignment_state(self):
+        rows = self.registrations()
+        rows[0]["enabled"] = False
+        actual = module._required_consumers(rows, require)
+        self.assertFalse(actual["assignment_cleanup"]["enabled"])
+        self.assertTrue(actual["planning_counts"]["enabled"])
+
+    def test_missing_extra_duplicate_or_changed_consumers_reject(self):
+        for rows in (self.registrations()[:1], self.registrations() * 2,
+                     [self.registrations()[0]] * 2):
+            with self.subTest(rows=rows), self.assertRaises(RuntimeError):
+                module._required_consumers(rows, require)
+        for key, value in (("consumer_name", "synthetic"), ("consumer_version", 2),
+                           ("consumer_version", True), ("required", False), ("enabled", False)):
+            rows = self.registrations()
+            rows[1][key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(RuntimeError):
+                module._required_consumers(rows, require)
+
+
 class SourceBoundaries(unittest.TestCase):
     def test_smoke_cli_loads_in_isolated_python(self):
         result = subprocess.run([sys.executable, "-I", str(Path(__file__).with_name("docker-smoke.py")), "--help"],
