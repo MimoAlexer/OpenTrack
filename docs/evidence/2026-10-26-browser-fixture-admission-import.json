@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-26",
+  "scope": "Exact fixture-admission import and preserved source/proof audit; no browser runtime acceptance.",
+  "original_candidate": "664201ab763c2f5a0c71a7980d1534b66cbabdee",
+  "original_import": "faaf6f1c972e71d5ea1c9b82bbf8c308cf4675f5",
+  "corrected_candidate": "d6b553fdf70f7da39aaf79432347d299f13d0f82",
+  "corrected_import": "a2bf8a05cfc8a91abfca1ac70d90b6aa0fb8c93c",
+  "original_and_imported_trees_equal": true,
+  "bound_source_files": 20,
+  "exact_original_test_bodies_preserved": 14,
+  "unchanged_guards": [
+    "web/playwright.config.ts",
+    "web/e2e/receipt-reporter.ts",
+    "web/e2e/receipt-reporter-privacy.mjs",
+    "deploy/compose.yaml",
+    "crates/opentrack-api/src/admission.rs",
+    "crates/opentrack-app/src/identity.rs"
+  ],
+  "source_receipt_sha256": "547e71a316aef63f7de48ffc3b29c4766f69e10e5e953799246cafa2c260ae64",
+  "retained_checks": {
+    "python": 72,
+    "node_wrapper_and_privacy": 22,
+    "collected_cases": 240,
+    "scope": "Original completed checks remain bound to unchanged inputs; not rerun."
+  },
+  "fresh_correction_checks": [
+    {
+      "command": "node --experimental-strip-types --test e2e/fixture-admission.test.mjs",
+      "exit_code": 0,
+      "tests": 7,
+      "passed": 7
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc --noEmit -p tsconfig.e2e.json",
+      "exit_code": 0
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc --noEmit",
+      "exit_code": 0
+    }
+  ],
+  "correction": "Saved fixture coordinator calls use floored remaining time from its entry deadline; original HTTP actions and timeouts are preserved. Separate file hook slots remain unchanged.",
+  "private_proof": {
+    "original_index_sha256": "048867434bd9c394481a53d0021fea5e7363a4b8aa011b66beb75e317ce51588",
+    "original_files": 8,
+    "correction_index_sha256": "e8094cd639c06d490a004323808eb12133291afbbc3b0de7b187ede7d31344fa",
+    "correction_files": 4,
+    "root_index": "$OPENTRACK_DEV_STATE/browser-admission-import-v1/artifact-index.json",
+    "root_index_sha256": "c18de4a0097e895c043db48789caf23ebe26b3ec04c5493147d81fa9a72299f6",
+    "root_files": 6,
+    "owner_and_modes_verified": true,
+    "raw_logs_published": false
+  },
+  "remaining": [
+    "Independent final source/privacy review",
+    "All four configured CI checks at the exact published head",
+    "Actual 240-case browser text, end summary and JSON receipt",
+    "Native and complete-product acceptance gates"
+  ]
+}
