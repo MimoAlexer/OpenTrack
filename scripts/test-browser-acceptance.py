@@ -150,6 +150,10 @@ class Boundaries(unittest.TestCase):
         self.config["networks"] = {name: {"name": self.project + "_" + name, "internal": name == "database"}
                                    for name in ("database", "web")}
         for name, service in self.config["services"].items():
+            if name == "app":
+                service["tmpfs"] = ["/tmp:size=64m,mode=1777"]
+            elif name in ("worker-provision", "worker-grant", "operator-provision", "operator-grant"):
+                service["tmpfs"] = ["/var/lib/postgresql:size=1m,mode=0700"]
             if name in ("initialize", "credentials", "operator-output-init"):
                 service["network_mode"] = "none"
             else:
@@ -240,7 +244,8 @@ class Boundaries(unittest.TestCase):
 
     def container_for(self, service):
         return {"Name": "/" + self.project + "-" + service + "-1",
-                "Id": f"{1:064x}", "HostConfig": {"AutoRemove": False},
+                "Id": f"{1:064x}", "HostConfig": {"AutoRemove": False, "Tmpfs": dict(
+                    entry.split(":", 1) for entry in self.config["services"][service].get("tmpfs", []))},
                 "Config": {"Labels": {"com.docker.compose.project": self.project,
                            "com.docker.compose.service": service}, "Cmd": [service], "Env": []},
                 "State": {"Running": True}, "NetworkSettings": {"Networks": {}}, "Mounts": [
@@ -315,6 +320,60 @@ class Boundaries(unittest.TestCase):
                     module.validate_container(container, self.config, self.project, service)
                 self.assertNotIn("f" * 64, str(raised.exception))
                 self.assertNotIn("/synthetic-volume-root", str(raised.exception))
+
+    def test_client_tmpfs_suppresses_image_volume_model(self):
+        source = Path(__file__).resolve().parent.parent.joinpath("compose.yaml").read_bytes().decode("utf-8").replace("\r\n", "\n")
+        anchor = source.split("x-postgres-client: &postgres-client\n", 1)[1].split("\nservices:", 1)[0]
+        declared = module.re.search(r"^  tmpfs: \['([^']+)'\]$", anchor, module.re.MULTILINE)
+        tmpfs = dict([declared[1].split(":", 1)]) if declared else {}
+        for service in ("worker-provision", "worker-grant", "operator-provision", "operator-grant"):
+            container = self.container_for(service)
+            container["HostConfig"]["Tmpfs"] = tmpfs.copy()
+            # Engine 28 HasMountFor checks named mounts and legacy HostConfig.Tmpfs before image volumes.
+            if "/var/lib/postgresql" not in {mount["Destination"] for mount in container["Mounts"]} | set(tmpfs):
+                container["Mounts"].append({"Type": "volume", "Name": "f" * 64,
+                                            "Destination": "/var/lib/postgresql", "RW": True})
+            with self.subTest(service=service):
+                module.validate_container(container, self.config, self.project, service)
+                self.assertEqual(tmpfs, {"/var/lib/postgresql": "size=1m,mode=0700"})
+                self.assertEqual(len(container["Mounts"]), 1)
+                body = module.re.search(rf"(?ms)^  {service}:\n(.*?)(?=^  [a-z][a-z-]*:|\Z)", source)[1]
+                self.assertIn("<<: *postgres-client", body)
+        database = source.split("\n  database:\n", 1)[1].split("\n  migrate:", 1)[0]
+        self.assertIn("source: database, target: /var/lib/postgresql", database)
+        self.assertNotIn("tmpfs:", database)
+
+    def test_tmpfs_policy_rejects_config_and_inspect_drift(self):
+        for service, values in (("worker-grant", ["/var/lib/postgresql:size=2m,mode=0700"]),
+                                ("worker-provision", ["/var/lib/postgresql:size=1m,mode=0777"]),
+                                ("operator-grant", []), ("operator-provision", ["/elsewhere:size=1m,mode=0700"]),
+                                ("worker-grant", ["/var/lib/postgresql:size=1m,mode=0700,uid=999"]),
+                                ("worker-grant", ["/var/lib/postgresql:size=1m,mode=0700", "/unapproved:size=1m,mode=0700"]),
+                                ("operator-provision", ["/synthetic-private-value:size=1m,mode=0700"]),
+                                ("app", ["/tmp:size=64m,mode=0700"]),
+                                ("database", ["/var/lib/postgresql:size=1m,mode=0700"]),
+                                ("worker", ["/tmp:size=64m,mode=1777"])):
+            config = copy.deepcopy(self.config)
+            config["services"][service]["tmpfs"] = values
+            with self.subTest(service=service, boundary="config"), self.assertRaises(RuntimeError):
+                module.validate_compose(config, self.project)
+            container = self.container_for(service)
+            container["HostConfig"]["Tmpfs"] = dict(value.split(":", 1) for value in values)
+            with self.subTest(service=service, boundary="inspect"):
+                with self.assertRaisesRegex(RuntimeError, r"code=tmpfs\)") as raised:
+                    module.validate_container(container, self.config, self.project, service)
+                self.assertNotIn("synthetic-private-value", str(raised.exception))
+
+    def test_correct_client_tmpfs_keeps_exact_cleanup_closure(self):
+        runner = self.runner()
+        container = self.container_for("worker-grant")
+        volume = self.volume_for("migration_secrets")
+        self.cleanup_runner(runner, [container], [volume])
+        runner.cleanup()
+        removals = [call.args[0] for call in runner.command.call_args_list if "rm" in call.args[0]]
+        self.assertEqual(removals, [["docker", "container", "rm", f"{1:064x}"],
+                                   ["docker", "volume", "rm", volume["Name"]]])
+        runner.claim_path.unlink.assert_called_once()
 
     def test_service_cannot_control_another_role_or_multiple_containers(self):
         runner = self.runner()

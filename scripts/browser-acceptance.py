@@ -40,6 +40,12 @@ SERVICE_MOUNTS = {
     "operator": {("operator_secrets", "/run/secrets", True), ("operator_output", "/operator-output", False)},
 }
 
+SERVICE_TMPFS = {
+    "app": ["/tmp:size=64m,mode=1777"],
+    **{service: ["/var/lib/postgresql:size=1m,mode=0700"] for service in (
+        "worker-provision", "worker-grant", "operator-provision", "operator-grant")},
+}
+
 
 def require(condition, message):
     if not condition:
@@ -80,6 +86,8 @@ def validate_compose(config, project):
     for name, service in config["services"].items():
         profiles = ["tools"] if name == "credentials" else ["operator"] if name.startswith("operator") else []
         require(service.get("profiles", []) == profiles, "Browser Compose service profiles changed")
+        require(service.get("tmpfs", []) == SERVICE_TMPFS.get(name, []),
+                "Browser acceptance requires the reviewed bounded tmpfs configuration")
         disconnected = name in ("initialize", "credentials", "operator-output-init")
         require((service.get("network_mode") == "none" and not service.get("networks")) if disconnected
                 else (not service.get("network_mode") and set(service.get("networks", {}))
@@ -115,6 +123,9 @@ def validate_container(actual, config, project, service, running=None, *, defaul
     require(labels.get("com.docker.compose.service") == service, diagnostic + "service)")
     require(actual["State"]["Running"] in (True, False)
             and (running is None or actual["State"]["Running"] is running), diagnostic + "state)")
+    tmpfs = (actual.get("HostConfig") or {}).get("Tmpfs")
+    expected_tmpfs = dict(entry.split(":", 1) for entry in SERVICE_TMPFS.get(service, []))
+    require(({} if tmpfs is None else tmpfs) == expected_tmpfs, diagnostic + "tmpfs)")
     require(isinstance(actual.get("Mounts"), list) and actual["Mounts"], diagnostic + "mount_shape)")
     require(all(mount.get("Type") == "volume" for mount in actual["Mounts"]), diagnostic + "mount_type)")
     observed = {(mount.get("Name"), mount.get("Destination"), mount.get("RW")) for mount in actual["Mounts"]}
