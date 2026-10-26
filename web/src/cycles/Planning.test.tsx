@@ -217,3 +217,22 @@ describe('planning freshness', () => {
     expect(fetch.mock.calls.every(([, options]) => !options.method || options.method === 'GET')).toBe(true);
   });
 });
+
+describe('planning refresh consistency', () => {
+  it('refreshes the visible cycle source table alongside its current counts', async () => {
+    let changed = false;
+    const issue = { id: 'refresh-issue', key: 'EXA-9', title: 'Cycle refresh source', status_name: 'In progress', estimate: null, archived_at: null };
+    const fetch = vi.fn((url: string, _options: RequestInit) => Promise.resolve(json(url.endsWith('/scope')
+      ? { ...snapshot, kind: 'current', scope_count: 1, completed_count: changed ? 1 : 0, unfinished_count: changed ? 0 : 1 }
+      : url.includes('/issues?') ? page([{ ...issue, status_name: changed ? 'Done' : 'In progress' }])
+      : url.includes('/snapshots?') ? page([]) : cycle)));
+    vi.stubGlobal('fetch', fetch);
+    await render(<Cycles workspaceId="workspace" session={session} data={data} cycleId={cycle.id} params={new URLSearchParams({ team_id: team.id })} refresh={0} readOnly/>);
+    expect(container.querySelector('.cycle-scope tbody tr')?.textContent).toContain('In progress');
+    changed = true; await click('Refresh cycle counts');
+    expect(container.querySelector('.cycle-scope')?.textContent).toContain('1 / 1 eligible issues');
+    expect(container.querySelector('.cycle-scope tbody tr')?.textContent).toContain('Done');
+    expect(fetch.mock.calls.filter(([url]) => url.includes('/issues?'))).toHaveLength(2);
+    expect(fetch.mock.calls.every(([, options]) => !options.method || options.method === 'GET')).toBe(true);
+  });
+});

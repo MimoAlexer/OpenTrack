@@ -372,3 +372,24 @@ describe('planning freshness', () => {
     expect(container.querySelector('.project-progress')).toBeNull();
   });
 });
+
+describe('planning refresh consistency', () => {
+  it('refreshes visible project issue statuses with their current counts', async () => {
+    let changed = false;
+    const issue = { id: 'refresh-issue', key: 'ENG-9', title: 'Refresh source row', status_id: 'started', status_name: 'In progress', status_category: 'started', priority: 0, archived_at: null, milestone_id: null };
+    const fetch = vi.fn((url: string, _options: RequestInit) => Promise.resolve(url.includes('/projects/project/issues?')
+      ? json(page([{ ...issue, ...(changed ? { status_id: 'done', status_name: 'Done', status_category: 'completed' } : {}) }]))
+      : url.endsWith('/progress') ? json({ ...progress, completed: changed ? 3 : 2, open: changed ? 2 : 3 }) : detailFetch(url)));
+    vi.stubGlobal('fetch', fetch);
+    await render(screen({ projectId: project.id }));
+    await click('Issues');
+    expect(container.querySelector('.project-issue-row')?.textContent).toContain('In progress');
+    await click('Overview'); changed = true;
+    await click('Refresh planning counts');
+    expect(container.querySelector('.project-progress-section')?.textContent).toContain('3 / 5 issues');
+    await click('Issues');
+    expect(container.querySelector('.project-issue-status')?.textContent).toBe('Done');
+    expect(fetch.mock.calls.filter(([url]) => url.includes('/projects/project/issues?'))).toHaveLength(2);
+    expect(fetch.mock.calls.every(([, options]) => !options.method || options.method === 'GET')).toBe(true);
+  });
+});

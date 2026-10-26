@@ -214,6 +214,8 @@ test('planning counts retain calculation times through held reads, failures and 
     await page.getByRole('button', { name: 'Refresh planning counts', exact: true }).click();
     const projectRead = await (await freshProject).json() as ProjectProgress;
     await progress(project, 2, 4); await progress(milestone, 2, 4); await expect(project.locator('time')).toHaveAttribute('datetime', projectRead.as_of);
+    await page.getByRole('navigation', { name: 'Project sections', exact: true }).getByRole('button', { name: 'Issues', exact: true }).click();
+    await expect(page.locator('.project-issue-row').filter({ hasText: plan.issues[0].title }).locator('.project-issue-status')).toHaveText(plan.workflow.statuses.find(status => status.category === 'completed')!.name);
 
     await page.goto(cycleUrl(saved, plan)); const scope = page.getByRole('region', { name: 'Cycle scope', exact: true }); await progress(scope, 2, 4, true);
     const cycleTime = await scope.locator('time').getAttribute('datetime'); const cycleGate = await holdRead(page, `${saved.origin}${saved.path}${plan.cyclePath}/scope`); gates.push(cycleGate);
@@ -224,6 +226,7 @@ test('planning counts retain calculation times through held reads, failures and 
     const freshCycle = page.waitForResponse(response => response.url().endsWith(`${plan.cyclePath}/scope`) && response.request().method() === 'GET');
     await page.getByRole('button', { name: 'Refresh cycle counts', exact: true }).click(); const cycleRead = await (await freshCycle).json() as Snapshot;
     await progress(scope, 3, 4, true); await expect(scope.locator('time')).toHaveAttribute('datetime', cycleRead.captured_at);
+    await expect(scope.getByRole('row').filter({ hasText: plan.issues[3].title }).getByRole('cell').nth(1)).toHaveText(plan.workflow.statuses.find(status => status.category === 'completed')!.name);
 
     const control = await saved.request<FullProject>(`/teams/${plan.team.id}/projects`, 'POST', { name: `Fresh control ${randomUUID()}` }, { 'Idempotency-Key': randomUUID() });
     await page.goto(projectUrl(saved, plan)); await progress(project, 3, 4);

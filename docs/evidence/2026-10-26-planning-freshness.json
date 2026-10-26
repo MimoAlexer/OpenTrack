@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "date": "2026-10-26",
-  "created_utc": "2026-10-26T09:29:49.967090+00:00",
+  "created_utc": "2026-10-26T09:44:36.264167+00:00",
   "base_head": "bbb970a0062edabb6aadad828807838f0fcde839",
   "scope": "Current planning freshness and populated private/zero source parity. This does not complete M05-T06 or issue 31.",
   "behavior": {
     "reads": "Existing authoritative project/milestone as_of and current-cycle captured_at are retained. No metric, DTO, permission, projection-consumer or database-schema source changes.",
-    "refresh": "Project-level refresh reads project and milestone counts; cycle refresh reads current scope. Existing loading/error/retry and access/remount/generation fences remain authoritative.",
+    "refresh": "Both controls increment the existing parent revision so current counts and their live issue rows refresh together. Existing loading/error/retry, metadata/draft, access, remount and late-response fences are preserved.",
     "pending": "Existing values explicitly identify an update in progress and retain their original calculation time.",
     "failed": "Existing values explicitly identify a failed refresh; the user can retry the read. Initial failure or denied access is not represented as zero scope.",
     "zero": "All-canceled and empty scope omit completion percentages and progress bars.",
@@ -24,8 +24,10 @@
     "units": {
       "command": "node node_modules/vitest/vitest.mjs run src/projects/Projects.test.tsx src/cycles/Planning.test.tsx",
       "files": 2,
-      "passed": 66,
-      "failed": 0
+      "passed": 68,
+      "failed": 0,
+      "previous_passes": 66,
+      "current_scope": "Fresh correction: original 66 tests plus two row-consistency regressions."
     },
     "types": {
       "commands": [
@@ -47,22 +49,27 @@
       "source_sha256": "4e6897d5934663486a1760be4674876c013a19f3cdeec3084f795aa7a4d19a21",
       "coverage": "Exact created/manual/status-column rows and project/milestone/cycle counts in a populated private team, viewer/outsider authorization, grant removal, archive/deletion, canceled-only/empty scope and byte-equivalent stored daily snapshot.",
       "failure_retention": "Cleanup follows successful join; failed schemas remain preserved.",
-      "earlier_pass": "An earlier pass used identical code with formatter-converted line endings. The final pass uses the original LF form; both records remain retained."
+      "earlier_pass": "An earlier pass used identical code with formatter-converted line endings. The final pass uses the original LF form; both records remain retained.",
+      "evidence_scope": "Retained from 3d08501; backend source is unchanged."
     },
     "rustfmt": {
       "command": "rustfmt --edition 2024 --check crates/opentrack-api/tests/cycles_contract.rs",
-      "exit_code": 0
+      "exit_code": 0,
+      "evidence_scope": "Retained from 3d08501; backend source is unchanged."
     },
     "clippy": {
       "command": "cargo clippy --locked -p opentrack-api --test cycles_contract -- -D warnings",
-      "exit_code": 0
+      "exit_code": 0,
+      "evidence_scope": "Retained from 3d08501; backend source is unchanged."
     },
     "builds": {
       "server_exit": 0,
       "frontend_exit": 0,
       "server_binary_sha256": "c72050cb6fe885d1799a796c77aa0e05ca1599e3cfc379a7d91b7c254f2e39ea",
       "frontend_files": 9,
-      "previous_frontend_preserved": true
+      "previous_frontend_preserved": true,
+      "frontend_scope": "Fresh production rebuild for the two handler changes; the earlier bundle remains preserved.",
+      "server_scope": "Same retained backend binary; no Rust production changes in this correction."
     },
     "collection": {
       "global_cases": 249,
@@ -72,6 +79,13 @@
       "new_cases": 3,
       "new_file_auth_cost": 2,
       "existing_worker_auth_separately_reserved": true
+    },
+    "row_consistency_baseline": {
+      "parent": "3d08501a884c902902d41d8213aaa977793f757a",
+      "failed": 2,
+      "filtered": 66,
+      "production_source_unchanged": true,
+      "observation": "Counts updated while the visible source-row status remained stale."
     }
   },
   "browser_evidence": {
@@ -86,7 +100,8 @@
         "firefox",
         "webkit"
       ],
-      "failure": "The new test incorrectly used the ordinary board's region name/data attribute for ManualBoard."
+      "failure": "The new test incorrectly used the ordinary board's region name/data attribute for ManualBoard.",
+      "historical": true
     },
     "corrective_cohort": {
       "path": "browser-run-3",
@@ -98,12 +113,15 @@
         "chromium",
         "firefox",
         "webkit"
-      ]
+      ],
+      "historical": true
     },
     "retained_coverage": {
       "passed_cases": 6,
       "source_binding": "Only rendered(), used by the first case, changed. All three case bodies and every other helper are byte-identical to the initial execution.",
-      "fresh_nine_case_run": false
+      "fresh_nine_case_run": false,
+      "historical": true,
+      "qualifies_current_refresh_correction": false
     },
     "manual_selector_correction": "Select the real manual board inside Issue list, verify board layout and completed load, and retain exact full-row and per-column equality using data-order-status.",
     "source_row_phases": [
@@ -185,11 +203,11 @@
         "global": 100,
         "window_seconds": 60
       },
-      "old_ledger_sha256": "da3e7f2c4ee42efea665f87f5331a74bdc64e20442adfd9575d451684d26e390",
+      "old_ledger_sha256": "2f9f5970761dd2dccc37aaf030e26188e1de74d69b2661d174aac55010c13721",
       "old_pending_at_boundary": null,
       "old_live_reserved_cost": 0,
       "expired_by_real_monotonic_observation": true,
-      "old_generation": 5,
+      "old_generation": 2,
       "new_runner_instance_explicit": true,
       "old_ledger_rewritten": false,
       "auth_rejection_sources": []
@@ -202,7 +220,21 @@
       "suite": 900
     },
     "workers": 1,
-    "retries": 0
+    "retries": 0,
+    "current_fresh_cohort": {
+      "path": "browser-run",
+      "proof_root": "$OPENTRACK_DEV_STATE/planning-refresh-consistency-20261026-b6859d29",
+      "checks": 9,
+      "passed": 9,
+      "failed": 0,
+      "engines": [
+        "chromium",
+        "firefox",
+        "webkit"
+      ],
+      "source_inputs_unchanged": true,
+      "visible_project_and_cycle_row_status_assertions": true
+    }
   },
   "local_runtime": {
     "private_namespace_and_saved_cluster_identity_verified": true,
@@ -255,7 +287,8 @@
     "An initial browser type check assumed Issue.status_category; the oracle was corrected to use canonical workflow status metadata without any DTO change.",
     "A formatter changed line endings in the shared helper and old contract. The helper and all original contract bytes were restored; the final exact-source contract and lint passed.",
     "The first local readiness attempt omitted Accept:text/html for GET /. It failed with 404 before any browser or ledger was created; the caller header was corrected without changing application content-negotiation guards.",
-    "The first actual nine-case cohort retained six passes and three new-test selector failures. Only the affected case was rerun after correction, following the lead-approved expired-debt/new-run boundary."
+    "The first actual nine-case cohort retained six passes and three new-test selector failures. Only the affected case was rerun after correction, following the lead-approved expired-debt/new-run boundary.",
+    "The first candidate's count-only retry callbacks left displayed source rows stale. Two added unit regressions failed before the existing parent revision was reused; the correction then passed 68 focused units, both type checks and a fresh full nine-case browser cohort."
   ],
   "preservation": {
     "original_tests_and_assertions_retained": true,
@@ -265,19 +298,56 @@
     "old_private_proof_generations_preserved": true
   },
   "source_sha256": {
-    "web/src/projects/Projects.tsx": "ad4a9b479feeb95cd3330a251c509a0dd046a2e8ab38c53c17b069a369be24db",
+    "web/src/projects/Projects.tsx": "f2ac0d9ab33af622e858227bc38f6d88ee604a7f626635900624c0522044ef2d",
     "web/src/projects/Milestones.tsx": "816167ae2919db4365124bf041165b72c2e851ac287597da2e3a77ef159c6263",
-    "web/src/cycles/Cycles.tsx": "0be4b60cf77e0a551cffe4d77772fbf4a9f217aa6de3057c5e61749503392bd8",
-    "web/src/projects/Projects.test.tsx": "fbb89517c3e83156019371bcea9cf73680cbaa792e34c72aed7cc8f7bf6a34d3",
-    "web/src/cycles/Planning.test.tsx": "d3f38228fc8441119b5c65afac44775937ce22a63faeb5ef38407ae597727974",
+    "web/src/cycles/Cycles.tsx": "ab063afdcfc81c0cc7caaa6bd86d4794fc3f0f469eb13373146fcec092b742a1",
+    "web/src/projects/Projects.test.tsx": "67de249760813601ddd7ee369db9834b891f12e0ac4fcab0e51982a64c4945a6",
+    "web/src/cycles/Planning.test.tsx": "9872c89acb317e89eff05208a7786ff61e9c141869223515ef2bf96ce216fb1e",
     "crates/opentrack-api/tests/cycles_contract.rs": "4e6897d5934663486a1760be4674876c013a19f3cdeec3084f795aa7a4d19a21",
-    "web/e2e/planning-reporting.browser.ts": "f47d932b005aaa7c17afe8ee66fee901f33355db6c55a07fab7ed971ec572390"
+    "web/e2e/planning-reporting.browser.ts": "a41805b41736459bf05cb1da34db640e66d2cf465e41ac1160bc0ace05f0120a"
   },
-  "private_proof_index": "$OPENTRACK_DEV_STATE/planning-freshness-20261026-11d2c362/index.json",
+  "private_proof_index": "$OPENTRACK_DEV_STATE/planning-refresh-consistency-20261026-b6859d29/index.json",
   "remaining": [
     "Independent exact-source review and composition with accepted main.",
     "Fresh full 249-case configured browser run and all four CI checks at the integrated head.",
     "Actual delayed reporting-consumer/checkpoint/replay acceptance remains a later shared-contract slice; no unrelated consumer is substituted.",
     "No issue closure, main merge, native/physical/assistive/provider/performance/recovery or whole-product completion is claimed."
-  ]
+  ],
+  "correction": {
+    "parent": "3d08501a884c902902d41d8213aaa977793f757a",
+    "reason": "The original refresh controls updated counts without refreshing the visible issue rows.",
+    "production_changes": "Only replace the two count-specific retry calls with the existing parent revision increment.",
+    "new_state_or_helper": false,
+    "new_dto_or_api_policy": false,
+    "new_migration_or_grant": false,
+    "old_unit_assertions_preserved": true,
+    "browser_case_identities_and_auth_cost_unchanged": true,
+    "previous_proof_index": "$OPENTRACK_DEV_STATE/planning-freshness-20261026-11d2c362/index.json",
+    "previous_proof_index_sha256": "a518eb6948c85abe997388af9a0cc19e01f3925d631364c6d322b4aa8b9a46c8",
+    "previous_proof_unchanged": true,
+    "fresh_browser_run_required_and_completed": true,
+    "retained_six_plus_three_not_used_as_current_qualification": true,
+    "changed_source_hashes": {
+      "web/src/projects/Projects.tsx": {
+        "previous": "ad4a9b479feeb95cd3330a251c509a0dd046a2e8ab38c53c17b069a369be24db",
+        "current": "f2ac0d9ab33af622e858227bc38f6d88ee604a7f626635900624c0522044ef2d"
+      },
+      "web/src/cycles/Cycles.tsx": {
+        "previous": "0be4b60cf77e0a551cffe4d77772fbf4a9f217aa6de3057c5e61749503392bd8",
+        "current": "ab063afdcfc81c0cc7caaa6bd86d4794fc3f0f469eb13373146fcec092b742a1"
+      },
+      "web/src/projects/Projects.test.tsx": {
+        "previous": "fbb89517c3e83156019371bcea9cf73680cbaa792e34c72aed7cc8f7bf6a34d3",
+        "current": "67de249760813601ddd7ee369db9834b891f12e0ac4fcab0e51982a64c4945a6"
+      },
+      "web/src/cycles/Planning.test.tsx": {
+        "previous": "d3f38228fc8441119b5c65afac44775937ce22a63faeb5ef38407ae597727974",
+        "current": "9872c89acb317e89eff05208a7786ff61e9c141869223515ef2bf96ce216fb1e"
+      },
+      "web/e2e/planning-reporting.browser.ts": {
+        "previous": "f47d932b005aaa7c17afe8ee66fee901f33355db6c55a07fab7ed971ec572390",
+        "current": "a41805b41736459bf05cb1da34db640e66d2cf465e41ac1160bc0ace05f0120a"
+      }
+    }
+  }
 }
