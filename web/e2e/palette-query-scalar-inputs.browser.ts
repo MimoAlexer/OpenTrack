@@ -1,8 +1,10 @@
+import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import type { Response } from '@playwright/test';
 import { test, expect } from './fixtures';
 import type { TeamDetail } from '../src/settings/types';
 import type { Issue, IssuePage, Session } from '../src/types';
+registerAdmission(1);
 
 test('palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation', async ({ page, saved, playwright }) => {
   const query = [...randomUUID().replaceAll('-', '')].map(value => String.fromCodePoint(0x1F600 + Number.parseInt(value, 16))).join('') + '\u{1F680}'.repeat(224);

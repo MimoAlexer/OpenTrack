@@ -1,9 +1,11 @@
+import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import type { Route } from '@playwright/test';
 import { test, expect } from './fixtures';
 import type { Milestone } from '../src/projects/Milestones';
 import type { FullProject, Page, ProjectIssue } from '../src/projects/types';
 import type { Issue, Session, Team } from '../src/types';
+registerAdmission(1);
 
 test('milestone conflicts preserve relative intent and new milestones; a lost committed response is reconciled without replay', async ({ page, saved }) => {
   const suffix = randomUUID().slice(0, 8);

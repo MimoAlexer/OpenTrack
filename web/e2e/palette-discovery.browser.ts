@@ -1,9 +1,11 @@
+import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import type { Response } from '@playwright/test';
 import { test, expect } from './fixtures';
 import type { TeamDetail } from '../src/settings/types';
 import type { FullProject } from '../src/projects/types';
 import type { Issue, Session } from '../src/types';
+registerAdmission(1);
 
 test('palette discovers teams and explicit-team projects, preserves group validation and navigates by keyboard after current reads', async ({ page, saved }) => {
   const needle = `Discovery ${randomUUID().slice(0, 8)}`;

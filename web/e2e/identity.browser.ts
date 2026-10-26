@@ -1,7 +1,9 @@
+import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import { test, expect, SavedWorkspace } from './fixtures';
 import type { Bootstrap } from '../src/types';
 import type { OrganizationSummary, WorkspaceDetail } from '../src/settings/types';
+registerAdmission(5);
 
 test('local password login works with every external origin blocked and recovers keyboard focus', async ({ page, saved }) => {
   const external: string[] = [];

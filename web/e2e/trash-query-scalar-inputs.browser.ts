@@ -1,9 +1,11 @@
+import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import type { Response } from '@playwright/test';
 import { test, expect } from './fixtures';
 import type { TeamDetail } from '../src/settings/types';
 import type { Issue, Session } from '../src/types';
 import type { DeletedIssue, DeletedIssuePage } from '../src/issues/deletion-types';
+registerAdmission(1);
 
 test('Trash preserves full scalar queries, rejects 257 without stale actions and reloads the repaired authorized detail', async ({ page, saved, playwright }) => {
   const query = [...randomUUID().replaceAll('-', '')].map(value => String.fromCodePoint(0x1F600 + Number.parseInt(value, 16))).join('') + '\u{1F680}'.repeat(224);

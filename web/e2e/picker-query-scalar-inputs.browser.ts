@@ -1,3 +1,4 @@
+import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import type { APIRequest, APIRequestContext, Locator, Page, Response } from '@playwright/test';
 import { test, expect, type SavedWorkspace } from './fixtures';
@@ -5,6 +6,7 @@ import type { TeamDetail } from '../src/settings/types';
 import type { Issue, Session } from '../src/types';
 import type { Label } from '../src/taxonomy/types';
 import type { FullProject, Project } from '../src/projects/types';
+registerAdmission(6);
 
 const longName = () => [...randomUUID().replaceAll('-', '')].map(value => String.fromCodePoint(0x1F600 + Number.parseInt(value, 16))).join('') + '\u{1F680}'.repeat(68);
 async function team(saved: SavedWorkspace) {

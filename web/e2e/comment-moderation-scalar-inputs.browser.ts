@@ -1,8 +1,10 @@
+import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import { test, expect, paragraph } from './fixtures';
 import type { IssueComment } from '../src/documents/types';
 import type { TeamDetail } from '../src/settings/types';
 import type { Issue, Session } from '../src/types';
+registerAdmission(1);
 
 test('moderation reasons preserve 500 supplementary scalars through edit and deletion while 501 rejections retain drafts and saved versions', async ({ page, saved, playwright }) => {
   const team = await saved.request<TeamDetail>('/teams', 'POST', {

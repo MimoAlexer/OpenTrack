@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-10-26T03:47:01.829905+00:00",
+  "base_head": "6fcb481ffc15c5fda8ca33522439b732098044c4",
+  "scope": "Fixture admission coordination; no browser runtime qualification.",
+  "trigger": {
+    "head": "6fcb481ffc15c5fda8ca33522439b732098044c4",
+    "amd_job": 121368650225,
+    "receipt": {
+      "unique": 240,
+      "passed": 231,
+      "failed": 9,
+      "failed_browser": "chromium",
+      "invitation_accept_http429": 1,
+      "owner_authentication_http429": 8
+    },
+    "server_summary": {
+      "available": true,
+      "tail_lines": 2,
+      "tail_limit_reached": false,
+      "sources": [
+        "peer_budget"
+      ]
+    },
+    "qualification": "The summary is not request-correlated cause accounting. Historical failure is retained."
+  },
+  "contract": {
+    "production_peer_limit": 20,
+    "production_global_limit": 100,
+    "window_seconds": 60,
+    "clock": "Python real time.monotonic_ns; integer nanoseconds; Node never reads ledger timestamps.",
+    "parent_phase_cost": 4,
+    "worker_authentication_cost": 1,
+    "file_phase_costs": {
+      "web/e2e/board.browser.ts": 4,
+      "web/e2e/comment-moderation-scalar-inputs.browser.ts": 1,
+      "web/e2e/identity.browser.ts": 5,
+      "web/e2e/invite-name-scalar-inputs.browser.ts": 5,
+      "web/e2e/keyboard.browser.ts": 1,
+      "web/e2e/manual-issue-order.browser.ts": 1,
+      "web/e2e/palette-discovery.browser.ts": 1,
+      "web/e2e/palette-query-scalar-inputs.browser.ts": 1,
+      "web/e2e/picker-query-scalar-inputs.browser.ts": 6,
+      "web/e2e/planning.browser.ts": 1,
+      "web/e2e/planning-write-recovery.browser.ts": 1,
+      "web/e2e/projects.browser.ts": 1,
+      "web/e2e/trash-query-scalar-inputs.browser.ts": 1,
+      "web/e2e/workflow-taxonomy.browser.ts": 1
+    },
+    "no_restart_upper_bound": 97,
+    "maximum_file_phase": 6,
+    "reservation": "Pending full cost never expires while its phase can emit. Completion charges full cost for sixty seconds. A strictly newer workerIndex conservatively settles abandoned pending cost at transition time.",
+    "coordination": "One shared Python implementation and fixed CLI; no HTTP retry or wait inside case actions. Availability is rechecked after every wake; limits and remaining deadlines cannot be extended.",
+    "storage": {
+      "directory_mode": "0700",
+      "file_modes": "0600",
+      "maximum_state_bytes": 8192,
+      "maximum_cli_output_bytes": 1024,
+      "locking": "Stable separate lock inode, nonblocking exclusive flock; JSON replaced atomically.",
+      "failure": "Missing, malformed, duplicate, backward-clock, nonprivate, overlapping or exhausted state fails without reinitialization."
+    },
+    "new_environment_key": "OPENTRACK_BROWSER_ADMISSION_FILE",
+    "coordinator_child_environment_keys": [
+      "PATH",
+      "LANG",
+      "LC_ALL",
+      "TZ"
+    ],
+    "unchanged_bounds_seconds": {
+      "hook": 60,
+      "test": 60,
+      "action": 10,
+      "preparation": 300,
+      "suite": 900
+    },
+    "workers": 1,
+    "retries": 0
+  },
+  "verification": {
+    "linux_python": {
+      "command": "python3 -B scripts/test-browser-acceptance.py",
+      "runtime": "Python 3.14.4",
+      "tests": 72,
+      "passed": 72,
+      "failed": 0,
+      "skipped": 0,
+      "scope": "Pure boundary tests in the existing private Linux context, including real POSIX files/locking and one real-clock coordinator CLI sequence; no app, browser, Docker or network requests.",
+      "completed_source_set": [
+        "scripts/browser-acceptance.py",
+        "scripts/browser_order_fixtures.py",
+        "scripts/test-browser-acceptance.py"
+      ]
+    },
+    "node": {
+      "command": "node --experimental-strip-types --test e2e/fixture-admission.test.mjs e2e/receipt-reporter-privacy.mjs",
+      "runtime": "v24.14.1",
+      "tests": 22,
+      "passed": 22,
+      "failed": 0,
+      "skipped": 0,
+      "coordinator_wrapper_tests": 7,
+      "existing_privacy_tests": 15,
+      "completed_source_set": [
+        "web/e2e/fixture-admission.ts",
+        "web/e2e/fixture-admission.test.mjs",
+        "web/e2e/receipt-reporter.ts",
+        "web/e2e/receipt-reporter-privacy.mjs"
+      ]
+    },
+    "types": {
+      "commands": [
+        "node node_modules/typescript/bin/tsc --noEmit -p tsconfig.e2e.json",
+        "node node_modules/typescript/bin/tsc --noEmit"
+      ],
+      "exit_codes": [
+        0,
+        0
+      ]
+    },
+    "collection": {
+      "command": "node node_modules/@playwright/test/cli.js test --list --reporter=json",
+      "exit_code": 0,
+      "total": 240,
+      "unique": 240,
+      "engines": {
+        "chromium": 80,
+        "firefox": 80,
+        "webkit": 80
+      },
+      "exact_browser_title_set_matches_full_6fcb_receipt": true,
+      "sorted_browser_title_json_sha256": "0961efe584b98bb2ff3a3e9154662a694932918c846cc2e7f6e6c118463fdd4e",
+      "runtime_cases_executed": 0
+    },
+    "case_preservation": {
+      "method": "Removing only each new import and registerAdmission line exactly reproduces git cat-file --filters at the base head.",
+      "files": {
+        "web/e2e/board.browser.ts": "3c3843928d08db2e895b1e772b19876d6b1ef2a358b72b82f3f0aaaee66b6364",
+        "web/e2e/comment-moderation-scalar-inputs.browser.ts": "198ab88637b360581cc9374c7cf5b832c9c44f82673d4b961ded496f55050105",
+        "web/e2e/identity.browser.ts": "5f2de9f29cd99aa25e401e27f741937d55a6661b11513e0cbedfbbddf9d2494b",
+        "web/e2e/invite-name-scalar-inputs.browser.ts": "939f1d0912744a2472efabe8db0df7bd974c32ac7edc643a1dbb2dfd8dc32ed2",
+        "web/e2e/keyboard.browser.ts": "941b51d5b92a2c53b7b44ab88a2cddc791fca8b7db318fe8930c671f9cb589f3",
+        "web/e2e/manual-issue-order.browser.ts": "41b6673041c0bcd967e46166772a5895be0a9a1d528253ae4a0ae21bc94e59bd",
+        "web/e2e/palette-discovery.browser.ts": "f1be4bfe9a48d6d72c21cc50ec6f746d7360a031ea90a9b4b413b6e47be77e67",
+        "web/e2e/palette-query-scalar-inputs.browser.ts": "9aaa41ff6a068427130e571ad0c9db75490149cafd2cadb404c889c7b8219f9d",
+        "web/e2e/picker-query-scalar-inputs.browser.ts": "081f13a4a12bcdf48144f2812365a88e81394fd2aa2d8dbb18c69da97dd66dfd",
+        "web/e2e/planning.browser.ts": "7734958653aafad08c401ab63d44ccb54839600db4faf227ac48280ab911c16a",
+        "web/e2e/planning-write-recovery.browser.ts": "fc50a7110f9af415e25e2b70cc9f749100bd51c7efe746d688ee7c49108b4191",
+        "web/e2e/projects.browser.ts": "f58ec560de92a5d425eb89e675ff41c3b6b71eb849f070b7c6e8f450cefcdcd5",
+        "web/e2e/trash-query-scalar-inputs.browser.ts": "e2a84364a83dcf1bc790ec8d4d1a93314942ab52e5d38616ea4ed73494a400db",
+        "web/e2e/workflow-taxonomy.browser.ts": "4798b905fcd70131f16bc96ad7f765924f0c391e5ffa9fee5c56404f86ada87e"
+      }
+    },
+    "unchanged_source_guards": [
+      "web/playwright.config.ts",
+      "web/e2e/receipt-reporter.ts",
+      "web/e2e/receipt-reporter-privacy.mjs",
+      "deploy/compose.yaml",
+      "crates/opentrack-api/src/admission.rs",
+      "crates/opentrack-app/src/identity.rs"
+    ]
+  },
+  "retained_failures": [
+    {
+      "kind": "Pure floating-point prototype",
+      "result": "Assertion failure: modeled reference window elapsed 59.99999999999997 instead of 60.",
+      "counterexample": {
+        "eight_slot_completion": 228.50551507372646,
+        "twelve_slot_completion": 229.50651507372646,
+        "incorrect_float_three_slot_start": 288.50551507372643
+      },
+      "resolution": "Inspected counterexample; production coordinator uses integer nanoseconds and rechecks early wakes. Failure is not application evidence."
+    },
+    {
+      "kind": "Initial TypeScript check",
+      "result": "FullProject has no fullyParallel property.",
+      "resolution": "The guard reads worker.config.fullyParallel; both final type checks pass."
+    }
+  ],
+  "models": {
+    "integer_stress": {
+      "seed": 167,
+      "scenarios": 4000,
+      "phases": 160000,
+      "emissions": 1571798,
+      "conservative_restarts": 20034,
+      "maximum_reference_peer_count": 20,
+      "dead_generation_emissions_retired": true,
+      "scope": "Pure algorithm model, not runtime acceptance."
+    },
+    "retained_26e_trace": {
+      "passed_cases": 240,
+      "case_seconds": 749.642,
+      "modeled_wait_seconds": 15.259,
+      "total_excluding_preparation_and_harness_seconds": 764.901,
+      "qualification": "Excludes actual preparation, worker, CLI, hook, browser and harness overhead. Does not establish the 900-second runtime gate."
+    }
+  },
+  "source_sha256": {
+    "scripts/browser-acceptance.py": "fba9856c9b75c40041f18de4eb267fbb02214901ed9b5bd03be00ef5900661c0",
+    "scripts/browser_order_fixtures.py": "684250d771317fc09c83e3d93173e61e15ec01c38c423d05fffc5833e3fa107a",
+    "scripts/test-browser-acceptance.py": "e517a5623edf1915a3f0ecda97ffec19f1a73a9c4c25b5ed2f847534942e3ea8",
+    "web/e2e/board.browser.ts": "2aa30c8a2d20ea3596a41b4a40d9899fd2d31221133f8247e51a94c228e0d851",
+    "web/e2e/comment-moderation-scalar-inputs.browser.ts": "f1488364af6eb4129198f41ca54a0b51749bb620072f38a1cd3c35959f59d029",
+    "web/e2e/fixtures.ts": "f1903ed079d4d6f8ec2a5f1a038f5eff205e5dfbf5c8691b0e564a5533d15c42",
+    "web/e2e/identity.browser.ts": "e32855c30ce7b2996c7dd1f712e398d21e7fc9c7baf9656142bf8f7ec5487dcb",
+    "web/e2e/invite-name-scalar-inputs.browser.ts": "7486449342fb373c5778fcd98b1e830980f47914f3fb9d4f8d0563d53d6ce376",
+    "web/e2e/keyboard.browser.ts": "51d3c6a676734cb77301b32cf8b7df106487ba2e3a62cb205d2251accaff7cfd",
+    "web/e2e/manual-issue-order.browser.ts": "2230fd4b6ca1fb39d95ed2b2e9d6af7c5ad913e8923db4db7acf21e808ac27e6",
+    "web/e2e/palette-discovery.browser.ts": "f449042b8fda7de97c7b282b0e3cee2adf9bf357c280741d24a69f7619dda80d",
+    "web/e2e/palette-query-scalar-inputs.browser.ts": "f81fc4ed1e41c5968ca91f2b7e71c9593df6ead423fd39180252d94968e0fc5f",
+    "web/e2e/picker-query-scalar-inputs.browser.ts": "3f0cdc055ccd44e395be2dcfdf22c2df0003dd191df22ceedb30d8e934aed368",
+    "web/e2e/planning-write-recovery.browser.ts": "08d644f035447a6ccb42f37dacb5be3e9f3b0ea35ef533fdb1bf726480f07362",
+    "web/e2e/planning.browser.ts": "c0613c793ab55abd6b042b41cbe4c9c9cf278674b935708125f3b0b586adb46d",
+    "web/e2e/projects.browser.ts": "e05d6d7bbe5364412b6872c1dce0b06998bbda20a9803a1e90afd49b75c53680",
+    "web/e2e/trash-query-scalar-inputs.browser.ts": "59c8107724e22f7a303dfe95eba4770b8f7c930ed28678b2a23fffed072c849d",
+    "web/e2e/workflow-taxonomy.browser.ts": "82f5060c485c0d77e03673c2a04d39f264f74b7ffe974596c1c80096cfbe4c0a",
+    "web/e2e/fixture-admission.ts": "c39058ca2cbe2e39b5ce69f3d0fb89aca70064754ad0b921f2ce3f6dda55d763",
+    "web/e2e/fixture-admission.test.mjs": "aace55e23ab9f35d0082283e6ba0f5f88bd1c95411fcc4a43bff00fd51041f06"
+  },
+  "unchanged_input_sha256": {
+    "web/e2e/receipt-reporter.ts": "bbe6847a21b0ff86475129b36fa8c0099bb83ada27919a5946d541144af19cc1",
+    "web/e2e/receipt-reporter-privacy.mjs": "24ed7338176e7eb1a52c0965f6d3d9c0f02d2f504d609ebfdda846d9b088b234",
+    "web/playwright.config.ts": "41e780b4fce4a18cdb6973d96bd577c4e27fb37c5dfe6a5ce89ad8b8ac5881a5"
+  },
+  "migration_and_rollback": "No schema, database grants, production configuration, public contracts or runtime policy change. Reverting the fixture slice restores its prior setup scheduling.",
+  "remaining": [
+    "Independent source/privacy review of this exact candidate.",
+    "Configured CI with all 240 real browser cases at the exact integrated head and unchanged time bounds.",
+    "Existing native, physical-input, accessibility, provider, recovery and governance gates remain separate."
+  ]
+}

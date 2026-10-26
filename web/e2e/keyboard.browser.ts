@@ -1,8 +1,10 @@
+import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import type { Locator, Page } from '@playwright/test';
 import { test, expect } from './fixtures';
 import type { Issue, Session } from '../src/types';
 import type { InvitationIssued, TeamDetail, TeamMember } from '../src/settings/types';
+registerAdmission(1);
 
 async function tabTo(page: Page, target: Locator, direction = 'Tab') {
   for (let count = 0; count < 80; count++) {

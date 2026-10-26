@@ -19,7 +19,7 @@ import tempfile
 import time
 import urllib.parse
 
-from browser_order_fixtures import prepare, remaining, validate_manifest
+from browser_order_fixtures import AdmissionBudget, prepare, remaining, validate_manifest
 
 
 SERVICE_MOUNTS = {
@@ -132,12 +132,13 @@ def validate_compose(config, project):
     require(not config["services"]["database"].get("ports"), "The test database must not publish a port")
 
 
-def browser_environment(environment, url, token, password, manifest):
+def browser_environment(environment, url, token, password, manifest, admission):
     keys = ("PATH", "HOME", "LANG", "LC_ALL", "TZ", "XDG_CACHE_HOME", "PLAYWRIGHT_BROWSERS_PATH",
             "GITHUB_ACTIONS", "RUNNER_OS", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")
     return {**{key: environment[key] for key in keys if key in environment}, "CI": "true",
             "OPENTRACK_BROWSER_URL": url, "OPENTRACK_BROWSER_SETUP_TOKEN": token,
-            "OPENTRACK_BROWSER_PASSWORD": password, "OPENTRACK_BROWSER_ORDER_FIXTURES_FILE": str(manifest)}
+            "OPENTRACK_BROWSER_PASSWORD": password, "OPENTRACK_BROWSER_ORDER_FIXTURES_FILE": str(manifest),
+            "OPENTRACK_BROWSER_ADMISSION_FILE": str(admission)}
 
 
 def validate_container(actual, config, project, service, running=None, *, default_worker=True):
@@ -408,15 +409,23 @@ class BrowserAcceptance:
             require(re.fullmatch(r"[0-9a-f]{64}", token), "The credential helper returned an invalid setup token")
             password = secrets.token_urlsafe(36)
             suite_deadline = time.monotonic() + 900
-            manifest = prepare(self, token, password, suite_deadline=suite_deadline)
-            validate_manifest(manifest)
             with tempfile.TemporaryDirectory(prefix="opentrack-browser-order-") as directory:
                 os.chmod(directory, 0o700)
+                admission = Path(directory) / "admission.json"
+                budget = AdmissionBudget.create(admission, suite_deadline)
+                preparation_deadline = min(suite_deadline, time.monotonic() + 300)
+                lease = budget.begin(4, -1, int(remaining(preparation_deadline, 300) * 1000))
+                try:
+                    manifest = prepare(self, token, password, suite_deadline=preparation_deadline)
+                    validate_manifest(manifest)
+                    remaining(preparation_deadline, 300)
+                finally:
+                    budget.finish(lease, -1)
                 path = Path(directory) / "references.json"
                 descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                 with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
                     json.dump(manifest, stream)
-                environment = browser_environment(self.environment, self.url, token, password, path)
+                environment = browser_environment(self.environment, self.url, token, password, path, admission)
                 result = subprocess.run(["node", "node_modules/@playwright/test/cli.js", "test"],
                                         cwd=self.root / "web", env=environment, timeout=remaining(suite_deadline, 900))
                 try:

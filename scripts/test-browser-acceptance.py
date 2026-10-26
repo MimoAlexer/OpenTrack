@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Pure boundary tests; no containers, app server, browser or network are started."""
 import copy
+from contextlib import redirect_stderr, redirect_stdout
 import importlib.util
 import io
 import json
 import os
 from pathlib import Path
 import subprocess
+import sys
+import tempfile
 import time
 from types import SimpleNamespace
 import unittest
@@ -139,6 +142,10 @@ class Boundaries(unittest.TestCase):
         uid_patch = patch.object(module.os, "getuid", return_value=0, create=True)
         uid_patch.start()
         self.addCleanup(uid_patch.stop)
+        admission_patch = patch.object(module, "AdmissionBudget")
+        self.admission = admission_patch.start()
+        self.admission.create.return_value.begin.return_value = 1
+        self.addCleanup(admission_patch.stop)
         self.env = {"GITHUB_ACTIONS": "true", "RUNNER_OS": "Linux", "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "2"}
         self.project = "opentrack-browser-123-2-amd64"
         names = {source for mounts in module.SERVICE_MOUNTS.values() for source, _, _ in mounts}
@@ -815,7 +822,7 @@ class Boundaries(unittest.TestCase):
                   "COMPOSE_PROJECT_NAME": "forbidden", "PGPASSWORD": "forbidden", "GITHUB_TOKEN": "forbidden",
                   "OPENTRACK_MIGRATION_DATABASE_URL": "forbidden", "OPENTRACK_WORKER_DATABASE_URL_FILE": "forbidden",
                   "OPENTRACK_OPERATOR_DATABASE_URL": "forbidden", "HTTP_PROXY": "forbidden", "NODE_OPTIONS": "forbidden"}
-        child = module.browser_environment(parent, "http://localhost:18081", "setup", "password", "references")
+        child = module.browser_environment(parent, "http://localhost:18081", "setup", "password", "references", "admission")
         self.assertNotIn("forbidden", child.values())
         self.assertEqual(child["PATH"], "tooling")
         self.assertEqual(child["OPENTRACK_BROWSER_PASSWORD"], "password")
@@ -904,6 +911,29 @@ class Boundaries(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Worker restoration failed"):
                 runner.run()
         node.assert_not_called()
+        budget = self.admission.create.return_value
+        self.assertEqual(budget.begin.call_args.args[:2], (4, -1))
+        self.assertTrue(0 < budget.begin.call_args.args[2] <= 300_000)
+        budget.finish.assert_called_once_with(1, -1)
+        runner.validate_cleanup_resources.assert_called_once()
+
+    def test_parent_preparation_cannot_consume_more_than_300_seconds_of_the_suite(self):
+        runner = self.runner()
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
+        runner.dc.side_effect = lambda *args, **kwargs: "127.0.0.1:18081" if args[0] == "port" else "a" * 64
+        clock = [1000]
+
+        def preparation(*args, suite_deadline):
+            self.assertEqual(suite_deadline, 1300)
+            clock[0] = 1301
+            return manifest()
+
+        with patch.object(module.time, "monotonic", side_effect=lambda: clock[0]), \
+                patch.object(module, "prepare", side_effect=preparation), patch.object(module.subprocess, "run") as node:
+            with self.assertRaisesRegex(RuntimeError, "bounded deadline"):
+                runner.run()
+        node.assert_not_called()
+        self.admission.create.return_value.finish.assert_called_once_with(1, -1)
         runner.validate_cleanup_resources.assert_called_once()
 
     def test_command_failure_withholds_all_captured_credentials(self):
@@ -928,7 +958,7 @@ class Boundaries(unittest.TestCase):
         runner.dc.side_effect = compose
 
         def preparation(*args, suite_deadline):
-            self.assertEqual(suite_deadline, 2140)
+            self.assertEqual(suite_deadline, 1540)
             clock[0] += 137
             return manifest()
 
@@ -947,7 +977,7 @@ class Boundaries(unittest.TestCase):
         clock = [1000]
 
         def preparation(*args, suite_deadline):
-            clock[0] = suite_deadline
+            clock[0] = 1900
             return manifest()
 
         with patch.object(module.time, "monotonic", side_effect=lambda: clock[0]), \
@@ -1103,6 +1133,190 @@ class FixturePreparation(unittest.TestCase):
                 patch.object(fixtures.urllib.request, "ProxyHandler", wraps=fixtures.urllib.request.ProxyHandler) as proxy:
             fixtures.Client("http://localhost:18081", time.monotonic() + 20)
         proxy.assert_called_once_with({})
+
+
+@unittest.skipUnless(os.name == "posix", "Admission storage and locking require POSIX")
+class AdmissionCoordination(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory(prefix="browser-admission-test-")
+        self.addCleanup(self.directory.cleanup)
+        os.chmod(self.directory.name, 0o700)
+        self.path = Path(self.directory.name) / "admission.json"
+        self.clock = 1_000_000_000_000
+        self.real_clock = time.monotonic_ns
+        clock = patch.object(fixtures.time, "monotonic_ns", side_effect=lambda: self.clock)
+        clock.start()
+        self.addCleanup(clock.stop)
+        self.sleep_calls = []
+
+        def sleep(seconds):
+            self.sleep_calls.append(seconds)
+            self.clock += round(seconds * 1_000_000_000)
+
+        sleep_patch = patch.object(fixtures.time, "sleep", side_effect=sleep)
+        sleep_patch.start()
+        self.addCleanup(sleep_patch.stop)
+        self.budget = fixtures.AdmissionBudget.create(self.path, 1900)
+
+    def data(self):
+        return json.loads(self.path.read_bytes())
+
+    def test_parent_and_worker_share_cost_without_new_generation_bursts(self):
+        lease = self.budget.begin(4, -1, 300_000)
+        self.budget.finish(lease, -1)
+        self.budget.worker(0)
+        lease = self.budget.begin(1, 0, 60_000)
+        self.budget.finish(lease, 0)
+        self.assertEqual(sum(item[1] for item in self.data()["history"]), 5)
+        self.budget.worker(1)
+        self.assertEqual(sum(item[1] for item in self.data()["history"]), 5)
+
+    def test_integer_boundary_never_rounds_an_early_wake_into_a_permit(self):
+        lease = self.budget.begin(20, -1, 60_000)
+        self.budget.finish(lease, -1)
+        self.clock += fixtures.ADMISSION_WINDOW_NS - 2
+
+        def early(seconds):
+            self.sleep_calls.append(seconds)
+            self.clock += 1
+
+        with patch.object(fixtures.time, "sleep", side_effect=early):
+            self.budget.begin(1, -1, 60_000)
+        self.assertEqual(self.clock, 1_060_000_000_000)
+        self.assertEqual(len(self.sleep_calls), 2)
+
+    def test_pending_phase_does_not_expire_and_restart_charges_at_transition(self):
+        self.budget.begin(20, -1, 60_000)
+        self.clock += 120_000_000_000
+        with self.assertRaisesRegex(RuntimeError, "overlaps"):
+            self.budget.begin(1, -1, 60_000)
+        self.budget.worker(0)
+        self.assertEqual(self.data()["history"], [[self.clock, 20]])
+        with self.assertRaisesRegex(RuntimeError, "cannot fit"):
+            self.budget.begin(1, 0, 60_000)
+        self.clock += 1
+        self.budget.begin(1, 0, 60_000)
+        self.assertEqual(self.clock, 1_180_000_000_000)
+
+    def test_phase_limits_overlap_and_stale_generation_fail_without_state_reset(self):
+        for cost in (0, 21, -1, True, 1.5):
+            with self.assertRaises(RuntimeError):
+                self.budget.begin(cost, -1, 60_000)
+        self.budget.worker(0)
+        for generation in (-1, 0, True):
+            with self.assertRaises(RuntimeError):
+                self.budget.worker(generation)
+        lease = self.budget.begin(6, 0, 60_000)
+        for action in (lambda: self.budget.begin(1, 0, 60_000), lambda: self.budget.finish(lease + 1, 0),
+                       lambda: self.budget.finish(lease, 1)):
+            with self.assertRaises(RuntimeError):
+                action()
+        self.assertEqual(self.data()["pending"], {"lease": lease, "count": 6})
+
+    def test_hook_and_shared_deadlines_cannot_extend_or_reinitialize_state(self):
+        lease = self.budget.begin(20, -1, 60_000)
+        self.budget.finish(lease, -1)
+        before = self.path.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, "cannot fit"):
+            self.budget.begin(1, -1, 1_000)
+        self.assertEqual(self.path.read_bytes(), before)
+        self.clock = 1_900_000_000_000
+        with self.assertRaisesRegex(RuntimeError, "deadline"):
+            self.budget.begin(1, -1, 60_000)
+        self.path.unlink()
+        with self.assertRaises(OSError):
+            self.budget.worker(0)
+        self.assertFalse(self.path.exists())
+
+    def test_stable_lock_inode_survives_atomic_json_replacement_and_rejects_overlap(self):
+        import fcntl
+        lock = self.path.with_suffix(".lock")
+        inode = lock.stat().st_ino
+        old_data_inode = self.path.stat().st_ino
+        lease = self.budget.begin(1, -1, 60_000)
+        self.assertEqual(lock.stat().st_ino, inode)
+        self.assertNotEqual(self.path.stat().st_ino, old_data_inode)
+        with lock.open("r+b") as stream:
+            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self.assertRaisesRegex(RuntimeError, "already in use"):
+                self.budget.finish(lease, -1)
+        self.assertEqual(self.data()["pending"]["count"], 1)
+
+    def test_corrupt_extra_backward_or_oversized_state_fails_closed(self):
+        valid = self.path.read_bytes()
+        variants = [b"[]", b"{" * 8193, valid.replace(b'"version": 1', b'"version": 1, "version": 1')]
+        for key, value in (("version", True), ("secret", "synthetic-private-marker"),
+                           ("last_ns", self.clock + 1), ("deadline_ns", self.clock + 901_000_000_000),
+                           ("generation", -2), ("history", [[self.clock, 21]]),
+                           ("pending", {"lease": 0, "count": 1})):
+            item = json.loads(valid)
+            item[key] = value
+            variants.append(json.dumps(item).encode())
+        for payload in variants:
+            self.path.write_bytes(payload)
+            with self.assertRaises((RuntimeError, ValueError)):
+                self.budget.worker(0)
+            self.assertEqual(self.path.read_bytes(), payload)
+        self.path.write_bytes(valid)
+
+    def test_clock_cannot_move_backward_within_restart_or_completion(self):
+        lease = self.budget.begin(1, -1, 60_000)
+        for action in (lambda: self.budget.worker(0), lambda: self.budget.finish(lease, -1)):
+            with patch.object(fixtures.time, "monotonic_ns", side_effect=[self.clock, self.clock - 1]), \
+                    self.assertRaisesRegex(RuntimeError, "backward"):
+                action()
+        self.assertIsNotNone(self.data()["pending"])
+
+    def test_private_permissions_symlinks_and_hardlinks_are_required(self):
+        os.chmod(self.path, 0o644)
+        with self.assertRaises(RuntimeError):
+            self.budget.worker(0)
+        os.chmod(self.path, 0o600)
+        os.chmod(self.path.parent, 0o755)
+        with self.assertRaises(RuntimeError):
+            self.budget.worker(0)
+        os.chmod(self.path.parent, 0o700)
+        linked = self.path.parent / "linked.json"
+        os.link(self.path, linked)
+        with self.assertRaises(RuntimeError):
+            self.budget.worker(0)
+        linked.unlink()
+        self.path.rename(linked)
+        self.path.symlink_to(linked.name)
+        with self.assertRaises(OSError):
+            self.budget.worker(0)
+        self.path.unlink()
+        linked.rename(self.path)
+        self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
+
+    def test_cli_never_exposes_invalid_arguments_paths_or_state(self):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            result = fixtures.admission_main(["--admission", "begin", "synthetic-private-marker", "0", "1", "60000"])
+        self.assertEqual(result, 1)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertNotIn("synthetic-private-marker", stderr.getvalue())
+        self.path.write_bytes(b"[" * 2000 + b"]" * 2000)
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            result = fixtures.admission_main(["--admission", "worker", str(self.path), "0", "0", "60000"])
+        self.assertEqual(result, 1)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(stderr.getvalue(), "Browser fixture admission failed; details withheld.\n")
+
+    def test_real_cli_uses_shared_real_monotonic_clock_and_only_returns_a_lease(self):
+        self.path.unlink()
+        self.path.with_suffix(".lock").unlink()
+        with patch.object(fixtures.time, "monotonic_ns", side_effect=self.real_clock):
+            fixtures.AdmissionBudget.create(self.path, self.real_clock() / 1_000_000_000 + 900)
+        for operation, value, expected in (("worker", 0, {}), ("begin", 1, {"lease": 1}), ("finish", 1, {})):
+            result = subprocess.run([sys.executable, "-I", "-B", str(Path(fixtures.__file__).resolve()),
+                                     "--admission", operation, str(self.path), "0", str(value), "60000"],
+                                    capture_output=True, timeout=5, env={"PATH": os.environ.get("PATH", ""), "LANG": "C.UTF-8"})
+            self.assertEqual(result.returncode, 0, "The credential-free real CLI failed")
+            self.assertEqual(json.loads(result.stdout), expected)
+            self.assertEqual(result.stderr, b"")
+        self.assertEqual(sum(item[1] for item in self.data()["history"]), 1)
 
 
 if __name__ == "__main__":

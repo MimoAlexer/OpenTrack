@@ -1,3 +1,4 @@
+import { registerAdmission } from './fixtures';
 import { createHash, randomUUID } from 'node:crypto';
 import type { TiptapEditorHTMLElement } from '@tiptap/core';
 import { readFileSync } from 'node:fs';
@@ -9,6 +10,7 @@ import type { Workflow } from '../src/workflows/types';
 import type { OrderMaintenance } from '../src/issues/IssueOrdering';
 import type { Attachment } from '../src/attachments/types';
 import { attachmentIds, plainText, type RichBody } from '../src/documents/model';
+registerAdmission(1);
 
 type Reference = { team_id: string; status_id: string; job_id: string; requester_id: string; staged_count: string; total_count: null };
 type ManualPage = IssuePage & { order_version: string };
