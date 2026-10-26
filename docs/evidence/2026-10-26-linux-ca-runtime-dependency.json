@@ -1,0 +1,83 @@
+{
+  "date": "2026-10-26",
+  "scope": "Declare the native Debian package's direct system CA-certificate dependency.",
+  "base_head": "592ffbbc08f93e514c987d1839a8105a4c0125fd",
+  "change": {
+    "file": "desktop/Tauri.toml",
+    "field": "bundle.linux.deb.depends",
+    "value": ["ca-certificates"],
+    "before_sha256": "107346f837e93ec3e08123a8baf680889d6129dc2e70b90c266bd2e702c5f4fb",
+    "after_sha256": "7037e084bb386941f30b3fd28bb1028b665db18864f96125411bee41f22a6fd9"
+  },
+  "source_requirement": {
+    "startup_order": "desktop/src/main.rs creates Runtime before the webview; Runtime::new eagerly creates Transport and its reqwest client.",
+    "client": "reqwest 0.13.5 with rustls uses rustls-platform-verifier 0.7.1; its Linux constructor fails when the system root store is empty.",
+    "root_discovery": "rustls-native-certs 0.8.5 and openssl-probe 0.2.1 discover Linux certificate files/directories under /etc or /opt/etc unless explicitly configured.",
+    "client_source_sha256": "5b7e2556d122a75cd8d3ef62a33d45e430c8eff229a33bc3f53fc7e9af2d97de",
+    "verifier_source_sha256": "afdd9c4cd053745603014ead548593944ac43ad7424e15b10d52a32e32f0ce22",
+    "discovery_source_sha256": "84ec9c4dfb24f51bb7e6bd17ac574dc4861034dadbfb3d298eac3a17a54ed396",
+    "source_archives_match_cargo_lock": true
+  },
+  "configuration_contract": {
+    "tauri_cli_version": "2.12.3",
+    "cli_schema_sha256": "1fa320b025eda0a654fbe964063f98e17c62e394b299b828dc0c38bd080ddd38",
+    "crate": "tauri-utils 2.10.2",
+    "source": "src/config.rs",
+    "source_sha256": "4c00eb5bd8f0aba67f8702e938039a44031f045ea271fe94d93585a0675714b9",
+    "declaration": "DebConfig.depends: Option<Vec<String>>",
+    "serde": "camelCase with deny_unknown_fields",
+    "automatic_dependencies": {
+      "cli_source_commit": "59b63ab500da9859f12d8888c3298bc29bba0b92",
+      "interface_source": "crates/tauri-cli/src/interface/rust.rs",
+      "interface_sha256": "0efada2885cdb6fb1e74832a2704dcbd7e22627709944968740bd8dca8d863ed",
+      "configured_vector_line": 1364,
+      "linux_append_lines": [1422, 1423],
+      "settings_assignment_lines": [1544, 1548],
+      "debian_source": "crates/tauri-bundler/src/bundle/linux/debian.rs",
+      "debian_sha256": "51bd2c590e5aad5838e2b8269eadb3040047df2c9ab89fdae5b75c0fcac4e9d9",
+      "control_emission_lines": [204, 206],
+      "conclusion": "The configured vector retains ca-certificates; Linux appends its GTK and WebKit dependencies before the resulting vector is emitted in Depends.",
+      "verified_by_source": true
+    }
+  },
+  "validation": {
+    "toml_parse": "pass",
+    "retained_cli_deb_field_schema": "pass",
+    "automatic_dependencies_source_check": "pass",
+    "exact_semantic_delta": "pass",
+    "canonical_text_delta_one_line": "pass",
+    "all_other_configured_metadata_unchanged": true,
+    "duplicate_dependency": false,
+    "git_diff_check": "pass"
+  },
+  "retained_package_observation": {
+    "tauri_cli_version": "2.12.3",
+    "package_sha256": "6bd736c8810eca4b50f29e10e4bcdec777862d9b70f99ac441eb130ab69bd296",
+    "control_sha256": "07e97696d2711410f72d5cbe4dc526053d1bdfdc79475e9c886a087d9dd9b453",
+    "direct_dependencies": ["libwebkit2gtk-4.1-0", "libgtk-3-0"],
+    "ca_certificates_direct_dependency": false,
+    "current_change_built_into_this_artifact": false
+  },
+  "separate_startup_observation": {
+    "binary_source_head": "8ca71bb0ea6ca0e9587204abe696010e97871210",
+    "binary_sha256": "7cd5272e6cdf58b672cf10c9082d628ec5a7ff40fb006eac310b1f68966ce39e",
+    "ca_bundle_sha256": "64e7c24b0536b525fb19b145768bd5e6e12ced0df3db837c34553ea789acd143",
+    "result_sha256": "553525c8064f1ca25d65b22dbc9d2713add832f3b883801a84248efa0be72710",
+    "passed_checks": 17,
+    "elapsed_seconds": 5.689,
+    "known_session_deleted": true,
+    "all_owned_children_reaped": true,
+    "cleanup_failures": [],
+    "scope": "Isolated connection-screen startup with a read-only public CA bundle; no authentication, external server, credential-item or package-installation acceptance.",
+    "retained_ambiguous_failure_sha256": "1089c7f038ededf124e07f2540fddc4920e2d5c0c39257a0ac09734bf65294d2",
+    "prior_timeout_cause_proven": false,
+    "validates_current_debian_package_build": false
+  },
+  "execution_limits": {
+    "native_binary_rebuilt": false,
+    "debian_package_built_or_installed": false,
+    "new_package_dependency_list_verified": false,
+    "runtime_changes_from_manifest_executed": false
+  },
+  "rollback": "Remove this direct dependency declaration; no database migration or application-source change is involved."
+}
