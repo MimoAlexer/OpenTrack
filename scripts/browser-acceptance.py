@@ -52,6 +52,33 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
+def auth_rejection_summary(output):
+    if len(output.encode("utf-8")) > 1024 * 1024:
+        return {"available": False, "reason": "output_limit"}
+    targets = {"opentrack_api::admission": {"state_unavailable", "global_budget", "source_capacity", "peer_budget"},
+               "opentrack_app::identity": {"password_work_budget", "account_attempt_budget"}}
+    sources = []
+    lines = output.splitlines()
+    if len(lines) > 128:
+        return {"available": False, "reason": "line_limit"}
+    for line in lines:
+        try:
+            value = json.loads(line)
+        except (ValueError, RecursionError):
+            continue
+        if not isinstance(value, dict) or value.get("level") != "WARN":
+            continue
+        fields = value.get("fields")
+        if not isinstance(fields, dict) or set(fields) != {"message", "auth_rejection"}:
+            continue
+        source = fields.get("auth_rejection")
+        if (fields.get("message") == "Authentication request rejected" and isinstance(source, str)
+                and source in targets.get(value.get("target") if isinstance(value.get("target"), str) else "", set())
+                and source not in sources):
+            sources.append(source)
+    return {"available": True, "tail_lines": len(lines), "tail_limit_reached": len(lines) == 128, "sources": sources}
+
+
 def validate_target(project, url, environment):
     require(environment.get("GITHUB_ACTIONS") == "true"
             and environment.get("RUNNER_OS") == "Linux",
@@ -392,6 +419,14 @@ class BrowserAcceptance:
                 environment = browser_environment(self.environment, self.url, token, password, path)
                 result = subprocess.run(["node", "node_modules/@playwright/test/cli.js", "test"],
                                         cwd=self.root / "web", env=environment, timeout=remaining(suite_deadline, 900))
+                try:
+                    deadline = min(suite_deadline, time.monotonic() + 20)
+                    self.validate_live_resources(timeout=remaining(deadline, 20))
+                    diagnostic = auth_rejection_summary(self.dc("logs", "--no-color", "--no-log-prefix", "--tail", "128", "app",
+                                                               timeout=remaining(deadline, 20)))
+                except (RuntimeError, OSError, ValueError, TypeError, subprocess.TimeoutExpired):
+                    diagnostic = {"available": False, "reason": "capture_unavailable"}
+                print("Authentication rejection sources: " + json.dumps(diagnostic), flush=True)
                 require(result.returncode == 0, "Browser acceptance failed; inspect the credential-free test receipt")
         finally:
             if started:

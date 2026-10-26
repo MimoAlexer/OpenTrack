@@ -820,6 +820,37 @@ class Boundaries(unittest.TestCase):
         self.assertEqual(child["PATH"], "tooling")
         self.assertEqual(child["OPENTRACK_BROWSER_PASSWORD"], "password")
 
+    def test_auth_rejection_summary_emits_only_fixed_sources(self):
+        def event(target, source, **extra):
+            return json.dumps({"level": "WARN", "target": target,
+                               "fields": {"message": "Authentication request rejected", "auth_rejection": source, **extra}})
+        output = "\n".join((event("opentrack_api::admission", "peer_budget"),
+                            event("opentrack_app::identity", "password_work_budget"),
+                            event("opentrack_api::admission", "peer_budget"),
+                            event("opentrack_api::admission", "synthetic-private-value"),
+                            event("foreign", "peer_budget"),
+                            event("opentrack_app::identity", "peer_budget"),
+                            event("opentrack_api::admission", "peer_budget", password="synthetic-private-value"),
+                            "not JSON synthetic-private-value", "[]", "null"))
+        result = module.auth_rejection_summary(output)
+        self.assertEqual(result["sources"], ["peer_budget", "password_work_budget"])
+        self.assertFalse(result["tail_limit_reached"])
+        self.assertNotIn("synthetic-private-value", json.dumps(result))
+        self.assertNotIn("foreign", json.dumps(result))
+
+    def test_auth_rejection_summary_bounds_and_types(self):
+        self.assertEqual(module.auth_rejection_summary("x" * (1024 * 1024 + 1)),
+                         {"available": False, "reason": "output_limit"})
+        self.assertEqual(module.auth_rejection_summary("{}\n" * 129),
+                         {"available": False, "reason": "line_limit"})
+        result = module.auth_rejection_summary("{}\n" * 128)
+        self.assertTrue(result["tail_limit_reached"])
+        self.assertEqual(result["sources"], [])
+        poisoned = json.dumps({"level": "WARN", "target": [], "fields": {
+            "message": "Authentication request rejected", "auth_rejection": {"password": "synthetic-private-value"}}})
+        self.assertEqual(module.auth_rejection_summary(poisoned)["sources"], [])
+        self.assertEqual(module.auth_rejection_summary("[" * 2000 + "]" * 2000)["sources"], [])
+
     def test_completed_private_manifest_lifetime_cleanup_and_suite_watchdog(self):
         for outcome in (0, 1, subprocess.TimeoutExpired("node", 900)):
             with self.subTest(outcome=type(outcome).__name__):

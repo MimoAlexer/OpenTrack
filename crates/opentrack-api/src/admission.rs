@@ -32,6 +32,13 @@ struct Bucket {
 impl Admission {
     fn allow(&self, source: IpAddr, now: Instant) -> bool {
         let Ok(mut state) = self.state.lock() else {
+            static REPORTED: std::sync::Once = std::sync::Once::new();
+            REPORTED.call_once(|| {
+                tracing::warn!(
+                    auth_rejection = "state_unavailable",
+                    "Authentication request rejected"
+                )
+            });
             return false;
         };
         state
@@ -48,10 +55,24 @@ impl Admission {
             };
         }
         if global.count >= GLOBAL_LIMIT {
+            static REPORTED: std::sync::Once = std::sync::Once::new();
+            REPORTED.call_once(|| {
+                tracing::warn!(
+                    auth_rejection = "global_budget",
+                    "Authentication request rejected"
+                )
+            });
             return false;
         }
         global.count += 1;
         if state.sources.len() >= MAX_BUCKETS && !state.sources.contains_key(&source) {
+            static REPORTED: std::sync::Once = std::sync::Once::new();
+            REPORTED.call_once(|| {
+                tracing::warn!(
+                    auth_rejection = "source_capacity",
+                    "Authentication request rejected"
+                )
+            });
             return false;
         }
         let bucket = state.sources.entry(source).or_insert(Bucket {
@@ -59,6 +80,13 @@ impl Admission {
             count: 0,
         });
         if bucket.count >= IP_LIMIT {
+            static REPORTED: std::sync::Once = std::sync::Once::new();
+            REPORTED.call_once(|| {
+                tracing::warn!(
+                    auth_rejection = "peer_budget",
+                    "Authentication request rejected"
+                )
+            });
             return false;
         }
         bucket.count += 1;
