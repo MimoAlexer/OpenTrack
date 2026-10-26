@@ -103,9 +103,13 @@ async fn age(h: &Harness, actor: &Actor, w: Uuid) {
 
 async fn drain(worker: &Worker, w: Uuid) {
     for _ in 0..20 {
-        worker.capture(w).await.unwrap();
+        let assignment = worker.capture(w).await.unwrap();
+        let planning = worker.apply_planning_events(w).await.unwrap();
         let Some(claim) = worker.claim(w).await.unwrap() else {
-            return;
+            if assignment.processed == 0 && planning.processed == 0 {
+                return;
+            }
+            continue;
         };
         assert!(matches!(
             worker.run_claim(&claim).await.unwrap(),
@@ -173,6 +177,7 @@ async fn api_rollback(h: &Harness) {
         );
         if key == "pending-retry" {
             assert!(worker.capture(w).await.unwrap().backfilled);
+            drain(&worker, w).await;
         } else {
             operator
                 .set_event_admission_limits(w, 100_000, MAX_BYTES, "Restore byte capacity")
@@ -272,6 +277,7 @@ async fn retention(h: &Harness) {
     let bytes = accounting(h, &actor, w).await;
     assert!(bytes > 0);
     assert_eq!(worker.capture(w).await.unwrap().processed, 0);
+    assert_eq!(worker.apply_planning_events(w).await.unwrap().processed, 1);
     assert_eq!(
         worker.retain(w, 1000).await.unwrap().deleted,
         0,
@@ -326,7 +332,7 @@ async fn retention(h: &Harness) {
         )
         .await
         .unwrap();
-    worker.capture(w).await.unwrap();
+    drain(&worker, w).await;
     assert_eq!(
         worker.retain(w, 1000).await.unwrap().deleted,
         0,
@@ -362,7 +368,7 @@ async fn multiple_consumers(h: &Harness) {
     sqlx::query("INSERT INTO consumer_registrations(workspace_id,consumer_name,consumer_version,required) VALUES($1,'fixture_required',1,true),($1,'fixture_optional',1,false)")
         .bind(w).execute(&mut *tx).await.unwrap();
     // Synthetic registration/checkpoint metadata exercises the shared watermark only.
-    // This job reference satisfies its FK; no second production consumer ran.
+    // This extra fixture registration uses an existing assignment job for its FK.
     sqlx::query("INSERT INTO consumer_checkpoints(workspace_id,consumer_name,consumer_version,last_seq,backfill_job_id) VALUES($1,'fixture_required',1,0,$2)")
         .bind(w).bind(backfill).execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
@@ -466,6 +472,7 @@ async fn multiple_consumers(h: &Harness) {
     tx.commit().await.unwrap();
     assert_eq!(accounting(h, &actor, w).await, bytes);
     assert_eq!(worker.capture(w).await.unwrap().processed, 1);
+    assert_eq!(worker.apply_planning_events(w).await.unwrap().processed, 1);
     assert_eq!(
         accounting(h, &actor, w).await,
         bytes,
@@ -510,16 +517,17 @@ async fn missing_required(h: &Harness) {
     let (actor, w, team) = setup(h).await;
     let operator = Operator::connect(&h.operator_url().await).await.unwrap();
     let worker = worker(h).await;
+    drain(&worker, w).await;
     age(h, &actor, w).await;
     for remove_registration in [false, true] {
         let mut tx = h.context(actor.user.id, w).await;
-        sqlx::query("DELETE FROM consumer_checkpoints WHERE workspace_id=$1")
+        sqlx::query("DELETE FROM consumer_checkpoints WHERE workspace_id=$1 AND consumer_name='assignment_cleanup' AND consumer_version=1")
             .bind(w)
             .execute(&mut *tx)
             .await
             .unwrap();
         if remove_registration {
-            sqlx::query("DELETE FROM consumer_registrations WHERE workspace_id=$1")
+            sqlx::query("DELETE FROM consumer_registrations WHERE workspace_id=$1 AND consumer_name='assignment_cleanup' AND consumer_version=1")
                 .bind(w)
                 .execute(&mut *tx)
                 .await
@@ -905,7 +913,7 @@ async fn concurrent_appends_cannot_overshoot_the_pending_cap_or_leak_batch_reser
 async fn concurrent_cap(h: &Harness) {
     let (actor, w, team) = setup(h).await;
     let worker = worker(h).await;
-    worker.capture(w).await.unwrap();
+    drain(&worker, w).await;
     let operator = Operator::connect(&h.operator_url().await).await.unwrap();
     operator
         .set_event_admission_limits(w, 1, MAX_BYTES, "One concurrent append may commit")
@@ -965,7 +973,7 @@ async fn concurrent_cap(h: &Harness) {
         "1"
     );
     accounting(h, &actor, w).await;
-    worker.capture(w).await.unwrap();
+    drain(&worker, w).await;
     let before_batch = state(h, &actor, w).await;
     let mut batch = h.context(actor.user.id, w).await;
     let error = append(&mut batch, actor.user.id, w, team, 2)
