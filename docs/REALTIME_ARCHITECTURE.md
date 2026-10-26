@@ -87,3 +87,9 @@ Add initiative.updated, outcome.observed, planning_scenario.updated, capacity.up
 Every family registers an owner-specific read predicate. A team predicate alone is insufficient for retro/session membership, personal rows or reports with current source ACL. Query consumers reauthorize each source; no background consumer can expand audience. Retro vote count updates must not reveal other participants' allocations before the configured round reveal. Source revocation purges affected scenario/report material from client caches and requires rebootstrap under the new permission epoch. Mutation+activity+event append remains one transaction; batch scenario apply reserves one contiguous event range after source edits are locked.
 
 Register projection/backfill and retention requirements before enabling report/reminder/template consumers. New subscribers must not skip durable work merely because a module was hidden in navigation. Test replay after source revocation, hidden author events, duplicate action/template messages and a consumer outage beyond the browser replay window.
+
+## Planning count consumer (0028)
+
+`planning_counts/v1` is a required consumer independent of assignment cleanup. Its ordinary batches apply at most 100 sequential events, updating current per-issue facts, the receipt and checkpoint in one transaction. The checkpoint therefore represents applied planning effects; assignment cleanup may instead checkpoint durable downstream intent.
+
+Initial and repair backfills use the existing fenced job queue. Enqueueing a backfill does not advance its checkpoint. The previous position protects retention until the final batch completes, after which tail events cover concurrent changes. Unsupported relevant schemas or failed required writes preserve the gap and its recovery record. Ordinary readers use current authorized source rows and version matching, not global consumer health, to select projection or live calculation.
