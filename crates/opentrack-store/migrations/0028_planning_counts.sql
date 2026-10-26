@@ -99,7 +99,7 @@ RETURNS TABLE(processed bigint,captured bigint,backfilled boolean,dead_lettered 
 DECLARE cp record;e record;dl record;receipt record;head bigint;j uuid;n bigint;relevant boolean;failed boolean;code text;prior_seq bigint;letter_id uuid;attempt integer;
 BEGIN
  processed:=0;captured:=0;backfilled:=false;dead_lettered:=false;
- IF batch_limit<1 OR batch_limit>100 THEN RAISE EXCEPTION 'Invalid planning event batch bound' USING ERRCODE='22023';END IF;
+ IF batch_limit IS NULL OR batch_limit<1 OR batch_limit>100 THEN RAISE EXCEPTION 'Invalid planning event batch bound' USING ERRCODE='22023';END IF;
  IF NOT worker_lock_maintenance_context(w) THEN RETURN NEXT;RETURN;END IF;
  PERFORM 1 FROM consumer_registrations WHERE workspace_id=w AND consumer_name='planning_counts' AND consumer_version=1 AND required AND enabled FOR SHARE;
  IF NOT FOUND THEN RETURN NEXT;RETURN;END IF;
@@ -162,7 +162,7 @@ END $$;
 CREATE FUNCTION worker_planning_backfill_batch(w uuid,j uuid,owner_id uuid,fence bigint,batch_limit integer) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE progress record;i uuid;last_id uuid;n bigint;expected bigint;
 BEGIN
- IF batch_limit<1 OR batch_limit>100 THEN RAISE EXCEPTION 'Invalid planning backfill bound' USING ERRCODE='22023';END IF;
+ IF batch_limit IS NULL OR batch_limit<1 OR batch_limit>100 THEN RAISE EXCEPTION 'Invalid planning backfill bound' USING ERRCODE='22023';END IF;
  IF w IS DISTINCT FROM nullif(current_setting('opentrack.workspace_id',true),'')::uuid THEN RAISE EXCEPTION 'Planning scope changed' USING ERRCODE='40001';END IF;
  PERFORM 1 FROM jobs WHERE workspace_id=w AND id=j AND kind='planning.backfill' AND state='running' AND lease_owner=owner_id AND lease_token=fence AND lease_expires_at>clock_timestamp() FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Planning backfill lease changed' USING ERRCODE='40001';END IF;
@@ -186,6 +186,27 @@ BEGIN
  UPDATE consumer_alerts a SET resolved_at=clock_timestamp() FROM consumer_dead_letters d WHERE d.workspace_id=a.workspace_id AND d.id=a.dead_letter_id AND d.workspace_id=w AND d.consumer_name='planning_counts' AND d.seq<=progress.target_seq AND a.resolved_at IS NULL;
  GET DIAGNOSTICS n=ROW_COUNT;IF n<>expected THEN RAISE EXCEPTION 'Required planning repair alert resolution missing';END IF;
  RETURN true;
+END $$;
+CREATE OR REPLACE FUNCTION operator_consumer_disposition(w uuid,letter uuid,action_name text,reason_text text) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE dl record;cp record;j uuid;correlation uuid;n bigint;
+BEGIN
+ IF NOT operator_lock_consumer_context(w) THEN RAISE EXCEPTION 'Workspace unavailable' USING ERRCODE='P0002';END IF;
+ PERFORM 1 FROM consumer_registrations WHERE workspace_id=w AND consumer_name='assignment_cleanup' AND consumer_version=1 FOR SHARE;
+ SELECT * INTO STRICT cp FROM consumer_checkpoints WHERE workspace_id=w AND consumer_name='assignment_cleanup' AND consumer_version=1 FOR UPDATE;
+ SELECT * INTO dl FROM consumer_dead_letters WHERE workspace_id=w AND id=letter AND consumer_name='assignment_cleanup' AND consumer_version=1 AND state IN('blocked','retry_wait') FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Dead letter unavailable' USING ERRCODE='P0002';END IF;
+ IF action_name='retry' THEN
+  UPDATE consumer_dead_letters SET attempts=1,state='retry_wait',available_at=clock_timestamp(),disposition='retry',reason=btrim(reason_text) WHERE workspace_id=w AND id=letter;GET DIAGNOSTICS n=ROW_COUNT;PERFORM consumer_required(n);
+ ELSIF action_name='reconcile' AND dl.seq>0 AND dl.seq=cp.last_seq+1 THEN
+  j:=enqueue_assignment_reconciliation(w,dl.seq,'assignment:disposition:'||dl.id::text);
+  INSERT INTO consumer_receipts(workspace_id,consumer_name,consumer_version,event_id,seq,state,job_id) VALUES(w,'assignment_cleanup',1,dl.event_id,dl.seq,'reconciled',j);GET DIAGNOSTICS n=ROW_COUNT;PERFORM consumer_required(n);
+  UPDATE consumer_checkpoints SET last_seq=dl.seq,updated_at=clock_timestamp() WHERE workspace_id=w AND consumer_name='assignment_cleanup' AND consumer_version=1;GET DIAGNOSTICS n=ROW_COUNT;PERFORM consumer_required(n);
+  UPDATE consumer_dead_letters SET state='resolved',resolved_at=clock_timestamp(),disposition='reconcile',reason=btrim(reason_text) WHERE workspace_id=w AND id=letter;GET DIAGNOSTICS n=ROW_COUNT;PERFORM consumer_required(n);
+  IF EXISTS(SELECT 1 FROM consumer_alerts WHERE workspace_id=w AND dead_letter_id=letter) THEN
+   UPDATE consumer_alerts SET resolved_at=clock_timestamp() WHERE workspace_id=w AND dead_letter_id=letter;GET DIAGNOSTICS n=ROW_COUNT;PERFORM consumer_required(n);
+  END IF;
+ ELSE RAISE EXCEPTION 'Choose retry or a current-event reconciliation' USING ERRCODE='22023';END IF;
+ correlation:=consumer_operator_audit(w,letter,'consumer.'||action_name,reason_text);RETURN correlation;
 END $$;
 CREATE FUNCTION operator_planning_rebuild(w uuid,reason_text text) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE cp record;head bigint;j uuid;n bigint;
@@ -215,7 +236,7 @@ BEGIN
  IF result IS NULL THEN RAISE EXCEPTION 'Consumer state unavailable' USING ERRCODE='P0002';END IF;RETURN result;
 END $$;
 DO $$ DECLARE f regprocedure;BEGIN
- FOR f IN SELECT p.oid::regprocedure FROM pg_proc p WHERE p.pronamespace=current_schema()::regnamespace AND p.proname IN('maintenance_job_authority','register_planning_counts_consumer','register_workspace_consumers','planning_refresh_issue','enqueue_planning_backfill','worker_apply_planning_events','worker_planning_backfill_batch','operator_planning_rebuild','operator_consumer_status') LOOP
+ FOR f IN SELECT p.oid::regprocedure FROM pg_proc p WHERE p.pronamespace=current_schema()::regnamespace AND p.proname IN('maintenance_job_authority','register_planning_counts_consumer','register_workspace_consumers','planning_refresh_issue','enqueue_planning_backfill','worker_apply_planning_events','worker_planning_backfill_batch','operator_planning_rebuild','operator_consumer_status','operator_consumer_disposition') LOOP
   EXECUTE format('ALTER FUNCTION %s SET search_path TO pg_catalog,%I,pg_temp',f,current_schema());
   EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC',f);
  END LOOP;

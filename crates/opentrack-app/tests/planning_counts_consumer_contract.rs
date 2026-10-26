@@ -74,6 +74,38 @@ async fn initial(h: &Harness) {
         .await
         .unwrap();
     let worker = runner(h).await;
+    let before_null = state(h, &a, w).await;
+    let null_events = sqlx::query("SELECT * FROM worker_apply_planning_events($1,NULL)")
+        .bind(w)
+        .fetch_all(&worker.pool)
+        .await
+        .err()
+        .expect("NULL event limit must reject");
+    let null_backfill = sqlx::query("SELECT worker_planning_backfill_batch($1,$2,$3,1,NULL)")
+        .bind(w)
+        .bind(Uuid::nil())
+        .bind(Uuid::nil())
+        .fetch_one(&worker.pool)
+        .await
+        .err()
+        .expect("NULL backfill limit must reject");
+    for error in [null_events, null_backfill] {
+        assert_eq!(
+            error.as_database_error().unwrap().code().as_deref(),
+            Some("22023")
+        );
+    }
+    assert_eq!(state(h, &a, w).await, before_null);
+    for limit in [1_i32, 100] {
+        let processed: i64 =
+            sqlx::query_scalar("SELECT processed FROM worker_apply_planning_events($1,$2)")
+                .bind(Uuid::nil())
+                .bind(limit)
+                .fetch_one(&worker.pool)
+                .await
+                .unwrap();
+        assert_eq!(processed, 0);
+    }
     let mut denied = store::begin(&h.app.pool).await.unwrap();
     store::context(&mut denied, a.user.id, Some(w))
         .await
@@ -400,6 +432,22 @@ async fn failures(h: &Harness) {
         blocked["letters"].as_array().unwrap().last().unwrap()["error_code"],
         "unsupported_event_schema"
     );
+    let planning_letter = blocked["letters"].as_array().unwrap().last().unwrap();
+    let planning_id = Uuid::parse_str(planning_letter["id"].as_str().unwrap()).unwrap();
+    let mut tx = fixture(h, &a, w).await;
+    sqlx::query("UPDATE consumer_checkpoints SET last_seq=$2 WHERE workspace_id=$1 AND consumer_name='assignment_cleanup' AND consumer_version=1").bind(w).bind(planning_letter["seq"].as_i64().unwrap()-1).execute(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    let operator = Operator::connect(&h.operator_url().await).await.unwrap();
+    let before_disposition = disposition_state(h, &a, w).await;
+    for action in ["retry", "reconcile"] {
+        assert!(matches!(
+            operator
+                .consumer_disposition(w, planning_id, action, "Reject a foreign consumer letter")
+                .await,
+            Err(Error::NotFound)
+        ));
+        assert_eq!(disposition_state(h, &a, w).await, before_disposition);
+    }
     worker.pool.close().await;
     let restarted = runner(h).await;
     assert_eq!(
@@ -442,4 +490,11 @@ async fn suppressed_baseline_checkpoint_does_not_leave_orphaned_backfill_intent(
         std::panic::resume_unwind(error.into_panic());
     }
     h.cleanup().await;
+}
+
+async fn disposition_state(h: &Harness, a: &Actor, w: Uuid) -> Value {
+    let mut tx = fixture(h, a, w).await;
+    let value=sqlx::query_scalar("SELECT jsonb_build_object('checkpoints',(SELECT jsonb_agg(to_jsonb(c) ORDER BY consumer_name,consumer_version) FROM consumer_checkpoints c WHERE workspace_id=$1),'jobs',(SELECT jsonb_agg(to_jsonb(j) ORDER BY id) FROM jobs j WHERE workspace_id=$1),'letters',(SELECT jsonb_agg(to_jsonb(d) ORDER BY consumer_name,consumer_version,seq) FROM consumer_dead_letters d WHERE workspace_id=$1),'operations',(SELECT jsonb_agg(to_jsonb(o) ORDER BY id) FROM consumer_operations o WHERE workspace_id=$1))").bind(w).fetch_one(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    value
 }
