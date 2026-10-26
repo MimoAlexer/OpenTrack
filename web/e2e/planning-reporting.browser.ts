@@ -333,6 +333,8 @@ test('planning projections show actual validation and fact times while the defau
     for (const key of ['project', 'milestone', 'scope'] as const) {
       expect(after[key].calculation_source).toBe('projection'); expect(after[key].facts_as_of).toBe(projected[key].facts_as_of);
     }
+    await page.bringToFront(); await page.reload();
+    await progress(project, 1, 4); await expect(project).toHaveAttribute('aria-busy', 'false');
     const calculated = await project.locator('time[data-planning-calculation]').getAttribute('datetime');
     const facts = await project.locator('time[data-planning-facts]').getAttribute('datetime');
     const gate = await holdRead(page, `${saved.origin}${saved.path}${plan.projectPath}/progress`); gates.push(gate);
@@ -351,7 +353,7 @@ test('planning projections show actual validation and fact times while the defau
     await expect(emptyPanel.locator('[data-planning-facts]')).toHaveCount(0);
     const history = await saved.request<{ data: SnapshotPoint[] }>(`${plan.cyclePath}/snapshots`);
     expect(history.data.find(item => item.id === plan.daily.id)?.captured_at).toBe(plan.daily.captured_at);
-    fact('projection-provenance', { source: 'projection', project_fact_time: projected.project.facts_as_of, milestone_fact_time: projected.milestone.facts_as_of, cycle_fact_time: projected.scope.facts_as_of, revoked_assignment_cleared: true, unrelated_facts_unchanged: true, failed_refresh_retained_both_dates: true, empty_scope_source: 'live', historical_capture_unchanged: true });
+    fact('projection-provenance', { reporting_consumer_exercised: true, source: 'projection', project_fact_time: projected.project.facts_as_of, milestone_fact_time: projected.milestone.facts_as_of, cycle_fact_time: projected.scope.facts_as_of, revoked_assignment_cleared: true, unrelated_facts_unchanged: true, failed_refresh_retained_both_dates: true, empty_scope_source: 'live', historical_capture_unchanged: true });
   } finally {
     for (const gate of gates) await gate.release(false, true);
     await member.http.dispose(); await cyclePage.close();
