@@ -1,0 +1,106 @@
+{
+  "date": "2026-10-26",
+  "composed_code_head": "551007da988acfb6c0ea5a4aaf57dbd0bfbab6c1",
+  "server_diagnostic_source": "29f574b9677be2f8b773008854d608264d7dcc70",
+  "browser_diagnostic_original": "f351f7799c7d98bd7ad6a06c21718749c064e365",
+  "failed_head": "a08c4ee00eacd29f65ed9d56296092d59d3fc5c7",
+  "failed_browser": {
+    "run": 40254058372,
+    "job": 121352037564,
+    "completed": 240,
+    "passed": 210,
+    "failed": 30,
+    "chromium_failed": 5,
+    "webkit_failed": 25,
+    "firefox_passed": 80,
+    "full_log_sha256": "4f6b761bfb70f5d2c8e3756bd14b3ab088de3402bc32ed92c8996bbd0cf4eeb6",
+    "actual_json_sha256": "1f583b331812d72477c2c8dfed1d82527e53eda71bd1026228a37dd2545423fe"
+  },
+  "change": "Observe fixed synthetic operation/numeric HTTP status and once-per-process rejection-source labels. Parent filtering emits only approved labels from an ownership-validated, bounded log tail before cleanup; no raw log/error/credential/body fields are published.",
+  "source_sha256": {
+    "crates/opentrack-api/src/admission.rs": "8f9837aca3ad1fd8df17bfcf6d0b4f950aedbd9384a7ad35fe193b4c7a617810",
+    "crates/opentrack-app/src/identity.rs": "25461f3a3a241f0a5ae93ffa907b8857a4d8a448045d411b333fd70a96972b0b",
+    "scripts/browser-acceptance.py": "442bf9d5d8ff68e4593780f153d60203201a5983f9dde8c73679e08885203337",
+    "scripts/test-browser-acceptance.py": "9e0b710ee334b28f5df133dab42d9b4181c48f6a65656d9a051122c895bf5717",
+    "web/e2e/keyboard.browser.ts": "941b51d5b92a2c53b7b44ab88a2cddc791fca8b7db318fe8930c671f9cb589f3",
+    "web/e2e/receipt-reporter.ts": "bbe6847a21b0ff86475129b36fa8c0099bb83ada27919a5946d541144af19cc1",
+    "web/e2e/receipt-reporter-privacy.mjs": "24ed7338176e7eb1a52c0965f6d3d9c0f02d2f504d609ebfdda846d9b088b234"
+  },
+  "local_rust_and_parent_checks": [
+    {
+      "check": "format",
+      "exit_code": 0,
+      "elapsed_seconds": 7.41,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "pure-boundaries",
+      "exit_code": 0,
+      "elapsed_seconds": 1.272,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "063ac0bd34c25ef19f135860db03b8195e226a3f9e35088c068034aafeed42d5"
+    },
+    {
+      "check": "admission-unit",
+      "exit_code": 0,
+      "elapsed_seconds": 12.803,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "33236844d9afe46c6f9acf9df87b952c76fcf43e9ab7ef7ab20e88566d6ca990"
+    },
+    {
+      "check": "strict-libraries",
+      "exit_code": 0,
+      "elapsed_seconds": 9.358,
+      "owned_session_cleanup_confirmed": true,
+      "log_sha256": "1800f00f483aefa1dd9277c5be734fbef9eea8dcb3db38eb21b58add75913d78"
+    }
+  ],
+  "local_reporter_checks": {
+    "node_version": "v24.14.1",
+    "checks": [
+      {
+        "check": "privacy",
+        "exit_code": 0,
+        "elapsed_seconds": 0.234,
+        "process_reaped": true,
+        "log_sha256": "c9bede525761727e44bde9a2def789859a25774b61ed30c6e75b144ce2d3c236"
+      },
+      {
+        "check": "typescript-browser",
+        "exit_code": 0,
+        "elapsed_seconds": 1.031,
+        "process_reaped": true,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "check": "typescript-app",
+        "exit_code": 0,
+        "elapsed_seconds": 0.985,
+        "process_reaped": true,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "source_sha256": {
+      "web/e2e/keyboard.browser.ts": "941b51d5b92a2c53b7b44ab88a2cddc791fca8b7db318fe8930c671f9cb589f3",
+      "web/e2e/receipt-reporter.ts": "bbe6847a21b0ff86475129b36fa8c0099bb83ada27919a5946d541144af19cc1",
+      "web/e2e/receipt-reporter-privacy.mjs": "24ed7338176e7eb1a52c0965f6d3d9c0f02d2f504d609ebfdda846d9b088b234"
+    },
+    "local_node22_limit": "Existing WSL22.22.1 was not compiled with TypeScript support; initial privacy attempt stopped with ERR_NO_TYPESCRIPT before test execution. Official configured CI22 remains a separate gate."
+  },
+  "budgets": "Auth outcomes, counters, time windows, permit acquisition, public responses, assertions, worker/retry settings and suite900 remain unchanged. Diagnostic read20s is clipped to remaining suite budget, tail128/parse1MiB; each of six fixed server labels logs at most once per process.",
+  "privacy": "No peer/account identity, IP, email, token, password, cookie, header, URL, raw error or HTTP body is added to published diagnostics.",
+  "private_artifacts": {
+    "index": "$OPENTRACK_DEV_STATE/auth-diagnostic-union-v1/artifact-index.json",
+    "index_sha256": "625ef00e61768ba90c24a76cfcc878115df32bbc7d2b04f7855cec091f4a350c",
+    "files": 22,
+    "raw_logs_published": false
+  },
+  "limits": [
+    "Diagnostic-only; no remediation or actual rejection source is established yet",
+    "The first local WSL22 privacy attempt stopped before tests with ERR_NO_TYPESCRIPT; Node24.14.1 privacy15 and both TypeScript checks are the actual local passes; official configured CI22 remains required",
+    "The Node22 feature metadata original remains0644 inside its0700 parent; only the byte-identical0600 copy is indexed, and the initial mode-check failure is not test acceptance",
+    "Root local checks are60pure boundaries,2existing admission units,formatting and strict affected-library Clippy; no local Docker/app/browser execution",
+    "Current all-four/full240/end/JSON review and native/physical/AT/recovery/product acceptance remain open"
+  ]
+}
