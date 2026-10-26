@@ -1056,16 +1056,15 @@ async fn title_mode_upgrade(h: &Harness) {
     sqlx::query("INSERT INTO idempotency_records(workspace_id,principal_id,route,key_hash,request_hash,response_body) VALUES($1,$2,$3,$4,$5,$6)")
         .bind(w).bind(a.user.id).bind(format!("templates.create:{t}")).bind(hash(b"legacy-template-retry")).bind(hash(&serde_json::to_vec(&command).unwrap())).bind(&old_response).execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
-    let old_issue = h
-        .app
-        .create_issue(
-            &a,
-            w,
-            "legacy-template-instance",
-            req(json!({"team_id":t,"title":command.title,"document":command.document})),
-        )
-        .await
-        .unwrap();
+    let old_issue = historical_issue(
+        h,
+        &a,
+        w,
+        t,
+        json!({"title":command.title,"document":command.document}),
+        Some("legacy-template-instance"),
+    )
+    .await;
     let mut tx = h.context(a.user.id, w).await;
     sqlx::query("INSERT INTO issue_template_sources(workspace_id,issue_id,source_team_id,template_id,template_version,definition_sha256) VALUES($1,$2,$3,$4,1,$5)")
         .bind(w).bind(old_issue.id).bind(t).bind(id).bind(&old_definition).execute(&mut *tx).await.unwrap();

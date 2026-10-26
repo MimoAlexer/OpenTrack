@@ -210,7 +210,7 @@ async fn real_postgres_preferences_upgrade_from_schema_19() {
     let copy = h.clone();
     let result = tokio::spawn(async move {
         let (a, w, t) = setup(&copy).await;
-        let existing = issue(&copy, &a, w, t, json!({})).await;
+        let existing = historical_issue(&copy, &a, w, t, json!({}), None).await;
         store::MIGRATOR.run(&copy.owner).await.unwrap();
         assert_eq!(
             copy.app.get_issue(&a, w, existing.id).await.unwrap().title,

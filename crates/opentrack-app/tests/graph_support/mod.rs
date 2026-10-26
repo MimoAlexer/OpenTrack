@@ -85,7 +85,7 @@ pub async fn historical_issue(
     let mut request: CreateIssue = req(body);
     request.validate().unwrap();
     assert_eq!(request.team_id, t);
-    assert!(request.document.is_none() && request.template.is_none());
+    assert!(request.template.is_none());
     let key = key
         .map(str::to_owned)
         .unwrap_or_else(|| Uuid::new_v4().to_string());
@@ -94,7 +94,10 @@ pub async fn historical_issue(
         "{:x}",
         Sha256::digest(serde_json::to_vec(&request).unwrap())
     );
-    let document = DocumentWrite::from_plain_text(&request.description);
+    let document = request
+        .document
+        .clone()
+        .unwrap_or_else(|| DocumentWrite::from_plain_text(&request.description));
     let plain = document.validate().unwrap();
     let mut tx = h.context(a.user.id, w).await;
     let schema: i64 = sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations")
@@ -102,7 +105,7 @@ pub async fn historical_issue(
         .await
         .unwrap();
     assert!(
-        matches!(schema, 13 | 22),
+        matches!(schema, 13 | 16 | 17 | 18 | 19 | 22 | 24 | 25),
         "Historical seeding is limited to its explicit upgrade drivers"
     );
     let status = match request.status_id {

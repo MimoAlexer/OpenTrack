@@ -763,7 +763,7 @@ async fn real_postgres_attachment_0016_upgrade_preserves_documents() {
     let copy = h.clone();
     let run = tokio::spawn(async move {
         let (a, w, t) = setup(&copy).await;
-        let issue = issue(&copy, &a, w, t, json!({"description":"Preserved document"})).await;
+        let issue = historical_issue(&copy, &a, w, t, json!({"description":"Preserved document"}), None).await;
         let before = serde_json::to_value(&issue).unwrap();
         // Current document readers require 0026; retain the actual 0016 row first.
         let mut tx = copy.context(a.user.id, w).await;
