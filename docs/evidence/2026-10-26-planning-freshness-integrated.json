@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-26",
+  "pull_request": 168,
+  "reviewed_head": "7a63dc60579d21a9fcfd22bba1521fc696af5ee7",
+  "merge_commit": "dd9d2a22c25fabe441225becf14f27150107ae5b",
+  "base": "16bde4ea34541ad177a7d65862888b40651e69d6",
+  "tree": "eb2a0545b48b5ec54d013a83ecca0898c73faed0",
+  "reviewed_tree_equal": true,
+  "all_four_required_checks": "SUCCESS",
+  "unresolved_conversations": 0,
+  "verify": {
+    "run": 40303915255,
+    "attempt": 2,
+    "job": 121522373206,
+    "raw_sha256": "182bfce1625ed08c73c94d4096f1a4dae8791dceb10e81b305a0cf2a82c6b866",
+    "raw_bytes": 479653,
+    "frontend_passed": 854,
+    "frontend_files": 78,
+    "rust_success_summaries": 95,
+    "rust_passed": 284,
+    "rust_failed": 0,
+    "rust_ignored": 4,
+    "rust_filtered": 1
+  },
+  "browser": {
+    "run": 40303915428,
+    "attempt": 2,
+    "job": 121553533917,
+    "raw_sha256": "befb0dc77f65a619b708993f2b9d0ec00c61a4ee6c9294fa1dd3e9f2e6154d16",
+    "raw_bytes": 970423,
+    "json_sha256": "a0e606df49c720de34de8cfde5c0563b11060d1b66d31d241bfaaa5ae9efc00f",
+    "unique_passed": 249,
+    "per_engine": 83,
+    "text_end_json_agree": true,
+    "all_original_240_preserved": true,
+    "exact_nine_new_cases": true,
+    "node22_tooling_passed": 22
+  },
+  "cancelled_attempts": [
+    {
+      "kind": "verify",
+      "job": 121508421955,
+      "raw_sha256": "b679663b00931b92488042c0f01e727149223e33e526fdb91adfdf9b973115a1",
+      "outcome": "30-minute job window exhausted; no frontend result"
+    },
+    {
+      "kind": "amd64",
+      "job": 121508342607,
+      "raw_sha256": "b2b34e52e69ef8427948e1e04bbcc9a3359d3e27f2b9c9bd8486dcfb6c3de486",
+      "outcome": "45-minute job window exhausted during system dependency downloads; no browser execution"
+    }
+  ],
+  "independent_runtime_review_sha256": "003fabf0ecebf36d85a800d1a39fcdeb5f4073fa4674ca19cf3ca8aef593d34a",
+  "private_evidence_index_sha256": "6871c9b260a0b26739f4fa23adcc1bc41d018edbfc1b155bde478ab85059ee48",
+  "source_or_limits_changed_between_attempts": false,
+  "issues_closed": [],
+  "whole_product_complete": false
+}
