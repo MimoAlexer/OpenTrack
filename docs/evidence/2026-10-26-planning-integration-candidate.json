@@ -1,0 +1,95 @@
+{
+  "date": "2026-10-26",
+  "code_head": "e959366566c161b8f8008cd37de78240288e17a7",
+  "base_main": "16bde4ea34541ad177a7d65862888b40651e69d6",
+  "scope": "Current planning count/source-row freshness, populated private parity, and a direct Linux CA package dependency.",
+  "components": {
+    "planning_original": "3d08501a884c902902d41d8213aaa977793f757a",
+    "planning_correction": "67a416e157de81b7b8d9203b231aa786e7784ff0",
+    "planning_import": "73a3a02a857a722f87094ae041f25d70292b813d",
+    "correction_import": "e959366566c161b8f8008cd37de78240288e17a7",
+    "package_original": "a720632903b0dfb1f6064d263a8a0641c9d6caa7",
+    "package_evidence": "cc0b5d148c65c9a3f1197a131d59cffbe77ff8dc",
+    "package_import": "47bc7d56bae93547c2e0b3d7d95a0b9762f7fc5e",
+    "accepted_integration_documentation": "e0bc4bade4f071a2e6840ba882c75ee14009d4b9"
+  },
+  "source_sha256": {
+    "web/src/projects/Projects.tsx": "f2ac0d9ab33af622e858227bc38f6d88ee604a7f626635900624c0522044ef2d",
+    "web/src/projects/Milestones.tsx": "816167ae2919db4365124bf041165b72c2e851ac287597da2e3a77ef159c6263",
+    "web/src/cycles/Cycles.tsx": "ab063afdcfc81c0cc7caaa6bd86d4794fc3f0f469eb13373146fcec092b742a1",
+    "web/src/projects/Projects.test.tsx": "67de249760813601ddd7ee369db9834b891f12e0ac4fcab0e51982a64c4945a6",
+    "web/src/cycles/Planning.test.tsx": "9872c89acb317e89eff05208a7786ff61e9c141869223515ef2bf96ce216fb1e",
+    "crates/opentrack-api/tests/cycles_contract.rs": "4e6897d5934663486a1760be4674876c013a19f3cdeec3084f795aa7a4d19a21",
+    "web/e2e/planning-reporting.browser.ts": "a41805b41736459bf05cb1da34db640e66d2cf465e41ac1160bc0ace05f0120a",
+    "desktop/Tauri.toml": "7037e084bb386941f30b3fd28bb1028b665db18864f96125411bee41f22a6fd9"
+  },
+  "worker_verification": {
+    "focused_frontend_tests": 68,
+    "type_checks_passed": 2,
+    "private_postgresql_case_passed": 1,
+    "fresh_focused_browser_passed": 9,
+    "browsers": 3,
+    "scope": "Source-bound worker evidence, independently reviewed; no repetition by the lead."
+  },
+  "composition_verification": {
+    "browser_collection": 249,
+    "per_engine": 83,
+    "all_original_240_preserved": true,
+    "exact_new_case_identities": true,
+    "vitest_files": 78,
+    "exact_tracked_frontend_file_set": true,
+    "listed_unit_entries": 657,
+    "runtime_or_test_body_execution": false,
+    "checks": [
+      {
+        "check": "vitest-collection",
+        "exit_code": 0,
+        "seconds": 5.156,
+        "process_reaped": true,
+        "sha256": "f4bd2f59dff5b84797e3a3063e4c0f85f5305b57428a22a560944fb6efa9e7ec"
+      },
+      {
+        "check": "browser-collection",
+        "exit_code": 0,
+        "seconds": 5.922,
+        "process_reaped": true,
+        "sha256": "b267fcf215d54351561653631090c2b0c9cefbed963d68f9e27c6713e9e13efb"
+      }
+    ]
+  },
+  "worker_proofs": {
+    "initial_index_sha256": "a518eb6948c85abe997388af9a0cc19e01f3925d631364c6d322b4aa8b9a46c8",
+    "corrected_index_sha256": "919caa683f58d36a825dd201925f73a8ac7260f0910f5de9f35d79d7579251a3",
+    "fresh_nine_receipt_sha256": "d785b57e1d37e0657edd930248f12a91f483f880d34f36f0e3294c5fa296ecdf"
+  },
+  "private_composition_index": {
+    "path": "$OPENTRACK_DEV_STATE/planning-composition-v1/artifact-index.json",
+    "sha256": "49a8ca99e8be10031a5f5aca08d57afa9bdddf8651fab88b4fc50a3fecd5c1db",
+    "files": 13,
+    "modes": "0700/0600",
+    "raw_logs_published": false
+  },
+  "retained_failures": [
+    "Initial freshness unit failures",
+    "Caller HTML Accept-header failure before browser execution",
+    "First-cohort manual-board selector failures",
+    "Count/source-row inconsistency and its two failing regressions"
+  ],
+  "bounds": {
+    "suite_seconds": 900,
+    "test_hook_seconds": 60,
+    "action_seconds": 10,
+    "workers": 1,
+    "retries": 0,
+    "server_policy_changed": false,
+    "migration_changed": false
+  },
+  "remaining": [
+    "Fresh all-four configured CI and complete 249-case text/end/JSON at the final published head",
+    "Real reporting-consumer/checkpoint/replay qualification",
+    "Current Debian build/install and native authentication qualification",
+    "Physical input, assistive technology, recovery, provider, governance and complete-product gates"
+  ],
+  "issues_closed": [],
+  "whole_product_complete": false
+}
