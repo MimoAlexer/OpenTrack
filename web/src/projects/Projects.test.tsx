@@ -296,6 +296,12 @@ describe('progress and updates', () => {
     expect(articles).toHaveLength(3);
     expect(articles[1].textContent).toContain(`Compared with the update from ${new Date(older.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}:`);
     expect(articles[1].querySelectorAll('time')[1].getAttribute('datetime')).toBe(older.created_at);
+    const link = articles[1].querySelector<HTMLAnchorElement>('a')!;
+    expect(link.getAttribute('href')).toBe(`#${articles[2].id}`);
+    expect(articles[1].id).not.toBe(articles[2].id);
+    expect(link.getAttribute('aria-label')).toContain('Go to compared update from');
+    await act(async () => link.click());
+    expect(document.activeElement).toBe(articles[2]);
     expect(articles[1].textContent).toContain('State: this update Active; compared update Planned');
     expect(articles[1].textContent).toContain('Health: this update At risk; compared update On track');
     expect(articles[1].textContent).toContain('Progress: this update 2 of 5 eligible issues completed; compared update no eligible issue scope');
