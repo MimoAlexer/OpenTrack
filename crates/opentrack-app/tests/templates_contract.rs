@@ -70,7 +70,7 @@ async fn real_postgres_template_project_defaults_follow_current_scope() {
     }
 }
 async fn project_defaults(copy: &Harness) {
-    let (a, w, t) = setup(&copy).await;
+    let (a, w, t) = setup(copy).await;
     let project = copy
         .app
         .create_project(
@@ -82,7 +82,7 @@ async fn project_defaults(copy: &Harness) {
         )
         .await
         .unwrap();
-    let foreign_team = team(&copy, &a, w, true).await;
+    let foreign_team = team(copy, &a, w, true).await;
     let foreign = copy
         .app
         .create_project(
@@ -178,8 +178,8 @@ async fn project_defaults(copy: &Harness) {
     assert!(preview.resolved_project.is_none());
     assert!(preview.diagnostics.iter().all(|d| d.field != "project_id"));
 
-    let outsider = person(&copy, &a, w, "admin").await;
-    let private_template = create(&copy, &a, w, foreign_team, "Private template").await;
+    let outsider = person(copy, &a, w, "admin").await;
+    let private_template = create(copy, &a, w, foreign_team, "Private template").await;
     assert!(matches!(
         copy.app
             .preview_template(&outsider, w, foreign_team, private_template.summary.id)
