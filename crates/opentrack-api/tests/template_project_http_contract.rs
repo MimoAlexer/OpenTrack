@@ -236,6 +236,16 @@ async fn exercise(h: &Harness) {
     assert_eq!(preview.body["resolved_project"]["id"], project_id);
     assert_eq!(preview.body["can_create"], true);
     let project_etag = preview.body["resolved_project"]["etag"].as_str().unwrap();
+    let before_metadata = request(
+        r,
+        Some(&owner),
+        "GET",
+        &format!("{project_url}/metadata"),
+        None,
+        &[],
+    )
+    .await;
+    before_metadata.expect(StatusCode::OK);
     let body = json!({"team_id":team_id,"title":"Example issue",
         "template":{"id":template.body["id"],"version":template.body["version"]},
         "status_id":preview.body["resolved_status"]["id"],
@@ -276,7 +286,20 @@ async fn exercise(h: &Harness) {
     )
     .await;
     metadata.expect(StatusCode::OK);
-    assert_ne!(metadata.etag(), project_etag);
+    assert_ne!(metadata.etag(), before_metadata.etag());
+    assert_eq!(
+        metadata.body["version"]
+            .as_str()
+            .unwrap()
+            .parse::<i64>()
+            .unwrap(),
+        before_metadata.body["version"]
+            .as_str()
+            .unwrap()
+            .parse::<i64>()
+            .unwrap()
+            + 1
+    );
     let replay = request(
         r,
         Some(&member),
@@ -347,7 +370,7 @@ async fn exercise(h: &Harness) {
         .await
         .problem(StatusCode::UNPROCESSABLE_ENTITY, "validation_failed");
     }
-    let stale = json!({"team_id":team_id,"title":"Stale project","project_id":project_id,"project_etag":project_etag});
+    let stale = json!({"team_id":team_id,"title":"Stale project","project_id":project_id,"project_etag":before_metadata.etag()});
     request(
         r,
         Some(&owner),
@@ -402,9 +425,11 @@ async fn exercise(h: &Harness) {
             .as_array()
             .unwrap()
             .iter()
-            .any(|d| d["field"] == "project_id" && d["code"] == "archived")
+            .any(|d| d["field"] == "project_id"
+                && d["code"] == "archived"
+                && d["reference_id"] == project_id)
     );
-    let archived_issue = json!({"team_id":team_id,"title":"Archived project","project_id":project_id,"project_etag":archived.etag()});
+    let archived_issue = json!({"team_id":team_id,"title":"Archived project","project_id":project_id,"project_etag":preview_archived.body["resolved_project"]["etag"]});
     request(
         r,
         Some(&member),
@@ -441,6 +466,14 @@ async fn exercise(h: &Harness) {
         denied.problem(StatusCode::NOT_FOUND, "not_found");
         assert!(!denied.body.to_string().contains(project_id));
         assert!(!denied.body.to_string().contains("Private project example"));
+        assert!(
+            !denied
+                .body
+                .to_string()
+                .contains(template.body["id"].as_str().unwrap())
+        );
+        assert!(!denied.body.to_string().contains("Example template"));
+        assert!(!denied.body.to_string().contains(issue_id));
     }
     let owner_scope = request(
         r,
