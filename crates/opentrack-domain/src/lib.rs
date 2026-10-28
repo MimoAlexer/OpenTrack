@@ -441,6 +441,20 @@ pub struct CreateIssue {
     )]
     #[schema(nullable = false, min_length = 1, max_length = 256)]
     pub parent_etag: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    #[schema(nullable = false)]
+    pub project_id: Option<Uuid>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    #[schema(nullable = false, min_length = 1, max_length = 256)]
+    pub project_etag: Option<String>,
 }
 impl CreateIssue {
     pub fn validate(&mut self) -> Result<()> {
@@ -470,6 +484,14 @@ impl CreateIssue {
         }
         self.title = bounded_text(&self.title, "Title", 256)?;
         validate_parent_pair(self.parent_id, self.parent_etag.as_deref())?;
+        if self.project_id.is_some() != self.project_etag.is_some()
+            || self
+                .project_etag
+                .as_ref()
+                .is_some_and(|e| e.is_empty() || e.len() > 256)
+        {
+            return Err(Error::Invalid("A project requires its current ETag".into()));
+        }
         normalize_label_ids(&mut self.label_ids)?;
         validate_issue_values(&self.description, self.priority, self.estimate)
     }
@@ -638,6 +660,36 @@ pub fn writable(role: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn create_issue_project_pair_is_optional_and_requires_a_validator() {
+        let input = serde_json::json!({"team_id":Uuid::new_v4(),"title":"Issue","description":"","status_id":null,"priority":0,"assignee_id":null,"estimate":null,"due_date":null,"mutation_id":null});
+        let mut legacy: CreateIssue = serde_json::from_value(input.clone()).unwrap();
+        legacy.validate().unwrap();
+        assert_eq!(serde_json::to_value(&legacy).unwrap(), input);
+
+        let project = Uuid::new_v4();
+        for (id, etag) in [
+            (Some(project), None),
+            (None, Some("etag")),
+            (Some(project), Some("")),
+        ] {
+            let mut issue = legacy.clone();
+            issue.project_id = id;
+            issue.project_etag = etag.map(str::to_owned);
+            assert!(issue.validate().is_err());
+        }
+        let mut issue = legacy.clone();
+        issue.project_id = Some(project);
+        issue.project_etag = Some("x".repeat(257));
+        assert!(issue.validate().is_err());
+        issue.project_etag = Some("\"project:1\"".into());
+        assert!(issue.validate().is_ok());
+        for field in ["project_id", "project_etag"] {
+            let mut invalid = input.clone();
+            invalid[field] = serde_json::Value::Null;
+            assert!(serde_json::from_value::<CreateIssue>(invalid).is_err());
+        }
+    }
     #[test]
     fn unicode_title_limit_is_characters() {
         assert!(bounded_text(&"é".repeat(256), "Title", 256).is_ok());
