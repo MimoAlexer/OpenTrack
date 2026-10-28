@@ -662,10 +662,11 @@ mod tests {
     use super::*;
     #[test]
     fn create_issue_project_pair_is_optional_and_requires_a_validator() {
-        let input = serde_json::json!({"team_id":Uuid::new_v4(),"title":"Issue","description":"","status_id":null,"priority":0,"assignee_id":null,"estimate":null,"due_date":null,"mutation_id":null});
+        let input = serde_json::json!({"team_id":"00000000-0000-0000-0000-000000000001","title":"Issue","description":"","status_id":null,"priority":0,"assignee_id":null,"estimate":null,"due_date":null,"mutation_id":null});
         let mut legacy: CreateIssue = serde_json::from_value(input.clone()).unwrap();
         legacy.validate().unwrap();
         assert_eq!(serde_json::to_value(&legacy).unwrap(), input);
+        assert_eq!(serde_json::to_vec(&legacy).unwrap().as_slice(), br#"{"team_id":"00000000-0000-0000-0000-000000000001","title":"Issue","description":"","status_id":null,"priority":0,"assignee_id":null,"estimate":null,"due_date":null,"mutation_id":null}"#);
 
         let project = Uuid::new_v4();
         for (id, etag) in [
@@ -684,6 +685,10 @@ mod tests {
         assert!(issue.validate().is_err());
         issue.project_etag = Some("\"project:1\"".into());
         assert!(issue.validate().is_ok());
+        let decoded: CreateIssue =
+            serde_json::from_slice(&serde_json::to_vec(&issue).unwrap()).unwrap();
+        assert_eq!(decoded.project_id, Some(project));
+        assert_eq!(decoded.project_etag.as_deref(), Some("\"project:1\""));
         for field in ["project_id", "project_etag"] {
             let mut invalid = input.clone();
             invalid[field] = serde_json::Value::Null;

@@ -305,6 +305,10 @@ mod tests {
         let defaults: TemplateDefaults = serde_json::from_value(old.clone()).unwrap();
         assert!(defaults.project_id.is_none());
         assert_eq!(serde_json::to_value(&defaults).unwrap(), old);
+        assert_eq!(
+            serde_json::to_vec(&defaults).unwrap().as_slice(),
+            br#"{"status_id":null,"priority":0,"label_ids":[]}"#
+        );
         let project = Uuid::new_v4();
         let mut with_project = old;
         with_project["project_id"] = json!(project);
