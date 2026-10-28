@@ -1980,6 +1980,9 @@ export interface components {
             parent_id?: string;
             /** Format: int32 */
             priority?: number;
+            project_etag?: string;
+            /** Format: uuid */
+            project_id?: string;
             /** Format: uuid */
             status_id?: string | null;
             /** Format: uuid */
@@ -3414,6 +3417,8 @@ export interface components {
             /** Format: int32 */
             priority: number;
             /** Format: uuid */
+            project_id?: string | null;
+            /** Format: uuid */
             status_id: string | null;
         };
         TemplateDiagnostic: {
@@ -3434,6 +3439,7 @@ export interface components {
             diagnostics: components["schemas"]["TemplateDiagnostic"][];
             labels: components["schemas"]["Label"][];
             materialized_title: string | null;
+            resolved_project: components["schemas"]["ProjectSummary"] | null;
             resolved_status: components["schemas"]["Status"] | null;
             template: components["schemas"]["IssueTemplate"];
             /** Format: date-time */

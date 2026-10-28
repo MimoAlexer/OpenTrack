@@ -864,6 +864,15 @@
             "format": "int32",
             "type": "integer"
           },
+          "project_etag": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "type": "string"
+          },
           "status_id": {
             "format": "uuid",
             "type": [
@@ -6210,6 +6219,13 @@
             "format": "int32",
             "type": "integer"
           },
+          "project_id": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "status_id": {
             "format": "uuid",
             "type": [
@@ -6293,6 +6309,16 @@
               "null"
             ]
           },
+          "resolved_project": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProjectSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "resolved_status": {
             "oneOf": [
               {
@@ -6316,6 +6342,7 @@
           "materialized_title",
           "title_context_at",
           "resolved_status",
+          "resolved_project",
           "labels",
           "diagnostics",
           "can_create"
