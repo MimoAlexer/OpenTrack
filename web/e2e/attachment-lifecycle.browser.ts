@@ -48,8 +48,11 @@ test('a browser picker selection is rejected after the draft team changes', asyn
     await expect(dialog.getByRole('button', { name: 'Download current-selection.txt', exact: true })).toBeVisible();
     expect(reservations).toEqual([{ name: 'current-selection.txt', team: other.id }]);
     const response = page.waitForResponse(value => value.request().method() === 'POST' && value.url() === `${saved.origin}${saved.path}/issues`);
+    void response.catch(() => {});
     await dialog.getByRole('button', { name: 'Create issue', exact: true }).click();
-    const created = await (await response).json() as Issue;
+    const createdResponse = await response;
+    expect(createdResponse.status()).toBe(201);
+    const created = await createdResponse.json() as Issue;
     expect(created.team_id).toBe(other.id);
     await expect.poll(async () => attachmentIds((await saved.document(created.id)).body as RichBody)).toHaveLength(1);
     const ids = attachmentIds((await saved.document(created.id)).body as RichBody);
@@ -78,7 +81,7 @@ test('canceling a committed upload before its response arrives removes it withou
   const description = page.getByRole('region', { name: 'Description', exact: true });
   const prefix = `${saved.origin}${saved.path}/attachments/`;
   const operations: Promise<void>[] = []; const errors: unknown[] = [];
-  let uploaded: Attachment | undefined; let release!: () => void;
+  let uploaded: Attachment | undefined; let release!: () => void; let canceled = false;
   const responseHeld = new Promise<void>(resolve => { release = resolve; });
   const isContent = (url: URL) => url.origin === new URL(saved.origin).origin && !url.search && !url.hash
     && url.pathname.startsWith(`${saved.path}/attachments/`)
@@ -100,8 +103,8 @@ test('canceling a committed upload before its response arrives removes it withou
         expect(uploaded).toMatchObject({ original_name: filename, state: 'ready', sha256, size_bytes: bytes.length });
         await responseHeld;
         // The real XHR may already have aborted when cancellation was requested.
-        await route.abort('failed').catch(() => {});
-      } catch (error) { errors.push(error); await route.abort('failed').catch(() => {}); }
+        await route.abort('failed').catch(error => { if (!canceled) errors.push(error); });
+      } catch (error) { errors.push(error); await route.abort('failed').catch(abortError => { if (!canceled) errors.push(abortError); }); }
       finally { await response?.dispose(); }
     })();
     operations.push(operation); return operation;
@@ -117,11 +120,15 @@ test('canceling a committed upload before its response arrives removes it withou
     if (errors.length) throw errors[0];
     expect((await saved.document(issue.id)).body).toEqual(initial.body);
     const deleted = page.waitForResponse(value => value.request().method() === 'DELETE' && value.url() === `${prefix}${uploaded!.id}`);
+    void deleted.catch(() => {});
+    canceled = true;
     await description.getByRole('button', { name: `Cancel ${filename}`, exact: true }).click();
     expect((await deleted).status()).toBe(204);
     await expect(description.getByRole('list', { name: 'Pending attachments' })).toHaveCount(0);
     release();
     await expect.poll(async () => (await saved.request<Attachment>(`/attachments/${uploaded!.id}`)).state).toBe('deleted');
+    const download = await saved.http.get(`${saved.path}/attachments/${uploaded!.id}/content`);
+    try { expect(download.status()).toBe(404); } finally { await download.dispose(); }
     expect(attachmentIds((await saved.document(issue.id)).body as RichBody)).toEqual([]);
     await expect(description.getByRole('button', { name: `Download ${filename}`, exact: true })).toHaveCount(0);
     await page.reload();
@@ -129,8 +136,8 @@ test('canceling a committed upload before its response arrives removes it withou
     expect((await saved.document(issue.id)).body).toEqual(initial.body);
   } finally {
     release();
-    await page.unroute(isContent, hold);
-    await Promise.allSettled(operations);
+    try { await page.unroute(isContent, hold); } catch (error) { errors.push(error); }
+    for (const result of await Promise.allSettled(operations)) if (result.status === 'rejected') errors.push(result.reason);
   }
   if (errors.length) throw errors[0];
 });
