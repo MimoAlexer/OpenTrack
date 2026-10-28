@@ -65,7 +65,7 @@ it('conceals the editor on project directory denial while preserving its draft f
   const select = container.querySelector<HTMLSelectElement>('select[aria-label="Default project"]')!;
   await act(async () => { select.value = project.id; select.dispatchEvent(new Event('change', { bubbles: true })); });
   denied = true; await click('Refresh projects');
-  const dialog = container.querySelector('dialog[open]')!; expect(dialog.textContent).not.toContain('Unsaved private title'); expect(dialog.textContent).not.toContain('Original body'); expect(dialog.querySelector('input')).toBeNull();
+  const dialog = container.querySelector('dialog[open]')!; expect(container.textContent).not.toContain('Bug report'); expect(container.textContent).not.toContain('Unsaved private title'); expect(container.textContent).not.toContain('Original body'); expect(container.querySelector('[aria-label="Team templates"]')).toBeNull(); expect(dialog.querySelector('input')).toBeNull();
   denied = false; await click('Try again'); expect(input('Issue title').value).toBe('Unsaved private title'); expect(hasUnsavedChanges()).toBe(true);
 });
 
