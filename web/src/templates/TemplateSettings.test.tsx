@@ -58,6 +58,30 @@ it('requires an explicit clear for a redacted unavailable default before saving'
   expect(button('Save template').disabled).toBe(false); await submit();
 });
 
+it('conceals the editor on project directory denial while preserving its draft for recovery', async () => {
+  const normal = fetchMock.getMockImplementation()!; let denied = false;
+  fetchMock.mockImplementation((url: string, options: RequestInit) => denied && url.includes('/projects?') ? Promise.resolve(json({ code: 'forbidden', detail: 'Unavailable' }, 403)) : normal(url, options));
+  await render(); await click('Edit Bug report'); await fill('Issue title', 'Unsaved private title');
+  const select = container.querySelector<HTMLSelectElement>('select[aria-label="Default project"]')!;
+  await act(async () => { select.value = project.id; select.dispatchEvent(new Event('change', { bubbles: true })); });
+  denied = true; await click('Refresh projects');
+  const dialog = container.querySelector('dialog[open]')!; expect(dialog.textContent).not.toContain('Unsaved private title'); expect(dialog.textContent).not.toContain('Original body'); expect(dialog.querySelector('input')).toBeNull();
+  denied = false; await click('Try again'); expect(input('Issue title').value).toBe('Unsaved private title'); expect(hasUnsavedChanges()).toBe(true);
+});
+
+it('retries the original uncertain template request after project data becomes unavailable', async () => {
+  await render(); await click('New template'); await fill('Template name', 'Pending template');
+  const select = container.querySelector<HTMLSelectElement>('select[aria-label="Default project"]')!;
+  await act(async () => { select.value = project.id; select.dispatchEvent(new Event('change', { bubbles: true })); });
+  const attempts: { body: string; key: string | null }[] = [];
+  command = async options => { attempts.push({ body: options.body as string, key: new Headers(options.headers).get('Idempotency-Key') }); if (attempts.length === 1) throw new TypeError('lost response'); return json(current); };
+  await submit(); expect(button('Retry safely')).toBeTruthy();
+  const normal = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation((url: string, options: RequestInit) => url.includes('/projects?') ? Promise.resolve(json({ code: 'unavailable', detail: 'Unavailable' }, 503)) : normal(url, options));
+  await render(true, { ...session, csrf_token: 'new' }); expect(button('Retry safely').disabled).toBe(false); await submit();
+  expect(attempts).toHaveLength(2); expect(attempts[1]).toEqual(attempts[0]);
+});
+
 it.each(['create', 'edit'])('preserves supplementary template %s drafts after server rejection and submits repaired scalar boundaries once', async mode => {
   const name = '\u{1F680}'.repeat(100); const title = '\u{1F30D}'.repeat(256);
   await render(); await click(mode === 'create' ? 'New template' : 'Edit Bug report');
