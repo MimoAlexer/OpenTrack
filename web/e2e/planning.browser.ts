@@ -1,5 +1,6 @@
 import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
+import type { Locator, Page, Response } from '@playwright/test';
 import { test, expect, type SavedWorkspace } from './fixtures';
 import type { Bootstrap, Issue, Team } from '../src/types';
 import type { Milestone, MilestoneOverview } from '../src/projects/Milestones';
@@ -20,6 +21,33 @@ async function cycle(saved: SavedWorkspace, team: string, name: string, start: s
 }
 async function issue(saved: SavedWorkspace, team: string, title: string) {
   return saved.request<Issue>('/issues', 'POST', { team_id: team, title }, { 'Idempotency-Key': randomUUID() });
+}
+function currentScopeResponse(page: Page, saved: SavedWorkspace, path: string) {
+  return page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return response.request().method() === 'GET' && url.origin === new URL(saved.origin).origin
+      && url.pathname === `${saved.path}${path}/scope` && !url.search;
+  });
+}
+async function checkCurrentScope(scope: Locator, response: Response, completed: number) {
+  expect(response.status()).toBe(200);
+  const current = await response.json() as Snapshot;
+  expect(current).toMatchObject({ kind: 'current', scope_count: 1, completed_count: completed, unfinished_count: 1 - completed, canceled_count: 0, excluded_count: 0 });
+  await expect(scope).toHaveAttribute('aria-busy', 'false');
+  await expect(scope.locator('time[data-planning-calculation]')).toHaveAttribute('datetime', current.captured_at);
+  if (current.calculation_source === 'live') {
+    expect(current.facts_as_of).toBeNull();
+    await expect(scope).toContainText('Live scope calculated');
+    await expect(scope).toContainText('Count source: Live issue data');
+    await expect(scope.locator('time[data-planning-facts]')).toHaveCount(0);
+  } else {
+    expect(current.calculation_source).toBe('projection');
+    expect(typeof current.facts_as_of).toBe('string');
+    await expect(scope).toContainText('Current scope validated');
+    await expect(scope).toContainText('Projection verified against current issues');
+    await expect(scope.locator('time[data-planning-facts]')).toHaveAttribute('datetime', current.facts_as_of!);
+  }
+  await expect(scope).not.toContainText('Snapshot captured');
 }
 
 test('milestones persist outcomes, keyboard order and scoped assignment, then safely detach on deletion', async ({ page, saved }) => {
@@ -112,30 +140,42 @@ test('live cycle scope follows completed work while daily snapshots remain immut
   current = await saved.request<Cycle>(`${path}/issues/${work.id}`, 'PUT', { included: true, issue_etag: work.etag }, { 'If-Match': current.etag });
   current = await saved.request<Cycle>(`${path}/open`, 'POST', undefined, { 'If-Match': current.etag });
   const bootstrap = await saved.request<Bootstrap>('/bootstrap'); const done = bootstrap.statuses.find(status => status.team_id === team.id && status.category === 'completed')!;
+  const initialScope = currentScopeResponse(page, saved, path);
   await page.goto(cycleUrl(saved, team.id, current.id));
   const scope = page.getByRole('region', { name: 'Cycle scope', exact: true }); const progress = scope.getByRole('progressbar', { name: 'Cycle issue completion', exact: true });
-  await expect(scope).toContainText('Live scope calculated'); await expect(scope).not.toContainText('Snapshot captured'); await expect(progress).toHaveAttribute('value', '0'); await expect(progress).toHaveAttribute('max', '1');
+  await checkCurrentScope(scope, await initialScope, 0);
+  await expect(progress).toHaveAttribute('value', '0'); await expect(progress).toHaveAttribute('max', '1');
   const initialHistory = await saved.request<{ data: SnapshotPoint[] }>(`${path}/snapshots`);
   expect(await saved.request<Snapshot>(`${path}/scope`)).toMatchObject({ kind: 'current', completed_count: 0, unfinished_count: 1 });
   expect(await saved.request<{ data: SnapshotPoint[] }>(`${path}/snapshots`)).toEqual(initialHistory);
   const capture = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(`${path}/snapshots`));
+  const capturedScope = currentScopeResponse(page, saved, path);
   await scope.getByRole('button', { name: 'Capture snapshot', exact: true }).click(); const daily = await (await capture).json() as Snapshot;
   expect(daily).toMatchObject({ kind: 'daily', completed_count: 0, unfinished_count: 1 });
+  await checkCurrentScope(scope, await capturedScope, 0);
   const history = page.getByRole('region', { name: 'Cycle history', exact: true });
   const dailyRow = history.getByRole('table', { name: 'Scope history table — exact chart values', exact: true }).getByRole('row').filter({ has: page.getByRole('cell', { name: 'daily', exact: true }) });
   await expect(dailyRow).toHaveCount(1); await expect(dailyRow.getByRole('rowheader', { name: daily.local_date, exact: true })).toBeVisible(); await expect(dailyRow.getByRole('cell').nth(2)).toHaveText('0'); await expect(dailyRow.getByRole('cell').nth(3)).toHaveText('1');
   const recordedHistory = await saved.request<{ data: SnapshotPoint[] }>(`${path}/snapshots`);
   await saved.patch(await saved.issue(work.id), { status_id: done.id });
+  const completedScope = currentScopeResponse(page, saved, path);
   await page.reload();
-  await expect(scope).toContainText('Live scope calculated'); await expect(scope).toContainText('100% complete'); await expect(progress).toHaveAttribute('value', '1');
+  await checkCurrentScope(scope, await completedScope, 1);
+  await expect(scope).toContainText('100% complete');
+  await expect(progress).toHaveAttribute('value', '1');
+  await expect(progress).toHaveAttribute('max', '1');
   await expect(dailyRow.getByRole('cell').nth(2)).toHaveText('0'); await expect(dailyRow.getByRole('cell').nth(3)).toHaveText('1');
   expect(await saved.request<Snapshot>(`${path}/scope`)).toMatchObject({ kind: 'current', completed_count: 1, unfinished_count: 0 });
   expect(await saved.request<{ data: SnapshotPoint[] }>(`${path}/snapshots`)).toEqual(recordedHistory);
   const recapture = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(`${path}/snapshots`));
+  const recapturedScope = currentScopeResponse(page, saved, path);
   await scope.getByRole('button', { name: 'Capture snapshot', exact: true }).click(); expect(await (await recapture).json()).toEqual(daily);
-  await expect(progress).toHaveAttribute('value', '1'); await expect(scope).toContainText('Live scope calculated'); await expect(scope).not.toContainText('Snapshot captured');
+  await checkCurrentScope(scope, await recapturedScope, 1);
+  await expect(progress).toHaveAttribute('value', '1');
+  const reloadedScope = currentScopeResponse(page, saved, path);
   await page.reload();
-  await expect(scope).toContainText('100% complete'); await expect(scope).toContainText('Live scope calculated'); await expect(progress).toHaveAttribute('value', '1'); await expect(dailyRow).toHaveCount(1); await expect(dailyRow.getByRole('cell').nth(2)).toHaveText('0'); await expect(dailyRow.getByRole('cell').nth(3)).toHaveText('1');
+  await checkCurrentScope(scope, await reloadedScope, 1);
+  await expect(scope).toContainText('100% complete'); await expect(progress).toHaveAttribute('value', '1'); await expect(dailyRow).toHaveCount(1); await expect(dailyRow.getByRole('cell').nth(2)).toHaveText('0'); await expect(dailyRow.getByRole('cell').nth(3)).toHaveText('1');
   expect(await saved.request<{ data: SnapshotPoint[] }>(`${path}/snapshots`)).toEqual(recordedHistory);
 });
 
