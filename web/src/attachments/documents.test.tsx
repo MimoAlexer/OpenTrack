@@ -65,16 +65,24 @@ it('releases only the confirmed create composer guard before its callback naviga
 });
 it('preserves every guard on an unknown create result and clears only its own after a same-key retry', async () => {
   let attempts = 0;
-  const fetch = vi.fn((url: string) => url.endsWith('/capabilities') ? Promise.resolve(json({ features: { attachments: true }, limits: { max_upload_bytes: 25 * 1024 * 1024 } })) : ++attempts === 1 ? Promise.reject(new TypeError('lost response')) : Promise.resolve(json({ id: 'created' })));
+  const fetch = vi.fn((url: string, options: RequestInit) => {
+    if (url === '/api/v1/capabilities' && !options.method) return Promise.resolve(json({ features: { attachments: true }, limits: { max_upload_bytes: 25 * 1024 * 1024 } }));
+    if (url === '/api/v1/workspaces/w/teams/t/projects?limit=100' && !options.method) return Promise.resolve(json({ data: [], next_cursor: null, has_more: false }));
+    if (url === '/api/v1/workspaces/w/issues' && options.method === 'POST') return ++attempts === 1 ? Promise.reject(new TypeError('lost response')) : Promise.resolve(json({ id: 'created' }));
+    throw new Error('Unexpected request');
+  });
   vi.stubGlobal('fetch', fetch); const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
   history.replaceState({}, '', '/w/w/issues/old'); let navigated: boolean | undefined;
   const created = vi.fn(() => { navigated = navigate('/w/w/issues/created'); });
   const render = (otherDirty: boolean) => <><OtherDraft dirty={otherDirty}/><CreateIssue workspaceId="w" data={data} session={session} close={() => {}} created={created}/></>;
   await act(async () => root.render(render(true))); await readyIssueDraft();
+  expect(fetch.mock.calls.some(([url]) => url === '/api/v1/workspaces/w/teams/t/projects?limit=100')).toBe(true); expect(attempts).toBe(0);
   const submit = () => act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
-  await submit(); expect(created).not.toHaveBeenCalled(); expect(hasUnsavedChanges()).toBe(true); expect(container.textContent).toContain('Retry safely');
+  await submit(); expect(attempts).toBe(1); expect(created).not.toHaveBeenCalled(); expect(hasUnsavedChanges()).toBe(true); expect(container.textContent).toContain('Retry safely');
   await submit(); expect(created).toHaveBeenCalledOnce(); expect(navigated).toBe(false); expect(confirm).toHaveBeenCalledOnce(); expect(hasUnsavedChanges()).toBe(true);
-  const writes = fetch.mock.calls.filter(([url]) => url.endsWith('/issues')) as unknown as [string, RequestInit][];
+  const writes = fetch.mock.calls.filter(([url, options]) => url === '/api/v1/workspaces/w/issues' && options.method === 'POST');
+  expect(writes).toHaveLength(2);
+  expect(new Headers(writes[0][1].headers).get('Idempotency-Key')).toBeTruthy();
   expect(new Headers(writes[0][1].headers).get('Idempotency-Key')).toBe(new Headers(writes[1][1].headers).get('Idempotency-Key'));
   expect(writes[0][1].body).toBe(writes[1][1].body);
   await act(async () => root.render(render(false))); expect(hasUnsavedChanges()).toBe(false);
