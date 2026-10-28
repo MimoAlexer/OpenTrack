@@ -406,10 +406,8 @@ impl App {
                 .map_err(db_error)?;
         }
         if let Some(project) = req.project_id {
-            events.push(
-                projects::link_new_issue(&mut tx, actor, w, req.team_id, project, id, mutation)
-                    .await?,
-            );
+            events
+                .push(projects::link_new_issue(&mut tx, actor, w, req.team_id, project, id).await?);
         }
         store::append_stream_events(&mut tx, &events)
             .await

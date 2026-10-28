@@ -48,7 +48,9 @@ async fn issue_project_scope_and_failures_are_atomic() {
 async fn exercise(h: &Harness) {
     let (actor, w, t) = setup(h).await;
     let p = project(h, &actor, w, t).await;
-    let body = command(t, &p);
+    let mut body = command(t, &p);
+    let issue_mutation = Uuid::new_v4();
+    body.mutation_id = Some(issue_mutation);
     let key = Uuid::new_v4().to_string();
     let issue = h
         .app
@@ -71,11 +73,14 @@ async fn exercise(h: &Harness) {
     let mut tx = h.context(actor.user.id, w).await;
     let events: Vec<(String, Uuid)> = sqlx::query_as("SELECT event_type,mutation_id FROM workspace_events WHERE workspace_id=$1 AND entity_id=ANY($2) AND event_type IN ('issue.created','project.scope_changed') ORDER BY seq")
         .bind(w).bind(vec![issue.id,p.id]).fetch_all(&mut *tx).await.unwrap();
+    let audit: Uuid = sqlx::query_scalar("SELECT id FROM audit_entries WHERE workspace_id=$1 AND target_id=$2 AND action='project.scope_changed'")
+        .bind(w).bind(p.id).fetch_one(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
     assert_eq!(events.len(), 2);
     assert_eq!(events[0].0, "issue.created");
     assert_eq!(events[1].0, "project.scope_changed");
-    assert_eq!(events[0].1, events[1].1);
+    assert_eq!(events[0].1, issue_mutation);
+    assert_eq!(events[1].1, audit);
     let replay = h
         .app
         .create_issue(&actor, w, &key, body.clone())
@@ -83,6 +88,7 @@ async fn exercise(h: &Harness) {
         .unwrap();
     assert_eq!(replay.id, issue.id);
     assert_eq!(snapshot(h, &actor, w).await, after);
+
     assert!(matches!(
         h.app
             .create_issue(&actor, w, &Uuid::new_v4().to_string(), body)
@@ -90,6 +96,20 @@ async fn exercise(h: &Harness) {
         Err(Error::VersionConflict(_))
     ));
     assert_eq!(snapshot(h, &actor, w).await, after);
+
+    let mut reused = command(t, &updated);
+    reused.mutation_id = Some(issue_mutation);
+    let another = h
+        .app
+        .create_issue(&actor, w, "project-reused-mutation", reused)
+        .await
+        .unwrap();
+    assert_ne!(another.id, issue.id);
+    let mut tx = h.context(actor.user.id, w).await;
+    let (events, audits): (i64, i64) = sqlx::query_as("SELECT count(DISTINCT e.mutation_id),count(a.id) FROM workspace_events e LEFT JOIN audit_entries a ON a.workspace_id=e.workspace_id AND a.id=e.mutation_id AND a.target_id=e.entity_id AND a.action=e.event_type WHERE e.workspace_id=$1 AND e.entity_id=$2 AND e.event_type='project.scope_changed'")
+        .bind(w).bind(p.id).fetch_one(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!((events, audits), (2, 2));
 
     let other = team(h, &actor, w, true).await;
     let wrong_team = project(h, &actor, w, other).await;

@@ -274,21 +274,14 @@ pub(crate) async fn link_new_issue(
     t: Uuid,
     project: Uuid,
     issue: Uuid,
-    mutation: Uuid,
 ) -> Result<store::Event<'static>> {
     graph::one(sqlx::query("INSERT INTO project_issues(workspace_id,team_id,project_id,issue_id) VALUES($1,$2,$3,$4)").bind(w).bind(t).bind(project).bind(issue).execute(&mut **tx).await.map_err(db_error)?.rows_affected())?;
     let version: i64 = sqlx::query_scalar("UPDATE projects SET version=version+1,updated_at=clock_timestamp() WHERE workspace_id=$1 AND team_id=$2 AND id=$3 RETURNING version")
         .bind(w).bind(t).bind(project).fetch_one(&mut **tx).await.map_err(db_error)?;
-    store::identity_audit(
-        tx,
-        w,
-        a.user.id,
-        project,
-        "project.scope_changed",
-        Uuid::new_v4(),
-    )
-    .await
-    .map_err(db_error)?;
+    let mutation = Uuid::new_v4();
+    store::identity_audit(tx, w, a.user.id, project, "project.scope_changed", mutation)
+        .await
+        .map_err(db_error)?;
     Ok(store::Event {
         workspace: w,
         team: t,
