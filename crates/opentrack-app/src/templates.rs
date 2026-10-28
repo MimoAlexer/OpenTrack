@@ -100,6 +100,7 @@ async fn detail(
             status_id: r.try_get("default_status_id").map_err(db_error)?,
             priority: r.try_get("default_priority").map_err(db_error)?,
             label_ids: r.try_get("default_label_ids").map_err(db_error)?,
+            project_id: r.try_get("default_project_id").map_err(db_error)?,
         },
         document: TemplateDocument {
             schema_version,
@@ -133,6 +134,17 @@ async fn active_defaults(
             return Err(Error::Invalid(
                 "A template label is unavailable for this team".into(),
             ));
+        }
+    }
+    if let Some(id) = d.project_id {
+        match crate::projects::project(tx, a, w, t, id).await {
+            Ok(project) if project.can_edit => {}
+            Ok(_) | Err(Error::NotFound) => {
+                return Err(Error::Invalid(
+                    "The template project is unavailable for this team".into(),
+                ));
+            }
+            Err(error) => return Err(error),
         }
     }
     Ok(())
@@ -264,7 +276,7 @@ impl App {
             .fetch_one(&mut *tx)
             .await
             .map_err(db_error)?;
-        let template = detail(&mut tx, a, w, t, id).await?;
+        let mut template = detail(&mut tx, a, w, t, id).await?;
         let status:Option<serde_json::Value>=sqlx::query_scalar("SELECT to_jsonb(s) FROM workflow_statuses s WHERE workspace_id=$1 AND team_id=$2 AND (($3::uuid IS NOT NULL AND id=$3) OR ($3 IS NULL AND is_default AND archived_at IS NULL AND retiring_at IS NULL))").bind(w).bind(t).bind(template.defaults.status_id).fetch_optional(&mut *tx).await.map_err(db_error)?;
         let resolved_status: Option<Status> = status
             .map(serde_json::from_value)
@@ -308,6 +320,32 @@ impl App {
                 reference_id: template.defaults.status_id,
             });
         }
+        let resolved_project = if let Some(id) = template.defaults.project_id {
+            match crate::projects::project(&mut tx, a, w, t, id).await {
+                Ok(project) => {
+                    if project.archived_at.is_some() {
+                        diagnostics.push(TemplateDiagnostic {
+                            field: "project_id".into(),
+                            code: "archived".into(),
+                            reference_id: Some(id),
+                        });
+                    }
+                    Some(crate::projects::metadata(&project))
+                }
+                Err(Error::NotFound) => {
+                    template.defaults.project_id = None;
+                    diagnostics.push(TemplateDiagnostic {
+                        field: "project_id".into(),
+                        code: "unavailable".into(),
+                        reference_id: None,
+                    });
+                    None
+                }
+                Err(error) => return Err(error),
+            }
+        } else {
+            None
+        };
         let mut labels = Vec::new();
         for id in &template.defaults.label_ids {
             match store::label(&mut tx, w, a.user.id, *id)
@@ -345,6 +383,7 @@ impl App {
             materialized_title,
             title_context_at,
             resolved_status,
+            resolved_project,
             labels,
             diagnostics,
             can_create,
@@ -385,7 +424,7 @@ impl App {
             &req.defaults,
             &req.document,
         )?;
-        graph::one(sqlx::query("INSERT INTO issue_templates(id,workspace_id,team_id,name,title,default_status_id,default_priority,default_label_ids,document_schema_version,document_body,document_plain_text,definition_sha256,title_mode) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)").bind(id).bind(w).bind(t).bind(req.name).bind(req.title).bind(req.defaults.status_id).bind(req.defaults.priority).bind(req.defaults.label_ids).bind(req.document.schema_version).bind(req.document.body).bind(plain).bind(hash).bind(req.title_mode.as_str()).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
+        graph::one(sqlx::query("INSERT INTO issue_templates(id,workspace_id,team_id,name,title,default_status_id,default_priority,default_label_ids,document_schema_version,document_body,document_plain_text,definition_sha256,title_mode,default_project_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)").bind(id).bind(w).bind(t).bind(req.name).bind(req.title).bind(req.defaults.status_id).bind(req.defaults.priority).bind(req.defaults.label_ids).bind(req.document.schema_version).bind(req.document.body).bind(plain).bind(hash).bind(req.title_mode.as_str()).bind(req.defaults.project_id).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
         let item = detail(&mut tx, a, w, t, id).await?;
         graph::one(sqlx::query("UPDATE idempotency_records SET response_body=$5 WHERE workspace_id=$1 AND principal_id=$2 AND route=$3 AND key_hash=$4").bind(w).bind(a.user.id).bind(format!("templates.create:{t}")).bind(kh).bind(serde_json::to_value(&item).map_err(|_|Error::Internal)?).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
         emit(&mut tx, a, w, &item, "template.created").await?;
@@ -449,7 +488,7 @@ impl App {
         };
         let hash = definition_hash(&name, &title, title_mode, &defaults, &document)?;
         let archived = req.archived.unwrap_or(old.summary.archived_at.is_some());
-        graph::one(sqlx::query("UPDATE issue_templates SET name=$4,title=$5,default_status_id=$6,default_priority=$7,default_label_ids=$8,document_schema_version=$9,document_body=$10,document_plain_text=$11,definition_sha256=$12,archived_at=CASE WHEN $13 THEN coalesce(archived_at,clock_timestamp()) ELSE NULL END,title_mode=$14,version=version+1,updated_at=clock_timestamp() WHERE workspace_id=$1 AND team_id=$2 AND id=$3").bind(w).bind(t).bind(id).bind(name).bind(title).bind(defaults.status_id).bind(defaults.priority).bind(defaults.label_ids).bind(document.schema_version).bind(document.body).bind(plain).bind(hash).bind(archived).bind(title_mode.as_str()).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
+        graph::one(sqlx::query("UPDATE issue_templates SET name=$4,title=$5,default_status_id=$6,default_priority=$7,default_label_ids=$8,document_schema_version=$9,document_body=$10,document_plain_text=$11,definition_sha256=$12,archived_at=CASE WHEN $13 THEN coalesce(archived_at,clock_timestamp()) ELSE NULL END,title_mode=$14,default_project_id=$15,version=version+1,updated_at=clock_timestamp() WHERE workspace_id=$1 AND team_id=$2 AND id=$3").bind(w).bind(t).bind(id).bind(name).bind(title).bind(defaults.status_id).bind(defaults.priority).bind(defaults.label_ids).bind(document.schema_version).bind(document.body).bind(plain).bind(hash).bind(archived).bind(title_mode.as_str()).bind(defaults.project_id).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
         let item = detail(&mut tx, a, w, t, id).await?;
         let action = match (old.summary.archived_at.is_some(), archived) {
             (false, true) => "template.archived",

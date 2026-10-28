@@ -33,6 +33,8 @@ The calculation time is displayed beside the result. Health does not change auto
 
 The **Updates** tab publishes an authored text update with the project's state, health and progress at that moment. These snapshots remain as recorded when later work changes the project. Updates are immutable in this first increment.
 
+Each displayed update compares those recorded fields with the next update shown in the feed. Load more updates to compare across a page boundary. Dates, risks and decisions are not included in these comparisons yet. [Focused verification](evidence/2026-10-28-frontend-scope-and-updates.md) records the checks and remaining limits.
+
 ## Complete or archive
 
 Completing a project leaves every linked issue in its existing state. The interface asks for explicit acknowledgement; the server also enforces acknowledgement when eligible open issues remain.

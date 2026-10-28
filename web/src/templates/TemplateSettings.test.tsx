@@ -9,12 +9,14 @@ import { hasUnsavedChanges } from '../router';
 import type { Session } from '../types';
 import type { TeamDetail } from '../settings/types';
 import type { IssueTemplate, TemplatePreview } from './types';
+import type { ProjectSummary } from '../projects/types';
 let editor: RichTextEditorProps;
 vi.mock('../documents/Editor', () => ({ StructuredEditor: (props: RichTextEditorProps) => { editor = props; return <div aria-label={props.label}/>; } }));
 vi.mock('../taxonomy/LabelPicker', () => ({ LabelPicker: () => null }));
 vi.mock('../workflows/useWorkflow', () => ({ useWorkflow: () => ({ data: { statuses: [{ id: 'ready', name: 'Ready', category: 'unstarted', archived_at: null, retiring_at: null }] } }) }));
 const session: Session = { audience: 'web', user: { id: 'u', display_name: 'Example Owner', email: 'owner@example.test' }, csrf_token: 'csrf', workspaces: [] };
 const team = { id: 't', name: 'Team', key: 'ENG', private: false, archived_at: null, can_manage: true } as TeamDetail;
+const project: ProjectSummary = { id: 'project', workspace_id: 'w', team_id: 't', name: 'Example project', summary: '', state: 'active', health: 'on_track', lead_id: null, lead: null, start_date: null, target_date: null, archived_at: null, version: '1', etag: '"project:1"', can_edit: true, can_manage: true, created_at: '2026-10-20T12:00:00Z', updated_at: '2026-10-20T12:00:00Z' };
 const record = (version = '1'): IssueTemplate => ({ id: 'template', team_id: 't', name: 'Bug report', version, etag: `"template:${version}"`, archived_at: null, updated_at: '2026-10-18T12:00:00Z', can_manage: true, can_use: true, title_mode: 'literal', title: 'Original title', defaults: { status_id: null, priority: 0, label_ids: [] }, document: { schema_version: 1, schema_supported: true, body: fromPlainText('Original body'), plain_text: 'Original body' } });
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 let container: HTMLDivElement; let root: Root; let current: IssueTemplate; let command: (options: RequestInit) => Promise<Response>; let fetchMock: ReturnType<typeof vi.fn>;
@@ -23,7 +25,8 @@ beforeEach(() => {
   container = document.createElement('div'); document.body.append(container); root = createRoot(container); current = record(); command = async () => json(current);
   fetchMock = vi.fn((url: string, options: RequestInit) => {
     if (options.method === 'PATCH' || options.method === 'POST') return command(options);
-    if (url.endsWith('/preview')) return Promise.resolve(json({ template: current, materialized_title: current.title, title_context_at: '2026-10-20T12:00:00Z', resolved_status: null, labels: [], diagnostics: [], can_create: true } satisfies TemplatePreview));
+    if (url.includes('/projects?')) return Promise.resolve(json({ data: [project], next_cursor: null, has_more: false }));
+    if (url.endsWith('/preview')) return Promise.resolve(json({ template: current, materialized_title: current.title, title_context_at: '2026-10-20T12:00:00Z', resolved_project: null, resolved_status: null, labels: [], diagnostics: [], can_create: true } satisfies TemplatePreview));
     return Promise.resolve(json({ data: [current], next_cursor: null, has_more: false }));
   }); vi.stubGlobal('fetch', fetchMock);
 });
@@ -34,6 +37,87 @@ async function click(label: string) { expect(button(label), label).toBeTruthy();
 function input(label: string) { return [...container.querySelectorAll('label')].find(item => item.textContent?.startsWith(label))!.querySelector<HTMLInputElement>('input')!; }
 async function fill(label: string, value: string) { const element = input(label); await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, value); element.dispatchEvent(new Event('input', { bubbles: true })); }); }
 async function submit() { await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); }
+
+it('preserves the selected default project after a rejected template save', async () => {
+  await render(); await click('New template'); await fill('Template name', 'Project template');
+  const select = container.querySelector<HTMLSelectElement>('select[aria-label="Default project"]')!;
+  await act(async () => { select.value = project.id; select.dispatchEvent(new Event('change', { bubbles: true })); });
+  command = async options => { expect(JSON.parse(options.body as string).defaults.project_id).toBe(project.id); return json({ code: 'validation_failed', detail: 'Please retry.' }, 422); };
+  await submit(); expect(select.value).toBe(project.id); expect(container.textContent).toContain('Please retry.'); expect(hasUnsavedChanges()).toBe(true);
+});
+
+it('requires an explicit clear for a redacted unavailable default before saving', async () => {
+  fetchMock.mockImplementation((url: string, options: RequestInit) => {
+    if (options.method === 'PATCH') return command(options);
+    if (url.endsWith('/preview')) return Promise.resolve(json({ template: current, materialized_title: current.title, title_context_at: '2026-10-20T12:00:00Z', resolved_project: null, resolved_status: null, labels: [], diagnostics: [{ field: 'project_id', code: 'unavailable', reference_id: null }], can_create: false }));
+    return Promise.resolve(json({ data: url.includes('/projects?') ? [project] : [current], next_cursor: null, has_more: false }));
+  });
+  await render(); await click('Edit Bug report'); expect(button('Save template').disabled).toBe(true);
+  expect(container.textContent).toContain('default project is unavailable'); await click('Continue without a project');
+  command = async options => { expect(JSON.parse(options.body as string).defaults).not.toHaveProperty('project_id'); return json(current); };
+  expect(button('Save template').disabled).toBe(false); await submit();
+});
+
+it('conceals the editor on project directory denial while preserving its draft for recovery', async () => {
+  const normal = fetchMock.getMockImplementation()! as (url: string, options: RequestInit) => Promise<Response>; let denied = false;
+  fetchMock.mockImplementation((url: string, options: RequestInit) => denied && url.includes('/projects?') ? Promise.resolve(json({ code: 'forbidden', detail: 'Unavailable' }, 403)) : normal(url, options));
+  await render(); await click('Edit Bug report'); await fill('Issue title', 'Unsaved private title');
+  const select = container.querySelector<HTMLSelectElement>('select[aria-label="Default project"]')!;
+  await act(async () => { select.value = project.id; select.dispatchEvent(new Event('change', { bubbles: true })); });
+  denied = true; await click('Refresh projects');
+  const dialog = container.querySelector('dialog[open]')!; expect(container.textContent).not.toContain('Bug report'); expect(container.textContent).not.toContain('Unsaved private title'); expect(container.textContent).not.toContain('Original body'); expect(container.querySelector('[aria-label="Team templates"]')).toBeNull(); expect(dialog.querySelector('input')).toBeNull();
+  denied = false; await click('Try again'); expect(input('Issue title').value).toBe('Unsaved private title'); expect(hasUnsavedChanges()).toBe(true);
+});
+
+it('keeps the draft concealed until template authority is restored after project recovery', async () => {
+  const normal = fetchMock.getMockImplementation()! as (url: string, options: RequestInit) => Promise<Response>; let denied = false; let holdDirectory = false; let finish!: (response: Response) => void;
+  fetchMock.mockImplementation((url: string, options: RequestInit) => {
+    if (denied && url.includes('/projects?')) return Promise.resolve(json({ code: 'forbidden', detail: 'Unavailable' }, 403));
+    if (holdDirectory && url.includes('/templates?')) return new Promise<Response>(resolve => { finish = resolve; });
+    return normal(url, options);
+  });
+  await render(); await click('Edit Bug report'); await fill('Issue title', 'Unsaved private title');
+  const select = container.querySelector<HTMLSelectElement>('select[aria-label="Default project"]')!;
+  await act(async () => { select.value = project.id; select.dispatchEvent(new Event('change', { bubbles: true })); });
+  denied = true; await click('Refresh projects'); denied = false; holdDirectory = true; await click('Try again');
+  expect(container.textContent).not.toContain('Bug report'); expect(container.querySelector('input')).toBeNull();
+  await act(async () => finish(json({ code: 'forbidden', detail: 'Unavailable' }, 403)));
+  expect(container.textContent).not.toContain('Bug report'); expect(container.querySelector('input')).toBeNull();
+  holdDirectory = false; await click('Retry template access'); expect(input('Issue title').value).toBe('Unsaved private title');
+});
+
+it('offers a generic discard confirmation for a dirty concealed draft', async () => {
+  const normal = fetchMock.getMockImplementation()! as (url: string, options: RequestInit) => Promise<Response>; let denied = false;
+  fetchMock.mockImplementation((url: string, options: RequestInit) => denied && url.includes('/projects?') ? Promise.resolve(json({ code: 'forbidden', detail: 'Unavailable' }, 403)) : normal(url, options));
+  await render(); await click('Edit Bug report'); await fill('Issue title', 'Unsaved private title');
+  const select = container.querySelector<HTMLSelectElement>('select[aria-label="Default project"]')!;
+  await act(async () => { select.value = project.id; select.dispatchEvent(new Event('change', { bubbles: true })); });
+  denied = true; await click('Refresh projects'); await click('Close dialog');
+  expect(container.textContent).toContain('Discard template changes?'); expect(container.textContent).not.toContain('Unsaved private title');
+  await click('Discard changes'); expect(hasUnsavedChanges()).toBe(false); expect(container.textContent).not.toContain('Bug report');
+});
+
+it('retains an uncertain template request when its retry is denied', async () => {
+  await render(); await click('New template'); await fill('Template name', 'Pending template');
+  const attempts: { body: string; key: string | null }[] = [];
+  command = async options => { attempts.push({ body: options.body as string, key: new Headers(options.headers).get('Idempotency-Key') }); if (attempts.length === 1) throw new TypeError('lost response'); return attempts.length === 2 ? json({ code: 'forbidden', detail: 'Unavailable' }, 403) : json(current); };
+  await submit(); await submit(); expect(attempts).toHaveLength(2); expect(attempts[1]).toEqual(attempts[0]);
+  expect(container.textContent).not.toContain('Pending template'); expect(hasUnsavedChanges()).toBe(true);
+  await submit(); expect(attempts).toHaveLength(3); expect(attempts[2]).toEqual(attempts[0]);
+});
+
+it('retries the original uncertain template request after project data becomes unavailable', async () => {
+  await render(); await click('New template'); await fill('Template name', 'Pending template');
+  const select = container.querySelector<HTMLSelectElement>('select[aria-label="Default project"]')!;
+  await act(async () => { select.value = project.id; select.dispatchEvent(new Event('change', { bubbles: true })); });
+  const attempts: { body: string; key: string | null }[] = [];
+  command = async options => { attempts.push({ body: options.body as string, key: new Headers(options.headers).get('Idempotency-Key') }); if (attempts.length === 1) throw new TypeError('lost response'); return json(current); };
+  await submit(); expect(button('Retry safely')).toBeTruthy();
+  const normal = fetchMock.getMockImplementation()! as (url: string, options: RequestInit) => Promise<Response>;
+  fetchMock.mockImplementation((url: string, options: RequestInit) => url.includes('/projects?') ? Promise.resolve(json({ code: 'unavailable', detail: 'Unavailable' }, 503)) : normal(url, options));
+  await render(true, { ...session, csrf_token: 'new' }); expect(button('Retry safely').disabled).toBe(false); await submit();
+  expect(attempts).toHaveLength(2); expect(attempts[1]).toEqual(attempts[0]);
+});
 
 it.each(['create', 'edit'])('preserves supplementary template %s drafts after server rejection and submits repaired scalar boundaries once', async mode => {
   const name = '\u{1F680}'.repeat(100); const title = '\u{1F30D}'.repeat(256);
@@ -104,20 +188,20 @@ it('keeps a draft through same-user refresh but withholds private content after 
 it('can retry a transient permission refresh without discarding the edited template', async () => {
   await render(); await click('Edit Bug report'); await fill('Issue title', 'Local title'); await act(async () => editor.onChange(fromPlainText('Local body')));
   let failed = true;
-  fetchMock.mockImplementation((url: string) => Promise.resolve(url.endsWith('/preview') && failed ? json({ code: 'unavailable', detail: 'Refresh unavailable.' }, 503) : json(url.endsWith('/preview') ? { template: current, materialized_title: current.title, title_context_at: '2026-10-20T12:00:00Z', resolved_status: null, labels: [], diagnostics: [], can_create: true } : { data: [current], next_cursor: null, has_more: false })));
+  fetchMock.mockImplementation((url: string) => Promise.resolve(url.endsWith('/preview') && failed ? json({ code: 'unavailable', detail: 'Refresh unavailable.' }, 503) : json(url.endsWith('/preview') ? { template: current, materialized_title: current.title, title_context_at: '2026-10-20T12:00:00Z', resolved_project: null, resolved_status: null, labels: [], diagnostics: [], can_create: true } : { data: [current], next_cursor: null, has_more: false })));
   await render(true, { ...session, csrf_token: 'new' }); expect(button('Save template').disabled).toBe(true); expect(input('Issue title').value).toBe('Local title');
   failed = false; await click('Try again'); expect(button('Save template').disabled).toBe(false); expect(input('Issue title').value).toBe('Local title'); expect(plainText(editor.value)).toBe('Local body');
 });
 it('hides an open editor when directory access is denied even if its separate detail refresh succeeds', async () => {
   await render(); await click('Edit Bug report'); await fill('Issue title', 'Private local draft');
-  fetchMock.mockImplementation((url: string) => Promise.resolve(url.endsWith('/preview') ? json({ template: current, materialized_title: current.title, title_context_at: '2026-10-20T12:00:00Z', resolved_status: null, labels: [], diagnostics: [], can_create: true }) : json({ code: 'forbidden', detail: 'Access changed.' }, 403)));
+  fetchMock.mockImplementation((url: string) => Promise.resolve(url.endsWith('/preview') ? json({ template: current, materialized_title: current.title, title_context_at: '2026-10-20T12:00:00Z', resolved_project: null, resolved_status: null, labels: [], diagnostics: [], can_create: true }) : json({ code: 'forbidden', detail: 'Access changed.' }, 403)));
   await render(true, { ...session, csrf_token: 'rotated' }); expect(container.textContent).toContain('Templates unavailable'); expect(container.textContent).not.toContain('Bug report'); expect(container.querySelector('form')).toBeNull(); expect(container.querySelector('input')).toBeNull();
 });
 it.each(['archive', 'restore'])('moves focus to a stable heading when %s removes the selected row', async mode => {
   current = { ...record(), archived_at: mode === 'restore' ? '2026-10-18T13:00:00Z' : null };
   fetchMock.mockImplementation((url: string, options: RequestInit) => {
     if (options.method === 'PATCH') { current = { ...current, archived_at: JSON.parse(options.body as string).archived ? '2026-10-18T13:00:00Z' : null, version: '2' }; return Promise.resolve(json(current)); }
-    return Promise.resolve(json(url.endsWith('/preview') ? { template: current, materialized_title: current.title, title_context_at: '2026-10-20T12:00:00Z', resolved_status: null, labels: [], diagnostics: [], can_create: true } : { data: url.includes('archived=true') === !!current.archived_at ? [current] : [], next_cursor: null, has_more: false }));
+    return Promise.resolve(json(url.endsWith('/preview') ? { template: current, materialized_title: current.title, title_context_at: '2026-10-20T12:00:00Z', resolved_project: null, resolved_status: null, labels: [], diagnostics: [], can_create: true } : { data: url.includes('archived=true') === !!current.archived_at ? [current] : [], next_cursor: null, has_more: false }));
   });
   await render();
   if (mode === 'restore') { const state = container.querySelector<HTMLSelectElement>('.settings-state-filter select')!; await act(async () => { state.value = 'archived'; state.dispatchEvent(new Event('change', { bubbles: true })); }); }

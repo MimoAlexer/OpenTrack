@@ -38,6 +38,89 @@ async fn payload(h: &Harness, a: &Actor, w: Uuid, t: Uuid, item: &IssueTemplate)
     )
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn real_postgres_project_archive_and_template_default_are_serialized() {
+    let h = Harness::with_connections(8).await;
+    let copy = h.clone();
+    let run = tokio::spawn(async move { project_default_race(&copy).await }).await;
+    h.cleanup().await;
+    if let Err(error) = run {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+async fn project_default_race(h: &Harness) {
+    let (actor, workspace, _) = setup(h).await;
+    for archive_first in [false, true] {
+        let team = team(h, &actor, workspace, false).await;
+        let project = h
+            .app
+            .create_project(
+                &actor,
+                workspace,
+                team,
+                &Uuid::new_v4().to_string(),
+                req(json!({"name":"Example project"})),
+            )
+            .await
+            .unwrap();
+        let mut command = definition("Project default race");
+        command.defaults.project_id = Some(project.id);
+        let (holder, pid) = head_gate(h, &actor, workspace).await;
+        let app = h.app.clone();
+        let a = actor.clone();
+        let archive = async move {
+            app.update_project(
+                &a,
+                workspace,
+                team,
+                project.id,
+                &project.etag,
+                req(json!({"archived":true})),
+            )
+            .await
+        };
+        let app = h.app.clone();
+        let a = actor.clone();
+        let create = async move {
+            app.create_template(&a, workspace, team, &Uuid::new_v4().to_string(), command)
+                .await
+        };
+        let result = if archive_first {
+            let first = tokio::spawn(archive);
+            let first_pid = blocked(h, pid).await;
+            let second = tokio::spawn(create);
+            blocked(h, first_pid).await;
+            holder.commit().await.unwrap();
+            first.await.unwrap().unwrap();
+            second.await.unwrap()
+        } else {
+            let first = tokio::spawn(create);
+            let first_pid = blocked(h, pid).await;
+            let second = tokio::spawn(archive);
+            blocked(h, first_pid).await;
+            holder.commit().await.unwrap();
+            let result = first.await.unwrap();
+            second.await.unwrap().unwrap();
+            result
+        };
+        if archive_first {
+            assert!(matches!(result, Err(Error::Invalid(_))));
+        } else {
+            let item = result.unwrap();
+            let preview = h
+                .app
+                .preview_template(&actor, workspace, team, item.summary.id)
+                .await
+                .unwrap();
+            assert!(
+                preview
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.field == "project_id" && d.code == "archived")
+            );
+        }
+    }
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn real_postgres_template_ordering_and_capacity() {
     let h = Harness::with_connections(8).await;
     let copy = h.clone();

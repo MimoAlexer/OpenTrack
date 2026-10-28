@@ -161,7 +161,22 @@ async fn upgrade(h: &Harness) {
     );
     sqlx::raw_sql("DROP TRIGGER test_planning_enrollment_suppress ON consumer_registrations;DROP FUNCTION test_planning_enrollment_suppress();").execute(&h.owner).await.unwrap();
     migrate(h).await.unwrap();
-    assert!(store::schema_is_current(&h.owner).await.unwrap());
+    let applied: Vec<(i64, Vec<u8>, bool)> =
+        sqlx::query_as("SELECT version,checksum,success FROM _sqlx_migrations ORDER BY version")
+            .fetch_all(&h.owner)
+            .await
+            .unwrap();
+    let expected: Vec<_> = store::MIGRATOR
+        .iter()
+        .filter(|migration| migration.version <= 28)
+        .collect();
+    assert_eq!(applied.len(), expected.len());
+    for ((version, checksum, success), migration) in applied.iter().zip(expected) {
+        assert_eq!(*version, migration.version);
+        assert_eq!(checksum.as_slice(), migration.checksum.as_ref());
+        assert!(*success);
+    }
+    assert!(!store::schema_is_current(&h.owner).await.unwrap());
     assert_eq!(source(h, &a, w).await, before);
     assert_eq!(source(h, &a, second).await, second_before);
     for workspace in [w, second] {

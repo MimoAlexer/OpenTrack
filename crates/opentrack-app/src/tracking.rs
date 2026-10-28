@@ -276,6 +276,20 @@ impl App {
         lifecycle::require_active_team(&mut tx, w, req.team_id).await?;
         let template_source =
             templates::selected(&mut tx, actor, w, req.team_id, req.template.as_ref()).await?;
+        if let Some(project) = req.project_id {
+            projects::scope(&mut tx, actor, w, req.team_id, true).await?;
+            projects::lock(&mut tx, w, req.team_id, project).await?;
+            let current = projects::project(&mut tx, actor, w, req.team_id, project).await?;
+            projects::version(
+                req.project_etag.as_deref().ok_or(Error::Internal)?,
+                &current,
+            )?;
+            if current.archived_at.is_some() {
+                return Err(Error::Conflict(
+                    "Restore this project before changing its scope".into(),
+                ));
+            }
+        }
         if let Some(parent) = req.parent_id {
             graph::target(
                 &mut tx,
@@ -386,7 +400,18 @@ impl App {
                 mutation,
                 changes: json!({"label_ids":{"before":[],"after":req.label_ids},"assignee_id":{"before":null,"after":req.assignee_id},"source":"manual"}),
             });
-        graph::effects(&mut tx, &events).await?;
+        for event in &events {
+            store::append_activity(&mut tx, event)
+                .await
+                .map_err(db_error)?;
+        }
+        if let Some(project) = req.project_id {
+            events
+                .push(projects::link_new_issue(&mut tx, actor, w, req.team_id, project, id).await?);
+        }
+        store::append_stream_events(&mut tx, &events)
+            .await
+            .map_err(db_error)?;
         tx.commit().await.map_err(db_error)?;
         Ok(issue)
     }

@@ -5,9 +5,11 @@ import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest';
 import type { TiptapEditorHTMLElement } from '@tiptap/core';
 import RichTextEditor from './RichTextEditor';
 import { canonicalBody,fromPlainText,type RichBody } from './model';
+import { AttachmentProvider } from '../attachments/context';
+import * as attachmentBrowser from '../attachments/browser';
 let root:Root;let container:HTMLDivElement;
 beforeEach(()=>{Range.prototype.getClientRects = () => document.createElement('span').getClientRects(); Range.prototype.getBoundingClientRect = () => new DOMRect(0,0,0,0); vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);container=document.createElement('div');document.body.append(container);root=createRoot(container);vi.stubGlobal('requestAnimationFrame',(fn:FrameRequestCallback)=>setTimeout(()=>fn(0),0));});
-afterEach(async()=>{await act(async()=>root.unmount());container.remove();vi.unstubAllGlobals();});
+afterEach(async()=>{await act(async()=>root.unmount());container.remove();vi.restoreAllMocks();vi.unstubAllGlobals();});
 describe('real Tiptap surface',()=>{
  it('renders supported structured formatting and exposes the working toolbar',async()=>{const body=canonicalBody({type:'doc',content:[
  {type:'heading',attrs:{level:2},content:[{type:'text',text:'Heading'}]},
@@ -45,6 +47,15 @@ it('keeps legacy IME and AltGraph confirmation out of the editor save shortcut',
 import { IssueComments } from './IssueComments';
 import type { Session } from '../types';
 const session: Session = { audience:'web',user:{id:'u',display_name:'Example Owner',email:'owner@example.test'},csrf_token:'csrf',workspaces:[{id:'w',name:'Workspace',slug:'workspace',role:'member'}] };
+it('does not upload a browser picker selection into a changed document scope', async () => {
+ const fetchMock = vi.fn((_url: string) => Promise.resolve(new Response(JSON.stringify({features:{attachments:true},limits:{max_upload_bytes:25*1024*1024}}),{status:200})));
+ vi.stubGlobal('fetch',fetchMock); const hash = vi.spyOn(attachmentBrowser,'hashFile').mockResolvedValue('a'.repeat(64)); const body = fromPlainText('Draft');
+ const render = async (team: string) => { await act(async () => root.render(<AttachmentProvider workspaceId="w" session={session}><RichTextEditor value={body} onChange={()=>{}} label="Description" attachmentTarget={{team_id:team}} /></AttachmentProvider>)); };
+ await render('team-a'); const input=container.querySelector<HTMLInputElement>('input[aria-label="Choose attachments"]')!; vi.spyOn(input,'click').mockImplementation(()=>{});
+ await act(async()=>container.querySelector<HTMLButtonElement>('button[aria-label="Attach files"]')!.click()); await render('team-b'); await render('team-a');
+ Object.defineProperty(input,'files',{configurable:true,value:[new File(['body'],'notes.txt')]}); await act(async()=>input.dispatchEvent(new Event('change',{bubbles:true})));
+ expect(hash).not.toHaveBeenCalled(); expect(fetchMock.mock.calls.some(([url])=>String(url).endsWith('/attachments'))).toBe(false);
+});
 it('clears the actual composer after a confirmed post without restoring the submitted text',async()=>{
  const reply=(data:unknown)=>new Response(JSON.stringify(data),{status:200});
  vi.stubGlobal('fetch',vi.fn((_url:string,options:RequestInit)=>Promise.resolve(reply(options.method==='POST'?{id:'c',issue_id:'i',author:{id:'u',display_name:'Example Owner'},document:{id:'d',owner_type:'comment',owner_id:'c',schema_supported:true,schema_version:1,body:fromPlainText('A real comment'),plain_text:'A real comment',version:'1',etag:'"d1"',created_at:'2026-10-18T12:00:00Z',updated_at:'2026-10-18T12:00:00Z',can_edit:true},version:'1',etag:'"c1"',created_at:'2026-10-18T12:00:00Z',edited_at:null,deleted_at:null,can_edit:true,can_delete:true}:{data:[],has_more:false,next_cursor:null}))));

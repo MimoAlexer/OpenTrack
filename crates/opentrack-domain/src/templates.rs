@@ -158,6 +158,8 @@ pub struct TemplateDefaults {
     pub status_id: Option<Uuid>,
     pub priority: i16,
     pub label_ids: Vec<Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<Uuid>,
 }
 fn required_nullable<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(
     deserializer: D,
@@ -221,6 +223,8 @@ pub struct TemplatePreview {
     pub title_context_at: DateTime<Utc>,
     #[schema(required = true, nullable = true)]
     pub resolved_status: Option<Status>,
+    #[schema(required = true, nullable = true)]
+    pub resolved_project: Option<crate::ProjectSummary>,
     pub labels: Vec<Label>,
     pub diagnostics: Vec<TemplateDiagnostic>,
     pub can_create: bool,
@@ -295,6 +299,23 @@ pub struct UpdateIssueTemplate {
 mod tests {
     use super::*;
     use serde_json::json;
+    #[test]
+    fn optional_project_preserves_existing_template_defaults_serialization() {
+        let old = json!({"status_id":null,"priority":0,"label_ids":[]});
+        let defaults: TemplateDefaults = serde_json::from_value(old.clone()).unwrap();
+        assert!(defaults.project_id.is_none());
+        assert_eq!(serde_json::to_value(&defaults).unwrap(), old);
+        assert_eq!(
+            serde_json::to_vec(&defaults).unwrap().as_slice(),
+            br#"{"status_id":null,"priority":0,"label_ids":[]}"#
+        );
+        let project = Uuid::new_v4();
+        let mut with_project = old;
+        with_project["project_id"] = json!(project);
+        let defaults: TemplateDefaults = serde_json::from_value(with_project.clone()).unwrap();
+        assert_eq!(defaults.project_id, Some(project));
+        assert_eq!(serde_json::to_value(defaults).unwrap(), with_project);
+    }
     fn context(at: &str) -> TemplateTitleContext<'static> {
         TemplateTitleContext {
             team_name: "Example Team",

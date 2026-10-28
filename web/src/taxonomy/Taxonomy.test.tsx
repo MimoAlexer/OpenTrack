@@ -203,7 +203,7 @@ it('clears team-bound create selections visibly when the person chooses another 
   await render(<CreateIssue workspaceId="w" data={data} session={session} close={() => {}} created={() => {}} />);
   await open('Assignee'); await choose('Assign to me'); expect(picker('Assignee').textContent).toContain('Zoe Owner');
   await input(container.querySelector<HTMLSelectElement>('.team-field select')!, 'other');
-  expect(picker('Assignee').textContent).toContain('Unassigned'); expect(container.textContent).toContain('Team changed. Choose an assignee and labels for this team.');
+  expect(picker('Assignee').textContent).toContain('Unassigned'); expect(container.textContent).toContain('Team changed. Choose an assignee, labels and project for this team.');
 });
 
 it('reloads the first candidate page after an expired cursor without discarding the selected assignee', async () => {
