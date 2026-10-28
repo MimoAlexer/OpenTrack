@@ -25,7 +25,7 @@ const parent: Issue = { ...saved, id: 'parent', key: 'EX-1', title: 'Parent issu
 const fileId = '11111111-1111-4111-8111-111111111111';
 const file: Attachment = { id: fileId, document_id: null, original_name: 'evidence.txt', size_bytes: 4, sha256: 'a'.repeat(64), state: 'ready', detected_mime: 'text/plain', scan_status: 'not_scanned', version: '1', etag: '"attachment:1"', expires_at: null, created_at: saved.created_at, can_delete: true };
 const readyBody: RichBody = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Retained details' }] }, { type: 'attachment', attrs: { id: fileId } }] };
-const template: TemplatePreview = { template: { id: 'template', team_id: 'team', name: 'Example template', version: '1', etag: '"template:1"', archived_at: null, updated_at: saved.created_at, can_manage: true, can_use: true, title_mode: 'literal', title: 'Template draft', defaults: { status_id: null, priority: 0, label_ids: [] }, document: { schema_version: 1, schema_supported: true, body: fromPlainText('Template details'), plain_text: 'Template details' } }, materialized_title: 'Template draft', title_context_at: saved.created_at, resolved_status: status, labels: [], diagnostics: [], can_create: true };
+const template: TemplatePreview = { template: { id: 'template', team_id: 'team', name: 'Example template', version: '1', etag: '"template:1"', archived_at: null, updated_at: saved.created_at, can_manage: true, can_use: true, title_mode: 'literal', title: 'Template draft', defaults: { status_id: null, priority: 0, label_ids: [] }, document: { schema_version: 1, schema_supported: true, body: fromPlainText('Template details'), plain_text: 'Template details' } }, materialized_title: 'Template draft', title_context_at: saved.created_at, resolved_project: null, resolved_status: status, labels: [], diagnostics: [], can_create: true };
 const job: OrderMaintenance = { id: 'job', team_id: 'team', status_id: status.id, state: 'queued', phase: 'staging', staged_count: '0', applied_count: '0', total_count: null, version: '1', error_code: null, can_resume: false, etag: '"issue-order-maintenance:job:1:false:authority"' };
 const json = (value: unknown, code = 200) => new Response(JSON.stringify(value), { status: code, headers: { 'Content-Type': 'application/json' } });
 const maintenance = (details: unknown = { applied: false, maintenance: [job] }) => json({ code: 'issue_order_maintenance', detail: 'Issue order maintenance is active; this change was not applied', details }, 409);
@@ -38,6 +38,7 @@ beforeEach(() => {
   create = () => Promise.resolve(maintenance());
   fetch = vi.fn((url: string, init: RequestInit) => {
     if (url.endsWith('/capabilities')) return Promise.resolve(json({ features: { attachments: true }, limits: { max_upload_bytes: 25 * 1024 * 1024 } }));
+    if (url.includes('/projects?')) return Promise.resolve(json({ data: [], next_cursor: null, has_more: false }));
     if (url.endsWith('/issues') && init.method === 'POST') return create(init);
     if (url.endsWith('/issue-order-maintenance/job')) return Promise.resolve(json(completed ? { ...job, phase: 'completed', state: 'succeeded', staged_count: '501', applied_count: '501', total_count: '501', version: '3', etag: '"completed-job"' } : job));
     throw new Error(`Unexpected scoped request ${url}`);
