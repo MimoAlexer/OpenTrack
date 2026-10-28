@@ -40,7 +40,7 @@ const blocks = [
 
 export default function RichTextEditor(props: RichTextEditorProps) {
   const current = useRef(props); current.current = props;
-  const anchors = useRef(new Map<string, number>()); const fileInput = useRef<HTMLInputElement>(null); const pickerAnchor = useRef<string | null>(null);
+  const anchors = useRef(new Map<string, number>()); const fileInput = useRef<HTMLInputElement>(null); const pickerAnchor = useRef<{ anchor: string; revision: number } | null>(null);
   const [dragging, setDragging] = useState(false); const uploadEvents = useRef<{ files: (files: File[]) => void } | null>(null);
   const [notice, setNotice] = useState(''); const [linkOpen, setLinkOpen] = useState(false); const [link, setLink] = useState('');
   const [slash, setSlash] = useState<number | null>(null); const slashRef = useRef(slash); slashRef.current = slash;
@@ -61,7 +61,7 @@ export default function RichTextEditor(props: RichTextEditorProps) {
       return old?.key === contextRef.current.key && old.match.from === match.from && old.match.to === match.to && old.match.query === match.query ? old : { key: contextRef.current.key, match };
     });
   }
-  useEffect(() => { const input = fileInput.current; const cancel = () => { if (pickerAnchor.current) anchors.current.delete(pickerAnchor.current); pickerAnchor.current = null; }; input?.addEventListener('cancel', cancel); return () => input?.removeEventListener('cancel', cancel); }, []);
+  useEffect(() => { const input = fileInput.current; const cancel = () => { if (pickerAnchor.current) anchors.current.delete(pickerAnchor.current.anchor); pickerAnchor.current = null; }; input?.addEventListener('cancel', cancel); return () => input?.removeEventListener('cancel', cancel); }, []);
   const alive = useRef(true); useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const extensions = useMemo(() => [
     StarterKit.configure({ heading: { levels: [1, 2, 3] }, code: false, underline: false, horizontalRule: false, trailingNode: false,
@@ -164,10 +164,10 @@ export default function RichTextEditor(props: RichTextEditorProps) {
   uploadEvents.current = { files: files => uploads.addBrowserFiles(files, prepareAnchor()) };
   function chooseFiles() {
     if (!uploads.available) return;
-    if (pickerAnchor.current) anchors.current.delete(pickerAnchor.current);
+    if (pickerAnchor.current) anchors.current.delete(pickerAnchor.current.anchor);
     const anchor = prepareAnchor();
     if (uploads.native) void uploads.pickNative(anchor);
-    else { pickerAnchor.current = anchor; fileInput.current?.click(); }
+    else { pickerAnchor.current = { anchor, revision: uploads.pickerRevision() }; fileInput.current?.click(); }
   }
 
   useEffect(() => { editor?.setEditable(!props.disabled, false); if (props.disabled) setSlash(null); }, [editor, props.disabled]);
@@ -202,7 +202,7 @@ export default function RichTextEditor(props: RichTextEditorProps) {
       <span className="document-toolbar-spacer" />{toolbar('Undo', Undo2, undefined, () => editor?.chain().focus().undo().run(), !state?.undo)}{toolbar('Redo', Redo2, undefined, () => editor?.chain().focus().redo().run(), !state?.redo)}
     </div>
     {state?.codeBlock && <label className="document-language">Language<input aria-label="Code language" placeholder="Plain text" maxLength={64} value={state.language ?? ''} disabled={props.disabled} onChange={event => { if (/^[a-zA-Z0-9_+#-]*$/.test(event.target.value)) editor?.commands.updateAttributes('codeBlock', { language: event.target.value || null }); }} /></label>}
-    <input ref={fileInput} type="file" multiple className="attachment-file-input" aria-label="Choose attachments" tabIndex={-1} onChange={event => { const anchor = pickerAnchor.current ?? prepareAnchor(); pickerAnchor.current = null; uploads.addBrowserFiles(Array.from(event.target.files ?? []), anchor); event.target.value = ''; }} />
+    <input ref={fileInput} type="file" multiple className="attachment-file-input" aria-label="Choose attachments" tabIndex={-1} onChange={event => { const picker = pickerAnchor.current; const anchor = picker?.anchor ?? prepareAnchor(); pickerAnchor.current = null; uploads.addBrowserFiles(Array.from(event.target.files ?? []), anchor, picker?.revision); event.target.value = ''; }} />
     <EditorContent editor={editor} />
     {editor && mention && <MentionPicker key={mentionContext?.key} editor={editor} match={mention} id={mentionList} choices={suggestions.choices} active={mentionActive} loading={suggestions.loading} error={suggestions.error} hasMore={suggestions.hasMore} select={chooseMention} refresh={suggestions.refresh} />}
     {references.popup}
