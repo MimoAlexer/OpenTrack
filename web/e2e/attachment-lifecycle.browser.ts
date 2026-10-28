@@ -63,7 +63,7 @@ test('a browser picker selection is rejected after the draft team changes', asyn
   } finally { page.off('request', observe); }
 });
 
-test('canceling a committed upload before its response arrives removes it without linking the document', async ({ page, saved }) => {
+test('canceling a committed upload before its response arrives marks it deleted without linking the document', async ({ page, saved }) => {
   const bytes = Buffer.from('Committed upload canceled before response.');
   const filename = 'cancel-committed-upload.txt';
   const sha256 = createHash('sha256').update(bytes).digest('hex');
