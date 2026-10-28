@@ -60,6 +60,135 @@ async fn maintainer(h: &Harness, a: &Actor, w: Uuid, t: Uuid, user: Uuid) {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn real_postgres_template_project_defaults_follow_current_scope() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let run = tokio::spawn(async move { project_defaults(&copy).await }).await;
+    h.cleanup().await;
+    if let Err(error) = run {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+async fn project_defaults(copy: &Harness) {
+    let (a, w, t) = setup(&copy).await;
+    let project = copy
+        .app
+        .create_project(
+            &a,
+            w,
+            t,
+            "project-default-test",
+            req(json!({"name":"Example project"})),
+        )
+        .await
+        .unwrap();
+    let foreign_team = team(&copy, &a, w, true).await;
+    let foreign = copy
+        .app
+        .create_project(
+            &a,
+            w,
+            foreign_team,
+            "foreign-project-test",
+            req(json!({"name":"Other project"})),
+        )
+        .await
+        .unwrap();
+    let mut command = definition("Project default");
+    command.defaults.project_id = Some(foreign.id);
+    assert!(matches!(
+        copy.app
+            .create_template(&a, w, t, "foreign-project-default", command.clone())
+            .await,
+        Err(Error::Invalid(_))
+    ));
+
+    command.defaults.project_id = Some(project.id);
+    let created = copy
+        .app
+        .create_template(&a, w, t, "valid-project-default", command.clone())
+        .await
+        .unwrap();
+    assert_eq!(created.defaults.project_id, Some(project.id));
+    let preview = copy
+        .app
+        .preview_template(&a, w, t, created.summary.id)
+        .await
+        .unwrap();
+    let resolved = preview.resolved_project.unwrap();
+    assert_eq!(resolved.id, project.id);
+    assert_eq!(resolved.etag, project.metadata_etag);
+    assert!(preview.can_create);
+
+    let archived = copy
+        .app
+        .update_project(
+            &a,
+            w,
+            t,
+            project.id,
+            &project.etag,
+            req(json!({"archived":true})),
+        )
+        .await
+        .unwrap();
+    let preview = copy
+        .app
+        .preview_template(&a, w, t, created.summary.id)
+        .await
+        .unwrap();
+    assert_eq!(preview.resolved_project.unwrap().id, archived.id);
+    assert!(preview.diagnostics.iter().any(|d| d.field == "project_id"
+        && d.code == "archived"
+        && d.reference_id == Some(project.id)));
+    assert!(!preview.can_create);
+    assert!(matches!(
+        copy.app
+            .create_template(&a, w, t, "archived-project-default", command.clone())
+            .await,
+        Err(Error::Invalid(_))
+    ));
+    let replay = copy
+        .app
+        .create_template(&a, w, t, "valid-project-default", command)
+        .await
+        .unwrap();
+    assert_eq!(replay.defaults.project_id, Some(project.id));
+
+    let changed = copy
+        .app
+        .update_template(
+            &a,
+            w,
+            t,
+            created.summary.id,
+            &created.summary.etag,
+            req(json!({"name":"Updated template"})),
+        )
+        .await
+        .unwrap();
+    assert_eq!(changed.defaults.project_id, Some(project.id));
+    let cleared = copy.app.update_template(&a, w, t, changed.summary.id, &changed.summary.etag, req(json!({"defaults":{"status_id":null,"priority":2,"label_ids":[],"project_id":null}}))).await.unwrap();
+    assert_eq!(cleared.defaults.project_id, None);
+    let preview = copy
+        .app
+        .preview_template(&a, w, t, cleared.summary.id)
+        .await
+        .unwrap();
+    assert!(preview.resolved_project.is_none());
+    assert!(preview.diagnostics.iter().all(|d| d.field != "project_id"));
+
+    let outsider = person(&copy, &a, w, "admin").await;
+    let private_template = create(&copy, &a, w, foreign_team, "Private template").await;
+    assert!(matches!(
+        copy.app
+            .preview_template(&outsider, w, foreign_team, private_template.summary.id)
+            .await,
+        Err(Error::NotFound)
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn real_postgres_template_lifecycle_and_independent_instances() {
     let h = Harness::new().await;
     let copy = h.clone();
