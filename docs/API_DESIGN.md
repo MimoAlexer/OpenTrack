@@ -269,7 +269,11 @@ Issue creation uses the existing POST `/workspaces/{w}/issues` with `template: {
 
 The shared create dialog previews before applying. It copies the server-resolved title into an editable draft; create persists that explicit title without re-evaluating dates or team names, including after UTC midnight. A title diagnostic blocks creation until the user supplies a valid replacement. Switching after edits requires an explicit merge, replace or cancel choice; applying never discards ready attachments. Stale defaults remain visible and block creation until repaired. A changed version requires review; accepting a newer version does not silently overwrite the edited draft. Uncertain create outcomes retain the identical request and idempotency key. Omitted or explicit literal mode preserves the pre-0020 create request hash, and stored legacy receipt bodies deserialize as literal.
 
-This increment does not implement project defaults, executable title expressions, template attachment/reference cloning, mentions, child trees, playbooks or cross-feature template runs. Those requirements remain in their feature and milestone ledgers.
+Migration 0029 adds an optional `project_id` to template defaults. Preview returns a current authorized `resolved_project` and a field diagnostic when the default is archived or unavailable; unavailable project metadata is not returned. A supplied defaults object replaces the entire object, so omitting `project_id` clears it. This matters for older clients that replace defaults without the new field; omitting the whole defaults object preserves it.
+
+Issue creation accepts `project_id` and `project_etag` together, or neither. Both must be omitted for a projectless issue; explicit null and incomplete pairs are invalid. The selected project must be writable, active, in the issue's team and match the submitted metadata or full ETag. The issue, project membership, project version and events commit atomically. A committed retry returns the original result under current authority before rechecking mutable project state; an omitted pair preserves the legacy request hash.
+
+Executable title expressions, template attachment/reference cloning, mentions, child trees, playbooks and cross-feature template runs remain unfinished. Those requirements remain in their feature and milestone ledgers.
 
 ## User mentions and issue subscriptions (0019)
 
