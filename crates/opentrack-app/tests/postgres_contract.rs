@@ -193,6 +193,8 @@ fn issue(team: Uuid, title: &str) -> CreateIssue {
         label_ids: Vec::new(),
         parent_id: None,
         parent_etag: None,
+        project_id: None,
+        project_etag: None,
         description: "Real database contract fixture".into(),
         document: None,
         template: None,
