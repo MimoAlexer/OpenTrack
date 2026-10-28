@@ -24,7 +24,7 @@ import { mentionMatch, type MentionMatch } from '../mentions/trigger';
 import type { MentionCandidate } from '../mentions/types';
 
 export type RichTextEditorProps = {
-  value: RichBody; onChange: (value: RichBody) => void; label: string; disabled?: boolean;
+  value: RichBody; onChange: (value: RichBody) => void; label: string; disabled?: boolean; concealed?: boolean;
   attachmentTarget?: AttachmentTarget; attachmentsChanged?: (state: AttachmentDraftState) => void;
   compact?: boolean; onCompositionChange?: (composing: boolean) => void; onSave?: () => void;
 };
@@ -171,6 +171,7 @@ export default function RichTextEditor(props: RichTextEditorProps) {
   }
 
   useEffect(() => { editor?.setEditable(!props.disabled, false); if (props.disabled) setSlash(null); }, [editor, props.disabled]);
+  useEffect(() => { if (props.concealed) { setLinkOpen(false); setLink(''); } }, [props.concealed]);
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
     if (!sameBody(canonicalBody(editor.getJSON()), props.value)) editor.commands.setContent(props.value, { emitUpdate: false, errorOnInvalidContent: true });
@@ -207,9 +208,9 @@ export default function RichTextEditor(props: RichTextEditorProps) {
     {editor && mention && <MentionPicker key={mentionContext?.key} editor={editor} match={mention} id={mentionList} choices={suggestions.choices} active={mentionActive} loading={suggestions.loading} error={suggestions.error} hasMore={suggestions.hasMore} select={chooseMention} refresh={suggestions.refresh} />}
     {references.popup}
     <UploadQueue rows={uploads.rows} notice={uploads.notice} cancel={uploads.cancel} retry={uploads.retry} reselect={uploads.native ? uploads.reselect : undefined} />
-    <div className="document-transfer-actions"><DocumentPortability value={props.value} disabled={props.disabled || uploads.rows.length > 0} onImport={applyImportedBody} /></div>
+    {!props.concealed && <div className="document-transfer-actions"><DocumentPortability value={props.value} disabled={props.disabled || uploads.rows.length > 0} onImport={applyImportedBody} /></div>}
     {slash !== null && !props.disabled && <div className="document-block-menu" role="listbox" aria-label="Insert a block">{blocks.map((block, index) => <button type="button" role="option" aria-selected={slash === index} key={block.label} onMouseDown={event => event.preventDefault()} onClick={() => { setSlash(null); if (editor) block.run(editor); }}>{block.label}</button>)}</div>}
     {notice && <p className="document-notice" role="alert">{notice}</p>}
-    {linkOpen && <Modal title="Link" close={() => setLinkOpen(false)}><div className="settings-modal-content" onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); applyLink(); } }}><label className="field">URL<input data-autofocus value={link} onChange={event => setLink(event.target.value)} placeholder="https://example.com" /></label>{link && !safeHref(link) && <p className="document-notice">Use http, https or mailto without spaces or embedded passwords.</p>}<div className="modal-footer">{state?.link && <button type="button" className="button" onClick={() => { editor?.chain().focus().extendMarkRange('link').unsetLink().run(); setLinkOpen(false); }}>Remove link</button>}<button type="button" className="button" onClick={() => setLinkOpen(false)}>Cancel</button><button type="button" className="button primary" disabled={!safeHref(link)} onClick={applyLink}>Apply link</button></div></div></Modal>}
+    {linkOpen && !props.concealed && <Modal title="Link" close={() => setLinkOpen(false)}><div className="settings-modal-content" onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); applyLink(); } }}><label className="field">URL<input data-autofocus value={link} onChange={event => setLink(event.target.value)} placeholder="https://example.com" /></label>{link && !safeHref(link) && <p className="document-notice">Use http, https or mailto without spaces or embedded passwords.</p>}<div className="modal-footer">{state?.link && <button type="button" className="button" onClick={() => { editor?.chain().focus().extendMarkRange('link').unsetLink().run(); setLinkOpen(false); }}>Remove link</button>}<button type="button" className="button" onClick={() => setLinkOpen(false)}>Cancel</button><button type="button" className="button primary" disabled={!safeHref(link)} onClick={applyLink}>Apply link</button></div></div></Modal>}
   </div>;
 }

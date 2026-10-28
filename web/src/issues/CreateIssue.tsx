@@ -7,7 +7,7 @@ import type { TemplateDiagnostic, TemplatePreview, TemplateSelection } from '../
 import { DiscardUploadDraft } from '../attachments/DiscardUploadDraft';
 import { AttachmentProvider } from '../attachments/context';
 import type { AttachmentDraftState } from '../attachments/types';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { useUnsavedChanges } from '../router';
 import { StructuredEditor } from '../documents/Editor';
 import { EMPTY_BODY, hasContent, attachmentIds, type RichBody } from '../documents/model';
@@ -41,6 +41,9 @@ export function CreateIssue({ workspaceId, data, session, initialTeam, close, cr
   const [project, setProject] = useState<ProjectChoice | null>(null);
   const [projectEdited, setProjectEdited] = useState(false);
   const [projectDenied, setProjectDenied] = useState(false);
+  const deniedNotice = useRef<HTMLParagraphElement>(null);
+  useLayoutEffect(() => { if (projectDenied) deniedNotice.current?.focus(); }, [projectDenied]);
+  useEffect(() => { if (projectDenied) deniedNotice.current?.focus(); }, [projectDenied]);
   const [verifiedProject, setVerifiedProject] = useState<string | null>(null);
   const [projectReview, setProjectReview] = useState(false); const [projectRefresh, setProjectRefresh] = useState(0);
   const editedFields = useRef(new Set<TemplateField>());
@@ -92,7 +95,7 @@ export function CreateIssue({ workspaceId, data, session, initialTeam, close, cr
     catch (error) { setError(error); } finally { setBusy(false); }
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (committed.current || busy || uploads?.pending || composing || unavailable || (!uncertain && (projectDenied || !projectValid || projectReview)) || parentReview || templateReview || unresolved.length > 0 || (!uncertain && !useDefault && !validExplicitStatus)) return;
+    event.preventDefault(); if (committed.current || busy || uploads?.pending || composing || unavailable || projectDenied || (!uncertain && (!projectValid || projectReview)) || parentReview || templateReview || unresolved.length > 0 || (!uncertain && !useDefault && !validExplicitStatus)) return;
     if (!pending.current || !uncertain && (!maintenance || pending.current.fingerprint !== fingerprint)) { const { status_id, description: _description, ...fields } = draft; pending.current = { key: crypto.randomUUID(), fingerprint, body: { ...fields, document: { schema_version: 1, body }, ...(template ? { template, status_id: useDefault ? currentDefault?.id ?? '' : status_id } : !useDefault ? { status_id } : {}), title: draft.title.trim(), team_id: teamId, ...(project ? { project_id: project.id, project_etag: project.etag } : {}), ...(parentIssue ? { parent_id: parentIssue.id, parent_etag: parentIssue.etag } : {}) } }; }
     setBusy(true); setError(null); setMaintenance(null);
     let issue: Issue;
@@ -132,14 +135,14 @@ export function CreateIssue({ workspaceId, data, session, initialTeam, close, cr
       <fieldset disabled={busy || uncertain || unavailable}>
         <label className="field team-field">Team<select disabled={!!parentIssue || !!uploads?.pending || attachmentIds(body).length > 0} title={uploads?.pending || attachmentIds(body).length ? "Remove attachments before changing team." : undefined} value={teamId} onChange={e => { setTeam(e.target.value); setUseDefault(true); setTemplate(null); setTemplateName(''); setTemplateReview(false); setTemplateDiagnostics([]); setProject(null); setProjectEdited(false); setProjectReview(false); editedFields.current.delete('status_id'); if (draft.assignee_id || draft.label_ids.length || project) setScopeNotice('Team changed. Choose an assignee, labels and project for this team.'); setDraft({ ...draft, status_id: seededDefault(e.target.value), assignee_id: null, label_ids: [] }); }} required>{activeTeams.map(team => <option key={team.id} value={team.id}>{team.name} · {team.key}</option>)}</select></label>
         <label className="field">Title<input data-autofocus value={draft.title} onChange={e => { editedFields.current.add('title'); setDraft({ ...draft, title: e.target.value }); }} placeholder="What needs to change?" required /></label>
-        <section className="create-document"><h3>Description</h3><StructuredEditor attachmentTarget={{ team_id: teamId }} attachmentsChanged={setUploads} value={body} onChange={value => { editedFields.current.add('body'); setBody(value); }} label="Description" disabled={busy || uncertain || unavailable} onCompositionChange={setComposing} compact /></section>
-        <IssueFields workspaceId={workspaceId} session={session} disabled={busy || uncertain || unavailable} draft={draft} change={changeFields} data={data} teamId={teamId} statuses={workflow.statuses} currentStatusIds={workflow.currentIds} defaultMode={useDefault} defaultId={currentDefault?.id} chooseStatus={() => setUseDefault(false)} />
       </fieldset>
       </div>}
-      {projectDenied && <p role="alert">Access could not be verified. Your draft is preserved.</p>}
+      <section className="create-document" hidden={projectDenied} inert={projectDenied} aria-hidden={projectDenied || undefined}><h3>Description</h3><StructuredEditor attachmentTarget={{ team_id: teamId }} attachmentsChanged={setUploads} value={body} onChange={value => { editedFields.current.add('body'); setBody(value); }} label="Description" disabled={busy || uncertain || unavailable || projectDenied} concealed={projectDenied} onCompositionChange={setComposing} compact /></section>
+      {!projectDenied && <fieldset disabled={busy || uncertain || unavailable}><IssueFields workspaceId={workspaceId} session={session} disabled={busy || uncertain || unavailable} draft={draft} change={changeFields} data={data} teamId={teamId} statuses={workflow.statuses} currentStatusIds={workflow.currentIds} defaultMode={useDefault} defaultId={currentDefault?.id} chooseStatus={() => setUseDefault(false)} /></fieldset>}
+      {projectDenied && <p role="alert" tabIndex={-1} ref={deniedNotice}>Access could not be verified. Your draft is preserved.</p>}
       <ProjectPicker workspaceId={workspaceId} teamId={teamId} session={session} value={projectDenied ? null : project} label="Project" disabled={busy || uncertain || unavailable || projectDenied} conceal={unavailable || projectDenied} clearNeeded={!projectDenied && unresolved.some(item => item.field === 'project_id')} reviewNeeded={!projectDenied && projectReview} refreshKey={projectRefresh} accessChanged={setProjectDenied} verified={setVerifiedProject} change={value => { setProjectEdited(true); setProjectReview(false); setProject(value); }}/>
       {!projectDenied && project && !projectValid && !uncertain && <p role="status">Review the selected project's current version before creating.</p>}
-      <footer className="modal-footer"><span className="keyboard-hint">⌘ / Ctrl + Enter to create</span><button type="button" className="button" onClick={dismiss} disabled={busy || uncertain}>Cancel</button><button type="submit" className="button primary" disabled={busy || !!uploads?.pending || composing || unavailable || (!uncertain && (projectDenied || !projectValid || projectReview)) || parentReview || templateReview || unresolved.length > 0 || !teamId || !draft.title.trim() || (!uncertain && !useDefault && !validExplicitStatus)}>{busy && <LoaderCircle className="spinner" aria-hidden="true" />}{busy ? 'Creating…' : uncertain ? 'Retry safely' : maintenance ? 'Retry create' : parentIssue ? 'Create subissue' : 'Create issue'}</button></footer>
+      <footer className="modal-footer"><span className="keyboard-hint">⌘ / Ctrl + Enter to create</span><button type="button" className="button" onClick={dismiss} disabled={busy || uncertain}>Cancel</button><button type="submit" className="button primary" disabled={busy || !!uploads?.pending || composing || unavailable || projectDenied || (!uncertain && (!projectValid || projectReview)) || parentReview || templateReview || unresolved.length > 0 || !teamId || !draft.title.trim() || (!uncertain && !useDefault && !validExplicitStatus)}>{busy && <LoaderCircle className="spinner" aria-hidden="true" />}{busy ? 'Creating…' : uncertain ? 'Retry safely' : maintenance ? 'Retry create' : parentIssue ? 'Create subissue' : 'Create issue'}</button></footer>
     </form>
   </Modal>{discarding && <DiscardUploadDraft title="Discard this issue draft?" description="Your unsaved title and description will be lost." action="Discard draft" uploads={uploads} close={() => setDiscarding(false)} discard={close} />}</ReferenceProvider></AttachmentProvider>;
 }
