@@ -17,8 +17,8 @@ Verify passed **854 frontend tests in 78 files**, with 95 successful Rust test
 summaries: 284 passed, zero failed, four ignored and one filtered. The official
 Node 22 tooling checks passed 22 tests.
 
-- [Implementation checks](https://github.com/MimoAlexer/OpenTrack/actions/runs/40303915255), attempt 2.
-- [Runtime checks](https://github.com/MimoAlexer/OpenTrack/actions/runs/40303915428), AMD64 attempt 2; ARM64 retains its successful first execution.
+- Implementation checks: Actions run 40303915255, attempt 2.
+- Runtime checks: Actions run 40303915428, AMD64 attempt 2; ARM64 retains its successful first execution.
 - [Machine-readable receipt](2026-10-26-planning-freshness-integrated.json).
 - [Source and focused checks](2026-10-26-planning-integration-candidate.json).
 
