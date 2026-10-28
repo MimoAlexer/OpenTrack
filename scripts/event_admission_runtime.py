@@ -6,6 +6,18 @@ import urllib.parse
 from uuid import UUID, uuid4
 
 
+def _required_consumers(registrations, require):
+    expected = {("assignment_cleanup", 1), ("planning_counts", 1)}
+    require(len(registrations) == 2
+            and {(row["consumer_name"], row["consumer_version"]) for row in registrations} == expected
+            and all(type(row["consumer_version"]) is int and row["required"] is True
+                    and type(row["enabled"]) is bool for row in registrations),
+            "Qualification requires exactly the actual assignment and planning consumers")
+    result = {row["consumer_name"]: row for row in registrations}
+    require(result["planning_counts"]["enabled"], "The actual planning consumer must be enabled")
+    return result
+
+
 @contextmanager
 def _stopped_worker(q):
     failure = None
@@ -79,8 +91,8 @@ def qualify(q, base, issue_path, require):
                 "Operator CLI status did not preserve its redacted logical-accounting contract")
         for collection, fields in (
                 ("registrations", {"consumer_name", "consumer_version", "required", "enabled", "last_seq", "backfill_job_id", "lag"}),
-                ("dead_letters", {"id", "seq", "event_type", "schema_version", "attempts", "state", "error_code", "created_at", "available_at"}),
-                ("failed_jobs", {"id", "state", "error_code", "retry_count", "created_at"})):
+                ("dead_letters", {"id", "consumer_name", "consumer_version", "seq", "event_type", "schema_version", "attempts", "state", "error_code", "created_at", "available_at"}),
+                ("failed_jobs", {"id", "kind", "state", "error_code", "retry_count", "created_at"})):
             require(isinstance(result[collection], list)
                     and all(isinstance(row, dict) and set(row) == fields for row in result[collection]),
                     "Operator CLI status exposed fields outside its redacted maintenance contract")
@@ -95,7 +107,9 @@ def qualify(q, base, issue_path, require):
           'floor',(SELECT purged_through_seq FROM event_retention_state WHERE workspace_id=h.workspace_id),
           'checkpoint',(SELECT last_seq FROM consumer_checkpoints WHERE workspace_id=h.workspace_id AND consumer_name='assignment_cleanup' AND consumer_version=1),
           'backfill',(SELECT backfill_job_id IS NOT NULL FROM consumer_checkpoints WHERE workspace_id=h.workspace_id AND consumer_name='assignment_cleanup' AND consumer_version=1),
-          'jobs',(SELECT count(*) FROM jobs WHERE workspace_id=h.workspace_id AND kind='assignment.reconcile' AND state<>'succeeded'))
+          'planning_checkpoint',(SELECT last_seq FROM consumer_checkpoints WHERE workspace_id=h.workspace_id AND consumer_name='planning_counts' AND consumer_version=1),
+          'planning_backfill',(SELECT backfill_job_id IS NOT NULL FROM consumer_checkpoints WHERE workspace_id=h.workspace_id AND consumer_name='planning_counts' AND consumer_version=1),
+          'jobs',(SELECT count(*) FROM jobs WHERE workspace_id=h.workspace_id AND kind IN('assignment.reconcile','planning.backfill') AND state<>'succeeded'))
           FROM workspace_stream_heads h LEFT JOIN workspace_events e USING(workspace_id)
           WHERE h.workspace_id='{workspace}' GROUP BY h.workspace_id"""))
         require(result["exact"] and result["bytes"] == result["sum"],
@@ -107,7 +121,8 @@ def qualify(q, base, issue_path, require):
                   "document_revisions", "document_mentions", "mention_intents", "discussion_sources",
                   "issue_subscriptions", "subscription_events", "issue_template_sources",
                   "idempotency_records", "activity_entries", "audit_entries", "workspace_events",
-                  "workspace_stream_heads", "workspace_auth_guards", "consumer_operations")
+                  "workspace_stream_heads", "workspace_auth_guards", "consumer_operations",
+                  "consumer_checkpoints", "consumer_receipts", "planning_issue_facts", "planning_backfills")
         fields = [f"'workspace',(SELECT to_jsonb(t) FROM workspaces t WHERE id='{workspace}')"]
         fields += [f"'{table}',(SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]') FROM {table} t WHERE workspace_id='{workspace}')"
                    for table in tables]
@@ -156,7 +171,8 @@ def qualify(q, base, issue_path, require):
         for _ in range(20):
             once()
             result = metrics()
-            if result["checkpoint"] == result["head"] and result["backfill"] and result["jobs"] == 0:
+            if (result["checkpoint"] == result["planning_checkpoint"] == result["head"]
+                    and result["backfill"] and result["planning_backfill"] and result["jobs"] == 0):
                 return result
         raise RuntimeError("Bounded actual worker polls did not drain the fixture")
 
@@ -209,11 +225,8 @@ def qualify(q, base, issue_path, require):
         metrics()
 
     original = status()
-    required = [item for item in original["registrations"] if item["required"]]
-    require(len(required) == 1 and required[0]["consumer_name"] == "assignment_cleanup"
-            and required[0]["consumer_version"] == 1,
-            "Qualification requires the actual assignment consumer without synthetic registrations")
-    original_enabled = required[0]["enabled"]
+    required = _required_consumers(original["registrations"], require)
+    original_enabled = required["assignment_cleanup"]["enabled"]
     original_pending = int(original["event_admission"]["max_pending_events"])
     original_bytes = int(original["event_admission"]["max_retained_event_bytes"])
     pending_cap = max(original_pending, 100000)
@@ -275,7 +288,12 @@ def qualify(q, base, issue_path, require):
             pinned = metrics()
             require(pinned["aged"] == 1, "Fixture event did not exceed the replay window")
             once()
-            require(metrics() == pinned, "Disabled required capture or retention discarded uncaptured work")
+            advanced = metrics()
+            require(all(advanced[key] == pinned[key] for key in
+                        ("head", "bytes", "sum", "exact", "count", "aged", "events", "floor", "checkpoint", "backfill", "jobs")),
+                    "Disabled required capture or retention discarded uncaptured work")
+            require(advanced["planning_checkpoint"] == pinned["head"] and advanced["planning_backfill"],
+                    "The enabled planning consumer did not apply the retained event independently")
             key, body = candidate("disabled retry")
             blocked(key, body)
             limits(1, pinned["bytes"], "Require exact retained byte reclamation")
@@ -286,8 +304,10 @@ def qualify(q, base, issue_path, require):
             require(reclaimed["checkpoint"] == pinned["head"] and reclaimed["floor"] == pinned["head"]
                     and reclaimed["count"] == 0 and reclaimed["bytes"] == 0,
                     "Re-enabled actual worker did not capture and reclaim the exact aged charge")
-            require(q.sql(f"SELECT count(*)=1 FROM consumer_receipts WHERE workspace_id='{workspace}' AND event_id='{event['id']}' AND seq={event['seq']} AND state='ignored' AND job_id IS NULL") == "t",
-                    "Actual assignment consumer did not persist its independent capture receipt")
+            require(q.sql(f"""SELECT count(*)=2 AND bool_and(job_id IS NULL AND consumer_version=1
+              AND ((consumer_name='assignment_cleanup' AND state='ignored') OR (consumer_name='planning_counts' AND state='applied')))
+              FROM consumer_receipts WHERE workspace_id='{workspace}' AND event_id='{event['id']}' AND seq={event['seq']}""") == "t",
+                    "Actual consumers did not persist their independent capture and apply receipts")
             recover(key, body)
             recent = drain()
             require(recent["count"] == 1 and recent["bytes"] == pinned["bytes"]

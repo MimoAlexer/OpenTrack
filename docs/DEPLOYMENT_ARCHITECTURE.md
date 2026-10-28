@@ -73,3 +73,17 @@ Choose the intended recovery action after inspecting status; do not run both dis
 `operator-consumer-disable --workspace WORKSPACE_UUID --reason TEXT` requires a drained consumer and completed cleanup jobs. It preserves retention protection. `operator-consumer-enable --workspace WORKSPACE_UUID --reason TEXT` resumes the registered version. Both use the same operator configuration flag as above. Disabling is not a way to discard old work or relieve storage pressure. This increment provides durable blocked-event alerts and status inspection; automated storage-pressure admission control and the broader administrative monitoring UI remain separate implementation work.
 
 Migration 0015 and the current `deploy/grant-worker.sh` and `deploy/grant-operator.sh` must be applied together. Operator execution remains separate from serving, with no application table or sequence grants. Preserve a database backup plus the matching prior binary/assets before upgrading. No down-migration is supplied.
+
+## Planning count recovery (0028)
+
+Deploy migration 0028 with the matching API/worker binaries and current worker/operator grants. Existing workspaces receive the required `planning_counts/v1` registration; the normal worker applies its bounded baseline and event batches. Reads remain usable through authoritative fallback while facts are incomplete. The required checkpoint continues to protect event retention and contributes to the existing backlog admission limit.
+
+Inspect `operator-consumer-status` before requesting a planning rebuild:
+
+```sh
+opentrack-server operator-planning-rebuild --workspace WORKSPACE_UUID \
+  --reason "Rebuild the planning projection after repairing its dependency" \
+  --config /etc/opentrack/operator.toml
+```
+
+This audited operation fences superseded backfill work and schedules current-source reconciliation. It does not advertise the target sequence as applied before completion. Generic assignment retry/reconcile commands reject planning-consumer letters; use the planning rebuild capability for that projection. No arbitrary checkpoint skip is provided. Preserve the database and matching binary/assets before upgrade; there is no down-migration. A failed migration rolls back atomically. Application rollback requires a compatible schema or a tested restore, not editing applied migration checksums.

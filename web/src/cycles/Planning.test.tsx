@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Milestones, type Milestone, type MilestoneOverview } from '../projects/Milestones';
 import { ProjectIssues } from '../projects/ProjectIssues';
-import type { Project } from '../projects/types';
+import type { Project, ProjectProgress } from '../projects/types';
 import { hasUnsavedChanges, navigate, parseRoute } from '../router';
 import type { Bootstrap, Session, Team } from '../types';
 import { CarryForward, CloseCycle } from './CycleActions';
@@ -18,9 +18,9 @@ const session: Session = { audience: 'web', user: { id: 'owner', email: 'owner@e
 const data: Bootstrap = { auth_epoch: '1', teams: [team], issues: [], members: [session.user], statuses: [] };
 const project: Project = { id: 'project', workspace_id: 'workspace', team_id: 'team', name: 'Example project', summary: '', state: 'planned', health: 'on_track', lead_id: null, lead: null, start_date: null, target_date: null, version: '1', etag: '"project:1"', created_at: '2026-10-22T10:00:00Z', updated_at: '2026-10-22T10:00:00Z', archived_at: null, can_edit: true, can_manage: true };
 const milestone: Milestone = { id: 'first', workspace_id: 'workspace', team_id: 'team', project_id: 'project', title: 'First outcome', target_date: null, rank: '1', state: 'planned', completed_at: null, version: '1', etag: '"milestone:1"', can_manage: true, can_assign: true, created_at: project.created_at, updated_at: project.updated_at };
-const progress = { completed: 0, eligible: 0, canceled: 0, open: 0, total: 0, unscoped: true, as_of: project.created_at };
+const progress: ProjectProgress = { completed: 0, eligible: 0, canceled: 0, open: 0, total: 0, unscoped: true, as_of: project.created_at, calculation_source: 'live', facts_as_of: null };
 const cycle: Cycle = { id: 'cycle', workspace_id: 'workspace', team_id: 'team', name: 'Spring interval', start_date: '2026-03-28', end_date_exclusive: '2026-03-31', timezone: 'Europe/Berlin', starts_at: '2026-03-27T23:00:00Z', ends_at: '2026-03-30T22:00:00Z', state: 'active', version: '1', etag: '"cycle:1"', closed_at: null, latest_report_id: null, created_at: project.created_at, updated_at: project.updated_at, can_plan: true, can_manage: true };
-const snapshot: Snapshot = { id: 'snapshot', cycle_id: 'cycle', local_date: '2026-03-28', captured_at: '2026-03-28T12:00:00Z', kind: 'scope', definition_version: 1, scope_count: 0, completed_count: 0, canceled_count: 0, unfinished_count: 0, excluded_count: 0, estimate_total: 0, items: [], redacted: false };
+const snapshot: Snapshot = { id: 'snapshot', cycle_id: 'cycle', local_date: '2026-03-28', captured_at: '2026-03-28T12:00:00Z', calculation_source: 'snapshot', facts_as_of: null, kind: 'scope', definition_version: 1, scope_count: 0, completed_count: 0, canceled_count: 0, unfinished_count: 0, excluded_count: 0, estimate_total: 0, items: [], redacted: false };
 const report: CloseReport = { id: 'report', cycle: { ...cycle, state: 'closed', latest_report_id: 'report' }, closed_at: cycle.updated_at, scope: { ...snapshot, scope_count: 2, unfinished_count: 1, completed_count: 1, items: [{ issue_id: 'unfinished', issue_version: '3', category: 'started', estimate: 3, excluded: false }, { issue_id: 'done', issue_version: '4', category: 'completed', estimate: 1, excluded: false }] } };
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 const page = (data: unknown[], cursor: string | null = null) => ({ data, has_more: !!cursor, next_cursor: cursor });
@@ -235,4 +235,17 @@ describe('planning refresh consistency', () => {
     expect(fetch.mock.calls.filter(([url]) => url.includes('/issues?'))).toHaveLength(2);
     expect(fetch.mock.calls.every(([, options]) => !options.method || options.method === 'GET')).toBe(true);
   });
+});
+
+it('shows projected cycle fact time separately and keeps captured snapshots historical', async () => {
+  const facts = '2026-03-27T09:00:00Z';
+  await act(async () => root.render(<ScopeSummary scope={{ ...snapshot, kind: 'current', scope_count: 1, unfinished_count: 1, calculation_source: 'projection', facts_as_of: facts }}/>));
+  expect(container.textContent).toContain('Current scope validated');
+  expect(container.textContent).toContain('Projection verified against current issues');
+  expect(container.querySelector('time[data-planning-calculation]')?.getAttribute('datetime')).toBe(snapshot.captured_at);
+  expect(container.querySelector('time[data-planning-facts]')?.getAttribute('datetime')).toBe(facts);
+  await act(async () => root.render(<ScopeSummary scope={snapshot}/>));
+  expect(container.textContent).toContain('Snapshot captured');
+  expect(container.querySelector('[data-planning-facts]')).toBeNull();
+  expect(container.querySelector('time')?.dateTime).toBe(snapshot.captured_at);
 });

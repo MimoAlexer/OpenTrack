@@ -9,7 +9,7 @@ import type { FullProject, ProjectProgress } from '../src/projects/types';
 import type { Milestone } from '../src/projects/Milestones';
 import type { Cycle, Snapshot, SnapshotPoint } from '../src/cycles/types';
 
-registerAdmission(2);
+registerAdmission(3);
 
 async function planning(saved: SavedWorkspace, privateTeam = false) {
   const token = randomUUID();
@@ -133,7 +133,7 @@ async function rendered(saved: SavedWorkspace, plan: Planning, page: Page, sourc
   await progress(page.locator('.milestone-group').filter({ has: page.getByRole('heading', { name: plan.milestone.title, exact: true }) }), completed, eligible);
   await page.goto(cycleUrl(saved, plan));
   const scope = page.getByRole('region', { name: 'Cycle scope', exact: true });
-  await expect(scope).toContainText('Live scope calculated'); await progress(scope, completed, eligible, true);
+  await expect(scope).toContainText(/Live scope calculated|Current scope validated/); await progress(scope, completed, eligible, true);
 }
 function fact(kind: string, value: object) {
   writeFileSync(test.info().outputPath(`planning-reporting-${kind}.json`), JSON.stringify({ kind, engine: test.info().project.name,
@@ -198,34 +198,34 @@ test('planning counts retain calculation times through held reads, failures and 
     await page.goto(projectUrl(saved, plan));
     const project = page.locator('.project-progress-section'); const milestone = page.locator('.milestone-group');
     await progress(project, 1, 4); await progress(milestone, 1, 4);
-    const projectTime = await project.locator('time').getAttribute('datetime'); const milestoneTime = await milestone.locator('time').getAttribute('datetime');
+    const projectTime = await project.locator('time[data-planning-calculation]').getAttribute('datetime'); const milestoneTime = await milestone.locator('time[data-planning-calculation]').getAttribute('datetime');
     const projectGate = await holdRead(page, `${saved.origin}${saved.path}${plan.projectPath}/progress`);
     const milestoneGate = await holdRead(page, `${saved.origin}${saved.path}${plan.projectPath}/milestones?*`);
     gates.push(projectGate, milestoneGate);
     await page.getByRole('button', { name: 'Refresh planning counts', exact: true }).click();
     await Promise.all([projectGate.ready, milestoneGate.ready]);
     await expect(project).toContainText('Updating planning counts'); await expect(page.getByRole('region', { name: 'Project milestones', exact: true })).toContainText('Updating milestone counts');
-    await expect(project.locator('time')).toHaveAttribute('datetime', projectTime!); await expect(milestone.locator('time')).toHaveAttribute('datetime', milestoneTime!);
+    await expect(project.locator('time[data-planning-calculation]')).toHaveAttribute('datetime', projectTime!); await expect(milestone.locator('time[data-planning-calculation]')).toHaveAttribute('datetime', milestoneTime!);
     await Promise.all([projectGate.release(true), milestoneGate.release(true)]);
     await expect(project).toContainText('Counts could not be refreshed'); await expect(page.getByRole('region', { name: 'Project milestones', exact: true })).toContainText('Milestone counts could not be refreshed');
-    await progress(project, 1, 4); await expect(project.locator('time')).toHaveAttribute('datetime', projectTime!);
+    await progress(project, 1, 4); await expect(project.locator('time[data-planning-calculation]')).toHaveAttribute('datetime', projectTime!);
     await saved.patch(await saved.issue(plan.issues[0].id), { status_id: plan.workflow.statuses.find(status => status.category === 'completed')!.id });
     const freshProject = page.waitForResponse(response => response.url().endsWith(`${plan.projectPath}/progress`) && response.request().method() === 'GET');
     await page.getByRole('button', { name: 'Refresh planning counts', exact: true }).click();
     const projectRead = await (await freshProject).json() as ProjectProgress;
-    await progress(project, 2, 4); await progress(milestone, 2, 4); await expect(project.locator('time')).toHaveAttribute('datetime', projectRead.as_of);
+    await progress(project, 2, 4); await progress(milestone, 2, 4); await expect(project.locator('time[data-planning-calculation]')).toHaveAttribute('datetime', projectRead.as_of);
     await page.getByRole('navigation', { name: 'Project sections', exact: true }).getByRole('button', { name: 'Issues', exact: true }).click();
     await expect(page.locator('.project-issue-row').filter({ hasText: plan.issues[0].title }).locator('.project-issue-status')).toHaveText(plan.workflow.statuses.find(status => status.category === 'completed')!.name);
 
     await page.goto(cycleUrl(saved, plan)); const scope = page.getByRole('region', { name: 'Cycle scope', exact: true }); await progress(scope, 2, 4, true);
-    const cycleTime = await scope.locator('time').getAttribute('datetime'); const cycleGate = await holdRead(page, `${saved.origin}${saved.path}${plan.cyclePath}/scope`); gates.push(cycleGate);
+    const cycleTime = await scope.locator('time[data-planning-calculation]').getAttribute('datetime'); const cycleGate = await holdRead(page, `${saved.origin}${saved.path}${plan.cyclePath}/scope`); gates.push(cycleGate);
     await page.getByRole('button', { name: 'Refresh cycle counts', exact: true }).click(); await cycleGate.ready;
-    await expect(scope).toContainText('Updating cycle counts'); await expect(scope.locator('time')).toHaveAttribute('datetime', cycleTime!);
+    await expect(scope).toContainText('Updating cycle counts'); await expect(scope.locator('time[data-planning-calculation]')).toHaveAttribute('datetime', cycleTime!);
     await cycleGate.release(true); await expect(scope).toContainText('Cycle counts could not be refreshed'); await progress(scope, 2, 4, true);
     await saved.patch(await saved.issue(plan.issues[3].id), { status_id: plan.workflow.statuses.find(status => status.category === 'completed')!.id });
     const freshCycle = page.waitForResponse(response => response.url().endsWith(`${plan.cyclePath}/scope`) && response.request().method() === 'GET');
     await page.getByRole('button', { name: 'Refresh cycle counts', exact: true }).click(); const cycleRead = await (await freshCycle).json() as Snapshot;
-    await progress(scope, 3, 4, true); await expect(scope.locator('time')).toHaveAttribute('datetime', cycleRead.captured_at);
+    await progress(scope, 3, 4, true); await expect(scope.locator('time[data-planning-calculation]')).toHaveAttribute('datetime', cycleRead.captured_at);
     await expect(scope.getByRole('row').filter({ hasText: plan.issues[3].title }).getByRole('cell').nth(1)).toHaveText(plan.workflow.statuses.find(status => status.category === 'completed')!.name);
 
     const control = await saved.request<FullProject>(`/teams/${plan.team.id}/projects`, 'POST', { name: `Fresh control ${randomUUID()}` }, { 'Idempotency-Key': randomUUID() });
@@ -240,9 +240,9 @@ test('planning counts retain calculation times through held reads, failures and 
   } finally { for (const gate of gates) await gate.release(false, true); }
 });
 
-async function invited(api: APIRequest, saved: SavedWorkspace, teamIds: string[]) {
+async function invited(api: APIRequest, saved: SavedWorkspace, teamIds: string[], role: 'member' | 'viewer' = 'viewer') {
   const invitation = await saved.request<InvitationIssued>('/invitations', 'POST', {
-    email: `reporting-viewer-${randomUUID()}@example.test`, role: 'viewer', team_ids: teamIds,
+    email: `reporting-viewer-${randomUUID()}@example.test`, role, team_ids: teamIds,
   }, { 'Idempotency-Key': randomUUID() });
   const http = await api.newContext({ baseURL: saved.origin, extraHTTPHeaders: { Origin: saved.origin }, storageState: { cookies: [], origins: [] } });
   try {
@@ -293,5 +293,69 @@ test('populated private planning counts disappear after real access revocation w
   } finally {
     for (const gate of gates) await gate.release(false, true);
     await context?.close(); await viewer.http.dispose(); await outsider?.http.dispose();
+  }
+});
+
+
+test('planning projections show actual validation and fact times while the default worker also clears revoked assignments', async ({ page, playwright, saved, context }) => {
+  const plan = await planning(saved);
+  await expect.poll(async () => {
+    const current = await authoritative(saved, plan);
+    return [current.project.calculation_source, current.milestone.calculation_source, current.scope.calculation_source];
+  }, { timeout: 25_000 }).toEqual(['projection', 'projection', 'projection']);
+  const projected = await authoritative(saved, plan);
+  await page.goto(projectUrl(saved, plan));
+  const project = page.locator('.project-progress-section');
+  const milestone = page.locator('.milestone-group').filter({ has: page.getByRole('heading', { name: plan.milestone.title, exact: true }) });
+  await progress(project, 1, 4); await progress(milestone, 1, 4);
+  const cyclePage = await context.newPage(); await cyclePage.goto(cycleUrl(saved, plan));
+  const cycle = cyclePage.getByRole('region', { name: 'Cycle scope', exact: true });
+  await progress(cycle, 1, 4, true);
+  for (const [panel, value] of [[project, projected.project], [milestone, projected.milestone], [cycle, projected.scope]] as const) {
+    await expect(panel).toContainText('Projection verified against current issues');
+    await expect(panel.locator('time[data-planning-facts]')).toHaveAttribute('datetime', value.facts_as_of!);
+    const validation = await panel.locator('time[data-planning-calculation]').getAttribute('datetime');
+    expect(Date.parse(validation!)).toBeGreaterThanOrEqual(Date.parse(value.facts_as_of!));
+  }
+  await expect(cycle).toContainText('Current scope validated');
+  expect(plan.daily.calculation_source).toBe('snapshot'); expect(plan.daily.facts_as_of).toBeNull();
+  const hidden = await saved.request<TeamDetail>('/teams', 'POST', { name: `Cleanup ${randomUUID()}`, key: `C${randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase()}`, private: true }, { 'Idempotency-Key': randomUUID() });
+  const member = await invited(playwright.request, saved, [hidden.id], 'member');
+  const gates: Awaited<ReturnType<typeof holdRead>>[] = [];
+  try {
+    const assigned = await saved.request<Issue>('/issues', 'POST', { team_id: hidden.id, title: `Revoked assignment ${randomUUID()}`, assignee_id: member.session.user.id }, { 'Idempotency-Key': randomUUID() });
+    expect(assigned.assignee_id).toBe(member.session.user.id);
+    const membership = await saved.request<TeamMember>(`/teams/${hidden.id}/members/${member.session.user.id}`);
+    const revoked = await saved.http.delete(`${saved.path}/teams/${hidden.id}/members/${member.session.user.id}`, { headers: { Origin: saved.origin, 'X-CSRF-Token': saved.session.csrf_token, 'If-Match': `"team-member:${hidden.id}:${member.session.user.id}:${membership.version}"` } });
+    expect(revoked.status()).toBe(204);
+    await expect.poll(async () => (await saved.issue(assigned.id)).assignee_id, { timeout: 25_000 }).toBeNull();
+    const after = await authoritative(saved, plan);
+    for (const key of ['project', 'milestone', 'scope'] as const) {
+      expect(after[key].calculation_source).toBe('projection'); expect(after[key].facts_as_of).toBe(projected[key].facts_as_of);
+    }
+    await page.bringToFront(); await page.reload();
+    await progress(project, 1, 4); await expect(project).toHaveAttribute('aria-busy', 'false');
+    const calculated = await project.locator('time[data-planning-calculation]').getAttribute('datetime');
+    const facts = await project.locator('time[data-planning-facts]').getAttribute('datetime');
+    const gate = await holdRead(page, `${saved.origin}${saved.path}${plan.projectPath}/progress`); gates.push(gate);
+    await page.getByRole('button', { name: 'Refresh planning counts', exact: true }).click(); await gate.ready;
+    await expect(project).toContainText('Updating planning counts');
+    await gate.release(true);
+    await expect(project).toContainText('Counts could not be refreshed');
+    await expect(project).toContainText('Projection verified against current issues');
+    await expect(project.locator('time[data-planning-calculation]')).toHaveAttribute('datetime', calculated!);
+    await expect(project.locator('time[data-planning-facts]')).toHaveAttribute('datetime', facts!);
+    const current = await saved.request<FullProject>(plan.projectPath);
+    const empty = await saved.request<Milestone>(`${plan.projectPath}/milestones`, 'POST', { title: `Empty projection scope ${randomUUID()}` }, { 'If-Match': current.etag, 'Idempotency-Key': randomUUID() });
+    await page.getByRole('button', { name: 'Refresh planning counts', exact: true }).click();
+    const emptyPanel = page.locator('.milestone-group').filter({ has: page.getByRole('heading', { name: empty.title, exact: true }) });
+    await expect(emptyPanel).toContainText('No eligible issue scope'); await expect(emptyPanel).toContainText('Live issue data');
+    await expect(emptyPanel.locator('[data-planning-facts]')).toHaveCount(0);
+    const history = await saved.request<{ data: SnapshotPoint[] }>(`${plan.cyclePath}/snapshots`);
+    expect(history.data.find(item => item.id === plan.daily.id)?.captured_at).toBe(plan.daily.captured_at);
+    fact('projection-provenance', { reporting_consumer_exercised: true, source: 'projection', project_fact_time: projected.project.facts_as_of, milestone_fact_time: projected.milestone.facts_as_of, cycle_fact_time: projected.scope.facts_as_of, revoked_assignment_cleared: true, unrelated_facts_unchanged: true, failed_refresh_retained_both_dates: true, empty_scope_source: 'live', historical_capture_unchanged: true });
+  } finally {
+    for (const gate of gates) await gate.release(false, true);
+    await member.http.dispose(); await cyclePage.close();
   }
 });

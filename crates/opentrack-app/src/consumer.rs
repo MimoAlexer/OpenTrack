@@ -116,20 +116,7 @@ impl Worker {
             .fetch_one(&mut *tx)
             .await
             .map_err(db_error)?;
-        let result = ConsumerTick {
-            processed: row
-                .try_get::<i64, _>("processed")
-                .map_err(db_error)?
-                .try_into()
-                .map_err(|_| Error::Internal)?,
-            captured: row
-                .try_get::<i64, _>("captured")
-                .map_err(db_error)?
-                .try_into()
-                .map_err(|_| Error::Internal)?,
-            backfilled: row.try_get("backfilled").map_err(db_error)?,
-            dead_lettered: row.try_get("dead_lettered").map_err(db_error)?,
-        };
+        let result = consumer_tick(&row)?;
         tx.commit().await.map_err(db_error)?;
         if result.dead_lettered {
             tracing::error!("Required event consumer is blocked; inspect operator-consumer-status");
@@ -180,7 +167,7 @@ impl Worker {
         };
         Ok(Some((workspace, self.retain(workspace, limit).await?)))
     }
-    async fn consumer_scope(&self, cursor: &mut Option<Uuid>) -> Result<Option<Uuid>> {
+    pub(crate) async fn consumer_scope(&self, cursor: &mut Option<Uuid>) -> Result<Option<Uuid>> {
         let workspace: Option<Uuid> =
             sqlx::query_scalar("SELECT workspace_id FROM worker_ready_workspaces($1,1)")
                 .bind(*cursor)
@@ -192,10 +179,27 @@ impl Worker {
     }
 }
 
-async fn bounds(tx: &mut store::Tx) -> Result<()> {
+pub(crate) async fn bounds(tx: &mut store::Tx) -> Result<()> {
     // Set this before invoking a definer function: changing statement_timeout
     // inside that function does not bound its already-started outer statement.
     sqlx::query("SELECT set_config('statement_timeout','3000',true),set_config('lock_timeout','1000',true),set_config('idle_in_transaction_session_timeout','5000',true)")
         .execute(&mut **tx).await.map_err(db_error)?;
     Ok(())
+}
+
+pub(crate) fn consumer_tick(row: &sqlx::postgres::PgRow) -> Result<ConsumerTick> {
+    Ok(ConsumerTick {
+        processed: row
+            .try_get::<i64, _>("processed")
+            .map_err(db_error)?
+            .try_into()
+            .map_err(|_| Error::Internal)?,
+        captured: row
+            .try_get::<i64, _>("captured")
+            .map_err(db_error)?
+            .try_into()
+            .map_err(|_| Error::Internal)?,
+        backfilled: row.try_get("backfilled").map_err(db_error)?,
+        dead_lettered: row.try_get("dead_lettered").map_err(db_error)?,
+    })
 }

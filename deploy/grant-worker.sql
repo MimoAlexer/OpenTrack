@@ -56,7 +56,7 @@ BEGIN
  EXECUTE format('GRANT SELECT,UPDATE(last_seq) ON %I.workspace_stream_heads TO %I',schema_name,role_name);
  EXECUTE format('GRANT INSERT ON %I.activity_entries,%I.audit_entries,%I.workspace_events TO %I',schema_name,schema_name,schema_name,role_name);
  IF to_regclass(format('%I.consumer_receipts',schema_name)) IS NOT NULL THEN
-  FOR discovery IN SELECT p.oid::regprocedure FROM pg_proc p WHERE p.pronamespace=schema_name::regnamespace AND p.proname IN('worker_lock_maintenance_context','worker_assignee_eligible','worker_clear_assignment','worker_capture_events','worker_retain_events') LOOP
+  FOR discovery IN SELECT p.oid::regprocedure FROM pg_proc p WHERE p.pronamespace=schema_name::regnamespace AND p.proname IN('worker_lock_maintenance_context','worker_assignee_eligible','worker_clear_assignment','worker_capture_events','worker_retain_events','worker_apply_planning_events','worker_planning_backfill_batch') LOOP
    IF NOT (SELECT prosecdef FROM pg_proc WHERE oid=discovery) OR EXISTS(SELECT 1 FROM pg_proc p CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl WHERE p.oid=discovery AND acl.grantee=0 AND acl.privilege_type='EXECUTE') THEN
     RAISE EXCEPTION 'Consumer capabilities must be fixed-path definer functions without PUBLIC execution';
    END IF;

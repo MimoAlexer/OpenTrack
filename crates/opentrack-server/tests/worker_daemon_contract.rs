@@ -49,7 +49,7 @@ async fn state(h: &Harness, user: Uuid, workspace: Uuid) -> Value {
       'checkpoint',(SELECT to_jsonb(c) FROM consumer_checkpoints c WHERE workspace_id=$1 AND consumer_name='assignment_cleanup' AND consumer_version=1),
       'floor',(SELECT purged_through_seq FROM event_retention_state WHERE workspace_id=$1),
       'events',(SELECT coalesce(jsonb_agg(to_jsonb(e) ORDER BY seq),'[]') FROM workspace_events e WHERE workspace_id=$1),
-      'receipts',(SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY seq),'[]') FROM consumer_receipts r WHERE workspace_id=$1),
+      'receipts',(SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY seq),'[]') FROM consumer_receipts r WHERE workspace_id=$1 AND consumer_name='assignment_cleanup'),
       'jobs',(SELECT coalesce(jsonb_agg(to_jsonb(j) ORDER BY id),'[]') FROM jobs j WHERE workspace_id=$1),
       'letters',(SELECT coalesce(jsonb_agg(to_jsonb(d) ORDER BY id),'[]') FROM consumer_dead_letters d WHERE workspace_id=$1),
       'operations',(SELECT coalesce(jsonb_agg(to_jsonb(o) ORDER BY id),'[]') FROM consumer_operations o WHERE workspace_id=$1))
@@ -70,6 +70,19 @@ async fn event(h: &Harness, user: Uuid, workspace: Uuid, schema: i32) -> (Uuid, 
         .execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
     (id, seq)
+}
+
+async fn planning_observed(
+    h: &Harness,
+    user: Uuid,
+    workspace: Uuid,
+    event: Uuid,
+) -> (i64, Option<String>) {
+    let mut tx = h.context(user, workspace).await;
+    let result = sqlx::query_as("SELECT c.last_seq,(SELECT r.state FROM consumer_receipts r WHERE r.workspace_id=$1 AND r.consumer_name='planning_counts' AND r.consumer_version=1 AND r.event_id=$2) FROM consumer_checkpoints c WHERE c.workspace_id=$1 AND c.consumer_name='planning_counts' AND c.consumer_version=1")
+        .bind(workspace).bind(event).fetch_one(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    result
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -99,8 +112,15 @@ async fn daemon_continues_healthy_workspace_work_after_capture_error() {
         }).await.unwrap();
         for workspace in workspaces {
             assert!(worker.capture(workspace).await.unwrap().backfilled);
-            let claim = worker.claim(workspace).await.unwrap().unwrap();
-            assert_eq!(worker.run_claim(&claim).await.unwrap(), WorkerTick::Completed);
+            assert!(worker.apply_planning_events(workspace).await.unwrap().backfilled);
+            let mut kinds = Vec::new();
+            for _ in 0..2 {
+                let claim = worker.claim(workspace).await.unwrap().unwrap();
+                kinds.push(claim.kind.clone());
+                assert_eq!(worker.run_claim(&claim).await.unwrap(), WorkerTick::Completed);
+            }
+            kinds.sort();
+            assert_eq!(kinds, ["assignment.reconcile", "planning.backfill"]);
             assert!(worker.claim(workspace).await.unwrap().is_none());
             let mut tx = h.context(user, workspace).await;
             sqlx::query("UPDATE workspace_events SET occurred_at=clock_timestamp()-interval '9 days' WHERE workspace_id=$1")
@@ -169,8 +189,10 @@ async fn daemon_continues_healthy_workspace_work_after_capture_error() {
             }
             if stage_failed && worked_job && completed_idle && current["checkpoint"]["last_seq"] == healthy_event.1
                 && current["floor"] == healthy_event.1 && current["bytes"] == 0
-                && current["jobs"].as_array().unwrap().len() == 2
-                && current["jobs"].as_array().unwrap().iter().all(|job| job["state"] == "succeeded") {
+                && current["jobs"].as_array().unwrap().len() == 3
+                && current["jobs"].as_array().unwrap().iter().all(|job| job["state"] == "succeeded")
+                && planning_observed(h, user, poisoned, poison.0).await == (poison.1, Some("ignored".into()))
+                && planning_observed(h, user, healthy, healthy_event.0).await == (healthy_event.1, Some("ignored".into())) {
                 break current;
             }
             assert!(Instant::now() < deadline, "Daemon did not isolate capture failure and finish healthy work");
@@ -204,8 +226,8 @@ async fn daemon_continues_healthy_workspace_work_after_capture_error() {
         }
         assert!(!output.contains(directory.0.to_str().unwrap()), "Worker output exposed its private directory");
         assert!(!output.contains(&poisoned.to_string()), "Stage error exposed its workspace");
-        let stages = ["Capture", "Job", "Retention", "DocumentRetention", "AttachmentGc"];
-        let mut seen_stages = [false; 5];
+        let stages = ["Capture", "Planning", "Job", "Retention", "DocumentRetention", "AttachmentGc"];
+        let mut seen_stages = [false; 6];
         let mut startup = false;
         let mut failed_capture = false;
         let mut worked_job = false;
@@ -533,14 +555,15 @@ async fn stop_discovery_worker(daemon: &mut OwnedWorker) {
 fn discovery_receipt(output: &str, calls: &[DiscoveryCall]) -> Value {
     let names = [
         "Capture",
+        "Planning",
         "Job",
         "Retention",
         "DocumentRetention",
         "AttachmentGc",
     ];
-    let mut completions = [0_u64; 5];
-    let mut worked = [0_u64; 5];
-    let mut failed = [0_u64; 5];
+    let mut completions = [0_u64; 6];
+    let mut worked = [0_u64; 6];
+    let mut failed = [0_u64; 6];
     let mut profile = None;
     for entry in output
         .lines()
@@ -589,13 +612,13 @@ fn discovery_receipt(output: &str, calls: &[DiscoveryCall]) -> Value {
         worked[index] += u64::from(entry["fields"]["worked"] == true);
         failed[index] += u64::from(entry["fields"]["failed"] == true);
     }
-    let mut queries = [0_u64; 5];
+    let mut queries = [0_u64; 6];
     let mut maintenance = 0;
     for call in calls {
         match call.3 {
-            20 => queries[1] += 1,
+            20 => queries[2] += 1,
             1 => {
-                queries[[0, 2, 3, 4][maintenance % 4]] += 1;
+                queries[[0, 1, 3, 4, 5][maintenance % 5]] += 1;
                 maintenance += 1;
             }
             _ => panic!("Unexpected selector page limit"),
@@ -604,7 +627,7 @@ fn discovery_receipt(output: &str, calls: &[DiscoveryCall]) -> Value {
     let mut stages = serde_json::Map::new();
     for (index, name) in names.iter().enumerate() {
         assert!(completions[index] > 0, "Every stage must execute");
-        if index != 1 {
+        if index != 2 {
             assert!(
                 queries[index] >= completions[index] && queries[index] <= completions[index] + 1,
                 "Maintenance query/completion counts must agree, allowing shutdown's in-flight stage"
@@ -619,7 +642,7 @@ fn discovery_receipt(output: &str, calls: &[DiscoveryCall]) -> Value {
     json!({"stages":stages,"selector_calls":calls.iter().map(|call|
         json!({"ordinal":call.0,"db_epoch_us":call.1,"cursor_present":call.2.is_some(),"page_limit":call.3})
     ).collect::<Vec<_>>(),"profile":profile.expect("Actual owned startup diagnostics must be present"),
-        "clock_tolerance_us":100000,"query_stage_mapping":"One owned child's fixed rotation; page20 is Job, page1 follows Capture/Retention/DocumentRetention/AttachmentGc. Final in-flight completion may be absent.",
+        "clock_tolerance_us":100000,"query_stage_mapping":"One owned child's fixed rotation; page20 is Job, page1 follows Capture/Planning/Retention/DocumentRetention/AttachmentGc. Final in-flight completion may be absent.",
         "limits":"Instrumented selector calls are not CPU measurements. Database wall-clock gaps allow 100ms clock/observation tolerance; no CPU percentage, throughput or p95 is inferred."})
 }
 
@@ -675,11 +698,24 @@ async fn discovery_fixture(
         .unwrap();
     for scope in &scopes {
         assert!(worker.capture(*scope).await.unwrap().backfilled);
-        let claim = worker.claim(*scope).await.unwrap().unwrap();
-        assert_eq!(
-            worker.run_claim(&claim).await.unwrap(),
-            WorkerTick::Completed
+        assert!(
+            worker
+                .apply_planning_events(*scope)
+                .await
+                .unwrap()
+                .backfilled
         );
+        let mut kinds = Vec::new();
+        for _ in 0..2 {
+            let claim = worker.claim(*scope).await.unwrap().unwrap();
+            kinds.push(claim.kind.clone());
+            assert_eq!(
+                worker.run_claim(&claim).await.unwrap(),
+                WorkerTick::Completed
+            );
+        }
+        kinds.sort();
+        assert_eq!(kinds, ["assignment.reconcile", "planning.backfill"]);
         assert!(worker.claim(*scope).await.unwrap().is_none());
         assert_eq!(worker.capture(*scope).await.unwrap().processed, 0);
     }
@@ -835,7 +871,7 @@ async fn discovery_cooldown_preserves_cursor_despite_capture_progress_and_errors
         let (actor, scopes, url) = discovery_fixture(h, 81).await;
         let mut issues = Vec::new();
         for scope in &scopes { issues.push(discovery_issue(h, &actor, *scope).await); }
-        event(h, actor.user.id, scopes[1], 2).await;
+        let poison_event = event(h, actor.user.id, scopes[1], 2).await;
         let poison = state(h, actor.user.id, scopes[1]).await;
         sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
             "CREATE FUNCTION test_discovery_capture_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$;
@@ -870,7 +906,10 @@ async fn discovery_cooldown_preserves_cursor_despite_capture_progress_and_errors
         discovery_completed(h, &actor, scopes[80], &issues[80], &ahead).await;
         discovery_completed(h, &actor, scopes[0], &issues[0], &behind).await;
         assert!(state(h, actor.user.id, scopes[1]).await == poison,
-                "Capture failure must preserve its complete selected durable state");
+                "Capture failure must preserve assignment and shared event state");
+        assert_eq!(planning_observed(h, actor.user.id, scopes[1], poison_event.0).await,
+                   (poison_event.1, Some("ignored".into())),
+                   "The independent planning consumer must still advance on this unrelated event");
         stop_discovery_worker(&mut daemon).await;
         let output = discovery_output(&path, &directory, &url);
         let receipt = discovery_receipt(&output, &discovery_calls(h).await);
@@ -1063,7 +1102,7 @@ async fn short_and_full_fourth_discovery_pages_keep_the_cooldown_then_resume_thr
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn once_runs_exactly_one_capture_job_retention_document_and_gc_poll() {
+async fn once_runs_exactly_one_capture_planning_job_retention_document_and_gc_poll() {
     let h = Harness::new().await;
     let runner = h.clone();
     let result = tokio::spawn(async move {
@@ -1073,7 +1112,7 @@ async fn once_runs_exactly_one_capture_job_retention_document_and_gc_poll() {
         let (mut daemon, path) = start_discovery_lifecycle_worker(&directory, &url, true);
         await_discovery_exit(&mut daemon, Instant::now() + Duration::from_secs(35)).await;
         let calls = discovery_calls(&runner).await;
-        assert_eq!(calls.iter().map(|call| call.3).collect::<Vec<_>>(), vec![1, 20, 1, 1, 1]);
+        assert_eq!(calls.iter().map(|call| call.3).collect::<Vec<_>>(), vec![1, 1, 20, 1, 1, 1]);
         assert!(calls.iter().all(|call| call.2.is_none()));
         let output = discovery_output(&path, &directory, &url);
         assert!(output.lines().filter_map(|line| serde_json::from_str::<Value>(line).ok())
@@ -1081,7 +1120,7 @@ async fn once_runs_exactly_one_capture_job_retention_document_and_gc_poll() {
                 && entry["fields"]["message"] == "Worker completed one bounded event, job and retention poll"),
             "The real once command must report successful bounded completion");
         println!("{}", json!({"once_discovery":{"selector_limits":calls.iter().map(|call| call.3).collect::<Vec<_>>(),
-            "job_selector_calls":1,"maintenance_selector_calls":4,"clean_exit":true,
+            "job_selector_calls":1,"maintenance_selector_calls":5,"clean_exit":true,
             "boundary":"One real --once pass on an empty registry; no worker configuration override or second traversal."}}));
         restore_discovery(&runner, &original).await;
     }).await;
@@ -1128,7 +1167,7 @@ async fn shutdown_drains_the_owned_inflight_job_selector_without_starting_later_
             tokio::time::sleep(Duration::from_millis(25)).await;
         }
         let before_signal = discovery_calls(h).await;
-        assert_eq!(before_signal.iter().map(|call| call.3).collect::<Vec<_>>(), vec![1]);
+        assert_eq!(before_signal.iter().map(|call| call.3).collect::<Vec<_>>(), vec![1, 1]);
         assert!(daemon.0.try_wait().unwrap().is_none(), "Signal only the unreaped owned child");
         // This PID belongs to the unreaped owned child.
         assert_eq!(unsafe { libc::kill(daemon.0.id() as libc::pid_t, libc::SIGTERM) }, 0);
@@ -1145,14 +1184,14 @@ async fn shutdown_drains_the_owned_inflight_job_selector_without_starting_later_
         gate.commit().await.unwrap();
         await_discovery_exit(&mut daemon, Instant::now() + Duration::from_secs(35)).await;
         let calls = discovery_calls(h).await;
-        assert_eq!(calls.iter().map(|call| call.3).collect::<Vec<_>>(), vec![1, 20]);
+        assert_eq!(calls.iter().map(|call| call.3).collect::<Vec<_>>(), vec![1, 1, 20]);
         assert!(calls.iter().all(|call| call.2.is_none()));
         let output = discovery_output(&path, &directory, tagged.as_str());
         assert!(output.lines().filter_map(|line| serde_json::from_str::<Value>(line).ok())
             .any(|entry| entry["target"] == "opentrack_server::worker"
                 && entry["fields"]["message"] == "Worker stopped; uncaptured events and unfinished leases remain recoverable"));
         println!("{}", json!({"inflight_discovery_shutdown":{"owned_lock_wait_observed":true,
-            "shutdown_request_observed_before_release":true,"selector_limits":[1,20],"clean_exit":true,
+            "shutdown_request_observed_before_release":true,"selector_limits":[1,1,20],"clean_exit":true,
             "boundary":"Owner-only measurement trigger held the actual Job selector. SIGTERM was acknowledged before releasing the parent transaction; no later stage selector began."}}));
         restore_discovery(h, &original).await;
     }).await;
@@ -1592,7 +1631,7 @@ async fn four_claim_quantum_preserves_two_workspace_fifo_fairness_and_stage_rota
         assert!(claims[..4].iter().all(|c| c.0 == a));
         assert!(claims[4..8].iter().all(|c| c.0 == b), "Four claims must advance to the other busy workspace");
         for pair in claims[..4].windows(2) {
-            assert_eq!(pair[1].3 - pair[0].3, 4, "Each cached effect follows all four maintenance selectors");
+            assert_eq!(pair[1].3 - pair[0].3, 5, "Each cached effect follows all five maintenance selectors");
         }
         let mut prior = None; let mut consecutive = 0;
         for claim in &claims {
@@ -1612,11 +1651,11 @@ async fn four_claim_quantum_preserves_two_workspace_fifo_fairness_and_stage_rota
             assert!(pending > 0, "Both workspaces must still be busy throughout the observed trace");
         }
         let output = discovery_output(&path, &directory, &url);
-        let expected = ["Capture","Job","Retention","DocumentRetention","AttachmentGc"];
+        let expected = ["Capture","Planning","Job","Retention","DocumentRetention","AttachmentGc"];
         let stages: Vec<_> = output.lines().filter_map(|line| serde_json::from_str::<Value>(line).ok())
             .filter(|v| v["target"] == "opentrack_server::worker" && v["fields"]["message"] == "Worker stage completed")
             .map(|v| v["fields"]["stage"].as_str().unwrap().to_owned()).collect();
-        for (index, stage) in stages.iter().enumerate() { assert_eq!(stage, expected[index % 5]); }
+        for (index, stage) in stages.iter().enumerate() { assert_eq!(stage, expected[index % 6]); }
         let receipt = discovery_receipt(&output, &discovery_calls(h).await);
         quantum_fences(h, &actor, a, &older_a.iter().copied().chain([job_a.id]).collect::<Vec<_>>(), &issues_a, Some(&job_a), &epoch_a).await;
         quantum_fences(h, &actor, b, &older_b.iter().copied().chain([job_b.id]).collect::<Vec<_>>(), &issues_b, Some(&job_b), &epoch_b).await;
@@ -1624,7 +1663,7 @@ async fn four_claim_quantum_preserves_two_workspace_fifo_fairness_and_stage_rota
         println!("{}", json!({"four_claim_quantum":{"registered_scopes":94,"busy_scopes":2,
             "older_intents_per_scope":8,"claimed_batches":claims.len(),"maximum_consecutive_claims":4,
             "both_commands_completed_within_30_seconds":true,"default_profile":receipt["profile"],
-            "boundary":"Owner-only committed claim trace; one effect per five-stage round; retained state and general p95 are separate."}}));
+            "boundary":"Owner-only committed claim trace; one effect per six-stage round; retained state and general p95 are separate."}}));
     }).await;
     h.cleanup().await;
     if let Err(error) = result {
@@ -1654,7 +1693,7 @@ async fn populated_once_leaves_the_remaining_claim_quantum_unused() {
         tx.commit().await.unwrap(); assert_eq!(untouched,7);
         quantum_fences(h, &actor, w, &older[..1], &issues, None, &epoch).await;
         let calls = discovery_calls(h).await;
-        assert_eq!(calls.iter().map(|c| c.3).collect::<Vec<_>>(), vec![1,20,1,1,1]);
+        assert_eq!(calls.iter().map(|c| c.3).collect::<Vec<_>>(), vec![1,1,20,1,1,1]);
         discovery_output(&path, &directory, &url);
         restore_discovery(h, &original).await;
     }).await;
@@ -1703,7 +1742,7 @@ async fn shutdown_drains_only_the_second_cached_effect_and_starts_no_later_stage
         let claims = quantum_claims(h).await;
         assert_eq!(claims.iter().map(|c| c.1).collect::<Vec<_>>(), older[..2]);
         let before = discovery_calls(h).await;
-        assert_eq!(before.iter().map(|c| c.3).collect::<Vec<_>>(), vec![1,20,1,1,1,1],
+        assert_eq!(before.iter().map(|c| c.3).collect::<Vec<_>>(), vec![1,1,20,1,1,1,1,1],
             "The second claim must be cached and follow the preceding maintenance stages");
         // This PID belongs to the unreaped owned child whose exact database wait was witnessed.
         assert_eq!(unsafe { libc::kill(daemon.0.id() as libc::pid_t, libc::SIGTERM) }, 0);

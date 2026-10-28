@@ -1106,3 +1106,32 @@ fn local_container_rejects_remote_https_and_extra_origins() {
     );
     assert!(Settings::from_sources(&Cli::default(), &values).is_ok());
 }
+#[test]
+fn planning_rebuild_requires_workspace_and_reason_without_unrelated_targets() {
+    let id = "11111111-1111-4111-8111-111111111111";
+    let command = cli(&[
+        "operator-planning-rebuild",
+        "--workspace",
+        id,
+        "--reason",
+        "Reconcile current planning facts",
+    ]);
+    assert_eq!(command.action, Action::OperatorPlanningRebuild);
+    assert!(command.action.is_consumer_operator());
+    assert!(command.action.is_operator());
+    for args in [
+        vec!["operator-planning-rebuild", "--workspace", id],
+        vec!["operator-planning-rebuild", "--reason", "Reconcile"],
+        vec![
+            "operator-planning-rebuild",
+            "--workspace",
+            id,
+            "--reason",
+            "Reconcile",
+            "--job",
+            id,
+        ],
+    ] {
+        assert!(Cli::parse(args.into_iter().map(str::to_owned)).is_err());
+    }
+}

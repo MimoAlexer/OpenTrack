@@ -73,6 +73,7 @@ impl JobDiscovery {
 #[derive(Default)]
 struct Cursors {
     capture: Option<uuid::Uuid>,
+    planning: Option<uuid::Uuid>,
     job: Option<uuid::Uuid>,
     job_discovery: JobDiscovery,
     retention: Option<uuid::Uuid>,
@@ -83,6 +84,7 @@ struct Cursors {
 #[derive(Clone, Copy, Debug)]
 enum Stage {
     Capture,
+    Planning,
     Job,
     Retention,
     DocumentRetention,
@@ -91,7 +93,8 @@ enum Stage {
 impl Stage {
     fn next(self) -> Self {
         match self {
-            Self::Capture => Self::Job,
+            Self::Capture => Self::Planning,
+            Self::Planning => Self::Job,
             Self::Job => Self::Retention,
             Self::Retention => Self::DocumentRetention,
             Self::DocumentRetention => Self::AttachmentGc,
@@ -143,6 +146,12 @@ async fn poll_stage(
             }
             Ok(removed)
         }
+        Stage::Planning => Ok(worker
+            .apply_planning_events_next(&mut cursors.planning)
+            .await?
+            .is_some_and(|(_, result)| {
+                result.processed > 0 || result.captured > 0 || result.backfilled
+            })),
         Stage::Capture => Ok(worker
             .capture_next(&mut cursors.capture)
             .await?
@@ -219,6 +228,7 @@ pub async fn run(cli: &Cli, cfg: &Settings) -> Result<(), String> {
         let result = tokio::time::timeout(Duration::from_secs(30), async {
             for stage in [
                 Stage::Capture,
+                Stage::Planning,
                 Stage::Job,
                 Stage::Retention,
                 Stage::DocumentRetention,

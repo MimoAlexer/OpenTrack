@@ -10,6 +10,7 @@ import type { Bootstrap, Session, Team } from '../types';
 import { Milestones, useMilestones } from './Milestones';
 import { ProjectEditor } from './ProjectEditor';
 import { ProjectIssues } from './ProjectIssues';
+import { PlanningCountSource } from './PlanningCountSource';
 import { ProjectUpdates } from './ProjectUpdates';
 import { healthLabels, projectMetadataPath, projectPath, projectUrl, states, type Project, type ProjectHealth, type ProjectProgress, type ProjectState, type ProjectSummary } from './types';
 import { useProjectData, useProjectPage } from './useProjectData';
@@ -65,6 +66,6 @@ export function HealthLabel({ value }: { value: ProjectHealth }) { return <span 
 export function Progress({ value, label = 'Project issue completion' }: { value: ProjectProgress; label?: string }) {
   const unscoped = value.unscoped || value.eligible === 0;
   const percentage = value.eligible ? Math.round(value.completed / value.eligible * 100) : 0;
-  return <div className="project-progress"><div className="project-progress-head"><strong>{unscoped ? 'No eligible issue scope' : `${percentage}% complete`}</strong><span>{value.completed} / {value.eligible} issues</span></div>{!unscoped && <progress aria-label={label} value={value.completed} max={value.eligible}/>}<div className="project-progress-counts"><span><Check aria-hidden="true"/>{value.completed} completed</span><span>{value.open} open</span>{value.canceled > 0 && <span>{value.canceled} canceled · excluded</span>}</div><p>Completed issues ÷ eligible issues. Archived, deleted and canceled issues are excluded.</p><time dateTime={value.as_of}>Calculated {new Date(value.as_of).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time></div>;
+  return <div className="project-progress"><div className="project-progress-head"><strong>{unscoped ? 'No eligible issue scope' : `${percentage}% complete`}</strong><span>{value.completed} / {value.eligible} issues</span></div>{!unscoped && <progress aria-label={label} value={value.completed} max={value.eligible}/>}<div className="project-progress-counts"><span><Check aria-hidden="true"/>{value.completed} completed</span><span>{value.open} open</span>{value.canceled > 0 && <span>{value.canceled} canceled · excluded</span>}</div><p>Completed issues ÷ eligible issues. Archived, deleted and canceled issues are excluded.</p><time data-planning-calculation dateTime={value.as_of}>{value.calculation_source === 'projection' ? 'Validated' : 'Calculated'} {new Date(value.as_of).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time><PlanningCountSource source={value.calculation_source} factsAsOf={value.facts_as_of}/></div>;
 }
 function formatDate(value: string) { return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); }

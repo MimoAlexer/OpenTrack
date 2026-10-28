@@ -7,7 +7,7 @@ import { ProjectIssues } from './ProjectIssues';
 import { EMPTY_BODY } from '../documents/model';
 import { hasUnsavedChanges } from '../router';
 import type { Issue, Session } from '../types';
-import type { FullProject, Project, ProjectIssue } from './types';
+import type { FullProject, Project, ProjectIssue, ProjectProgress } from './types';
 
 const session: Session = { audience: 'web', user: { id: 'owner', email: 'owner@example.test', display_name: 'Example Owner' }, csrf_token: 'csrf', workspaces: [{ id: 'workspace', name: 'Example Workspace', slug: 'example', role: 'owner' }] };
 const project: Project = { id: 'project', workspace_id: 'workspace', team_id: 'team', name: 'Example project', summary: '', state: 'planned', health: 'on_track', lead_id: null, lead: null, start_date: null, target_date: null, version: '1', etag: '"project-metadata:project:1"', created_at: '2026-10-25T10:00:00Z', updated_at: '2026-10-25T10:00:00Z', archived_at: null, can_edit: true, can_manage: true };
@@ -15,7 +15,7 @@ const base = '/api/v1/workspaces/workspace/teams/team/projects/project';
 const latest: Project = { ...project, version: '2', etag: '"project-metadata:project:2"' };
 function full(value = latest): FullProject { return { ...value, narrative: { body: EMPTY_BODY, plain_text: '', schema_supported: true, schema_version: 1 }, narrative_version: '1', metadata_etag: value.etag, etag: `"project:project:${value.version}:document:1"` }; }
 function milestone(id: string, title = id, rank = '1'): Milestone { return { id, title, rank, workspace_id: 'workspace', team_id: 'team', project_id: 'project', target_date: null, state: 'planned', completed_at: null, version: '1', etag: `"milestone:${id}:1"`, can_manage: true, can_assign: true, created_at: project.created_at, updated_at: project.updated_at }; }
-const progress = { completed: 0, eligible: 0, canceled: 0, open: 0, total: 0, unscoped: true, as_of: project.created_at };
+const progress: ProjectProgress = { completed: 0, eligible: 0, canceled: 0, open: 0, total: 0, unscoped: true, as_of: project.created_at, calculation_source: 'live', facts_as_of: null };
 const overview = (ids: string[]): MilestoneOverview[] => ids.map((id, index) => ({ milestone: milestone(id, id, String(index + 1)), progress }));
 const initial = overview(['First', 'Second', 'Third']);
 const member: ProjectIssue = { id: 'issue', key: 'EX-1', title: 'Example issue', status_id: 'ready', status_name: 'Ready', status_category: 'unstarted', priority: 0, archived_at: null, milestone_id: null };

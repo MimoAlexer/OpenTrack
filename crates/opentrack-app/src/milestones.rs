@@ -74,21 +74,6 @@ async fn get(tx: &mut store::Tx, a: &Actor, p: &Project, id: Uuid) -> Result<Mil
             .ok_or(Error::NotFound)?;
     milestone(&r, a, p)
 }
-fn counts(r: &PgRow) -> Result<ProjectProgress> {
-    let total: i64 = r.try_get("total").map_err(db_error)?;
-    let completed: i64 = r.try_get("completed").map_err(db_error)?;
-    let canceled: i64 = r.try_get("canceled").map_err(db_error)?;
-    let eligible = total - canceled;
-    Ok(ProjectProgress {
-        total,
-        completed,
-        canceled,
-        eligible,
-        open: eligible - completed,
-        unscoped: eligible == 0,
-        as_of: r.try_get("as_of").map_err(db_error)?,
-    })
-}
 async fn changed(
     tx: &mut store::Tx,
     a: &Actor,
@@ -142,8 +127,9 @@ impl App {
             .map(|c| self.taxonomy_cursor_decode("milestones-v1", &binding, c))
             .transpose()?;
         // Aggregate all milestones in the requested page together; no count query per row.
-        let rows=sqlx::query("WITH page AS (SELECT * FROM milestones WHERE workspace_id=$1 AND project_id=$2 AND ($3::bigint IS NULL OR (rank,id)>($3,$4)) ORDER BY rank,id LIMIT $5) SELECT m.*,count(i.id) AS total,count(i.id) FILTER(WHERE s.category='completed') AS completed,count(i.id) FILTER(WHERE s.category='canceled') AS canceled,statement_timestamp() AS as_of FROM page m LEFT JOIN project_issues pi ON pi.workspace_id=m.workspace_id AND pi.project_id=m.project_id AND pi.milestone_id=m.id LEFT JOIN issues i ON i.workspace_id=pi.workspace_id AND i.id=pi.issue_id AND i.archived_at IS NULL AND i.deleted_at IS NULL LEFT JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id GROUP BY m.id,m.workspace_id,m.team_id,m.project_id,m.title,m.target_date,m.rank,m.state,m.completed_at,m.version,m.created_at,m.updated_at ORDER BY m.rank,m.id")
-            .bind(w).bind(p).bind(after.as_ref().map(|v|v.0)).bind(after.as_ref().map(|v|v.1)).bind(i64::from(limit)+1).fetch_all(&mut *tx).await.map_err(db_error)?;
+        let rows = store::milestone_planning_page(&mut tx, w, p, after, i64::from(limit) + 1)
+            .await
+            .map_err(db_error)?;
         let has_more = rows.len() > limit as usize;
         let next_cursor = if has_more {
             let r = &rows[limit as usize - 1];
@@ -164,7 +150,7 @@ impl App {
             .map(|r| {
                 Ok(MilestoneOverview {
                     milestone: milestone(r, a, &project)?,
-                    progress: counts(r)?,
+                    progress: crate::planning_counts::progress(r)?,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -201,9 +187,10 @@ impl App {
         let mut tx = self.scoped(a, w, false).await?;
         let project = project_scope(&mut tx, a, w, t, p, false, false).await?;
         get(&mut tx, a, &project, id).await?;
-        let r=sqlx::query("SELECT count(*) AS total,count(*) FILTER(WHERE s.category='completed') AS completed,count(*) FILTER(WHERE s.category='canceled') AS canceled,statement_timestamp() AS as_of FROM project_issues pi JOIN issues i ON i.workspace_id=pi.workspace_id AND i.team_id=pi.team_id AND i.id=pi.issue_id JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id WHERE pi.workspace_id=$1 AND pi.project_id=$2 AND pi.milestone_id=$3 AND i.deleted_at IS NULL AND i.archived_at IS NULL")
-            .bind(w).bind(p).bind(id).fetch_one(&mut *tx).await.map_err(db_error)?;
-        let out = counts(&r)?;
+        let row = store::project_planning_counts(&mut tx, w, t, p, Some(id))
+            .await
+            .map_err(db_error)?;
+        let out = crate::planning_counts::progress(&row)?;
         tx.commit().await.map_err(db_error)?;
         Ok(out)
     }

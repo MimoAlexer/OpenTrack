@@ -77,6 +77,7 @@ for command in [
     f'GRANT SELECT,INSERT ON public.worker_workspace_registry TO {runtime}',
 ]:
     statements.append("SELECT '" + command + "' WHERE to_regclass('public.jobs') IS NOT NULL\\gexec")
+statements.append(f"SELECT 'REVOKE ALL ON public.planning_backfills FROM {runtime}; REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER ON public.planning_issue_facts FROM {runtime}' WHERE to_regclass('public.planning_issue_facts') IS NOT NULL\\gexec")
 result = subprocess.run(
     ["psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "--dbname", "postgres"],
     input="\n".join(statements), text=True, capture_output=True, check=False,

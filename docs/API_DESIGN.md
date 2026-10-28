@@ -350,3 +350,9 @@ Base path: `/api/v1/workspaces/{w}/teams/{t}/cycles`. GET lists a cursor-paginat
 Historical snapshot, close-report and carry-operation reads (including idempotent receipt replay) reauthorize every issue against current issue/team access as well as the recorded cycle team. Inaccessible issue IDs and facts are omitted, displayed counts/estimates are recomputed from visible source facts, and no hidden-item count is returned. The projection indicates `redacted` when incomplete; immutable database facts remain unchanged for authorized recovery.
 
 Cycle `/{id}/issues` GET returns `Page<CycleIssue>` with live authorized issue summaries and ETags, including explicit archived exclusions. `/{id}/snapshots` GET returns `Page<CycleSnapshotPoint>`: metric-only historical observations, with source authorization and counts projected in PostgreSQL. Full item facts remain on current `/scope`, close preview and saved close-report endpoints. No empty-items placeholder is used for the metric series.
+
+## Planning count provenance (schema 0028)
+
+`ProjectProgress` and full `CycleSnapshot` responses include `calculation_source` (`live`, `projection` or `snapshot`) and nullable `facts_as_of`. Existing `as_of` and current-scope `captured_at` identify the count calculation/validation time. For a projection, `facts_as_of` is the oldest contributing fact calculation time; it is not a workspace checkpoint or a new immutable capture. Live counts and snapshots have no projection fact date. Empty current scope remains live.
+
+Projection selection rechecks current authorization, membership and issue versions. One missing or stale visible fact selects live calculation for the whole scope. Historical snapshot/close-report reads preserve captured facts and their existing current-access redaction. Mutation and capture paths remain authoritative. Failed UI refresh retains the previous result and date until a successful refresh replaces both counts and source rows.

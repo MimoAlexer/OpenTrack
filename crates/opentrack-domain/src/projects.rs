@@ -114,6 +114,12 @@ pub struct ProjectProgress {
     pub total: i64,
     pub unscoped: bool,
     pub as_of: DateTime<Utc>,
+    #[serde(default)]
+    #[schema(required = true)]
+    pub calculation_source: crate::PlanningCalculationSource,
+    #[serde(default)]
+    #[schema(required = true)]
+    pub facts_as_of: Option<DateTime<Utc>>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
