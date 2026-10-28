@@ -273,6 +273,53 @@ describe('independent project brief', () => {
 });
 
 describe('progress and updates', () => {
+  it('compares displayed snapshots across pages without inventing a next update', async () => {
+    const older = { id: '00000000-0000-4000-8000-000000000001', author_id: 'owner', author_name: 'Example Owner', body: 'Older', state: 'planned', health: 'on_track', completed: 0, eligible: 0, created_at: '2026-10-20T11:00:00Z' };
+    const middle = { ...older, id: '00000000-0000-4000-8000-000000000002', body: 'Middle', state: 'active', health: 'at_risk', completed: 2, eligible: 5 };
+    const latest = { ...middle, id: 'latest', body: 'Latest', created_at: '2026-10-20T12:00:00Z' };
+    let attempts = 0;
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      const cursor = new URL(url, 'https://example.test').searchParams.get('cursor');
+      if (!cursor) return Promise.resolve(json(page([latest, middle], 'next')));
+      return Promise.resolve(++attempts === 1 ? json({ detail: 'Unavailable' }, 503) : json(page([older])));
+    }));
+    await render(<ProjectUpdates project={project} session={session} refresh={0} readOnly denied={() => {}}/>);
+    let articles = container.querySelectorAll('article');
+    expect(articles[0].textContent).toContain('State, health and progress match.');
+    expect(articles[1].textContent).toContain('Load more updates to compare this update.');
+    expect(articles[1].textContent).not.toContain('No next update shown.');
+    await click('Load more updates');
+    expect(container.querySelectorAll('article')).toHaveLength(2);
+    expect(container.querySelectorAll('article')[1].textContent).toContain('Load more updates to compare this update.');
+    await click('Try again');
+    articles = container.querySelectorAll('article');
+    expect(articles).toHaveLength(3);
+    expect(articles[1].textContent).toContain(`Compared with the update from ${new Date(older.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}:`);
+    expect(articles[1].querySelectorAll('time')[1].getAttribute('datetime')).toBe(older.created_at);
+    const link = articles[1].querySelector<HTMLAnchorElement>('a')!;
+    expect(link.getAttribute('href')).toBe(`#${articles[2].id}`);
+    expect(articles[1].id).not.toBe(articles[2].id);
+    expect(link.getAttribute('aria-label')).toContain('Go to compared update from');
+    await act(async () => link.click());
+    expect(document.activeElement).toBe(articles[2]);
+    expect(articles[1].textContent).toContain('State: this update Active; compared update Planned');
+    expect(articles[1].textContent).toContain('Health: this update At risk; compared update On track');
+    expect(articles[1].textContent).toContain('Progress: this update 2 of 5 eligible issues completed; compared update no eligible issue scope');
+    expect(articles[2].textContent).toContain('No next update shown.');
+  });
+  it('removes snapshot comparisons after access is denied', async () => {
+    const older = { id: 'older', author_id: 'owner', author_name: 'Example Owner', body: 'Private older', state: 'planned', health: 'on_track', completed: 0, eligible: 0, created_at: '2026-10-20T10:00:00Z' };
+    const latest = { ...older, id: 'latest', body: 'Private latest', state: 'active', created_at: '2026-10-20T11:00:00Z' };
+    let reads = 0; const denied = vi.fn();
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(++reads === 1 ? json(page([latest, older])) : json({ detail: 'Not found' }, 404))));
+    await render(<ProjectUpdates project={project} session={session} refresh={0} readOnly denied={denied}/>);
+    expect(container.textContent).toContain('State: this update Active; compared update Planned');
+    await render(<ProjectUpdates project={project} session={session} refresh={1} readOnly denied={denied}/>);
+    expect(container.querySelectorAll('article')).toHaveLength(0);
+    expect(container.textContent).not.toContain('Private latest');
+    expect(container.textContent).not.toContain('State: this update Active; compared update Planned');
+    expect(denied).toHaveBeenCalledOnce();
+  });
   it('displays scalar counts and repairs a rejected supplementary update without duplicate publication', async () => {
     const body = '🧭'.repeat(8000); const update = { id: 'scalar-update', author_id: 'owner', author_name: 'Example Owner', body, state: project.state, health: project.health, completed: 2, eligible: 5, created_at: project.updated_at }; let published = false; let posts = 0;
     const fetch = vi.fn((_url: string, options: RequestInit) => { if (options.method === 'POST') { if (++posts === 1) return Promise.resolve(json({ code: 'invalid', detail: 'Project updates require 1–8000 characters' }, 422)); published = true; return Promise.resolve(json(update, 201)); } return Promise.resolve(json(page(published ? [update] : []))); }); vi.stubGlobal('fetch', fetch);
