@@ -16,7 +16,7 @@ Upload up to 25 MiB per file within workspace quota; pending/quarantine/ready/re
 
 Drag/drop or file picker has equivalent controls, progress, cancel and retry. Preview shows filename/type/size and scan status. Attachments become linkable only after ready; failure explains retry or rejection.
 
-An upload selection is bound to its original account, team and document scope. Pending filenames are concealed outside that scope. Cancellation without a reservation is local; an uncertain or existing reservation is reconciled only after its original authority is restored. Repeated cancellation requests share the same operation.
+An upload selection is bound to its original account, team and document scope. Pending filenames are concealed outside that scope. Cancellation without a reservation is local; an uncertain or existing reservation is reconciled only after its original authority is restored. Repeated cancellation requests share the same operation. [Focused verification](../evidence/2026-10-28-frontend-scope-and-updates.md) records the checks and remaining limits.
 
 ## 4. Data requirements
 
