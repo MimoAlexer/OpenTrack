@@ -69,6 +69,23 @@ it('conceals the editor on project directory denial while preserving its draft f
   denied = false; await click('Try again'); expect(input('Issue title').value).toBe('Unsaved private title'); expect(hasUnsavedChanges()).toBe(true);
 });
 
+it('keeps the draft concealed until template authority is restored after project recovery', async () => {
+  const normal = fetchMock.getMockImplementation()!; let denied = false; let holdDirectory = false; let finish!: (response: Response) => void;
+  fetchMock.mockImplementation((url: string, options: RequestInit) => {
+    if (denied && url.includes('/projects?')) return Promise.resolve(json({ code: 'forbidden', detail: 'Unavailable' }, 403));
+    if (holdDirectory && url.includes('/templates?')) return new Promise<Response>(resolve => { finish = resolve; });
+    return normal(url, options);
+  });
+  await render(); await click('Edit Bug report'); await fill('Issue title', 'Unsaved private title');
+  const select = container.querySelector<HTMLSelectElement>('select[aria-label="Default project"]')!;
+  await act(async () => { select.value = project.id; select.dispatchEvent(new Event('change', { bubbles: true })); });
+  denied = true; await click('Refresh projects'); denied = false; holdDirectory = true; await click('Try again');
+  expect(container.textContent).not.toContain('Bug report'); expect(container.querySelector('input')).toBeNull();
+  await act(async () => finish(json({ code: 'forbidden', detail: 'Unavailable' }, 403)));
+  expect(container.textContent).not.toContain('Bug report'); expect(container.querySelector('input')).toBeNull();
+  holdDirectory = false; await click('Retry template access'); expect(input('Issue title').value).toBe('Unsaved private title');
+});
+
 it('retries the original uncertain template request after project data becomes unavailable', async () => {
   await render(); await click('New template'); await fill('Template name', 'Pending template');
   const select = container.querySelector<HTMLSelectElement>('select[aria-label="Default project"]')!;
