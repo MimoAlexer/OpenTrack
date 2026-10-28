@@ -59,7 +59,7 @@ it('requires an explicit clear for a redacted unavailable default before saving'
 });
 
 it('conceals the editor on project directory denial while preserving its draft for recovery', async () => {
-  const normal = fetchMock.getMockImplementation()!; let denied = false;
+  const normal = fetchMock.getMockImplementation()! as (url: string, options: RequestInit) => Promise<Response>; let denied = false;
   fetchMock.mockImplementation((url: string, options: RequestInit) => denied && url.includes('/projects?') ? Promise.resolve(json({ code: 'forbidden', detail: 'Unavailable' }, 403)) : normal(url, options));
   await render(); await click('Edit Bug report'); await fill('Issue title', 'Unsaved private title');
   const select = container.querySelector<HTMLSelectElement>('select[aria-label="Default project"]')!;
@@ -70,7 +70,7 @@ it('conceals the editor on project directory denial while preserving its draft f
 });
 
 it('keeps the draft concealed until template authority is restored after project recovery', async () => {
-  const normal = fetchMock.getMockImplementation()!; let denied = false; let holdDirectory = false; let finish!: (response: Response) => void;
+  const normal = fetchMock.getMockImplementation()! as (url: string, options: RequestInit) => Promise<Response>; let denied = false; let holdDirectory = false; let finish!: (response: Response) => void;
   fetchMock.mockImplementation((url: string, options: RequestInit) => {
     if (denied && url.includes('/projects?')) return Promise.resolve(json({ code: 'forbidden', detail: 'Unavailable' }, 403));
     if (holdDirectory && url.includes('/templates?')) return new Promise<Response>(resolve => { finish = resolve; });
@@ -86,6 +86,26 @@ it('keeps the draft concealed until template authority is restored after project
   holdDirectory = false; await click('Retry template access'); expect(input('Issue title').value).toBe('Unsaved private title');
 });
 
+it('offers a generic discard confirmation for a dirty concealed draft', async () => {
+  const normal = fetchMock.getMockImplementation()! as (url: string, options: RequestInit) => Promise<Response>; let denied = false;
+  fetchMock.mockImplementation((url: string, options: RequestInit) => denied && url.includes('/projects?') ? Promise.resolve(json({ code: 'forbidden', detail: 'Unavailable' }, 403)) : normal(url, options));
+  await render(); await click('Edit Bug report'); await fill('Issue title', 'Unsaved private title');
+  const select = container.querySelector<HTMLSelectElement>('select[aria-label="Default project"]')!;
+  await act(async () => { select.value = project.id; select.dispatchEvent(new Event('change', { bubbles: true })); });
+  denied = true; await click('Refresh projects'); await click('Close dialog');
+  expect(container.textContent).toContain('Discard template changes?'); expect(container.textContent).not.toContain('Unsaved private title');
+  await click('Discard changes'); expect(hasUnsavedChanges()).toBe(false); expect(container.textContent).not.toContain('Bug report');
+});
+
+it('retains an uncertain template request when its retry is denied', async () => {
+  await render(); await click('New template'); await fill('Template name', 'Pending template');
+  const attempts: { body: string; key: string | null }[] = [];
+  command = async options => { attempts.push({ body: options.body as string, key: new Headers(options.headers).get('Idempotency-Key') }); if (attempts.length === 1) throw new TypeError('lost response'); return attempts.length === 2 ? json({ code: 'forbidden', detail: 'Unavailable' }, 403) : json(current); };
+  await submit(); await submit(); expect(attempts).toHaveLength(2); expect(attempts[1]).toEqual(attempts[0]);
+  expect(container.textContent).not.toContain('Pending template'); expect(hasUnsavedChanges()).toBe(true);
+  await submit(); expect(attempts).toHaveLength(3); expect(attempts[2]).toEqual(attempts[0]);
+});
+
 it('retries the original uncertain template request after project data becomes unavailable', async () => {
   await render(); await click('New template'); await fill('Template name', 'Pending template');
   const select = container.querySelector<HTMLSelectElement>('select[aria-label="Default project"]')!;
@@ -93,7 +113,7 @@ it('retries the original uncertain template request after project data becomes u
   const attempts: { body: string; key: string | null }[] = [];
   command = async options => { attempts.push({ body: options.body as string, key: new Headers(options.headers).get('Idempotency-Key') }); if (attempts.length === 1) throw new TypeError('lost response'); return json(current); };
   await submit(); expect(button('Retry safely')).toBeTruthy();
-  const normal = fetchMock.getMockImplementation()!;
+  const normal = fetchMock.getMockImplementation()! as (url: string, options: RequestInit) => Promise<Response>;
   fetchMock.mockImplementation((url: string, options: RequestInit) => url.includes('/projects?') ? Promise.resolve(json({ code: 'unavailable', detail: 'Unavailable' }, 503)) : normal(url, options));
   await render(true, { ...session, csrf_token: 'new' }); expect(button('Retry safely').disabled).toBe(false); await submit();
   expect(attempts).toHaveLength(2); expect(attempts[1]).toEqual(attempts[0]);

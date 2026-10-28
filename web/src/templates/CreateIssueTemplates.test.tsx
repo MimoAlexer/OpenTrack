@@ -86,7 +86,7 @@ it('preserves the draft and offers project review after an ambiguous create conf
 
 it('conceals template-derived draft content after project directory denial and restores it on recovery', async () => {
   preview = { ...fixture(), template: { ...fixture().template, defaults: { ...fixture().template.defaults, project_id: project.id } }, resolved_project: project };
-  const normal = fetchMock.getMockImplementation()!; let denied = false;
+  const normal = fetchMock.getMockImplementation()! as (url: string, options: RequestInit) => Promise<Response>; let denied = false;
   fetchMock.mockImplementation((url: string, options: RequestInit) => denied && url.includes('/projects?') ? Promise.resolve(json({ code: 'forbidden', detail: 'Unavailable' }, 403)) : normal(url, options));
   await render(); await choose(); await click('Use template'); expect(titleInput().value).toBe('Investigate failure');
   denied = true; await click('Refresh projects');
