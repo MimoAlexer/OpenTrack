@@ -294,10 +294,11 @@ describe('progress and updates', () => {
     await click('Try again');
     articles = container.querySelectorAll('article');
     expect(articles).toHaveLength(3);
-    expect(articles[1].textContent).toContain('Compared with the next shown update:');
-    expect(articles[1].textContent).toContain('State: this update Active; next shown update Planned');
-    expect(articles[1].textContent).toContain('Health: this update At risk; next shown update On track');
-    expect(articles[1].textContent).toContain('Progress: this update 2 of 5 eligible issues completed; next shown update no eligible issue scope');
+    expect(articles[1].textContent).toContain(`Compared with the update from ${new Date(older.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}:`);
+    expect(articles[1].querySelectorAll('time')[1].getAttribute('datetime')).toBe(older.created_at);
+    expect(articles[1].textContent).toContain('State: this update Active; compared update Planned');
+    expect(articles[1].textContent).toContain('Health: this update At risk; compared update On track');
+    expect(articles[1].textContent).toContain('Progress: this update 2 of 5 eligible issues completed; compared update no eligible issue scope');
     expect(articles[2].textContent).toContain('No next update shown.');
   });
   it('removes snapshot comparisons after access is denied', async () => {
@@ -306,11 +307,11 @@ describe('progress and updates', () => {
     let reads = 0; const denied = vi.fn();
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(++reads === 1 ? json(page([latest, older])) : json({ detail: 'Not found' }, 404))));
     await render(<ProjectUpdates project={project} session={session} refresh={0} readOnly denied={denied}/>);
-    expect(container.textContent).toContain('State: this update Active; next shown update Planned');
+    expect(container.textContent).toContain('State: this update Active; compared update Planned');
     await render(<ProjectUpdates project={project} session={session} refresh={1} readOnly denied={denied}/>);
     expect(container.querySelectorAll('article')).toHaveLength(0);
     expect(container.textContent).not.toContain('Private latest');
-    expect(container.textContent).not.toContain('State: this update Active; next shown update Planned');
+    expect(container.textContent).not.toContain('State: this update Active; compared update Planned');
     expect(denied).toHaveBeenCalledOnce();
   });
   it('displays scalar counts and repairs a rejected supplementary update without duplicate publication', async () => {
