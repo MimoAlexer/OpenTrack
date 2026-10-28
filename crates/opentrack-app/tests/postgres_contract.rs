@@ -95,7 +95,10 @@ impl Harness {
             // Match production: serving credentials cannot inspect or edit
             // required-consumer state after broad fixture table provisioning.
             format!(
-                "REVOKE ALL ON {schema}.assignment_reconciliations,{schema}.consumer_registrations,{schema}.consumer_checkpoints,{schema}.consumer_receipts,{schema}.consumer_dead_letters,{schema}.consumer_alerts,{schema}.event_retention_state,{schema}.consumer_operations,{schema}.document_retention_operations,{schema}.attachment_storage_operations FROM \"{role}\""
+                "REVOKE ALL ON {schema}.planning_backfills,{schema}.assignment_reconciliations,{schema}.consumer_registrations,{schema}.consumer_checkpoints,{schema}.consumer_receipts,{schema}.consumer_dead_letters,{schema}.consumer_alerts,{schema}.event_retention_state,{schema}.consumer_operations,{schema}.document_retention_operations,{schema}.attachment_storage_operations FROM \"{role}\""
+            ),
+            format!(
+                "REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER ON {schema}.planning_issue_facts FROM \"{role}\""
             ),
             format!(
                 "REVOKE UPDATE, DELETE, TRUNCATE ON {schema}.document_revisions,{schema}.document_attachments,{schema}.document_attachment_revisions,{schema}.issue_template_sources FROM \"{role}\""
