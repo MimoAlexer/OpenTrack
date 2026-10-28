@@ -807,6 +807,53 @@ mod tests {
     }
 
     #[test]
+    fn template_project_contract_keeps_legacy_inputs_and_nullable_preview() {
+        let doc = openapi();
+        let schemas = &doc["components"]["schemas"];
+        let defaults = &schemas["TemplateDefaults"];
+        assert!(defaults["properties"]["project_id"].is_object());
+        assert!(
+            !defaults["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|field| field == "project_id")
+        );
+
+        let preview = &schemas["TemplatePreview"];
+        assert!(
+            preview["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|field| field == "resolved_project")
+        );
+        let choices = preview["properties"]["resolved_project"]["oneOf"]
+            .as_array()
+            .unwrap();
+        assert!(
+            choices
+                .iter()
+                .any(|choice| choice["$ref"] == "#/components/schemas/ProjectSummary")
+        );
+        assert!(choices.iter().any(|choice| choice["type"] == "null"));
+
+        let issue = &schemas["CreateIssue"];
+        for field in ["project_id", "project_etag"] {
+            assert_eq!(issue["properties"][field]["type"], "string");
+            assert!(
+                !issue["required"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|required| required == field)
+            );
+        }
+        assert_eq!(issue["properties"]["project_etag"]["minLength"], 1);
+        assert_eq!(issue["properties"]["project_etag"]["maxLength"], 256);
+    }
+
+    #[test]
     fn taxonomy_contract_describes_wire_sets_and_reference_metadata() {
         let doc = openapi();
         let schemas = &doc["components"]["schemas"];
