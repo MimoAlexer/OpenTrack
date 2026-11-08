@@ -1,5 +1,6 @@
 import { sendRequest } from './platform/transport';
 import { NativeBridgeError } from './desktop/http';
+import { realtimeWriteBlocked } from './realtime/guard';
 
 export class ApiError extends Error {
   constructor(
@@ -33,6 +34,8 @@ export function currentSessionGeneration(): number { return sessionGeneration; }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const generation = sessionGeneration;
+  // This is a definite pre-dispatch rejection, not an uncertain network write.
+  if (realtimeWriteBlocked(path, (options.method ?? 'GET').toUpperCase(), generation)) throw new ApiError(409, 'realtime_offline', 'Changes are read-only while disconnected. Your draft is preserved. Reconnect before saving.');
   const { body, csrf, signal, timeoutMs = 30_000, headers: extraHeaders, ...init } = options;
   const headers = new Headers(extraHeaders);
   headers.set('Accept', 'application/json, application/problem+json');
