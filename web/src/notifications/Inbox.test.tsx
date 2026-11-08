@@ -344,3 +344,64 @@ describe('late mutation authority reconciliation', () => {
   });
 
 });
+
+describe('partial-window authority and concrete keyboard targets', () => {
+  it.each(['failure', 'success'])('applies a page-one denial before page two fails and retains it through a late mutation %s', async outcome => {
+    const restricted = item('restricted', '3', { source: { ...item('restricted', '3').source, title: 'Withdrawn source title', key: 'HID-3', actor_display_name: 'Example Restricted Author' } });
+    const allowed = item('allowed', '2'); const later = item('later', '1'); let withdrawn = false; let deferPage = false;
+    let finishPage!: (response: Response) => void; let finishMutation!: (response: Response) => void;
+    mockFetch((url, options) => {
+      if (options.method === 'PATCH') return new Promise(resolve => { finishMutation = resolve; });
+      if (url.includes('cursor=')) return deferPage ? new Promise(resolve => { finishPage = resolve; }) : json(page([later]));
+      if (url.includes('/notifications?')) return json(page([withdrawn ? { ...restricted, source: { kind: 'issue', id: restricted.source.id, available: false } } : restricted, allowed], { next_cursor: 'page-two' }));
+      return source(url);
+    });
+    await render(screen({ params: new URLSearchParams({ filter: 'all' }) })); await click('Load more notifications');
+    await click('Mark read'); await act(async () => { row('allowed').focus(); row('allowed').click(); });
+    withdrawn = true; deferPage = true; await act(async () => invalidateNotifications('workspace'));
+    for (const text of ['Withdrawn source title', 'HID-3', 'Example Restricted Author']) expect(container.textContent).not.toContain(text);
+    expect(row('later')).toBeDefined(); expect(row('allowed').getAttribute('aria-pressed')).toBe('true');
+    await act(async () => finishPage(json({ detail: 'Later page temporarily unavailable' }, 503)));
+    deferPage = false;
+    await act(async () => finishMutation(outcome === 'failure' ? json({ detail: 'Try later' }, 503) : json({ ...restricted, read_at: stamp, version: '2' })));
+    for (const text of ['Withdrawn source title', 'HID-3', 'Example Restricted Author']) expect(container.textContent).not.toContain(text);
+    expect(row('allowed').getAttribute('aria-pressed')).toBe('true'); expect(document.activeElement).toBe(row('allowed'));
+    await act(async () => invalidateNotifications('workspace'));
+    expect(row('restricted').textContent).toContain('Source unavailable');
+    withdrawn = false; await act(async () => invalidateNotifications('workspace'));
+    expect(row('restricted').textContent).toContain('Withdrawn source title');
+  });
+  it.each([false, true])('keeps an authorized assignment beside a denied historical comment, across pages=%s', async acrossPages => {
+    const denied = item('comment', '2', { source: { kind: 'issue', id: 'shared-issue', available: false } });
+    const assignment = item('assignment', '1', { reason: 'assignment', source: { kind: 'issue', id: 'shared-issue', team_id: 'team', available: true, title: 'Authorized assignment title', key: 'ENG-1' } });
+    mockFetch(url => url.includes('/notifications?') ? json(acrossPages ? url.includes('cursor=') ? page([assignment]) : page([denied], { next_cursor: 'page-two' }) : page([denied, assignment])) : source(url));
+    await render(); if (acrossPages) await click('Load more notifications');
+    expect(row('comment').textContent).toContain('Source unavailable'); expect(row('assignment').textContent).toContain('Authorized assignment title');
+    await act(async () => { row('assignment').focus(); row('assignment').click(); });
+    expect(container.querySelector('.inbox-source')).not.toBeNull(); expect(container.textContent).toContain('Current authorized source body');
+    await act(async () => invalidateNotifications('workspace'));
+    expect(row('comment').textContent).toContain('Source unavailable'); expect(row('assignment').textContent).toContain('Authorized assignment title');
+  });
+  it('limits a missing comment preview to its comment context while retaining an authorized assignment preview', async () => {
+    const comment = item('comment', '2', { source: { kind: 'issue', id: 'shared-issue', team_id: 'team', comment_id: 'deleted-comment', available: true, title: 'Comment title' } });
+    const assignment = item('assignment', '1', { reason: 'assignment', source: { kind: 'issue', id: 'shared-issue', team_id: 'team', available: true, title: 'Authorized assignment title' } });
+    mockFetch(url => url.includes('/notifications?') ? json(page([comment, assignment])) : url.endsWith('/comments/deleted-comment') ? json({ detail: 'Unavailable' }, 404) : source(url));
+    await render(); expect(row('comment').textContent).toContain('Source unavailable'); expect(row('assignment').textContent).toContain('Authorized assignment title');
+    await act(async () => { row('assignment').focus(); row('assignment').click(); });
+    expect(container.querySelector('.inbox-source')).not.toBeNull();
+  });
+  it('keeps an explicit entity preview denial scoped across sibling notifications', async () => {
+    const first = item('one', '2', { source: { ...item().source, id: 'shared-issue' } });
+    const second = item('two', '1', { source: { ...item('two', '1').source, id: 'shared-issue', comment_id: 'comment' } });
+    mockFetch(url => url.includes('/notifications?') ? json(page([first, second])) : json({ detail: 'Entity unavailable' }, 404));
+    await render(); expect(row('one').textContent).toContain('Source unavailable'); expect(row('two').textContent).toContain('Source unavailable');
+  });
+  it.each(['r', 'e'])('pins a focus-only initial row through a prepended arrival before keyboard %s', async command => {
+    const first = item('first', '2'); const arrival = item('arrival', '3'); let arrived = false;
+    const fetch = mockFetch((url, options) => options.method === 'PATCH' ? json({ ...first, read_at: stamp, archived_at: stamp, version: '2' }) : url.includes('/notifications?') ? json(page(arrived ? [arrival, first] : [first])) : source(url));
+    await render(); await act(async () => row('first').focus());
+    arrived = true; await act(async () => invalidateNotifications('workspace'));
+    expect(document.activeElement).toBe(row('first')); expect(row('first').getAttribute('aria-pressed')).toBe('true'); expect(row('arrival').getAttribute('aria-pressed')).toBe('false');
+    await key(command); expect(fetch.mock.calls.find(([, options]) => options.method === 'PATCH')?.[0]).toBe('/api/v1/workspaces/workspace/notifications/first');
+  });
+});
