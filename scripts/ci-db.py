@@ -78,6 +78,14 @@ for command in [
 ]:
     statements.append("SELECT '" + command + "' WHERE to_regclass('public.jobs') IS NOT NULL\\gexec")
 statements.append(f"SELECT 'REVOKE ALL ON public.planning_backfills FROM {runtime}; REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER ON public.planning_issue_facts FROM {runtime}' WHERE to_regclass('public.planning_issue_facts') IS NOT NULL\\gexec")
+# A rerun must preserve the trigger-owned facts and the revision-only writer,
+# just as migration 0031 does after initially creating these relations.
+for command in [
+    f'REVOKE INSERT,UPDATE,DELETE,TRUNCATE ON public.project_scope_heads FROM {runtime}',
+    f'GRANT UPDATE(revision) ON public.project_scope_heads TO {runtime}',
+]:
+    statements.append("SELECT '" + command + "' WHERE to_regclass('public.project_scope_heads') IS NOT NULL\\gexec")
+statements.append(f"SELECT 'REVOKE INSERT,UPDATE,DELETE,TRUNCATE ON public.project_scope_events FROM {runtime}' WHERE to_regclass('public.project_scope_events') IS NOT NULL\\gexec")
 result = subprocess.run(
     ["psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "--dbname", "postgres"],
     input="\n".join(statements), text=True, capture_output=True, check=False,
