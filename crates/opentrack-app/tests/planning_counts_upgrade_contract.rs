@@ -49,6 +49,19 @@ async fn upgrade(h: &Harness) {
     let a = h.app.authenticate(&cookie).await.unwrap();
     let w = session.workspaces[0].id;
     let t = h.app.bootstrap(&a, w).await.unwrap().teams[0].id;
+    let workflow = h.app.workflow(&a, w, t).await.unwrap();
+    let (triage, _) = h
+        .app
+        .create_status(
+            &a,
+            w,
+            t,
+            "upgrade-triage-status",
+            &workflow.etag(),
+            req(json!({"name":"Planning intake","category":"triage","color":"gray"})),
+        )
+        .await
+        .unwrap();
     let mut p = h
         .app
         .create_project(
@@ -80,7 +93,7 @@ async fn upgrade(h: &Harness) {
             &a,
             w,
             "upgrade-issue",
-            req(json!({"team_id":t,"title":"Preserved issue","estimate":5})),
+            req(json!({"team_id":t,"title":"Preserved triage issue","status_id":triage,"estimate":5})),
         )
         .await
         .unwrap();
@@ -211,6 +224,7 @@ async fn upgrade(h: &Harness) {
         PlanningCalculationSource::Projection
     );
     assert_eq!(progress.eligible, 1);
+    assert_eq!((progress.completed, progress.open), (0, 1));
     assert!(progress.facts_as_of.is_some());
     let milestone = h
         .app
@@ -222,12 +236,14 @@ async fn upgrade(h: &Harness) {
         PlanningCalculationSource::Projection
     );
     assert_eq!(milestone.eligible, 1);
+    assert_eq!((milestone.completed, milestone.open), (0, 1));
     let scope = h.app.cycle_scope(&a, w, t, c.id).await.unwrap();
     assert_eq!(
         scope.calculation_source,
         PlanningCalculationSource::Projection
     );
     assert_eq!(scope.estimate_total, 5);
+    assert_eq!((scope.completed_count, scope.unfinished_count), (0, 1));
     assert_eq!(source(h, &a, w).await, before);
     worker.pool.close().await;
 }

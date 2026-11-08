@@ -18,7 +18,7 @@ END $$;
 CREATE TABLE planning_issue_facts (
  workspace_id uuid NOT NULL,consumer_version integer NOT NULL DEFAULT 1 CHECK(consumer_version=1),
  issue_id uuid NOT NULL,issue_version bigint NOT NULL CHECK(issue_version>0),
- category text NOT NULL CHECK(category IN('backlog','unstarted','started','completed','canceled')),
+ category text NOT NULL CHECK(category IN('triage','backlog','unstarted','started','completed','canceled')),
  estimate integer CHECK(estimate BETWEEN 0 AND 1000),excluded boolean NOT NULL,
  calculated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
  PRIMARY KEY(workspace_id,consumer_version,issue_id),
