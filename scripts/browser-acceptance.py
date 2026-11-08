@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 import re
 import secrets
+import selectors
+import signal
 import stat
 import subprocess
 import sys
@@ -19,7 +21,7 @@ import tempfile
 import time
 import urllib.parse
 
-from browser_order_fixtures import AdmissionBudget, prepare, remaining, validate_manifest
+from browser_order_fixtures import BROWSERS, MAX_SUITE_SECONDS, PREPARATION_SECONDS, AdmissionBudget, prepare, remaining, validate_manifest
 
 
 SERVICE_MOUNTS = {
@@ -50,6 +52,65 @@ SERVICE_TMPFS = {
 def require(condition, message):
     if not condition:
         raise RuntimeError(message)
+
+
+# A measured 267-case serial run averages about 3.3 seconds per case. Round
+# upward, reserve the full existing preparation allowance and diagnostics, and
+# refuse plans beyond the finite CI envelope rather than silently dropping work.
+CASE_SUITE_SECONDS = 4
+DIAGNOSTIC_SECONDS = 20
+DISCOVERY_SECONDS = 30
+DISCOVERY_BYTES = 4 * 1024 * 1024
+
+
+def suite_plan(output):
+    try:
+        require(type(output) is str and len(output.encode("utf-8")) <= DISCOVERY_BYTES,
+                "Browser suite discovery exceeded its bound")
+        plan = json.loads(output)
+        config = plan["config"]
+        require(plan["errors"] == [] and config["workers"] == 1 and config["fullyParallel"] is False
+                and type(config["workers"]) is int and config["forbidOnly"] is True and len(config["projects"]) == len(BROWSERS)
+                and {project["name"] for project in config["projects"]} == set(BROWSERS)
+                and all(project["timeout"] == 60000 and type(project["retries"]) is int and project["retries"] == 0
+                        and type(project["repeatEach"]) is int and project["repeatEach"] == 1
+                        for project in config["projects"]), "Browser suite discovery changed acceptance guards")
+        cases = {browser: set() for browser in BROWSERS}
+        spec_ids = set()
+        pending = [(suite, ()) for suite in plan["suites"]]
+        visited = 0
+        while pending:
+            suite, ancestors = pending.pop()
+            visited += 1
+            require(len(ancestors) <= 16 and visited <= 4096, "Browser suite discovery exceeded its bound")
+            require(isinstance(suite["title"], str), "Browser suite discovery returned an invalid suite title")
+            path = (*ancestors, suite["title"])
+            for spec in suite.get("specs", []):
+                require(type(spec["id"]) is str and spec["id"] not in spec_ids,
+                        "Browser suite discovery repeated a case")
+                spec_ids.add(spec["id"])
+                require(all(isinstance(spec[key], str) and spec[key] for key in ("file", "title"))
+                        and all(type(spec[key]) is int and spec[key] > 0 for key in ("line", "column"))
+                        and spec["tests"], "Browser suite discovery returned an invalid case")
+                # The JSON reporter's spec IDs vary by project. The source location
+                # and full title path identify the same (possibly generated) case.
+                identity = (spec["file"], spec["line"], spec["column"], path, spec["title"])
+                for test in spec["tests"]:
+                    browser = test["projectName"]
+                    require(browser in cases and test["expectedStatus"] == "passed"
+                            and test["timeout"] == 60000, "Browser suite discovery cannot skip or change a case")
+                    require(identity not in cases[browser], "Browser suite discovery repeated a case")
+                    cases[browser].add(identity)
+            pending.extend((child, path) for child in suite.get("suites", []))
+        expected = cases[BROWSERS[0]]
+        require(expected and all(found == expected for found in cases.values()),
+                "Browser suite discovery requires all three complete projects")
+        count = sum(map(len, cases.values()))
+        seconds = PREPARATION_SECONDS + count * CASE_SUITE_SECONDS + DIAGNOSTIC_SECONDS
+        require(seconds <= MAX_SUITE_SECONDS, "Browser suite exceeds its finite capacity; partition qualification explicitly")
+        return count, seconds
+    except (ValueError, KeyError, TypeError, AttributeError, RecursionError):
+        raise RuntimeError("Browser suite discovery returned an invalid plan") from None
 
 
 def auth_rejection_summary(output):
@@ -194,6 +255,44 @@ class BrowserAcceptance:
         self.compose = ["docker", "compose", "--project-name", project,
                         "--file", str(self.root / "compose.yaml")]
         self.claim_path = self.root / "work" / "browser-acceptance" / (project + "-ownership.json")
+
+    def plan(self):
+        # Discovery runs before a claim or writable runtime exists, and receives
+        # the same allowlisted environment with no credentials or private files.
+        environment = browser_environment(self.environment, self.url, "", "", "", "")
+        deadline = time.monotonic() + DISCOVERY_SECONDS
+        command = ["node", "node_modules/@playwright/test/cli.js", "test", "--list", "--reporter=json"]
+        output = bytearray()
+        with subprocess.Popen(command, cwd=self.root / "web", env=environment, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, start_new_session=True) as child:
+            try:
+                with selectors.DefaultSelector() as selector:
+                    selector.register(child.stdout, selectors.EVENT_READ)
+                    while True:
+                        require(selector.select(remaining(deadline, DISCOVERY_SECONDS)),
+                                "Browser suite discovery exceeded its deadline")
+                        chunk = os.read(child.stdout.fileno(), min(65536, DISCOVERY_BYTES + 1 - len(output)))
+                        if not chunk:
+                            break
+                        require(len(output) + len(chunk) <= DISCOVERY_BYTES, "Browser suite discovery exceeded its bound")
+                        output.extend(chunk)
+                try:
+                    status = child.wait(timeout=remaining(deadline, DISCOVERY_SECONDS))
+                except subprocess.TimeoutExpired:
+                    raise RuntimeError("Browser suite discovery exceeded its deadline") from None
+            except BaseException:
+                # A collector may leave a subprocess holding the pipe. Kill the
+                # dedicated group before the Popen context closes and reaps its child.
+                try:
+                    os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                raise
+        require(status == 0, "Browser suite discovery failed; details withheld")
+        try:
+            return suite_plan(output.decode("utf-8"))
+        except UnicodeDecodeError:
+            raise RuntimeError("Browser suite discovery returned an invalid plan") from None
 
     def command(self, arguments, timeout=120):
         result = subprocess.run(arguments, cwd=self.root, env=self.environment,
@@ -382,6 +481,22 @@ class BrowserAcceptance:
             self.command(["docker", "volume", "rm", *volumes], timeout=remaining(deadline, 120))
         self.claim_path.unlink()
 
+    def report_auth_rejections(self, suite_deadline):
+        try:
+            deadline = min(suite_deadline, time.monotonic() + DIAGNOSTIC_SECONDS)
+            self.validate_live_resources(timeout=remaining(deadline, DIAGNOSTIC_SECONDS))
+            logs = self.dc("logs", "--no-color", "--no-log-prefix", "--tail", "128", "app",
+                           timeout=remaining(deadline, DIAGNOSTIC_SECONDS))
+            diagnostic = auth_rejection_summary(logs)
+        except Exception:
+            # Diagnostics are best-effort. Keep ownership/inspection errors
+            # private and preserve the original qualification outcome.
+            diagnostic = {"available": False, "reason": "capture_unavailable"}
+        try:
+            print("Authentication rejection sources: " + json.dumps(diagnostic), flush=True)
+        except (OSError, ValueError):
+            pass
+
     def run(self):
         config = self.preflight()
         version = json.loads(self.command(["docker", "version", "--format", "{{json .Server}}"] ))
@@ -395,6 +510,8 @@ class BrowserAcceptance:
             require(not existing, "Browser acceptance requires a new project with no existing containers or volumes")
             named = self.command(["docker", kind, "ls", *flags, "--quiet", "--filter", f"name={self.project}"])
             require(not named, "Browser acceptance found a pre-existing project name collision")
+        case_count, suite_seconds = self.plan()
+        print(f"Browser suite plan: {case_count} cases; {suite_seconds}s shared preparation/test/diagnostic budget", flush=True)
         self.create_claim(config)
         started = False
         try:
@@ -408,7 +525,7 @@ class BrowserAcceptance:
                             "--app-secrets", "/run/secrets")
             require(re.fullmatch(r"[0-9a-f]{64}", token), "The credential helper returned an invalid setup token")
             password = secrets.token_urlsafe(36)
-            suite_deadline = time.monotonic() + 900
+            suite_deadline = time.monotonic() + suite_seconds
             with tempfile.TemporaryDirectory(prefix="opentrack-browser-order-") as directory:
                 os.chmod(directory, 0o700)
                 admission = Path(directory) / "admission.json"
@@ -426,16 +543,12 @@ class BrowserAcceptance:
                 with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
                     json.dump(manifest, stream)
                 environment = browser_environment(self.environment, self.url, token, password, path, admission)
-                result = subprocess.run(["node", "node_modules/@playwright/test/cli.js", "test"],
-                                        cwd=self.root / "web", env=environment, timeout=remaining(suite_deadline, 900))
+                node_timeout = remaining(suite_deadline - DIAGNOSTIC_SECONDS, suite_seconds)
                 try:
-                    deadline = min(suite_deadline, time.monotonic() + 20)
-                    self.validate_live_resources(timeout=remaining(deadline, 20))
-                    diagnostic = auth_rejection_summary(self.dc("logs", "--no-color", "--no-log-prefix", "--tail", "128", "app",
-                                                               timeout=remaining(deadline, 20)))
-                except (RuntimeError, OSError, ValueError, TypeError, subprocess.TimeoutExpired):
-                    diagnostic = {"available": False, "reason": "capture_unavailable"}
-                print("Authentication rejection sources: " + json.dumps(diagnostic), flush=True)
+                    result = subprocess.run(["node", "node_modules/@playwright/test/cli.js", "test"],
+                                            cwd=self.root / "web", env=environment, timeout=node_timeout)
+                finally:
+                    self.report_auth_rejections(suite_deadline)
                 require(result.returncode == 0, "Browser acceptance failed; inspect the credential-free test receipt")
         finally:
             if started:
