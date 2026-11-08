@@ -4,7 +4,9 @@ mod cycles;
 mod milestones;
 mod preferences;
 mod projects;
+mod realtime;
 pub use attachments::AttachmentService;
+pub use realtime::{RealtimeNode, RealtimeStats};
 mod admission;
 mod contract;
 mod credentials;
@@ -57,6 +59,17 @@ pub fn router_with_trusted_proxies(
     state: ApiState,
     trusted_proxies: Vec<std::net::IpAddr>,
 ) -> Router {
+    let node = Arc::new(RealtimeNode::new(state.app.clone()));
+    router_configured(state, trusted_proxies, node)
+}
+pub fn router_with_realtime_node(state: ApiState, node: Arc<RealtimeNode>) -> Router {
+    router_configured(state, Vec::new(), node)
+}
+fn router_configured(
+    state: ApiState,
+    trusted_proxies: Vec<std::net::IpAddr>,
+    node: Arc<RealtimeNode>,
+) -> Router {
     let api = Router::new()
         .route("/openapi.json", get(|| async { Json(openapi()) }))
         .route("/problems/{code}", get(problem_documentation))
@@ -92,6 +105,8 @@ pub fn router_with_trusted_proxies(
         .merge(attachments::routes())
         .merge(workflows::routes())
         .merge(issue_ordering::routes())
+        .merge(realtime::routes())
+        .layer(axum::Extension(node))
         .fallback(not_found)
         .layer(middleware::from_fn(problem::normalize))
         .layer(middleware::from_fn_with_state(
@@ -393,6 +408,9 @@ async fn problem_documentation(Path(code): Path<String>) -> Result<Json<Value>, 
         "reauthentication_required",
         "recovery_invalid",
         "native_auth_invalid",
+        "access_changed",
+        "reset_required",
+        "scope_changed",
     ]
     .contains(&code.as_str())
     {
@@ -528,21 +546,26 @@ pub async fn serve_with_trusted_proxies(
 ) -> std::io::Result<()> {
     use std::future::IntoFuture;
     let (sender, receiver) = tokio::sync::oneshot::channel();
+    let node = Arc::new(RealtimeNode::new(state.app.clone()));
+    let shutdown_node = node.clone();
     let server = axum::serve(
         listener,
-        router_with_trusted_proxies(state, trusted_proxies)
+        router_configured(state, trusted_proxies, node.clone())
             .into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
     .with_graceful_shutdown(async move {
         shutdown.await;
+        shutdown_node.shutdown();
         let _ = sender.send(());
     })
     .into_future();
     tokio::pin!(server);
-    tokio::select! {
+    let result = tokio::select! {
         result=&mut server=>result,
         _=receiver=>tokio::time::timeout(std::time::Duration::from_secs(30),&mut server).await.unwrap_or_else(|_|Err(std::io::Error::new(std::io::ErrorKind::TimedOut,"Shutdown grace elapsed"))),
-    }
+    };
+    node.shutdown();
+    result
 }
 async fn asset_cache(request: Request, next: Next) -> Response {
     let mut response = next.run(request).await;

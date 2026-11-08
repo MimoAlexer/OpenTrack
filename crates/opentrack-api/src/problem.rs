@@ -73,6 +73,7 @@ impl IntoResponse for ApiError {
                         "unsupported_document_schema",
                     ),
                     Error::CursorExpired => (StatusCode::UNPROCESSABLE_ENTITY, "cursor_expired"),
+                    Error::RealtimeReset(reason) => (StatusCode::CONFLICT, reason.as_str()),
                     Error::InvalidRecovery => {
                         (StatusCode::UNPROCESSABLE_ENTITY, "recovery_invalid")
                     }
