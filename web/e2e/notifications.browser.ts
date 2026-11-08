@@ -68,8 +68,17 @@ test('real worker fan-out reaches the durable inbox and keyboard processing pers
     const firstId = await rows.first().getAttribute('data-notification-id'); const nextId = await rows.nth(1).getAttribute('data-notification-id');
     const sourceBefore = await saved.issue(issue.id);
     await rows.first().focus(); await page.keyboard.press('ArrowDown'); await expect(rows.nth(1)).toBeFocused(); await page.keyboard.press('ArrowUp'); await expect(rows.first()).toBeFocused();
-    await page.keyboard.press('e'); await expect(page.locator(`[data-notification-id="${firstId}"]`)).toHaveCount(0);
+    const desktopViewport = page.viewportSize()!; await page.setViewportSize({ width: 640, height: 900 });
+    await rows.first().focus(); await page.keyboard.press('ArrowDown'); await expect(rows.nth(1)).toBeVisible(); await expect(rows.nth(1)).toBeFocused();
+    await expect(page.locator('.inbox-detail')).toBeHidden(); await page.keyboard.press('Enter');
+    const back = page.getByRole('button', { name: 'Back to inbox', exact: true });
+    await expect(back).toBeVisible(); await expect(back).toBeFocused(); await expect(page.locator('.inbox-list')).toBeHidden();
+    await back.press('Enter'); await expect(rows.nth(1)).toBeVisible(); await expect(rows.nth(1)).toBeFocused();
+    await rows.first().press('Enter'); await expect(back).toBeFocused();
+    await page.keyboard.press('e'); await expect(page.locator(`[data-notification-id="${firstId}"]`)).toHaveCount(0); await expect(back).toBeVisible(); await expect(back).toBeFocused();
+    await back.press('Enter'); await expect(page.locator(`[data-notification-id="${nextId}"]`)).toBeVisible();
     await expect(page.locator(`[data-notification-id="${nextId}"]`)).toBeFocused();
+    await page.setViewportSize(desktopViewport);
     await expect.poll(async () => (await inboxItems(member, 'archived')).items.some(item => item.id === firstId)).toBe(true);
     expect(await saved.issue(issue.id)).toMatchObject({ version: sourceBefore.version, status_id: sourceBefore.status_id, archived_at: sourceBefore.archived_at });
     await page.keyboard.press('r'); await expect(page.locator(`[data-notification-id="${nextId}"]`)).toHaveCount(0);

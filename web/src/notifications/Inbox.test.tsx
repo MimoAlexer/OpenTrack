@@ -130,6 +130,38 @@ describe('keyboard processing and failure recovery', () => {
   });
 });
 
+describe('narrow inbox keyboard focus', () => {
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, media: '(max-width: 767px)', addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  });
+  it('keeps list movement in the visible list until a row is explicitly opened', async () => {
+    mockFetch(url => url.includes('/notifications?') ? json(page([item(), item('two', '1')])) : source(url));
+    await render(); row('one').focus(); await key('ArrowDown');
+    expect(row('two').getAttribute('aria-pressed')).toBe('true'); expect(document.activeElement).toBe(row('two'));
+    expect(container.querySelector('.inbox-screen')?.classList.contains('inbox-preview-open')).toBe(false);
+    await key('k'); expect(document.activeElement).toBe(row('one')); expect(container.querySelector('.inbox-screen')?.classList.contains('inbox-preview-open')).toBe(false);
+  });
+  it('moves explicit preview activation to its visible Back control and returns to the selected row', async () => {
+    mockFetch(); await render();
+    await act(async () => { row('one').focus(); row('one').click(); });
+    expect(container.querySelector('.inbox-screen')?.classList.contains('inbox-preview-open')).toBe(true);
+    expect(document.activeElement).toBe(button('Back to inbox'));
+    await click('Back to inbox');
+    expect(container.querySelector('.inbox-screen')?.classList.contains('inbox-preview-open')).toBe(false); expect(document.activeElement).toBe(row('one'));
+  });
+  it.each(['Archive', 'Mark read'])('keeps focus in the visible preview after %s selects the next notification', async action => {
+    const first = item(); const second = item('two', '1'); let processed = false;
+    mockFetch((url, options) => {
+      if (options.method === 'PATCH') { processed = true; return json({ ...first, ...(action === 'Archive' ? { archived_at: stamp } : { read_at: stamp }), version: '2' }); }
+      return url.includes('/notifications?') ? json(page(processed ? [second] : [first, second])) : source(url);
+    });
+    await render(); await act(async () => row('one').click()); await click(action);
+    expect(row('one')).toBeUndefined(); expect(row('two').getAttribute('aria-pressed')).toBe('true');
+    expect(document.activeElement).toBe(button('Back to inbox'));
+    await click('Back to inbox'); expect(document.activeElement).toBe(row('two'));
+  });
+});
+
 describe('snapshot and pagination behavior', () => {
   it('retains the original mark-all snapshot through batches and leaves a late arrival unread', async () => {
     let finish!: (value: Response) => void; let arrived = false; let completed = false; let batches = 0; const late = item('late', '3');
