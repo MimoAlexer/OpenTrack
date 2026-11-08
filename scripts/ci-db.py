@@ -77,9 +77,19 @@ for command in [
 ]:
     statements.append("SELECT '" + command + "' WHERE to_regclass('public.jobs') IS NOT NULL\\gexec")
 # Match App::connect's no-access consumer relations after the broad table grant.
-for table in ['planning_backfills', 'assignment_reconciliations', 'consumer_registrations', 'consumer_checkpoints', 'consumer_receipts', 'consumer_dead_letters', 'consumer_alerts', 'event_retention_state', 'consumer_operations', 'document_retention_operations', 'attachment_storage_operations', 'issue_order_staging', 'document_mentions', 'mention_intents', 'discussion_sources']:
+for table in ['planning_backfills', 'assignment_reconciliations', 'consumer_registrations', 'consumer_checkpoints', 'consumer_receipts', 'consumer_dead_letters', 'consumer_alerts', 'event_retention_state', 'consumer_operations', 'document_retention_operations', 'attachment_storage_operations', 'issue_order_staging', 'document_mentions', 'mention_intents', 'discussion_sources', 'notification_sources', 'notification_backfills']:
     statements.append(f"SELECT 'REVOKE ALL ON public.{table} FROM {runtime}' WHERE to_regclass('public.{table}') IS NOT NULL\\gexec")
 statements.append(f"SELECT 'REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER ON public.planning_issue_facts FROM {runtime}' WHERE to_regclass('public.planning_issue_facts') IS NOT NULL\\gexec")
+# Match migration 0034 after the broad table grant, including recipient-only
+# writes and the private invalidation INSERT capability.
+for command in [
+    f'REVOKE ALL ON public.notifications,public.notification_heads,public.notification_preferences,public.notification_invalidations FROM {runtime}',
+    f'GRANT SELECT ON public.notifications,public.notification_heads,public.notification_preferences TO {runtime}',
+    f'GRANT UPDATE(read_at,archived_at,snoozed_until,version) ON public.notifications TO {runtime}',
+    f'GRANT INSERT(workspace_id,user_id,assignments,mentions,subscribed_comments),UPDATE(assignments,mentions,subscribed_comments,version,updated_at) ON public.notification_preferences TO {runtime}',
+    f'GRANT INSERT(workspace_id,user_id,notification_id,notification_version,event_kind) ON public.notification_invalidations TO {runtime}',
+]:
+    statements.append("SELECT '" + command + "' WHERE to_regclass('public.notifications') IS NOT NULL\\gexec")
 # A rerun must preserve the trigger-owned facts and the revision-only writer,
 # just as migration 0031 does after initially creating these relations.
 for command in [
