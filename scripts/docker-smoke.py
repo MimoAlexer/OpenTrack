@@ -837,6 +837,12 @@ class Qualification:
         cleanup = []
         mutated = established = False
         temporary = context = owner = secure = fingerprint = observed = owner_id = None
+        def owner_cookie_identity():
+            return tuple((cookie.name, cookie.value, cookie.domain, cookie.path,
+                          cookie.secure, cookie.domain_specified, cookie.domain_initial_dot,
+                          cookie.port, cookie.port_specified) for cookie in self.cookies)
+
+        original_owner_cookies = owner_cookie_identity()
         secure_cookies = http.cookiejar.CookieJar()
         tls = https.Qualification(argparse.Namespace(project=self.project, output=str(self.output)))
         strict = {key: tls.environment[key] for key in (
@@ -901,6 +907,10 @@ class Qualification:
             require(identifiers, "HTTPS source runtime rejected")
             items = json.loads(tls.command(["docker", "inspect", *identifiers], timeout=15).stdout)
             services = set()
+            ingress_ids = {item["Id"] for item in items
+                           if (item["Config"].get("Labels") or {}).get("com.docker.compose.service") in {"app", "proxy"}}
+            require(len(ingress_ids) == 2 and all(re.fullmatch(r"[0-9a-f]{64}", identifier) for identifier in ingress_ids),
+                    "HTTPS source ingress identities rejected")
             for item in items:
                 labels = item["Config"].get("Labels") or {}
                 service = labels.get("com.docker.compose.service")
@@ -926,6 +936,18 @@ class Qualification:
                             and labels.get("com.docker.compose.project") == self.project
                             and labels.get("com.docker.compose.network") == name.removeprefix(self.project + "_"),
                             "HTTPS source network rejected")
+                    if name == self.project + "_proxy_ingress":
+                        ipam = network.get("IPAM") or {}
+                        pool = ipam.get("Config") or []
+                        require(network.get("Driver") == "bridge" and ipam.get("Driver") == "default"
+                                and not ipam.get("Options") and len(pool) == 1
+                                and set(pool[0]) <= {"Subnet", "IPRange", "Gateway", "AuxiliaryAddresses"}
+                                and pool[0].get("Subnet") == "172.31.253.0/24"
+                                and pool[0].get("IPRange") == "172.31.253.128/25"
+                                and pool[0].get("Gateway") in (None, "", "172.31.253.1")
+                                and not pool[0].get("AuxiliaryAddresses")
+                                and set(network.get("Containers") or {}) == ingress_ids,
+                                "HTTPS source live ingress rejected")
                 if service == "proxy":
                     require(attached[self.project + "_proxy_ingress"].get("IPAddress") == "172.31.253.2",
                             "HTTPS source proxy address rejected")
@@ -1063,6 +1085,9 @@ class Qualification:
                         and information[0].get("Architecture") == self.expected_architecture, "HTTPS source image rejected")
             cached = json.loads(self.command(["docker", "image", "inspect", "opentrack-proxy:local"], timeout=15).stdout)
             require(len(cached) == 1 and cached[0].get("Id") == images["proxy"], "HTTPS source proxy image changed")
+            require(not tls.dc("ps", "--all", "--quiet", "proxy", timeout=15).stdout.strip(),
+                    "HTTPS source refuses a preexisting proxy")
+            retained_volumes = https.proxy_volume_identities(tls.command, self.project)
             stage, mutated = "tls_start", True
             stop_http_services()
             start("app", "proxy")
@@ -1134,7 +1159,7 @@ class Qualification:
                     "volume=" + self.project + "_" + name], timeout=15).stdout.strip(),
                     "HTTPS source writer fence rejected")
             stage = "metadata"
-            observed = tls.measure_metadata(bootstrap_image)
+            observed = tls.measure_metadata(bootstrap_image, expected_volumes=retained_volumes)
         except BaseException as error:
             primary = (stage, "interrupted" if isinstance(error, (KeyboardInterrupt, SystemExit)) else
                        "timeout" if isinstance(error, subprocess.TimeoutExpired) else "refused")
@@ -1188,10 +1213,13 @@ class Qualification:
                             "database", "app", "worker", "offline-relay", timeout=240)
                     self.ready()
                     self.verify_offline_runtime(http_config)
+                    require(owner_cookie_identity() == original_owner_cookies, "HTTP source owner session changed")
                     session, _ = self.request("/api/v1/auth/session")
                     require(session["user"]["email"] == account
                             and (owner_id is None or session["user"]["id"] == owner_id), "HTTP source owner changed")
+                    require(owner_cookie_identity() == original_owner_cookies, "HTTP source owner session changed")
                     self.check_private_revocation(private, issue_path, attachment, body, digest)
+                    require(owner_cookie_identity() == original_owner_cookies, "HTTP source owner session changed")
                 except BaseException:
                     cleanup.append("http_restore")
             try:

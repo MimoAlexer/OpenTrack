@@ -946,7 +946,7 @@ class MetadataDocker:
         self.volume_reads = {volume: 0 for volume in self.volumes}
         self.active_consumers = set()
         self.changed_volume = None
-        self.template = {"Name": "/" + self.name, "Image": image,
+        self.template = {"Id": "f" * 64, "Name": "/" + self.name, "Image": image,
             "Config": {"Image": image, "User": "10001:10001", "Labels": {
                 https.RECOVERY_LABEL: project, "com.docker.compose.project": project,
                 https.METADATA_PURPOSE_LABEL: "https-metadata"}},
@@ -972,7 +972,7 @@ class MetadataDocker:
         if arguments[:3] == ["docker", "container", "ls"]:
             if self.removed and self.confirmation_failure:
                 raise self.confirmation_failure
-            identifiers = self.helper_ids if self.helper_ids is not None else (["f" * 64] if self.helper is not None else [])
+            identifiers = self.helper_ids if self.helper_ids is not None else ([self.helper["Id"]] if self.helper is not None else [])
             return result("\n".join(identifiers))
         if arguments[:3] == ["docker", "container", "inspect"]:
             return result(json.dumps(self.helper_items if self.helper_items is not None else [self.helper]))
@@ -999,6 +999,11 @@ class MetadataDocker:
                 return result("\n".join(self.source_ids))
         if arguments[:2] == ["docker", "run"]:
             self.helper = copy.deepcopy(self.template)
+            for index, argument in enumerate(arguments[:-1]):
+                if argument == "--label":
+                    key, value = arguments[index + 1].split("=", 1)
+                    self.helper["Config"]["Labels"][key] = value
+            self.helper_claim = self.helper["Config"]["Labels"].get("org.opentrack.qualification.invocation")
             if self.completed_change:
                 self.completed_change(self.helper)
             if self.run_failure:
@@ -1031,8 +1036,8 @@ class ProxyMetadataHelperBoundaries(unittest.TestCase):
         self.assertFalse(self.runner.metadata_reserved)
         removals = [(arguments, options) for arguments, options in fake.calls
                     if arguments[:3] == ["docker", "container", "rm"]]
-        self.assertEqual(removals, [(["docker", "container", "rm", "--force", fake.name], {"timeout": 30})])
-        self.assertEqual(fake.calls[-1][0], ["docker", "container", "ls", "--all", "--quiet",
+        self.assertEqual(removals, [(["docker", "container", "rm", "--force", "f" * 64], {"timeout": 30})])
+        self.assertEqual(fake.calls[-1][0], ["docker", "container", "ls", "--all", "--quiet", "--no-trunc",
                                            "--filter", "name=^/" + fake.name + "$"])
 
     def test_metadata_helper_uses_only_cached_owned_image_and_readonly_proxy_volumes(self):
@@ -1055,7 +1060,8 @@ class ProxyMetadataHelperBoundaries(unittest.TestCase):
         self.assertFalse({"--cap-add", "--privileged", "--volumes-from", "--rm", "--build"} & set(arguments))
         self.assertEqual({arguments[index + 1] for index, value in enumerate(arguments) if value == "--label"},
             {https.RECOVERY_LABEL + "=" + self.project, "com.docker.compose.project=" + self.project,
-             https.METADATA_PURPOSE_LABEL + "=https-metadata"})
+             https.METADATA_PURPOSE_LABEL + "=https-metadata",
+             https.METADATA_INVOCATION_LABEL + "=" + fake.helper_claim})
         mounts = [dict(field.split("=", 1) if "=" in field else (field, True)
                        for field in arguments[index + 1].split(","))
                   for index, argument in enumerate(arguments) if argument == "--mount"]
@@ -1063,8 +1069,47 @@ class ProxyMetadataHelperBoundaries(unittest.TestCase):
             "dst": "/" + volume.replace("_", "-"), "readonly": True, "volume-nocopy": True}
             for volume in ("proxy_data", "proxy_config")])
         self.assertTrue(all(count == 2 for count in fake.volume_reads.values()))
-        self.assertTrue(all(arguments[-1] == fake.name for arguments, _ in fake.calls
+        self.assertTrue(all(arguments[-1] == "f" * 64 for arguments, _ in fake.calls
                             if arguments[:3] == ["docker", "container", "inspect"]))
+
+    def test_cleanup_pins_inspected_id_when_name_is_reused_before_removal(self):
+        fake = MetadataDocker(self.project, self.image)
+        fake.helper = copy.deepcopy(fake.template)
+        replacement = copy.deepcopy(fake.template)
+        replacement["Id"] = "e" * 64
+        removed = []
+        def command(arguments, **options):
+            if arguments[:3] == ["docker", "container", "rm"]:
+                fake.helper = replacement
+                removed.append(arguments[-1])
+                if arguments[-1] != replacement["Id"]:
+                    return argparse.Namespace(stdout="", returncode=0)
+            return fake.command(arguments, **options)
+        with patch.object(self.runner, "command", side_effect=command):
+            with self.assertRaisesRegex(RuntimeError, "cleanup unconfirmed"):
+                self.runner.cleanup_metadata(self.image)
+        self.assertEqual(removed, ["f" * 64])
+        self.assertIs(fake.helper, replacement)
+
+    def test_ambiguous_create_collision_never_removes_another_invocations_helper(self):
+        fake = MetadataDocker(self.project, self.image)
+        fake.completed_change = lambda c: c["Config"]["Labels"].update({
+            "org.opentrack.qualification.invocation": "0" * 32})
+        fake.run_failure = RuntimeError("name collision")
+        with patch.object(self.runner, "command", side_effect=fake.command):
+            with self.assertRaises(RuntimeError):
+                self.runner.measure_metadata(self.image)
+        self.assertIsNotNone(fake.helper)
+        self.assertFalse(any(c[:3] == ["docker", "container", "rm"] for c, _ in fake.calls))
+
+    def test_metadata_refuses_changed_retained_identity_before_helper_launch(self):
+        fake = MetadataDocker(self.project, self.image)
+        retained = copy.deepcopy(fake.volumes)
+        retained["proxy_data"]["CreatedAt"] = "old-created"
+        with patch.object(self.runner, "command", side_effect=fake.command):
+            with self.assertRaisesRegex(RuntimeError, "Proxy metadata rejected"):
+                self.runner.measure_metadata(self.image, expected_volumes=retained)
+        self.assertEqual(self.mutations(fake), [])
 
     def test_metadata_preexisting_helper_is_never_created_or_removed(self):
         for foreign in (False, True):
@@ -1536,7 +1581,8 @@ class HttpsSourcePhaseBoundaries(unittest.TestCase):
             wrong_owner=False, writer_fault=False, metadata_failure=None, cleanup_failure=False,
             restart_failure=False, proxy_fault=None, preexisting=False, private_checks=[],
             runtime_fault=None, proxy_present=False, ready_calls=0, fingerprint_calls=0,
-            override_observations=[], override_contents=set(), reads=[])
+            override_observations=[], override_contents=set(), reads=[], network_fault=None, retained_fault=None,
+            retained=False, retained_consumer=False, existing_proxy=False, owner_rotation=None)
         fake.images = {name: "sha256:" + str(index) * 64 for index, name in enumerate(
             ("database", "app", "worker", "offline-relay"), 1)}
         fake.images["proxy"] = fake.images["offline-relay"]
@@ -1580,7 +1626,7 @@ class HttpsSourcePhaseBoundaries(unittest.TestCase):
         def item(service):
             networks = fake.config["services"].get(service, {}).get("networks", {})
             bindings = {"8443/tcp": [{"HostIp": "127.0.0.1", "HostPort": "18443"}]} if service == "proxy" else {}
-            return {"Image": fake.images[service], "Config": {"Image": "opentrack-proxy:local" if service == "proxy" else "synthetic:local",
+            return {"Id": fake.identifiers[service], "Image": fake.images[service], "Config": {"Image": "opentrack-proxy:local" if service == "proxy" else "synthetic:local",
                 "User": "10001:10001", "Labels": {"com.docker.compose.project": self.project,
                     "com.docker.compose.service": service}, "Env": [key + "=" + value for key, value in
                         fake.config["services"].get(service, {}).get("environment", {}).items()]},
@@ -1609,23 +1655,42 @@ class HttpsSourcePhaseBoundaries(unittest.TestCase):
                 return argparse.Namespace(stdout="")
             if arguments == ("ps", "--all", "--quiet", "proxy"):
                 fake.events.append(("proxy_presence", fake.proxy_present))
-                return argparse.Namespace(stdout=fake.identifiers["proxy"] if fake.proxy_present else "")
+                return argparse.Namespace(stdout=fake.identifiers["proxy"] if fake.proxy_present or fake.existing_proxy else "")
             return unexpected(arguments)
 
         def command(arguments, **options):
             if arguments[:3] == ["docker", "image", "inspect"]:
                 image = fake.images["proxy"] if arguments[3] == "opentrack-proxy:local" else arguments[3]
                 return argparse.Namespace(stdout=json.dumps([{"Id": image, "Os": "linux", "Architecture": "amd64"}]))
+            if arguments[:3] == ["docker", "volume", "ls"]:
+                fake.events.append(("volume_eligibility", arguments[-1]))
+                return argparse.Namespace(stdout=arguments[-1].removeprefix("name=") if fake.retained else "")
+            if arguments[:3] == ["docker", "volume", "inspect"]:
+                name = arguments[-1]
+                value = {"Name": name, "Driver": "local", "Options": None, "CreatedAt": "synthetic-created",
+                    "Labels": {"com.docker.compose.project": self.project,
+                               "com.docker.compose.volume": name.removeprefix(self.project + "_")}}
+                if fake.retained_fault:
+                    fake.retained_fault(value)
+                return argparse.Namespace(stdout=json.dumps([value]))
             if arguments[:3] == ["docker", "network", "inspect"]:
                 name = arguments[3]
-                return argparse.Namespace(stdout=json.dumps([{"Name": self.project + "_" + name,
+                value = {"Name": self.project + "_" + name, "Driver": "bridge",
                     "Internal": name not in ("offline_ingress", "proxy_ingress"), "Labels": {"com.docker.compose.project": self.project,
-                                                           "com.docker.compose.network": name}}]))
+                                                           "com.docker.compose.network": name}}
+                if name == "proxy_ingress":
+                    value.update(IPAM={"Driver": "default", "Options": None, "Config": [{
+                        "Subnet": "172.31.253.0/24", "IPRange": "172.31.253.128/25", "Gateway": "172.31.253.1"}]},
+                        Containers={fake.identifiers[service]: {"IPv4Address": address, "IPv6Address": ""}
+                            for service, address in (("app", "172.31.253.130/24"), ("proxy", "172.31.253.2/24"))})
+                    if fake.network_fault:
+                        fake.network_fault(value)
+                return argparse.Namespace(stdout=json.dumps([value]))
             if arguments[:2] == ["docker", "ps"]:
                 if arguments[-1].startswith("volume="):
                     fake.events.append(("volume_consumers", any(fake.services.values()),
                         arguments[-1].removeprefix("volume=" + self.project + "_")))
-                    return argparse.Namespace(stdout="")
+                    return argparse.Namespace(stdout="consumer" if fake.retained_consumer else "")
                 names = [name for name in fake.identifiers if arguments[2] == "--all" or fake.services[name]]
                 return argparse.Namespace(stdout="\n".join(fake.identifiers[name] for name in names))
             if arguments[:2] == ["docker", "inspect"]:
@@ -1736,10 +1801,13 @@ class HttpsSourcePhaseBoundaries(unittest.TestCase):
             role = "http" if actor is self.runner else "original" if actor.cookies is self.runner.cookies else "secure"
             fake.events.append(("private_controls", role))
             reader_session, _ = fixture["reader"].request("/api/v1/auth/session")
+            if role == "http" and fake.owner_rotation == "last_read":
+                next(iter(self.runner.cookies)).value = "same-user-replacement"
             fake.private_checks.append((role, fixture is self.private,
                 fixture["reader"] is fixture["move"]["reader"], reader_session["user"]["id"], arguments))
 
-        def measure(image):
+        def measure(image, **options):
+            fake.metadata_options = options
             fake.events.append(("metadata", not any(fake.services.values())))
             tls.metadata_reserved = True
             if fake.metadata_failure:
@@ -1782,6 +1850,10 @@ class HttpsSourcePhaseBoundaries(unittest.TestCase):
 
         def http_open(request, timeout, *, reader=False):
             fake.events.append(("http_read", "reader" if reader else "owner"))
+            if not reader and fake.owner_rotation == "session_read":
+                next(iter(self.runner.cookies)).value = "same-user-replacement"
+            if not reader and fake.owner_rotation == "scope":
+                next(iter(self.runner.cookies)).domain_specified = True
             return response(request.full_url, session(reader))
 
         tls.dc.side_effect, tls.command.side_effect = dc, command
@@ -1876,6 +1948,62 @@ class HttpsSourcePhaseBoundaries(unittest.TestCase):
         self.assertEqual(fake.override_contents, set())
         self.assertEqual(fake.config["services"]["proxy"]["networks"],
                          {"proxy_ingress": {"ipv4_address": "172.31.253.2"}})
+
+    def test_preflight_refuses_foreign_retained_volumes_or_existing_proxy_without_mutation(self):
+        changes = [lambda f: setattr(f, "existing_proxy", True),
+            lambda f: setattr(f, "retained_fault", lambda v: v["Labels"].update({"com.docker.compose.project": "foreign"})),
+            lambda f: setattr(f, "retained_fault", lambda v: v.update(Options={"device": "foreign"})),
+            lambda f: setattr(f, "retained_fault", lambda v: v.update(Driver="foreign")),
+            lambda f: setattr(f, "retained_consumer", True)]
+        for change in changes:
+            fake = self.fixture()
+            fake.retained = True
+            change(fake)
+            with self.subTest(change=change), self.assertRaisesRegex(RuntimeError, "stage=preflight; primary=refused"):
+                self.run_phase(fake)
+            self.assertEqual(fake.mutations, [])
+            fake.login_opener.open.assert_not_called()
+
+    def test_preflight_fresh_resources_are_confirmed_absent_before_first_mutation(self):
+        fake = self.fixture()
+        self.assertTrue(self.run_phase(fake)["source_http_restore_verified"])
+        self.assertEqual(fake.metadata_options["expected_volumes"], {})
+        first_stop = next(i for i, event in enumerate(fake.events) if event[0] == "tls_stop")
+        self.assertEqual(sum(event[0] == "volume_eligibility" for event in fake.events[:first_stop]), 2)
+
+    def test_preflight_eligible_retained_volume_identity_reaches_metadata(self):
+        fake = self.fixture()
+        fake.retained = True
+        self.assertTrue(self.run_phase(fake)["source_http_restore_verified"])
+        self.assertEqual(set(fake.metadata_options["expected_volumes"]), {"proxy_data", "proxy_config"})
+        self.assertTrue(all(v["CreatedAt"] == "synthetic-created" for v in fake.metadata_options["expected_volumes"].values()))
+
+    def test_effective_ingress_refuses_drift_or_unscoped_endpoint_before_login_and_on_restart(self):
+        changes = [lambda n: n.update(Driver="macvlan"),
+            lambda n: n["IPAM"]["Config"][0].update(Subnet="172.31.254.0/24"),
+            lambda n: n["IPAM"]["Config"][0].update(IPRange="172.31.253.64/26"),
+            lambda n: n["Containers"].update({"9" * 64: {"IPv4Address": "172.31.253.140/24"}})]
+        for change in changes:
+            for restart in (False, True):
+                fake = self.fixture()
+                def fault(network, change=change, restart=restart):
+                    if not restart or fake.ready_calls >= 1:
+                        change(network)
+                fake.network_fault = fault
+                with self.subTest(change=change, restart=restart), self.assertRaises(RuntimeError) as error:
+                    self.run_phase(fake)
+                self.assertIn("https_restart" if restart else "stage=tls_start", str(error.exception))
+                if not restart:
+                    fake.login_opener.open.assert_not_called()
+
+    def test_same_user_owner_cookie_replacement_cannot_verify_http_restoration(self):
+        for stage in ("session_read", "last_read", "scope"):
+            next(iter(self.runner.cookies)).value = "original-owner-cookie"
+            next(iter(self.runner.cookies)).domain_specified = False
+            fake = self.fixture()
+            fake.owner_rotation = stage
+            with self.subTest(stage=stage), self.assertRaisesRegex(RuntimeError, "cleanup=http_restore"):
+                self.run_phase(fake)
 
     def test_https_model_accepts_compose_null_network_connections(self):
         fake = self.fixture()

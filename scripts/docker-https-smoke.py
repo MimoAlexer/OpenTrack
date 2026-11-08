@@ -16,6 +16,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import ssl
 import stat
 import subprocess
@@ -34,6 +35,7 @@ MAX_PROXY_METADATA_CLASSES = 64
 MAX_PROXY_METADATA_BYTES = 16384
 RECOVERY_LABEL = "org.opentrack.qualification.recovery"
 METADATA_PURPOSE_LABEL = "org.opentrack.qualification.purpose"
+METADATA_INVOCATION_LABEL = "org.opentrack.qualification.invocation"
 
 
 def require(condition, message):
@@ -144,6 +146,34 @@ def parse_proxy_metadata(output):
     return normalized
 
 
+def proxy_volume_identities(command, project):
+    """Check retained storage before any Compose service can mount it writable."""
+    accepted = {}
+    for volume in ("proxy_data", "proxy_config"):
+        name = project + "_" + volume
+        names = command(["docker", "volume", "ls", "--quiet", "--filter", "name=" + name], timeout=15).stdout.split()
+        require(set(names) <= {name} and len(names) <= 1, "Proxy retained volume identity rejected")
+        if not names:
+            continue
+        items = json.loads(command(["docker", "volume", "inspect", name], timeout=15).stdout)
+        require(type(items) is list and len(items) == 1 and type(items[0]) is dict,
+                "Proxy retained volume identity rejected")
+        item = items[0]
+        labels = item.get("Labels") or {}
+        require(type(labels) is dict and item.get("Name") == name
+                and item.get("Driver") == "local" and not item.get("Options")
+                and labels.get("com.docker.compose.project") == project
+                and labels.get("com.docker.compose.volume") == volume
+                and type(item.get("CreatedAt")) is str and item["CreatedAt"],
+                "Proxy retained volume identity rejected")
+        # Include stopped consumers: starting/recreating an existing fixture is
+        # outside this invocation's explicitly fresh proxy lifecycle.
+        require(not command(["docker", "ps", "--all", "--quiet", "--filter", "volume=" + name],
+                            timeout=15).stdout.strip(), "Proxy retained volume has consumers")
+        accepted[volume] = item
+    return accepted
+
+
 def readonly_actor(actor, opener):
     view = copy.copy(actor)
 
@@ -245,6 +275,7 @@ class Qualification:
         self.output = Path(args.output)
         self.checks = []
         self.metadata_reserved = False
+        self.metadata_claim = None
 
     def command(self, arguments, *, timeout=90, allowed=(0,), input=None, purpose="Container command"):
         result = subprocess.run(arguments, env=self.environment, capture_output=True,
@@ -275,12 +306,12 @@ class Qualification:
 
     def metadata_container(self, image):
         name = self.project + "-https-metadata"
-        identifiers = self.command(["docker", "container", "ls", "--all", "--quiet",
+        identifiers = self.command(["docker", "container", "ls", "--all", "--quiet", "--no-trunc",
                                     "--filter", f"name=^/{name}$"], timeout=15).stdout.split()
         if not identifiers:
             return None
-        require(len(identifiers) == 1, "Proxy metadata identity rejected")
-        items = json.loads(self.command(["docker", "container", "inspect", name], timeout=15).stdout)
+        require(len(identifiers) == 1 and re.fullmatch(r"[0-9a-f]{64}", identifiers[0]), "Proxy metadata identity rejected")
+        items = json.loads(self.command(["docker", "container", "inspect", identifiers[0]], timeout=15).stdout)
         require(type(items) is list and len(items) == 1 and type(items[0]) is dict,
                 "Proxy metadata identity rejected")
         item = items[0]
@@ -290,7 +321,7 @@ class Qualification:
         mounts = item.get("Mounts", [])
         require(type(labels) is dict and type(mounts) is list
                 and all(type(mount) is dict for mount in mounts), "Proxy metadata identity rejected")
-        require(item.get("Name") == "/" + name and item.get("Image") == image
+        require(item.get("Id") == identifiers[0] and item.get("Name") == "/" + name and item.get("Image") == image
                 and configuration.get("Image") == image and configuration.get("User") == "10001:10001"
                 and labels.get(RECOVERY_LABEL) == self.project
                 and labels.get("com.docker.compose.project") == self.project
@@ -305,21 +336,26 @@ class Qualification:
                 == {(self.project + "_proxy_data", "/proxy-data", False),
                     (self.project + "_proxy_config", "/proxy-config", False)},
                 "Proxy metadata identity rejected")
+        require(self.metadata_claim is None or labels.get(METADATA_INVOCATION_LABEL) == self.metadata_claim,
+                "Proxy metadata invocation rejected")
         return item
 
     def cleanup_metadata(self, image):
         try:
-            if self.metadata_container(image) is None:
+            item = self.metadata_container(image)
+            if item is None:
                 self.metadata_reserved = False
+                self.metadata_claim = None
                 return
-            self.command(["docker", "container", "rm", "--force",
-                          self.project + "-https-metadata"], timeout=30)
+            # Names can be reused after inspection. Docker IDs cannot.
+            self.command(["docker", "container", "rm", "--force", item["Id"]], timeout=30)
             require(self.metadata_container(image) is None, "Proxy metadata cleanup unconfirmed")
             self.metadata_reserved = False
+            self.metadata_claim = None
         except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
             raise RuntimeError("Proxy metadata cleanup unconfirmed") from None
 
-    def measure_metadata(self, image):
+    def measure_metadata(self, image, *, expected_volumes=None):
         primary = None
         reserved = False
         try:
@@ -349,6 +385,10 @@ class Qualification:
                 volumes[volume] = item
                 require(not self.command(["docker", "ps", "--quiet", "--filter", "volume=" + name],
                                          timeout=15).stdout.strip(), "Proxy metadata writer is active")
+            require(expected_volumes is None or (type(expected_volumes) is dict
+                    and set(expected_volumes) <= set(volumes)
+                    and all(volumes[name] == identity for name, identity in expected_volumes.items())),
+                    "Proxy retained volume changed")
             identifiers = self.command(["docker", "ps", "--all", "--quiet", "--filter",
                                         "label=com.docker.compose.project=" + self.project], timeout=15).stdout.split()
             require(identifiers, "Proxy metadata source inventory rejected")
@@ -372,12 +412,16 @@ class Qualification:
                        "    print(json.dumps(value,separators=(',',':')),flush=True)\n"
                        "except (RuntimeError,OSError,ValueError,TimeoutError):\n"
                        "    raise SystemExit('Proxy metadata helper rejected') from None\n")
+            # Claim before launch: even a timed-out or colliding create may only
+            # clean an object carrying this invocation's unpredictable label.
+            self.metadata_claim = secrets.token_hex(16)
             reserved = True
             self.metadata_reserved = True
             result = self.command(["docker", "run", "--pull", "never", "--name", self.project + "-https-metadata",
                 "--label", RECOVERY_LABEL + "=" + self.project,
                 "--label", "com.docker.compose.project=" + self.project,
                 "--label", METADATA_PURPOSE_LABEL + "=https-metadata",
+                "--label", METADATA_INVOCATION_LABEL + "=" + self.metadata_claim,
                 "--network", "none", "--user", "10001:10001", "--read-only", "--cap-drop", "ALL",
                 "--security-opt", "no-new-privileges:true",
                 "--mount", "type=volume,src=" + self.project + "_proxy_data,dst=/proxy-data,readonly,volume-nocopy",
