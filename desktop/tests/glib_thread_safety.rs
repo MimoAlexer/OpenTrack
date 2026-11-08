@@ -335,3 +335,115 @@ fn foreign_spawn_request_can_still_construct_a_local_future_on_its_context() {
     .unwrap();
     assert_eq!(context.block_on(handle).unwrap(), 45);
 }
+
+#[test]
+fn native_context_loop_and_parameter_spec_values_remain_transferable() {
+    let context = glib::MainContext::new();
+    let main_loop = glib::MainLoop::new(Some(&context), false);
+    let parameter = glib::ParamSpecString::builder("example-property")
+        .default_value("example")
+        .build();
+    let typed_parameter = parameter
+        .clone()
+        .downcast::<glib::ParamSpecString>()
+        .unwrap();
+    let values = [
+        context.to_send_value(),
+        SendValue::from_owned(main_loop),
+        parameter.to_send_value(),
+        typed_parameter
+            .to_value()
+            .try_into_send_value::<glib::ParamSpecString>()
+            .unwrap(),
+    ];
+    thread::spawn(move || {
+        let context = values[0].get::<glib::MainContext>().unwrap();
+        context.wakeup();
+        let main_loop = values[1].get::<glib::MainLoop>().unwrap();
+        assert_eq!(main_loop.context(), context);
+        assert!(!main_loop.is_running());
+        assert_eq!(
+            values[2].get::<glib::ParamSpec>().unwrap().name(),
+            "example-property"
+        );
+        assert_eq!(
+            values[3]
+                .get::<glib::ParamSpecString>()
+                .unwrap()
+                .default_value(),
+            Some("example")
+        );
+    })
+    .join()
+    .unwrap();
+}
+
+#[test]
+fn variant_backing_owners_are_released_before_all_send_value_promotions() {
+    struct LocalSerialized {
+        bytes: [u8; 1],
+        _local: LocalDrop,
+    }
+    impl AsRef<[u8]> for LocalSerialized {
+        fn as_ref(&self) -> &[u8] {
+            &self.bytes
+        }
+    }
+    let drops = Arc::new(AtomicUsize::new(0));
+    let variant = glib::Variant::from_data::<u8, _>(LocalSerialized {
+        bytes: [7],
+        _local: local_drop(&drops),
+    });
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    let bytes = variant.data_as_bytes();
+    let values = [
+        variant.to_send_value(),
+        SendValue::from_owned(variant.clone()),
+        variant
+            .to_value()
+            .try_into_send_value::<glib::Variant>()
+            .unwrap(),
+        bytes.to_send_value(),
+    ];
+    drop(variant);
+    drop(bytes);
+    thread::spawn(move || {
+        for value in &values[..3] {
+            assert_eq!(value.get::<glib::Variant>().unwrap().get::<u8>(), Some(7));
+        }
+        assert_eq!(values[3].get::<glib::Bytes>().unwrap().as_ref(), &[7]);
+    })
+    .join()
+    .unwrap();
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn native_sources_closures_and_string_builders_remain_transferable() {
+    let source = glib::idle_source_new(None, glib::Priority::DEFAULT, || glib::ControlFlow::Break);
+    let closure =
+        glib::Closure::new(|arguments| Some((arguments[0].get::<i32>().unwrap() + 1).to_value()));
+    let values = [
+        source.to_send_value(),
+        SendValue::from_owned(closure),
+        glib::GStringBuilder::new("example")
+            .to_value()
+            .try_into_send_value::<glib::GStringBuilder>()
+            .unwrap(),
+    ];
+    thread::spawn(move || {
+        let source = values[0].get::<glib::Source>().unwrap();
+        assert!(!source.is_destroyed());
+        source.destroy();
+        let closure = values[1].get::<glib::Closure>().unwrap();
+        // This is the Rust closure above with a known argument/return signature.
+        let result = unsafe { closure.invoke_with_values(Type::I32, &[1i32.to_value()]) }.unwrap();
+        assert_eq!(result.get::<i32>().unwrap(), 2);
+        assert_eq!(
+            values[2].get::<glib::GStringBuilder>().unwrap().as_str(),
+            "example"
+        );
+    })
+    .join()
+    .unwrap();
+}

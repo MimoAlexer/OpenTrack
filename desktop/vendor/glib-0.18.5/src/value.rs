@@ -643,8 +643,9 @@ impl Value {
     /// Tries to promote a value whose actual native storage is thread-safe.
     ///
     /// Supported boxed types are Bytes, Checksum, Date, DateTime, TimeZone,
-    /// Error, VariantType and string arrays; Variant and feature-enabled Uri
-    /// values are also supported.
+    /// Error, MainContext, MainLoop, Source, Closure, GStringBuilder, VariantType
+    /// and string arrays; parameter specifications, Variant and feature-enabled
+    /// Uri values are supported.
     /// Objects and unrecognized boxed types are rejected even when `T` is
     /// `Send`: a caller-provided `StaticType` is not a payload-safety guarantee.
     #[inline]
@@ -788,8 +789,8 @@ unsafe impl Send for SendValue {}
 // Certify the stored representation, never the safe converter or type marker
 // supplied by a caller. Exact native boxed IDs have their own fixed copy/free
 // implementations; arbitrary boxed types and objects may contain local Rust
-// state. Standard enum/flags types are safe only when they inherit the native
-// integer value table rather than providing custom lifecycle callbacks.
+// state. Registered enum/flags and parameter-specification types must inherit
+// their native integer/reference value table, with no custom lifecycle table.
 fn value_type_is_send(type_: Type) -> bool {
     if matches!(
         type_,
@@ -804,6 +805,11 @@ fn value_type_is_send(type_: Type) -> bool {
         crate::DateTime::static_type(),
         crate::TimeZone::static_type(),
         crate::Error::static_type(),
+        crate::MainContext::static_type(),
+        crate::MainLoop::static_type(),
+        crate::Source::static_type(),
+        crate::Closure::static_type(),
+        crate::GStringBuilder::static_type(),
         crate::VariantType::static_type(),
         Vec::<String>::static_type(),
     ].contains(&type_) {
@@ -815,7 +821,7 @@ fn value_type_is_send(type_: Type) -> bool {
         return true;
     }
 
-    for fundamental in [Type::ENUM, Type::FLAGS] {
+    for fundamental in [Type::ENUM, Type::FLAGS, Type::PARAM_SPEC] {
         if type_.is_a(fundamental) {
             unsafe {
                 let table = gobject_ffi::g_type_value_table_peek(type_.into_glib());
