@@ -244,6 +244,10 @@ fn workspace_route(method: Method, path: &[&str]) -> bool {
         ["issues", "query"] => method == Post,
         ["invitations" | "issues" | "labels" | "teams"] => matches!(method, Get | Post),
         ["members" | "mention-candidates" | "issue-reference-candidates"] => method == Get,
+        ["notifications"] => method == Get,
+        ["notifications", "mark-read"] => method == Post,
+        ["notifications", notification] => id(notification) && method == Patch,
+        ["notification-preferences"] => matches!(method, Get | Patch),
         ["attachments"] => matches!(method, Get | Post),
         ["attachments", attachment] => id(attachment) && matches!(method, Get | Delete),
         ["attachments", attachment, "finalize"] => id(attachment) && method == Post,
@@ -505,6 +509,67 @@ mod tests {
 
     fn projects_path() -> String {
         format!("/api/v1/workspaces/{PROJECT_WORKSPACE}/teams/{PROJECT_TEAM}/projects")
+    }
+
+    #[test]
+    fn inbox_routes_allow_only_published_scoped_recipient_operations() {
+        let base = format!("/api/v1/workspaces/{PROJECT_WORKSPACE}");
+        for (suffix, allowed) in [
+            ("notifications".to_owned(), vec![Method::Get]),
+            (
+                format!("notifications/{PROJECT_ISSUE}"),
+                vec![Method::Patch],
+            ),
+            ("notifications/mark-read".to_owned(), vec![Method::Post]),
+            (
+                "notification-preferences".to_owned(),
+                vec![Method::Get, Method::Patch],
+            ),
+        ] {
+            for method in [
+                Method::Get,
+                Method::Post,
+                Method::Patch,
+                Method::Put,
+                Method::Delete,
+            ] {
+                assert_eq!(
+                    request(method, &format!("{base}/{suffix}")).check().is_ok(),
+                    allowed.contains(&method)
+                );
+            }
+        }
+        for path in [
+            "/api/v1/notifications".to_owned(),
+            format!("{base}/notifications/create"),
+            format!("{base}/notifications/not-a-uuid"),
+            format!("{base}/notifications/{PROJECT_ISSUE}/archive"),
+            format!("{base}/users/{PROJECT_ISSUE}/notifications"),
+            format!("{base}/notification-preferences/{PROJECT_ISSUE}"),
+            format!("{base}/notifications/{}", PROJECT.to_uppercase()),
+        ] {
+            for method in [
+                Method::Get,
+                Method::Post,
+                Method::Patch,
+                Method::Put,
+                Method::Delete,
+            ] {
+                assert!(
+                    request(method, &path).check().is_err(),
+                    "{} {path}",
+                    method.as_str()
+                );
+            }
+        }
+        let mut mark_read = request(Method::Post, &format!("{base}/notifications/mark-read"));
+        mark_read.body = Some(serde_json::json!({"snapshot":"x".repeat(65536)}));
+        assert!(mark_read.check().is_err());
+        let mut unauthorized_header = request(Method::Get, &format!("{base}/notifications"));
+        unauthorized_header
+            .headers
+            .insert("Authorization".into(), "Bearer caller-supplied".into());
+        assert!(unauthorized_header.check().is_err());
     }
     #[test]
     fn update_and_scope_history_envelopes_are_exactly_scoped() {

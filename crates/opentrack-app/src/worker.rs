@@ -93,7 +93,7 @@ impl Worker {
               OR has_table_privilege(current_user,c.oid,'DELETE,TRUNCATE,TRIGGER')
               OR has_column_privilege(current_user,c.oid,a.attnum,'REFERENCES')))
              OR EXISTS(SELECT 1 FROM pg_proc p WHERE p.pronamespace=current_schema()::regnamespace AND p.proowner=current_user::regrole)
-             OR EXISTS(SELECT 1 FROM pg_proc p WHERE p.pronamespace=current_schema()::regnamespace AND p.prorettype<>'trigger'::regtype AND has_function_privilege(current_user,p.oid,'EXECUTE') AND p.proname NOT IN('worker_ready_workspaces','worker_lock_context','worker_lock_maintenance_context','worker_assignee_eligible','worker_clear_assignment','worker_capture_events','worker_retain_events','worker_prune_document_revisions','worker_claim_attachment_gc','worker_ack_attachment_gc','worker_issue_order_batch','worker_apply_planning_events','worker_planning_backfill_batch'))
+             OR EXISTS(SELECT 1 FROM pg_proc p WHERE p.pronamespace=current_schema()::regnamespace AND p.prorettype<>'trigger'::regtype AND has_function_privilege(current_user,p.oid,'EXECUTE') AND p.proname NOT IN('worker_ready_workspaces','worker_lock_context','worker_lock_maintenance_context','worker_assignee_eligible','worker_clear_assignment','worker_capture_events','worker_retain_events','worker_prune_document_revisions','worker_claim_attachment_gc','worker_ack_attachment_gc','worker_issue_order_batch','worker_apply_planning_events','worker_planning_backfill_batch','worker_apply_notification_events','worker_flush_notification_events'))
              OR has_database_privilege(current_user,current_database(),'CREATE,TEMP')"
         ).fetch_one(&pool).await.map_err(db_error)?;
         let revision_capability:bool=sqlx::query_scalar("SELECT to_regclass('documents') IS NULL OR coalesce(has_function_privilege(current_user,to_regprocedure(format('%I.worker_prune_document_revisions(uuid,integer)',current_schema())),'EXECUTE'),false)").fetch_one(&pool).await.map_err(db_error)?;
@@ -101,6 +101,8 @@ impl Worker {
         let ordering_capability: bool = sqlx::query_scalar("SELECT to_regclass('issue_order_normalizations') IS NULL OR (to_regclass('issue_order_staging') IS NOT NULL AND to_regclass('issue_order_guards') IS NOT NULL AND coalesce(has_function_privilege(current_user,to_regprocedure(format('%I.worker_issue_order_batch(uuid,uuid,uuid,uuid,bigint)',current_schema())),'EXECUTE'),false))")
             .fetch_one(&pool).await.map_err(db_error)?;
         let planning_capability: bool = sqlx::query_scalar("SELECT to_regclass('planning_issue_facts') IS NULL OR (coalesce(has_function_privilege(current_user,to_regprocedure(format('%I.worker_apply_planning_events(uuid,integer)',current_schema())),'EXECUTE'),false) AND coalesce(has_function_privilege(current_user,to_regprocedure(format('%I.worker_planning_backfill_batch(uuid,uuid,uuid,bigint,integer)',current_schema())),'EXECUTE'),false))")
+            .fetch_one(&pool).await.map_err(db_error)?;
+        let notification_capability: bool = sqlx::query_scalar("SELECT to_regclass('notifications') IS NULL OR (coalesce(has_function_privilege(current_user,to_regprocedure(format('%I.worker_apply_notification_events(uuid,integer)',current_schema())),'EXECUTE'),false) AND coalesce(has_function_privilege(current_user,to_regprocedure(format('%I.worker_flush_notification_events(uuid,integer)',current_schema())),'EXECUTE'),false))")
             .fetch_one(&pool).await.map_err(db_error)?;
         if forbidden
             || unsafe_tables
@@ -110,6 +112,7 @@ impl Worker {
             || !attachment_capability
             || !planning_capability
             || !ordering_capability
+            || !notification_capability
         {
             tracing::error!(
                 "Worker credential must be isolated, restricted, and explicitly provisioned"

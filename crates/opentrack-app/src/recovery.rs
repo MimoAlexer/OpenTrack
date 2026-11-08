@@ -105,6 +105,25 @@ impl Operator {
             .fetch_one(&mut *tx)
             .await
             .map_err(operator_error)?;
+        let has_notifications: bool = sqlx::query_scalar(
+            "SELECT to_regprocedure('operator_notification_status(uuid)') IS NOT NULL",
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(operator_error)?;
+        let status = if has_notifications {
+            let notifications: serde_json::Value =
+                sqlx::query_scalar("SELECT operator_notification_status($1)")
+                    .bind(workspace)
+                    .fetch_one(&mut *tx)
+                    .await
+                    .map_err(operator_error)?;
+            let mut status: serde_json::Value = status;
+            status["notification_invalidations"] = notifications;
+            status
+        } else {
+            status
+        };
         tx.commit().await.map_err(db_error)?;
         Ok(status)
     }
@@ -142,6 +161,52 @@ impl Operator {
         consumer_bounds(&mut tx).await?;
         let correlation = sqlx::query_scalar("SELECT operator_planning_rebuild($1,$2)")
             .bind(workspace)
+            .bind(reason)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(operator_error)?;
+        tx.commit().await.map_err(db_error)?;
+        Ok(correlation)
+    }
+
+    pub async fn retry_notification_consumer(
+        &self,
+        workspace: Uuid,
+        dead_letter: Uuid,
+        reason: &str,
+    ) -> Result<Uuid> {
+        self.retry_notification(workspace, dead_letter, reason, false)
+            .await
+    }
+
+    pub async fn retry_notification_invalidation(
+        &self,
+        workspace: Uuid,
+        notification: Uuid,
+        reason: &str,
+    ) -> Result<Uuid> {
+        self.retry_notification(workspace, notification, reason, true)
+            .await
+    }
+
+    async fn retry_notification(
+        &self,
+        workspace: Uuid,
+        target: Uuid,
+        reason: &str,
+        invalidation: bool,
+    ) -> Result<Uuid> {
+        let reason = operator_reason(reason)?;
+        let mut tx = store::begin(&self.pool).await.map_err(db_error)?;
+        consumer_bounds(&mut tx).await?;
+        let statement = if invalidation {
+            "SELECT operator_notification_retry_invalidation($1,$2,$3)"
+        } else {
+            "SELECT operator_notification_retry($1,$2,$3)"
+        };
+        let correlation = sqlx::query_scalar(statement)
+            .bind(workspace)
+            .bind(target)
             .bind(reason)
             .fetch_one(&mut *tx)
             .await

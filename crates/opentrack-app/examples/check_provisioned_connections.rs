@@ -71,6 +71,46 @@ async fn main() {
         ).fetch_one(&app.pool).await.unwrap_or(false);
         app.pool.close().await;
     }
+    // Catalog-only checks also run after a rejected App constructor, so a
+    // reprovisioning regression reports the exact notification ACL boundary.
+    let notification_grants = match sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&runtime)
+        .await
+    {
+        Ok(pool) => {
+            let present =
+                sqlx::query_scalar::<_, bool>("SELECT to_regclass('notifications') IS NOT NULL")
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap_or(false);
+            let valid = if present {
+                sqlx::query_scalar::<_, bool>(
+                    "WITH expected(tab,readable,insert_columns,update_columns) AS (VALUES
+                     ('notifications',true,ARRAY[]::text[],ARRAY['read_at','archived_at','snoozed_until','version']),
+                     ('notification_heads',true,ARRAY[]::text[],ARRAY[]::text[]),
+                     ('notification_preferences',true,ARRAY['workspace_id','user_id','assignments','mentions','subscribed_comments'],ARRAY['assignments','mentions','subscribed_comments','version','updated_at']),
+                     ('notification_invalidations',false,ARRAY['workspace_id','user_id','notification_id','notification_version','event_kind'],ARRAY[]::text[]),
+                     ('notification_sources',false,ARRAY[]::text[],ARRAY[]::text[]),
+                     ('notification_backfills',false,ARRAY[]::text[],ARRAY[]::text[]))
+                     SELECT count(DISTINCT expected.tab)=6 AND coalesce(bool_and(
+                       c.relrowsecurity AND c.relforcerowsecurity
+                       AND NOT has_table_privilege(current_user,c.oid,'DELETE,TRUNCATE,TRIGGER')
+                       AND has_column_privilege(current_user,c.oid,a.attnum,'SELECT')=expected.readable
+                       AND has_column_privilege(current_user,c.oid,a.attnum,'INSERT')=(a.attname::text=ANY(expected.insert_columns))
+                       AND has_column_privilege(current_user,c.oid,a.attnum,'UPDATE')=(a.attname::text=ANY(expected.update_columns))
+                       AND NOT has_column_privilege(current_user,c.oid,a.attnum,'REFERENCES')),false)
+                     FROM expected JOIN pg_class c ON c.oid=to_regclass(expected.tab)
+                     JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped",
+                ).fetch_one(&pool).await.unwrap_or(false)
+            } else {
+                true
+            };
+            pool.close().await;
+            valid
+        }
+        Err(_) => false,
+    };
     let worker = Worker::connect(
         &worker,
         WorkerOptions {
@@ -85,9 +125,9 @@ async fn main() {
     }
     println!(
         "{}",
-        json!({"app_connect":app_ok,"worker_connect":worker_ok,"workflow_grants":workflow_grants})
+        json!({"app_connect":app_ok,"worker_connect":worker_ok,"workflow_grants":workflow_grants,"notification_grants":notification_grants})
     );
-    if !(app_ok && worker_ok && workflow_grants) {
+    if !(app_ok && worker_ok && workflow_grants && notification_grants) {
         std::process::exit(1);
     }
 }

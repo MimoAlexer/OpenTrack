@@ -158,6 +158,11 @@ pub(crate) struct IssuePatch {
         description = "Implemented OpenTrack endpoints. Features absent from this contract are not advertised as available. Browser-cookie writes require allowed Origin and CSRF; native bearer sessions have a separate audience and do not use browser CSRF. Data returned by a conflict is authorized for the current caller."
     ),
     paths(
+        crate::notifications::list,
+        crate::notifications::update,
+        crate::notifications::mark_read,
+        crate::notifications::get_preferences,
+        crate::notifications::update_preferences,
         crate::preferences::get_preferences,
         crate::preferences::update_preferences,
         crate::mentions::candidates,
@@ -316,6 +321,8 @@ pub(crate) struct IssuePatch {
         super::problem::Problem,
         opentrack_domain::User,
         opentrack_domain::Workspace,
+        opentrack_domain::NotificationFilter,
+        opentrack_domain::NotificationQuery,
         opentrack_domain::Team,
         opentrack_domain::Status
     ))
@@ -471,6 +478,7 @@ pub fn openapi() -> Value {
                         && [
                             "/api/v1/workspaces/{w}",
                             "/api/v1/workspaces/{w}/preferences",
+                            "/api/v1/workspaces/{w}/notification-preferences",
                             "/api/v1/workspaces/{w}/issues/{id}",
                             "/api/v1/workspaces/{w}/issues/{id}/subscription",
                             "/api/v1/workspaces/{w}/issues/{issue}/document",

@@ -126,6 +126,30 @@ async fn run_consumer(cli: &Cli, operator: &Operator) -> Result<(), String> {
                         .await,
                 )
             }
+            Action::OperatorNotificationRetry => {
+                let target = cli
+                    .operator_dead_letter
+                    .ok_or("Notification retry requires --dead-letter")?;
+                (
+                    "notifications_retry",
+                    Some(target),
+                    operator
+                        .retry_notification_consumer(workspace, target, reason)
+                        .await,
+                )
+            }
+            Action::OperatorNotificationInvalidationRetry => {
+                let target = cli
+                    .operator_notification
+                    .ok_or("Notification invalidation retry requires --notification")?;
+                (
+                    "notification_invalidation_retry",
+                    Some(target),
+                    operator
+                        .retry_notification_invalidation(workspace, target, reason)
+                        .await,
+                )
+            }
             Action::OperatorPlanningRebuild => (
                 "planning_rebuild",
                 None,
