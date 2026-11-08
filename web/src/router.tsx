@@ -1,19 +1,30 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore, type AnchorHTMLAttributes, type MouseEvent } from 'react';
+import { parseStructuredHash, structuredMarker, viewHash, viewParams, withBaseParams } from './filters/model';
 
 const dirtyRegistrations = new Set<object>();
 let currentIndex = Number(history.state?.otIndex ?? 0);
 let reverting = false;
+const currentPath = () => `${location.pathname}${location.search}${location.hash}`;
+let currentUrl = currentPath();
 history.replaceState({ ...history.state, otIndex: currentIndex }, '', location.href);
 const listeners = new Set<() => void>();
 function notify() { listeners.forEach(fn => fn()); }
 window.addEventListener('popstate', () => {
   const next = Number(history.state?.otIndex ?? currentIndex);
-  if (reverting) { reverting = false; return; }
+  if (reverting) { reverting = false; currentUrl = currentPath(); return; }
   if (!confirmNavigation()) {
     if (next !== currentIndex) { reverting = true; history.go(currentIndex - next); }
+    else history.replaceState({ ...history.state, otIndex: currentIndex }, '', currentUrl);
     return;
   }
   currentIndex = next;
+  currentUrl = currentPath();
+  notify();
+});
+window.addEventListener('hashchange', () => {
+  if (reverting || currentUrl === currentPath()) return;
+  if (!confirmNavigation()) { history.replaceState({ ...history.state, otIndex: currentIndex }, '', currentUrl); return; }
+  currentUrl = currentPath();
   notify();
 });
 
@@ -22,7 +33,7 @@ export function hasUnsavedChanges() { return dirtyRegistrations.size > 0; }
 export function confirmNavigation() { return !hasUnsavedChanges() || window.confirm('Discard your unsaved changes?'); }
 
 export function navigate(path: string, replace = false): boolean {
-  if (path === `${location.pathname}${location.search}`) return true;
+  if (path === currentPath()) return true;
   if (!confirmNavigation()) return false;
   return navigateConfirmed(path, replace);
 }
@@ -30,12 +41,13 @@ export function navigate(path: string, replace = false): boolean {
 export function navigateConfirmed(path: string, replace = false): boolean {
   if (replace) history.replaceState({ otIndex: currentIndex }, '', path);
   else { currentIndex += 1; history.pushState({ otIndex: currentIndex }, '', path); }
+  currentUrl = currentPath();
   notify();
   return true;
 }
 
 export function useLocation() {
-  return useSyncExternalStore(fn => { listeners.add(fn); return () => listeners.delete(fn); }, () => `${location.pathname}${location.search}`);
+  return useSyncExternalStore(fn => { listeners.add(fn); return () => listeners.delete(fn); }, currentPath);
 }
 
 export function useUnsavedChanges(dirty: boolean) {
@@ -67,8 +79,12 @@ export function Link({ href = '/', onClick, ...props }: AnchorHTMLAttributes<HTM
 }
 
 export function parseRoute(url: string) {
-  const [path, search = ''] = url.split('?');
+  const parsed = new URL(url, location.origin);
+  const path = parsed.pathname;
   const parts = path.split('/').filter(Boolean);
+  const structured = parts[2] === 'issues' ? parseStructuredHash(parsed.hash) : { kind: 'absent' as const };
+  const search = structured.kind === 'valid' ? viewParams(structured.view) : new URLSearchParams(parsed.search);
+  if (structured.kind === 'invalid') search.set(structuredMarker, 'invalid');
   return {
     workspaceId: parts[0] === 'w' ? parts[1] : undefined,
     issueId: parts[2] === 'issues' && parts[3] !== 'by-key' ? parts[3] : undefined,
@@ -78,7 +94,9 @@ export function parseRoute(url: string) {
     deletedIssueId: parts[2] === 'trash' ? parts[3] : undefined,
     area: path === '/auth/native/approve' ? 'native-consent' : path === '/recover' ? 'recover' : path === '/signin' ? 'signin' : path === '/account/security' ? 'account-security' : parts[0] === 'join' ? 'join' : parts[2] === 'projects' ? 'projects' : parts[2] === 'cycles' ? 'cycles' : parts[2] === 'settings' ? 'settings' : parts[2] === 'trash' ? 'trash' : 'issues',
     settingsSection: parts[2] === 'settings' ? (parts[3] ?? 'workspace') : undefined,
-    search: new URLSearchParams(search),
+    search,
+    hash: parsed.hash,
+    structured,
     valid: path === '/auth/native/approve' || path === '/' || path === '/recover' || path === '/signin' || path === '/join' || path === '/account/security' || (parts[0] === 'w' && !!parts[1] && ['issues', 'settings', 'trash', 'projects', 'cycles'].includes(parts[2]) && (parts.length <= 4 || (parts[2] === 'issues' && parts[3] === 'by-key' && parts.length === 5))),
   };
 }
@@ -88,8 +106,16 @@ export function settingsUrl(workspaceId: string, section = 'workspace'): string 
 }
 
 export function issuesUrl(workspaceId: string, search = new URLSearchParams(), issueId?: string): string {
-  const query = search.toString();
-  return `/w/${encodeURIComponent(workspaceId)}/issues${issueId ? `/${encodeURIComponent(issueId)}` : ''}${query ? `?${query}` : ''}`;
+  const path = `/w/${encodeURIComponent(workspaceId)}/issues${issueId ? `/${encodeURIComponent(issueId)}` : ''}`;
+  const current = location.pathname.split('/').filter(Boolean);
+  if (search.has(structuredMarker) && current[0] === 'w' && current[1] === workspaceId && current[2] === 'issues') {
+    const structured = parseStructuredHash(location.hash);
+    if (structured.kind === 'valid') return `${path}${viewHash(withBaseParams(structured.view, search))}`;
+    if (structured.kind === 'invalid') return `${path}${location.hash}`;
+  }
+  const clean = new URLSearchParams(search); clean.delete(structuredMarker);
+  const query = clean.toString();
+  return `${path}${query ? `?${query}` : ''}`;
 }
 
 export function trashUrl(workspaceId: string, search = new URLSearchParams(), issueId?: string): string {
