@@ -58,7 +58,7 @@ it('keeps exactly the same AST when switching from list to board', async () => {
   expect(container.querySelector('.issue-board')).not.toBeNull();
 });
 
-it.each(['#filters=%', '#unknown=state', `#filters=${encodeURIComponent(JSON.stringify({ ...view(), version: 8 }))}`, `#filters=${encodeURIComponent(JSON.stringify({ ...view(), filter: { kind: 'all', children: [] } }))}`])('blocks invalid fragment %s without sending GET or POST', async hash => {
+it.each(['#filters=%', '#unknown=state', `#filters=${encodeURIComponent(JSON.stringify({ ...view(), version: 8 }))}`, `#filters=${encodeURIComponent(JSON.stringify({ ...view(), filter: { kind: 'all', children: [] } }))}`, `#filters=${encodeURIComponent(JSON.stringify({ ...view(), q: 'visible\0hidden' }))}`])('blocks invalid fragment %s without sending GET or POST', async hash => {
   const fetch = vi.fn(async (_url: string, _init: RequestInit) => page()); vi.stubGlobal('fetch', fetch);
   await render(hash);
   expect(container.textContent).toContain('These filters are unavailable.');
