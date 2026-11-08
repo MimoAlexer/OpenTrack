@@ -28,6 +28,7 @@ beforeEach(() => {
     if (url.endsWith('/access')) return Promise.resolve(json({ auth_epoch: '1', role: 'owner', archived: false }));
     if (url.endsWith('/preferences')) { if (options.method === 'PATCH') mode = JSON.parse(options.body as string).shortcut_mode; return Promise.resolve(json({ workspace_id: 'w', shortcut_mode: mode, version: '1', etag: '"preferences:1"' })); }
     if (url.endsWith('/capabilities')) return Promise.resolve(json({ features: { attachments: false }, limits: { max_upload_bytes: 0 } }));
+    if (url.includes('/notifications?')) return Promise.resolve(json({ items: [], next_cursor: null, snapshot: 'synthetic-inbox-snapshot', unread_count: 0 }));
     if (url.endsWith('/issues') && options.method === 'POST') return Promise.resolve(json({ id: 'created', key: 'ENG-1', team_id: 't', title: JSON.parse(options.body as string).title }));
     throw new Error(`Unexpected request: ${url}`);
   }); vi.stubGlobal('fetch', fetchMock);
@@ -55,7 +56,7 @@ it('keeps palette creation, visible controls and Mod+Enter available with charac
   expect(container.querySelector('.topbar-actions')!.textContent).toContain('New issue'); expect(container.querySelector('.topbar-actions kbd')).toBeNull();
   await key(window, 'k', { ctrlKey: true });
   const search = container.querySelector<HTMLInputElement>('input[aria-label="Search commands"]')!;
-  expect(document.activeElement).toBe(search); expect(container.textContent).not.toContain('Inbox');
+  expect(document.activeElement).toBe(search); expect(container.querySelector('a[href="/w/w/inbox"]')).not.toBeNull();
   await key(search, 'Enter'); await act(async () => { for (const frame of frames.splice(0)) frame(0); });
   const input = await setTitle('Created with character shortcuts off'); await key(input, 'Enter', { ctrlKey: true });
   expect(location.pathname).toBe('/w/w/issues/created'); expect(fetchMock.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(1);
@@ -64,7 +65,7 @@ it('keeps palette creation, visible controls and Mod+Enter available with charac
 it('navigates G then M only while enabled and keeps My work visible', async () => {
   await act(async () => root.render(<App />)); await key(window, 'g'); await key(window, 'm');
   expect(location.search).toBe('?view=mine'); expect(container.querySelector('a[aria-current="page"]')!.textContent).toBe('My work');
-  await click('Keyboard shortcuts'); expect(container.textContent).toContain('G then M'); expect(container.textContent).not.toContain('Inbox');
+  await click('Keyboard shortcuts'); expect(container.textContent).toContain('G then M'); expect(container.querySelector('dialog')!.textContent).not.toContain('Inbox');
 });
 
 it('does not submit a create draft for legacy IME, AltGraph or repeated Mod+Enter', async () => {

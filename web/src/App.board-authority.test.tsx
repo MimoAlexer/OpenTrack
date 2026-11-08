@@ -111,6 +111,7 @@ beforeEach(() => {
     if (path === '/auth/session') return holdAuthority ? gate(sessions, options.signal) : Promise.resolve(json(initialSession));
     if (path === '/auth/login' && method === 'POST') return gate(logins, options.signal);
     if (path.endsWith('/preferences')) return Promise.resolve(json({ workspace_id: 'w', shortcut_mode: 'disabled', version: '1', etag: 'synthetic-preference-etag' }));
+    if (path === '/workspaces/w/notifications' && method === 'GET') return Promise.resolve(json({ items: [], next_cursor: null, snapshot: 'synthetic-inbox-snapshot', unread_count: 0 }));
     if (path === '/workspaces/w/bootstrap') return holdAuthority ? gate(bootstraps, options.signal) : Promise.resolve(json(serverData));
     if (path === '/workspaces/w/access') return holdAuthority ? gate(accesses, options.signal)
       : Promise.resolve(json({ auth_epoch: serverData.auth_epoch, role: 'owner', archived: false }));

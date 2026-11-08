@@ -76,10 +76,11 @@ export function parseRoute(url: string) {
     cycleId: parts[2] === 'cycles' ? parts[3] : undefined,
     issueKey: parts[2] === 'issues' && parts[3] === 'by-key' ? parts[4] : undefined,
     deletedIssueId: parts[2] === 'trash' ? parts[3] : undefined,
-    area: path === '/auth/native/approve' ? 'native-consent' : path === '/recover' ? 'recover' : path === '/signin' ? 'signin' : path === '/account/security' ? 'account-security' : parts[0] === 'join' ? 'join' : parts[2] === 'projects' ? 'projects' : parts[2] === 'cycles' ? 'cycles' : parts[2] === 'settings' ? 'settings' : parts[2] === 'trash' ? 'trash' : 'issues',
+    notificationId: parts[2] === 'inbox' ? parts[3] : undefined,
+    area: path === '/auth/native/approve' ? 'native-consent' : path === '/recover' ? 'recover' : path === '/signin' ? 'signin' : path === '/account/security' ? 'account-security' : parts[0] === 'join' ? 'join' : parts[2] === 'projects' ? 'projects' : parts[2] === 'cycles' ? 'cycles' : parts[2] === 'settings' ? 'settings' : parts[2] === 'trash' ? 'trash' : parts[2] === 'inbox' ? 'inbox' : 'issues',
     settingsSection: parts[2] === 'settings' ? (parts[3] ?? 'workspace') : undefined,
     search: new URLSearchParams(search),
-    valid: path === '/auth/native/approve' || path === '/' || path === '/recover' || path === '/signin' || path === '/join' || path === '/account/security' || (parts[0] === 'w' && !!parts[1] && ['issues', 'settings', 'trash', 'projects', 'cycles'].includes(parts[2]) && (parts.length <= 4 || (parts[2] === 'issues' && parts[3] === 'by-key' && parts.length === 5))),
+    valid: path === '/auth/native/approve' || path === '/' || path === '/recover' || path === '/signin' || path === '/join' || path === '/account/security' || (parts[0] === 'w' && !!parts[1] && ['issues', 'settings', 'trash', 'projects', 'cycles', 'inbox'].includes(parts[2]) && (parts.length <= 4 || (parts[2] === 'issues' && parts[3] === 'by-key' && parts.length === 5))),
   };
 }
 
@@ -95,4 +96,9 @@ export function issuesUrl(workspaceId: string, search = new URLSearchParams(), i
 export function trashUrl(workspaceId: string, search = new URLSearchParams(), issueId?: string): string {
   const query = search.toString();
   return `/w/${encodeURIComponent(workspaceId)}/trash${issueId ? `/${encodeURIComponent(issueId)}` : ''}${query ? `?${query}` : ''}`;
+}
+
+export function inboxUrl(workspaceId: string, search = new URLSearchParams(), notificationId?: string): string {
+  const query = search.toString();
+  return `/w/${encodeURIComponent(workspaceId)}/inbox${notificationId ? `/${encodeURIComponent(notificationId)}` : ''}${query ? `?${query}` : ''}`;
 }
