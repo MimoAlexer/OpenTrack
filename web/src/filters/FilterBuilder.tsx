@@ -62,7 +62,7 @@ function PredicateEditor({ node, path, data, session, workspaceId, team, change,
     {node.op === 'is_null' ? <label className="field">Empty value<select aria-label={`Condition ${path} empty value`} value={node.value === false ? 'false' : 'true'} onChange={event => setValues([event.target.value === 'true'])}><option value="true">Must be empty</option><option value="false">Must have a value</option></select></label> : isDateField(node.field) ? <DateValues field={node.field} path={path} values={values} multiple={multiple} change={setValues}/> : <ValuePicker key={node.field} field={node.field} path={path} values={values} multiple={multiple} data={data} session={session} workspaceId={workspaceId} team={team} change={setValues}/>}
     {node.op === 'not_in' && ['assignee', 'project', 'cycle', 'due_date'].includes(node.field) && <p className="filter-help">Empty values are excluded. Add an “Is empty” condition in an Any group to include them.</p>}
     {node.op === 'not_in' && node.field === 'label' && <p className="filter-help">Matches issues with none of these labels, including issues without labels.</p>}
-    {isDateField(node.field) && <p className="filter-help">A local date matches the whole day. Before excludes that day; After starts at the next local day.</p>}
+    {isDateField(node.field) && <p className="filter-help">A local date matches the whole calendar date. Before matches an earlier local date; After matches a later local date.</p>}
   </fieldset>;
 }
 
@@ -81,15 +81,23 @@ function DateValue({ field, label, value, change }: { field: FilterField; label:
 
 function ValuePicker({ field, path, values, multiple, data, session, workspaceId, team, change }: { field: FilterField; path: string; values: FilterValue[]; multiple: boolean; data: Bootstrap; session: Session; workspaceId: string; team?: string; change: (values: FilterValue[]) => void }) {
   const [open, setOpen] = useState(false); const [query, setQuery] = useState(''); const [browseTeam, setBrowseTeam] = useState(team ?? data.teams[0]?.id ?? ''); const [archived, setArchived] = useState(false);
-  const [remembered, setRemembered] = useState<Choice[]>([]); const scope = useSessionScope(session);
+  const [remembered, setRemembered] = useState<Choice[]>([]); const [deniedScopes, setDeniedScopes] = useState<Set<string>>(new Set()); const scope = useSessionScope(session);
   const remote = !['priority', 'team'].includes(field);
   const remotePath = field === 'label' ? `/workspaces/${workspaceId}/labels?scope=visible&state=all` : !browseTeam ? '' : `/workspaces/${workspaceId}/teams/${browseTeam}/${field === 'status' ? 'statuses?state=all' : field === 'assignee' ? 'assignees' : field === 'project' ? `projects?archived=${archived}` : 'cycles'}`;
   const searchOnServer = !['status', 'cycle'].includes(field);
   const directory = useOptions(remotePath, scope, searchOnServer ? query : '', open && remote && !!remotePath);
+  const optionScope = `${scope}:${remotePath}`;
+  const accessDenied = directory.error instanceof ApiError && [401, 403, 404].includes(directory.error.status);
+  const confirmed = open && directory.loaded && !directory.loading && !directory.error;
+  const concealNames = accessDenied || deniedScopes.has(optionScope) && !confirmed;
+  useEffect(() => {
+    if (accessDenied) { setRemembered([]); setDeniedScopes(old => old.has(optionScope) ? old : new Set([...old, optionScope])); }
+    else if (confirmed) setDeniedScopes(old => { if (!old.has(optionScope)) return old; const next = new Set(old); next.delete(optionScope); return next; });
+  }, [accessDenied, confirmed, optionScope]);
   const seeds: Choice[] = field === 'priority' ? priorities.map((text, index) => ({ id: String(index), text })) : field === 'team' ? data.teams.map(team => ({ id: team.id, text: team.name, detail: team.archived_at ? 'Archived' : undefined })) : field === 'status' ? data.statuses.filter(status => status.team_id === browseTeam).map(status => ({ id: status.id, text: status.name })) : field === 'assignee' ? data.members.map(person => ({ id: person.id, text: person.display_name })) : [];
   const selected = values.filter(value => typeof value === 'string' || typeof value === 'number').map(String);
-  const known = new Map([...seeds, ...remembered, ...directory.items.map(item => ({ id: item.id, text: item.name ?? item.display_name ?? 'Unnamed value', detail: item.archived_at ? 'Archived' : undefined }))].map(item => [item.id, item]));
-  const available = remote && directory.loaded ? directory.items.map(item => known.get(item.id)!) : seeds;
+  const known = new Map([...(concealNames ? [] : seeds), ...(concealNames ? [] : remembered), ...directory.items.map(item => ({ id: item.id, text: item.name ?? item.display_name ?? 'Unnamed value', detail: item.archived_at ? 'Archived' : undefined }))].map(item => [item.id, item]));
+  const available = remote && directory.loaded ? directory.items.map(item => known.get(item.id)!) : concealNames ? [] : seeds;
   const filtered = available.filter(item => searchOnServer && remote || item.text.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const choices: Choice[] = filtered.map(item => ({ ...item, selected: selected.includes(item.id), disabled: multiple && !selected.includes(item.id) && selected.length >= 100 }));
   function choose(id: string) {

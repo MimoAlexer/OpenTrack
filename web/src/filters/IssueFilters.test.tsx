@@ -97,6 +97,19 @@ it('does not fall back to a flat query when the structured endpoint rejects an i
   expect(location.hash).not.toBe('');
 });
 
+it('accepts a pending query after a comment-anchor-only change without replacing its AST or refetching', async () => {
+  let resolve!: (response: Response) => void;
+  const fetch = vi.fn((_url: string, _init: RequestInit) => new Promise<Response>(done => { resolve = done; })); vi.stubGlobal('fetch', fetch);
+  const state = view(); await render(viewHash(state));
+  await act(async () => { navigateConfirmed(`${basePath}/${issue.id}${viewHash(state)}&comment=${id(70)}`, true); });
+  await act(async () => resolve(page()));
+  expect(container.querySelector(`#row-${issue.id}`)).not.toBeNull();
+  expect(fetch).toHaveBeenCalledOnce();
+  await click(button('Close detail'));
+  expect(parseStructuredHash(location.hash)).toEqual({ kind: 'valid', view: state });
+  expect(fetch).toHaveBeenCalledOnce();
+});
+
 it('round-trips Back and Forward and retains the complete fragment on reload', async () => {
   vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => json({ data: [issue], next_cursor: null, has_more: false, query_context: { ...context, timezone: JSON.parse(init.body as string).timezone } })));
   const first = view(); await render(viewHash(first));
@@ -123,4 +136,19 @@ it('guards hash-only filter changes while an issue draft is dirty and does not p
   expect(issuesUrl(id(90), params)).not.toContain('#');
   expect(issuesUrl(id(90), params)).not.toContain(structuredMarker);
   expect(issuesUrl(workspaceId, new URLSearchParams({ view: 'mine' }))).not.toContain('#');
+});
+
+it.each([
+  { search: `?priority=4&team_id=${teamId}`, filter: { kind: 'predicate', field: 'priority', op: 'eq', value: 4 }, team: teamId },
+  { search: '?view=mine', filter: { kind: 'predicate', field: 'assignee', op: 'eq', value: session.user.id }, team: undefined },
+])('opens Advanced with the current flat intent after navigation: $search', async ({ search, filter, team }) => {
+  const bodies: Record<string, unknown>[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => { if (init.method === 'POST') bodies.push(JSON.parse(init.body as string)); return page(); }));
+  await render('');
+  await act(async () => { navigate(`${basePath}${search}`); }); await flush();
+  await click([...container.querySelectorAll('summary')].find(summary => summary.textContent?.includes('Advanced filters'))!);
+  await click(button('Apply filters'));
+  expect(bodies).toHaveLength(1);
+  expect(bodies[0].filter).toEqual(filter);
+  expect(bodies[0].team_id).toBe(team);
 });

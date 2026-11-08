@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { Page, Request as BrowserRequest } from '@playwright/test';
-import { test, expect, SavedWorkspace } from './fixtures';
+import { test, expect, paragraph, SavedWorkspace } from './fixtures';
 import type { Bootstrap, Issue } from '../src/types';
 import type { TeamDetail } from '../src/settings/types';
-import { viewHash, type FilterNode, type StructuredView } from '../src/filters/model';
+import type { IssueComment } from '../src/documents/types';
+import { parseStructuredHash, viewHash, type FilterNode, type StructuredView } from '../src/filters/model';
 
 async function fixture(owner: SavedWorkspace) {
   const team = await owner.request<TeamDetail>('/teams', 'POST', {
@@ -20,10 +21,11 @@ async function fixture(owner: SavedWorkspace) {
 const path = (saved: SavedWorkspace) => `/w/${saved.workspace}/issues`;
 const queryUrl = (saved: SavedWorkspace) => `${saved.origin}${saved.path}/issues/query`;
 const postedQuery = (page: Page, saved: SavedWorkspace) => page.waitForResponse(response => response.request().method() === 'POST' && response.url() === queryUrl(saved));
-function parsedHash(url: string): StructuredView { return JSON.parse(decodeURIComponent(new URL(url).hash.slice(9))) as StructuredView; }
+function parsedHash(url: string): StructuredView { const parsed = parseStructuredHash(new URL(url).hash); if (parsed.kind !== 'valid') throw new Error('Expected a preserved structured query'); return parsed.view; }
 
 test('structured filters preserve saved results, local-day intent, detail navigation and list/board state', async ({ page, saved: owner }) => {
   const { saved, team, issues } = await fixture(owner);
+  const comment = await saved.request<IssueComment>(`/issues/${issues[0].id}/comments`, 'POST', { schema_version: 1, body: paragraph('Saved structured filter context') }, { 'Idempotency-Key': randomUUID() });
   await page.goto(`${path(saved)}?${new URLSearchParams({ team_id: team.id, priority: '1' })}`);
   await page.locator('summary').filter({ hasText: 'Advanced filters' }).click();
   const builder = page.getByRole('form', { name: 'Advanced issue filters', exact: true });
@@ -52,6 +54,11 @@ test('structured filters preserve saved results, local-day intent, detail naviga
   await page.locator(`#row-${issues[0].id}`).click();
   await expect(page.getByRole('textbox', { name: 'Issue title', exact: true })).toHaveValue(issues[0].title);
   expect(parsedHash(page.url())).toEqual(original);
+  await page.locator(`#comment-${comment.id} .comment-time`).click();
+  expect(parsedHash(page.url())).toEqual(original);
+  expect(new URL(page.url()).hash).toContain(`&comment=${comment.id}`);
+  await page.reload();
+  await expect(page.locator(`#comment-${comment.id}`)).toBeFocused();
   await page.getByRole('button', { name: 'Close issue', exact: true }).click();
   const sorted = postedQuery(page, saved);
   await page.getByRole('combobox', { name: 'Issue order', exact: true }).selectOption('priority');

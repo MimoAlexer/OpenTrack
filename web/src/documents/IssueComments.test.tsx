@@ -6,6 +6,7 @@ import { IssueComments, type CommentDraftState } from './IssueComments';
 import { fromPlainText, plainText } from './model';
 import type { IssueComment } from './types';
 import type { Session } from '../types';
+import { parseStructuredHash, viewHash, type StructuredView } from '../filters/model';
 vi.mock('./Editor', () => ({ StructuredEditor: ({ value, onChange, label, disabled }: any) => <textarea aria-label={label} value={plainText(value)} disabled={disabled} onChange={e => onChange(fromPlainText(e.target.value))} /> }));
 const session: Session = { audience: 'web', user: { id: 'u', display_name: 'Example Owner', email: 'owner@example.test' }, csrf_token: 'csrf', workspaces: [{ id: 'w', name: 'Workspace', slug: 'workspace', role: 'member' }] };
 const comment = (id:string,text:string,author='u'):IssueComment => ({id,issue_id:'i',author:{id:author,display_name:author==='u'?'Example Owner':'Other person'},version:'1',etag:`"comment:${id}:1"`,created_at:`2026-10-18T12:${id==='old'?'00':'30'}:00Z`,edited_at:null,deleted_at:null,can_edit:true,can_delete:true,document:{mentions:[],issue_references:[],id:`doc-${id}`,owner_id:id,owner_type:'comment',body:fromPlainText(text),plain_text:text,version:'1',etag:`"document:${id}:1"`,schema_supported:true,schema_version:1,can_edit:true,created_at:'2026-10-18T12:00:00Z',updated_at:'2026-10-18T12:00:00Z'}});
@@ -17,6 +18,19 @@ async function render(token='csrf'){await act(async()=>root.render(<IssueComment
 function buttons(label:string){return [...container.querySelectorAll<HTMLButtonElement>('button')].filter(button=>button.textContent===label);}
 async function click(label:string,index=0){await act(async()=>buttons(label)[index].click());}
 async function type(label:string,text:string){const el=container.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${label}"]`)!;await act(async()=>{Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')!.set!.call(el,text);el.dispatchEvent(new Event('input',{bubbles:true}));});}
+it('keeps a structured filter AST in a comment permalink and resolves the same linked comment after reload', async () => {
+  const id = '00000000-0000-4000-8000-000000000321'; const linked = comment(id, 'Structured permalink comment');
+  const view: StructuredView = { version: 1, layout: 'list', filter: { kind: 'predicate', field: 'priority', op: 'eq', value: 1 }, sort: 'created', limit: 50, archived: false, timezone: 'UTC' };
+  history.replaceState(history.state, '', `/w/w/issues/i${viewHash(view)}`);
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => json(url.endsWith(`/comments/${id}`) ? linked : url.endsWith('/subscription') ? { issue_id: 'i', preference: 'automatic', sources: [], subscribed: false, version: '0', etag: '"s:0"', can_change: true } : page([linked]))));
+  await render();
+  const anchor = container.querySelector<HTMLAnchorElement>('.comment-time')!;
+  await act(async () => { anchor.click(); });
+  expect(parseStructuredHash(location.hash)).toMatchObject({ kind: 'valid', view, commentId: id });
+  await act(async () => { root.unmount(); root = createRoot(container); });
+  await render();
+  expect(document.activeElement).toBe(container.querySelector(`#comment-${id}`));
+});
 it.each(['edit', 'delete'])('keeps a rejected supplementary moderation %s reason and repairs it with the original comment precondition', async mode => {
   const original = comment('a', 'Other member comment', 'other'); let current = original; const writes: RequestInit[] = [];
   const reason = '\u{1F680}'.repeat(500); const draft = 'Manager draft';

@@ -45,7 +45,7 @@ it('builds nested All/Any conditions with visible meanings rather than raw query
 it('preserves a DST local day and an exact microsecond instant without browser timezone conversion', async () => {
   const apply = await render({ ...empty(), timezone: 'Europe/Zurich', filter: { kind: 'predicate', field: 'created_at', op: 'after', value: '2026-03-29' } });
   expect(container.querySelector<HTMLInputElement>('input[type="date"]')?.value).toBe('2026-03-29');
-  expect(container.textContent).toContain('After starts at the next local day.');
+  expect(container.textContent).toContain('After matches a later local date.');
   await select('Condition 1 date 1 meaning', 'instant');
   const instant = '2026-03-29T12:00:00.123456+02:00';
   await input('Condition 1 date 1 value', instant);
@@ -89,4 +89,17 @@ it('does not accept a stale option page after the browsing team changes', async 
   await act(async () => resolveOld(json({ data: [{ id: id(30), name: 'Stale private project' }], has_more: false, next_cursor: null })));
   expect(container.textContent).not.toContain('Stale private project');
   expect(container.textContent).toContain('Current team project');
+});
+
+it.each([403, 404])('conceals remembered selected names after an explicit %s directory denial', async status => {
+  let calls = 0;
+  vi.stubGlobal('fetch', vi.fn(async () => ++calls === 1 ? json({ data: [{ id: id(41), name: 'Revoked project name' }], has_more: true, next_cursor: 'next-options' }) : json({ detail: 'Directory unavailable', code: 'not_found' }, status)));
+  await render({ ...empty(), filter: { kind: 'predicate', field: 'project', op: 'in', values: [] } });
+  await click(container.querySelector('button[aria-haspopup="listbox"]')!);
+  await click([...container.querySelectorAll('[role="option"]')].find(option => option.textContent?.includes('Revoked project name'))!);
+  await click([...container.querySelectorAll('button')].find(value => value.textContent?.includes('Load more'))!);
+  expect(container.textContent).not.toContain('Revoked project name');
+  expect(container.textContent).toContain('Selection unavailable');
+  await click(container.querySelector('button[aria-haspopup="listbox"]')!);
+  expect(container.textContent).not.toContain('Revoked project name');
 });

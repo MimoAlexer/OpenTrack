@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import canonical from '../../../crates/opentrack-domain/tests/fixtures/issue-query-v1.json';
-import { fromFlat, parseStructuredHash, queryBody, validateFilter, validateView, viewHash, type FilterNode, type StructuredView } from './model';
+import { commentHash, commentIdFromHash, fromFlat, parseStructuredHash, queryBody, queryFragment, validateFilter, validateView, viewHash, type FilterNode, type StructuredView } from './model';
 import type { Session } from '../types';
 
 const view = (): StructuredView => ({ ...structuredClone(canonical), layout: 'list' }) as StructuredView;
@@ -17,6 +17,21 @@ describe('structured query URL state', () => {
     expect(queryBody(parsed.view, 'opaque-cursor')).toEqual({ ...canonical, cursor: 'opaque-cursor' });
     expect(queryBody(parsed.view)).not.toHaveProperty('layout');
     expect(queryBody(parsed.view)).not.toHaveProperty('as_of');
+  });
+
+  it('keeps comment anchors separate from complete query intent and preserves literal plus signs', () => {
+    const state = { ...view(), q: 'C++ and a+b' }; const comment = id(70);
+    const linked = commentHash(viewHash(state), comment);
+    expect(parseStructuredHash(linked)).toEqual({ kind: 'valid', view: state, commentId: comment });
+    expect(queryFragment(linked)).toBe(viewHash(state));
+    expect(commentIdFromHash(linked)).toBe(comment);
+    expect(parseStructuredHash(`#comment-${comment}`)).toEqual({ kind: 'absent' });
+    expect(commentIdFromHash(`#comment-${comment}`)).toBe(comment);
+    expect(parseStructuredHash(`${linked}&comment=${comment}`).kind).toBe('invalid');
+    expect(parseStructuredHash(`${linked}&unknown=1`).kind).toBe('invalid');
+    expect(parseStructuredHash(`${viewHash(state)}&comment=bad`).kind).toBe('invalid');
+    expect(parseStructuredHash(`#filters=${JSON.stringify(state)}`)).toEqual({ kind: 'valid', view: state });
+    expect(commentHash('#filters=invalid', comment)).toBe('#filters=invalid');
   });
 
   it('round-trips the legal 151-node, fifty-condition, five-thousand-value shape', () => {
@@ -43,6 +58,7 @@ describe('structured query URL state', () => {
     { kind: 'predicate', field: 'due_date', op: 'before', value: '2026-02-30' },
     { kind: 'predicate', field: 'due_date', op: 'eq', value: '2026-11-08T12:00:00Z' },
     { kind: 'predicate', field: 'updated_at', op: 'eq', value: '2026-11-08T12:00:00' },
+    { kind: 'predicate', field: 'updated_at', op: 'eq', value: '2026-11-08T24:00:00Z' },
     { kind: 'predicate', field: 'updated_at', op: 'eq', value: '2026-11-08T12:00:00.000000001Z' },
     { kind: 'predicate', field: 'created_at', op: 'after', value: { relative_days: 36501 } },
     { kind: 'predicate', field: 'created_at', op: 'after', value: { relative_days: 1, clock: 'client' } },

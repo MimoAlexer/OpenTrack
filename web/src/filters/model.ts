@@ -12,7 +12,7 @@ export interface IssueQuery {
   team_id?: string; q?: string; archived: boolean; limit: number; timezone: string; cursor?: string;
 }
 export interface StructuredView extends Omit<IssueQuery, 'cursor'> { layout: 'list' | 'board' }
-export type ParsedView = { kind: 'absent' } | { kind: 'valid'; view: StructuredView } | { kind: 'invalid'; error: string };
+export type ParsedView = { kind: 'absent' } | { kind: 'valid'; view: StructuredView; commentId?: string } | { kind: 'invalid'; error: string };
 export const structuredMarker = '_structured';
 export const MAX_STATE_BYTES = 1024 * 1024;
 export const fieldLabels: Record<FilterField, string> = {
@@ -34,6 +34,8 @@ function localDate(value: string) {
   return Number.isFinite(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value;
 }
 function timestamp(value: string) {
+  const time = value.match(/[Tt](\d{2}):(\d{2}):(\d{2})/);
+  if (!time || Number(time[1]) > 23 || Number(time[2]) > 59 || Number(time[3]) > 59) return false;
   const fraction = value.match(/\.(\d+)/)?.[1];
   if (fraction && fraction.length > 6 && !/^0+$/.test(fraction.slice(6))) return false;
   return /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:[Zz]|[+-]\d{2}:\d{2})$/.test(value)
@@ -88,15 +90,29 @@ export function validateView(value: unknown): string | null {
 }
 
 export function parseStructuredHash(hash: string): ParsedView {
-  if (!hash) return { kind: 'absent' };
+  if (!hash || legacyCommentId(hash)) return { kind: 'absent' };
   if (!hash.startsWith('#filters=') || hash.length > MAX_STATE_BYTES * 3 + 9) return { kind: 'invalid', error: 'These filter settings are unknown or too large.' };
   try {
-    const json = decodeURIComponent(hash.slice(9));
+    const pairs = hash.slice(1).split('&').map(part => {
+      const separator = part.indexOf('='); if (separator <= 0) throw new Error('Invalid filter fragment field');
+      return [decodeURIComponent(part.slice(0, separator)), decodeURIComponent(part.slice(separator + 1))] as const;
+    });
+    if (pairs.some(([key]) => !['filters', 'comment'].includes(key)) || pairs.filter(([key]) => key === 'filters').length !== 1 || pairs.filter(([key]) => key === 'comment').length > 1) throw new Error('Unsupported filter fragment fields');
+    const json = pairs.find(([key]) => key === 'filters')![1];
+    const comment = pairs.find(([key]) => key === 'comment')?.[1];
+    if (comment !== undefined && !uuid(comment)) throw new Error('Invalid comment reference');
     if (new TextEncoder().encode(json).length > MAX_STATE_BYTES) return { kind: 'invalid', error: 'These filter settings are too large.' };
     const value: unknown = JSON.parse(json); const error = validateView(value);
-    return error ? { kind: 'invalid', error } : { kind: 'valid', view: value as StructuredView };
+    return error ? { kind: 'invalid', error } : { kind: 'valid', view: value as StructuredView, ...(comment ? { commentId: comment.toLowerCase() } : {}) };
   } catch { return { kind: 'invalid', error: 'These filter settings could not be read. Repair or clear them before running a query.' }; }
 }
+function legacyCommentId(hash: string) { const id = /^#comment-(.*)$/.exec(hash)?.[1]; return uuid(id) ? id.toLowerCase() : undefined; }
+export function commentIdFromHash(hash: string) { const parsed = parseStructuredHash(hash); return parsed.kind === 'valid' ? parsed.commentId : legacyCommentId(hash); }
+export function commentHash(hash: string, commentId: string) {
+  const parsed = parseStructuredHash(hash);
+  return parsed.kind === 'valid' ? `${viewHash(parsed.view)}&comment=${encodeURIComponent(commentId.toLowerCase())}` : parsed.kind === 'absent' ? `#comment-${commentId}` : hash;
+}
+export function queryFragment(hash: string) { const parsed = parseStructuredHash(hash); return parsed.kind === 'valid' ? viewHash(parsed.view) : parsed.kind === 'absent' ? '' : hash; }
 export function viewHash(view: StructuredView) {
   const error = validateView(view); if (error) throw new Error(error);
   const json = JSON.stringify(view); if (new TextEncoder().encode(json).length > MAX_STATE_BYTES) throw new Error('These filter settings are too large.');
