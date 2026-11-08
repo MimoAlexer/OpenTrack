@@ -67,11 +67,11 @@ class Qualification:
         self.output = Path(args.output)
         self.checks = []
 
-    def command(self, arguments, *, timeout=90, allowed=(0,)):
+    def command(self, arguments, *, timeout=90, allowed=(0,), input=None, purpose="Container command"):
         result = subprocess.run(arguments, env=self.environment, capture_output=True,
-                                text=True, timeout=timeout)
+                                text=True, timeout=timeout, input=input)
         require(result.returncode in allowed,
-                f"Container command failed ({result.returncode}); inspect the disposable project logs")
+                f"{purpose} failed ({result.returncode}); inspect the disposable project logs")
         return result
 
     def dc(self, *arguments, **kwargs):
@@ -175,14 +175,20 @@ class Qualification:
             for suffix in ("first", "second"):
                 result = self.command([
                     "docker", "run", "--detach", "--name", self.project + "-admission-" + suffix,
-                    "--network", network_name, "--read-only", "--cap-drop", "ALL",
+                    "--network", network_name, "--user", "10001:10001", "--read-only", "--cap-drop", "ALL",
                     "--security-opt", "no-new-privileges:true", "--tmpfs", "/tmp:size=1m,mode=1777",
                     "--entrypoint", "/bin/sleep", app["Image"], "180",
-                ])
+                ], purpose="HTTPS admission client creation")
                 client = result.stdout.strip()
                 require(bool(re.fullmatch(r"[0-9a-f]{12,64}", client)), "Invalid disposable admission client identity")
                 clients.append(client)
-                self.command(["docker", "cp", str(self.certificate), client + ":/tmp/root.crt"])
+                # Write as the same nonroot user that runs curl, keeping the
+                # certificate readable without host-owned archive copies.
+                self.command([
+                    "docker", "exec", "--interactive", client, "sh", "-c",
+                    "umask 077; cat > /tmp/root.crt",
+                ], input=self.certificate.read_text(encoding="ascii"),
+                    purpose="HTTPS admission public certificate delivery")
             inspected = json.loads(self.command(["docker", "inspect", *clients]).stdout)
             addresses = [item["NetworkSettings"]["Networks"][network_name]["IPAddress"] for item in inspected]
             require(len(set(addresses)) == 2 and proxy_address not in addresses,
@@ -197,7 +203,7 @@ class Qualification:
                     "--header", "Origin: " + ORIGIN, "--header", "Content-Type: application/json",
                     "--header", "X-OpenTrack-Client-IP: " + forged_address,
                     "--data", "{}", "https://localhost:8443/api/v1/auth/login",
-                ], timeout=15).stdout.strip()
+                ], timeout=15, purpose="HTTPS admission client request").stdout.strip()
 
             observed = [attempt(clients[0], "198.51.100." + str(index + 1)) for index in range(22)]
             require(observed[:20] == ["422"] * 20 and observed[20:] == ["429"] * 2,
