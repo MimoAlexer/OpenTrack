@@ -4,6 +4,7 @@ mod attachments;
 mod cycles;
 mod issue_ordering;
 mod milestones;
+mod notifications;
 mod planning_counts;
 mod preferences;
 mod project_scope;

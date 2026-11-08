@@ -2,6 +2,7 @@ mod account;
 mod attachments;
 mod cycles;
 mod milestones;
+mod notifications;
 mod preferences;
 mod project_scope;
 mod projects;
@@ -88,6 +89,7 @@ pub fn router_with_trusted_proxies(
         .merge(cycles::routes())
         .merge(mentions::routes())
         .merge(preferences::routes())
+        .merge(notifications::routes())
         .merge(graph::routes())
         .merge(deletion::routes())
         .merge(documents::routes())

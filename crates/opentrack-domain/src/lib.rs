@@ -10,6 +10,8 @@ mod planning;
 pub use planning::*;
 mod preferences;
 pub use preferences::*;
+mod notifications;
+pub use notifications::*;
 mod mentions;
 pub use mentions::*;
 mod attachments;
