@@ -4,7 +4,7 @@ import { cursorValue, type ResetReason } from './contract';
 import { startRealtime, type RealtimeStatus, type ScopedRequest } from './consumer';
 import { workspaceWriteGuard } from './guard';
 
-type Options = { workspaceId: string; sessionKey: string; cursor?: string | null; enabled: boolean; native: boolean; request: ScopedRequest; invalidate: () => void; reset: (reason: ResetReason) => void };
+type Options = { workspaceId: string; sessionKey: string; cursor?: string | null; enabled: boolean; native: boolean; request: ScopedRequest; invalidate: (metadata?: boolean) => void; reset: (reason: ResetReason) => void };
 export function useWorkspaceRealtime(options: Options) {
   const callbacks = useRef(options); callbacks.current = options;
   const [state, setState] = useState<{ scope: string; status: RealtimeStatus }>({ scope: '', status: 'unavailable' });
@@ -17,7 +17,7 @@ export function useWorkspaceRealtime(options: Options) {
     const consumer = startRealtime({ ...options, cursor: options.cursor,
       current: () => active && callbacks.current.sessionKey === options.sessionKey && callbacks.current.workspaceId === options.workspaceId && callbacks.current.cursor === options.cursor && currentSessionGeneration() === generation,
       status: status => { guard.set(['offline', 'reconnecting', 'degraded', 'resetting'].includes(status)); setState(previous => previous.scope === scope && previous.status === status ? previous : { scope, status }); },
-      invalidate: () => callbacks.current.invalidate(), reset: reason => callbacks.current.reset(reason),
+      invalidate: metadata => callbacks.current.invalidate(metadata), reset: reason => callbacks.current.reset(reason),
       request: (path, init) => callbacks.current.request(path, init),
     });
     control.current = consumer;

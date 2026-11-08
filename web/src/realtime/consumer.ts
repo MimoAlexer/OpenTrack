@@ -6,7 +6,7 @@ export type RealtimeStatus = 'unavailable' | 'connecting' | 'connected' | 'recon
 export type ScopedRequest = <T>(path: string, options?: { signal?: AbortSignal }) => Promise<T>;
 type Options = {
   workspaceId: string; cursor: string; native: boolean; request: ScopedRequest;
-  current: () => boolean; invalidate: () => void; reset: (reason: ResetReason) => void;
+  current: () => boolean; invalidate: (metadata?: boolean) => void; reset: (reason: ResetReason) => void;
   status: (status: RealtimeStatus) => void;
 };
 
@@ -18,15 +18,16 @@ export function reconnectDelay(attempt: number, random = Math.random): number {
 /** One bounded consumer per mounted workspace. All callbacks are fenced on disposal. */
 export function startRealtime(options: Options) {
   const lifetime = new AbortController(); const dedup = new EventDeduplicator();
-  let cursor = options.cursor; let attempt = 0; let stopped = false; let transport: AbortController | null = null;
+  let cursor = options.cursor; let attempt = 0; let connectedBefore = false; let wasDisconnected = false; let metadataPending = false; let stopped = false; let transport: AbortController | null = null;
   let retryTimer: ReturnType<typeof setTimeout> | undefined; let flushTimer: ReturnType<typeof setTimeout> | undefined;
   let trafficTimer: ReturnType<typeof setTimeout> | undefined; let degradedTimer: ReturnType<typeof setInterval> | undefined;
   let activeReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   const current = () => !stopped && !lifetime.signal.aborted && options.current();
   const setStatus = (status: RealtimeStatus) => { if (current()) options.status(status); };
-  function flush() {
+  function flush(metadata = false) {
+    metadataPending ||= metadata;
     if (flushTimer !== undefined || !current()) return;
-    flushTimer = setTimeout(() => { flushTimer = undefined; if (current()) options.invalidate(); }, 50);
+    flushTimer = setTimeout(() => { flushTimer = undefined; if (current()) { const metadata = metadataPending; metadataPending = false; options.invalidate(metadata); } }, 50);
   }
   function dispose() {
     stopped = true; lifetime.abort(); abortTransport(); clearTimeout(retryTimer); clearTimeout(flushTimer); clearTimeout(trafficTimer); clearInterval(degradedTimer);
@@ -39,7 +40,7 @@ export function startRealtime(options: Options) {
   function event(value: unknown) {
     const record = canonicalEvent(value, options.workspaceId);
     if (record.type === 'access.changed') { reset('access_changed'); return; }
-    if (dedup.accept(record)) flush();
+    if (dedup.accept(record)) flush(['team', 'workflow_status'].includes(record.entity_type));
   }
   function frame(value: Frame) {
     if (!current()) return;
@@ -55,15 +56,17 @@ export function startRealtime(options: Options) {
     if (current()) cursor = value.id;
   }
   function disconnected() {
+    wasDisconnected = true;
     if (!current()) return;
     setStatus(navigator.onLine === false ? 'offline' : 'reconnecting');
     if (degradedTimer === undefined) degradedTimer = setInterval(() => {
       if (!current()) return;
       setStatus(navigator.onLine === false ? 'offline' : 'degraded');
-      if (navigator.onLine !== false) flush();
+      if (navigator.onLine !== false) flush(true);
     }, 15_000);
   }
   function connected() {
+    if (connectedBefore && wasDisconnected) flush(true); connectedBefore = true; wasDisconnected = false;
     attempt = 0; clearInterval(degradedTimer); degradedTimer = undefined; setStatus('connected');
   }
   function schedule(delay: number) { clearTimeout(retryTimer); if (current()) retryTimer = setTimeout(() => { void connect(); }, delay); }

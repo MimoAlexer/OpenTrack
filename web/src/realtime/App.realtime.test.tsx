@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import type { Bootstrap, Session } from '../types';
 
-vi.mock('../issues/IssueList', () => ({ IssueList: ({ refresh }: { refresh: number }) => createElement('div', { 'data-refresh': refresh }, 'Issue list') }));
+vi.mock('../issues/IssueList', () => ({ IssueList: ({ refresh, data }: { refresh: number; data: Bootstrap }) => createElement('div', { 'data-refresh': refresh, 'data-status-labels': data.statuses.map(status => status.name).join(',') }, 'Issue list') }));
 vi.mock('../issues/IssueEditor', () => ({ IssueEditor: () => { const [draft, setDraft] = useState('Saved title'); return createElement('input', { 'aria-label': 'Issue title', value: draft, onChange: (event: { target: HTMLInputElement }) => setDraft(event.target.value) }); } }));
 vi.mock('../useWorkspaceAccess', () => ({ useWorkspaceAccess: () => {} }));
 const session: Session = { audience: 'web', user: { id: 'owner', display_name: 'Example Owner', email: 'owner@example.test' }, csrf_token: 'synthetic-csrf', workspaces: [{ id: 'workspace', name: 'Workspace', slug: 'workspace', role: 'owner' }] };
@@ -75,4 +75,16 @@ it('uses one canonical stream for inbox, badge and preview refresh without dupli
   expect(container.querySelector('.inbox-badge')?.textContent).toBe('2');
   expect(container.querySelector('.inbox-list')?.textContent).toContain('Current private source');
   expect(container.querySelector('.inbox-source')?.textContent).toContain('Current private source');
+});
+
+it('refreshes renamed bootstrap metadata while retaining the current stream and dirty editor', async () => {
+  await render(); const original = await draft();
+  currentSnapshot = { ...snapshot, realtime_cursor: 'newer_snapshot_cursor', teams: [{ ...snapshot.teams[0], name: 'Renamed remote team' }], statuses: [{ id: 'status', team_id: 'team', name: 'Renamed remote status', category: 'started', color: 'blue', position: 1, is_default: true, archived_at: null, retiring_at: null, replacement_status_id: null, replacement_job_id: null }] };
+  await send(wire('invalidation', { ...event, type: 'team.updated', entity_type: 'team' }, 'retained_stream_cursor'));
+  await send(wire('invalidation', { ...event, event_id: notificationId, type: 'workflow.status_updated', entity_type: 'workflow_status' }, 'retained_stream_cursor'));
+  await act(async () => vi.advanceTimersByTimeAsync(50));
+  expect(container.querySelector('[aria-label="Workspace navigation"]')?.textContent).toContain('Renamed remote team');
+  expect(container.querySelector('[data-status-labels]')?.getAttribute('data-status-labels')).toBe('Renamed remote status');
+  expect(container.querySelector('[aria-label="Issue title"]')).toBe(original); expect(original.value).toBe('Unsubmitted title draft');
+  expect(channels).toHaveLength(1); expect(bootstrapCount).toBe(2);
 });

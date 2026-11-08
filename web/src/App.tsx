@@ -171,8 +171,9 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
   const [orderingHidden, setOrderingHidden] = useState<string[]>([]);
   const [replayRecovery, setReplayRecovery] = useState(0);
   const [realtimeRevision, setRealtimeRevision] = useState(0);
+  const [metadataRevision, setMetadataRevision] = useState(0);
   const realtime = useWorkspaceRealtime({ workspaceId: workspace.id, sessionKey: `${sessionScope}:${sessionGeneration}:${realtimeRevision}`, cursor: data?.realtime_cursor, enabled: !!data && !accessBlocked, native: !!desktop, request,
-    invalidate: () => setRefresh(value => value + 1),
+    invalidate: metadata => { setRefresh(value => value + 1); if (metadata) setMetadataRevision(value => value + 1); },
     reset: reason => { if (reason === 'access_changed' || reason === 'scope_changed') void refreshAuthority(false); else setReplayRecovery(value => value + 1); },
   });
   const paletteScope = accessBlocked ? '' : `${sessionScope}:${workspace.id}:${accessRevision}:${lastKnownEpoch}`;
@@ -221,6 +222,26 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
     return true;
   }
   useWorkspaceAccess(workspace.id, sessionScope, lastKnownEpoch, refreshAuthority);
+  useEffect(() => {
+    if (!metadataRevision || accessBlocked) return;
+    const abort = new AbortController(); const generation = bootstrapGeneration.current; let timer: ReturnType<typeof setTimeout>;
+    async function refreshMetadata() {
+      try {
+        const [snapshot, access] = await Promise.all([request<Bootstrap>(`/workspaces/${workspace.id}/bootstrap`, { signal: abort.signal }), request<{ auth_epoch: string; role: string; archived: boolean }>(`/workspaces/${workspace.id}/access`, { signal: abort.signal })]);
+        if (abort.signal.aborted || !authorityCurrent(generation)) return;
+        if (snapshot.auth_epoch !== lastKnownEpoch || access.auth_epoch !== lastKnownEpoch || access.role !== workspace.role) { void refreshAuthority(false, generation); return; }
+        // This is a projection refresh, not replay acknowledgement. Preserve the
+        // mounted stream's cursor and every editor's existing identity/draft.
+        setData(previous => previous ? { ...snapshot, realtime_cursor: previous.realtime_cursor } : previous);
+        setWorkspaceArchived(access.archived);
+      } catch (error) {
+        if (abort.signal.aborted || !authorityCurrent(generation)) return;
+        if (error instanceof ApiError && [401, 403, 404].includes(error.status)) { void refreshAuthority(false, generation); return; }
+        timer = setTimeout(() => { void refreshMetadata(); }, 15_000);
+      }
+    }
+    void refreshMetadata(); return () => { abort.abort(); clearTimeout(timer); };
+  }, [metadataRevision, accessBlocked, workspace.id, sessionScope, sessionGeneration, lastKnownEpoch]);
   useEffect(() => {
     if (!replayRecovery || accessBlocked) return;
     const abort = new AbortController(); const generation = bootstrapGeneration.current; let timer: ReturnType<typeof setTimeout>;

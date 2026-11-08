@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { expect, registerAdmission, test, type SavedWorkspace } from './fixtures';
 import type { Issue } from '../src/types';
+import type { TeamDetail } from '../src/settings/types';
+import type { Workflow } from '../src/workflows/types';
 
 registerAdmission(1);
 
@@ -28,6 +30,25 @@ test('replays remote issue changes after offline recovery while preserving an ed
   const draft = `Local realtime draft ${randomUUID()}`;
   await title.fill(draft);
   await expect(save).toBeEnabled();
+  const peer = await page.context().newPage();
+  try {
+    const connectedPeer = peer.waitForResponse(response => response.url() === eventsEndpoint && response.status() === 200);
+    await peer.goto(`/w/${saved.workspace}/issues/${issue.id}`); await connectedPeer;
+    const team = await saved.request<TeamDetail>(`/teams/${issue.team_id}`);
+    const teamName = `Renamed realtime team ${randomUUID().slice(0, 8)}`;
+    await saved.request(`/teams/${issue.team_id}`, 'PATCH', { name: teamName }, { 'If-Match': `"team:${team.id}:${team.version}"` });
+    const workflow = await saved.request<Workflow>(`/teams/${issue.team_id}/workflow`);
+    const statusName = `Renamed realtime status ${randomUUID().slice(0, 8)}`;
+    await saved.request(`/teams/${issue.team_id}/statuses/${issue.status_id}`, 'PATCH', { name: statusName }, { 'If-Match': `"workflow:${issue.team_id}:${workflow.version}:true"` });
+    for (const client of [page, peer]) {
+      await expect(client.getByRole('navigation', { name: 'Workspace navigation' }).getByText(teamName, { exact: true })).toBeVisible();
+      await client.locator('.filter-menu summary').click();
+      await expect(client.getByLabel('Team', { exact: true }).locator(`option[value="${team.id}"]`)).toHaveText(teamName);
+      await expect(client.getByLabel('Status', { exact: true }).locator(`option[value="${issue.status_id}"]`)).toContainText(statusName);
+      await client.locator('.filter-menu summary').click();
+    }
+    await expect(title).toHaveValue(draft); await expect(save).toBeEnabled();
+  } finally { await peer.close(); }
   const first = await remoteTitle(saved, issue, `Remote connected title ${randomUUID()}`);
   await expect(conflict).toBeVisible();
   await expect(conflict).toContainText(first.title);
