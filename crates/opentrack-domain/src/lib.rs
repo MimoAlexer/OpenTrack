@@ -1,5 +1,7 @@
 mod milestones;
 pub use milestones::*;
+mod issue_query;
+pub use issue_query::*;
 mod cycles;
 pub use cycles::*;
 mod projects;
