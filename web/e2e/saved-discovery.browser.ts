@@ -64,7 +64,7 @@ test('private saved search runs current body results and keeps text overrides un
 test('narrow keyboard save preserves draft after a remote version conflict', async ({ page, saved }) => {
   const title = `Conflict view ${randomUUID()}`;await page.setViewportSize({width:390,height:844});
   await saved.open(page);await page.locator('.discovery > summary').focus();await page.keyboard.press('Enter');
-  await page.getByLabel('Definition name', { exact: true }).fill(title);await page.getByLabel('View audience',{exact:true}).selectOption('workspace');await page.getByRole('button', { name:'Save new view',exact:true }).click();
+  await page.getByLabel('Definition name', { exact: true }).fill(title);await page.getByRole('combobox',{name:'View audience',exact:true}).selectOption('workspace');await page.getByRole('button', { name:'Save new view',exact:true }).click();
   await page.getByRole('region',{name:'Saved views',exact:true}).getByRole('button',{name:title,exact:true}).click();
   const current=(await saved.request<{data:Saved[]}>('/views')).data.find(item=>item.name===title)!;
   await saved.request(`/views/${current.id}`,'PATCH',{name:`${title} remote`,kind:'view',visibility:current.visibility,team_id:current.team_id,definition:{...current.definition!,query:{...current.definition!.query,filter:{kind:'predicate',field:'priority',op:'eq',value:1}}}},{'If-Match':current.etag,'Idempotency-Key':randomUUID()});
@@ -109,9 +109,10 @@ test('an authorized editor must explicitly review replacement of a redacted shar
   const team=await saved.request<{id:string}>('/teams','POST',{name:privateName,key:`P${suffix.replaceAll('-','').slice(0,8).toUpperCase()}`,private:true},{'Idempotency-Key':randomUUID()});
   const original=await saved.request<Saved>('/views','POST',{name,kind:'view',visibility:'workspace',definition:{query:{version:1,filter:{kind:'predicate',field:'team',op:'eq',value:team.id}},layout:'list',group_by:'status',columns:['key','title']}},{'Idempotency-Key':randomUUID()});
   const invite=await saved.request<{token:string}>('/invitations','POST',{email:`admin-${suffix}@example.test`,role:'admin'},{'Idempotency-Key':randomUUID()});
-  const admin=await playwright.request.newContext({baseURL:saved.origin,extraHTTPHeaders:{Origin:saved.origin}});
+  const admin=await playwright.request.newContext({baseURL:saved.origin,extraHTTPHeaders:{Origin:saved.origin},storageState:{cookies:[],origins:[]}});
   try{
-    const accepted=await admin.post('/api/v1/invitations/accept',{data:{token:invite.token,display_name:'Example Admin',password:process.env.OPENTRACK_BROWSER_PASSWORD}});expect(accepted.ok()).toBe(true);
+    expect((await admin.get('/api/v1/auth/session')).status()).toBe(401);
+    const accepted=await admin.post('/api/v1/invitations/accept',{data:{token:invite.token,display_name:'Example Admin',password:process.env.OPENTRACK_BROWSER_PASSWORD}});expect(accepted.status()).toBe(200);
     await page.context().clearCookies();await page.context().addCookies((await admin.storageState()).cookies);
     await page.goto(`/w/${saved.workspace}/issues`);await page.locator('.discovery > summary').click();
     await page.getByRole('region',{name:'Saved views',exact:true}).getByRole('button',{name,exact:true}).click();

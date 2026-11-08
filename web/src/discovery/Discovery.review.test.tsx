@@ -115,3 +115,16 @@ it.each([false,true])('keeps a lost-response write key for an authorized retry a
   expect(attempts).toHaveLength(deny?1:2);if(!deny)expect(attempts[1]).toEqual(attempts[0]);
  }finally{await x.close();}
 });
+it('Open holds editable metadata until the current saved definition is ready',async()=>{
+ const detail=deferred<unknown>();const patches:unknown[]=[];
+ vi.mocked(request).mockImplementation(async(path,options)=>{
+  if(options?.method==='PATCH'){patches.push(options.body);return {...record(),name:(options.body as {name:string}).name} as never;}
+  if(path.endsWith('/views/saved'))return detail.promise as never;
+  return directory(path.endsWith('/views')?[record()]:[]) as never;
+ });
+ const x=await mount();try{
+  await click(x.host,'Private saved');const field=x.host.querySelector<HTMLInputElement>('.discovery-save input')!;expect(field.disabled).toBe(true);
+  await act(async()=>detail.resolve(record()));expect(field.disabled).toBe(false);
+  await input(x.host,'Definition name','Retained rename');await click(x.host,'Save changes');expect(patches[0]).toMatchObject({name:'Retained rename'});
+ }finally{await x.close();}
+});
