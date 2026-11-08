@@ -124,7 +124,7 @@ END $$;
 CREATE TRIGGER notification_bind_event AFTER INSERT ON workspace_events FOR EACH ROW EXECUTE FUNCTION notification_bind_event();
 -- A live source must have the matching real event before commit. Metadata alone
 -- cannot manufacture a source from an unrelated issue version or actor.
-CREATE FUNCTION notification_source_event_required() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+CREATE FUNCTION notification_source_event_required() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN
  IF NEW.source_transaction IS NOT NULL AND NOT EXISTS(SELECT 1 FROM notification_sources WHERE workspace_id=NEW.workspace_id AND id=NEW.id AND event_seq IS NOT NULL) THEN
   RAISE EXCEPTION 'Notification source requires its exact authored event' USING ERRCODE='23514';END IF;RETURN NULL;
 END $$;
@@ -182,11 +182,12 @@ END $$;
 -- Append invalidations only after every recipient head lock/effect. The shared
 -- stream is references only; replay resolves each ID through recipient RLS.
 CREATE FUNCTION worker_flush_notification_events(w uuid,batch_limit integer) RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE item notification_invalidations%ROWTYPE;finish bigint;amount integer;n bigint;published bigint:=0;constraint_name text;failed boolean;admission boolean;BEGIN
+DECLARE item notification_invalidations%ROWTYPE;pending notification_invalidations[];finish bigint;amount integer;n bigint;published bigint:=0;constraint_name text;failed boolean;admission boolean;BEGIN
  IF batch_limit IS NULL OR batch_limit<1 OR batch_limit>100 THEN RAISE EXCEPTION 'Invalid notification invalidation bound' USING ERRCODE='22023';END IF;
  IF NOT worker_lock_maintenance_context(w) THEN RETURN 0;END IF;
  -- Row locks are acquired before the stream head; effects are already durable.
- FOR item IN SELECT * FROM notification_invalidations WHERE workspace_id=w AND published_seq IS NULL AND NOT blocked AND available_at<=clock_timestamp() ORDER BY available_at,notification_id,notification_version LIMIT batch_limit FOR UPDATE SKIP LOCKED LOOP
+ SELECT array_agg(locked) INTO pending FROM (SELECT * FROM notification_invalidations WHERE workspace_id=w AND published_seq IS NULL AND NOT blocked AND available_at<=clock_timestamp() ORDER BY available_at,notification_id,notification_version LIMIT batch_limit FOR UPDATE SKIP LOCKED) locked;
+ FOREACH item IN ARRAY coalesce(pending,'{}'::notification_invalidations[]) LOOP
   failed:=false;admission:=false;
   BEGIN
    UPDATE workspace_stream_heads SET last_seq=last_seq+1 WHERE workspace_id=w RETURNING last_seq INTO finish;IF NOT FOUND THEN RAISE EXCEPTION 'Required notification stream head missing';END IF;
@@ -213,10 +214,12 @@ ALTER TABLE workspace_events ADD CONSTRAINT workspace_event_actor_shape CHECK(
  OR (actor_kind='system' AND actor_id IS NULL AND ((event_type='issue.updated' AND system_job_id IS NOT NULL AND mutation_id=system_job_id) OR (event_type IN('notification.created','notification.updated') AND system_job_id IS NULL))));
 CREATE OR REPLACE FUNCTION system_effect_authority() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
  IF NEW.actor_kind='system' THEN
-  IF TG_TABLE_NAME='workspace_events' AND NEW.event_type IN('notification.created','notification.updated') THEN
-   IF NOT EXISTS(SELECT 1 FROM notifications WHERE workspace_id=NEW.workspace_id AND id=NEW.entity_id AND version>=NEW.entity_version AND (NEW.team_id IS NULL OR origin_team_id=NEW.team_id)) THEN RAISE EXCEPTION 'Notification invalidation requires its current recipient projection' USING ERRCODE='23514';END IF;RETURN NEW;
-  END IF;
   IF current_user<>pg_get_userbyid((SELECT relowner FROM pg_class WHERE oid=TG_RELID)) AND NOT has_function_privilege(current_user,'worker_lock_maintenance_context(uuid)','EXECUTE') THEN RAISE EXCEPTION 'System attribution requires maintenance authority' USING ERRCODE='42501';END IF;
+  IF TG_TABLE_NAME='workspace_events' THEN
+   IF NEW.event_type IN('notification.created','notification.updated') THEN
+   IF NOT EXISTS(SELECT 1 FROM notifications WHERE workspace_id=NEW.workspace_id AND id=NEW.entity_id AND version>=NEW.entity_version AND (NEW.team_id IS NULL OR origin_team_id=NEW.team_id)) THEN RAISE EXCEPTION 'Notification invalidation requires its current recipient projection' USING ERRCODE='23514';END IF;RETURN NEW;
+   END IF;
+  END IF;
   IF NOT EXISTS(SELECT 1 FROM jobs WHERE workspace_id=NEW.workspace_id AND id=NEW.system_job_id AND kind='assignment.reconcile' AND state='running' AND lease_expires_at>clock_timestamp()) THEN RAISE EXCEPTION 'System effect requires a live maintenance job' USING ERRCODE='23514';END IF;
  END IF;RETURN NEW;
 END $$;
