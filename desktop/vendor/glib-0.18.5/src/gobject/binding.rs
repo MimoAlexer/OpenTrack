@@ -89,8 +89,8 @@ mod test {
         source
             .bind_property("name", &target, "name")
             .sync_create()
-            .transform_to(|_binding, value: &str| Some(format!("{value} World")))
-            .transform_from(|_binding, value: &str| Some(format!("{value} World")))
+            .transform_to(|_binding, value: String| Some(format!("{value} World")))
+            .transform_from(|_binding, value: String| Some(format!("{value} World")))
             .build();
 
         source.set_name("Hello");
@@ -106,7 +106,7 @@ mod test {
             .bind_property("name", &target, "name")
             .sync_create()
             .transform_to(|_binding, value: String| Some(format!("{value} World")))
-            .transform_from(|_binding, value: &str| Some(format!("{value} World")))
+            .transform_from(|_binding, value: String| Some(format!("{value} World")))
             .build();
 
         source.set_name("Hello");
@@ -122,8 +122,8 @@ mod test {
             .bind_property("name", &target, "name")
             .sync_create()
             .bidirectional()
-            .transform_to(|_binding, value: &str| Some(format!("{value} World")))
-            .transform_from(|_binding, value: &str| Some(format!("{value} World")))
+            .transform_to(|_binding, value: String| Some(format!("{value} World")))
+            .transform_from(|_binding, value: String| Some(format!("{value} World")))
             .build();
 
         target.set_name("Hello");
@@ -188,7 +188,7 @@ mod test {
         source
             .bind_property("name", &target, "enabled")
             .sync_create()
-            .transform_to(|_binding, value: &str| Some(value == "Hello"))
+            .transform_to(|_binding, value: String| Some(value == "Hello"))
             .transform_from(|_binding, value: bool| Some(if value { "Hello" } else { "World" }))
             .build();
 
@@ -208,7 +208,7 @@ mod test {
             .bind_property("name", &target, "enabled")
             .sync_create()
             .bidirectional()
-            .transform_to(|_binding, value: &str| Some(value == "Hello"))
+            .transform_to(|_binding, value: String| Some(value == "Hello"))
             .transform_from(|_binding, value: bool| Some(if value { "Hello" } else { "World" }))
             .build();
 

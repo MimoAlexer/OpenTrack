@@ -3551,8 +3551,8 @@ impl<T: ObjectType> From<WeakRef<T>> for SendWeakRef<T> {
 unsafe impl<T: ObjectType> Sync for SendWeakRef<T> {}
 unsafe impl<T: ObjectType> Send for SendWeakRef<T> {}
 
-type TransformFn<'b> =
-    Option<Box<dyn Fn(&'b crate::Binding, &'b Value) -> Option<Value> + Send + Sync + 'static>>;
+type TransformFn =
+    Option<Box<dyn Fn(&crate::Binding, &Value) -> Option<Value> + Send + Sync + 'static>>;
 
 // rustdoc-stripper-ignore-next
 /// Builder for object property bindings.
@@ -3563,8 +3563,9 @@ pub struct BindingBuilder<'a, 'f, 't> {
     target: &'a ObjectRef,
     target_property: &'a str,
     flags: crate::BindingFlags,
-    transform_from: TransformFn<'f>,
-    transform_to: TransformFn<'t>,
+    transform_from: TransformFn,
+    transform_to: TransformFn,
+    transform_lifetimes: PhantomData<(&'f (), &'t ())>,
 }
 
 impl<'a, 'f, 't> fmt::Debug for BindingBuilder<'a, 'f, 't> {
@@ -3594,6 +3595,7 @@ impl<'a, 'f, 't> BindingBuilder<'a, 'f, 't> {
             flags: crate::BindingFlags::DEFAULT,
             transform_to: None,
             transform_from: None,
+            transform_lifetimes: PhantomData,
         }
     }
 
@@ -3618,18 +3620,19 @@ impl<'a, 'f, 't> BindingBuilder<'a, 'f, 't> {
     /// Transform changed property values from the target object to the source object with the given closure.
     ///
     /// This function operates on concrete argument and return types.
-    /// See [`Self::transform_from_with_values`] for a version which operates on `glib::Value`s.
+    /// The argument must be independent of the temporary property value's lifetime.
+    /// Use [`Self::transform_from_with_values`] to borrow from a `glib::Value` within the callback.
     pub fn transform_from<
-        S: FromValue<'f>,
+        S: for<'v> FromValue<'v> + 'static,
         T: Into<Value>,
-        F: Fn(&'f crate::Binding, S) -> Option<T> + Send + Sync + 'static,
+        F: Fn(&crate::Binding, S) -> Option<T> + Send + Sync + 'static,
     >(
         self,
         func: F,
     ) -> Self {
         Self {
             transform_from: Some(Box::new(move |binding, from_value| {
-                let from_value = from_value.get().expect("Wrong value type");
+                let from_value = from_value.get_owned().expect("Wrong value type");
                 func(binding, from_value).map(|r| r.into())
             })),
             ..self
@@ -3657,18 +3660,19 @@ impl<'a, 'f, 't> BindingBuilder<'a, 'f, 't> {
     /// Transform changed property values from the source object to the target object with the given closure.
     ///
     /// This function operates on concrete argument and return types.
-    /// See [`Self::transform_to_with_values`] for a version which operates on `glib::Value`s.
+    /// The argument must be independent of the temporary property value's lifetime.
+    /// Use [`Self::transform_to_with_values`] to borrow from a `glib::Value` within the callback.
     pub fn transform_to<
-        S: FromValue<'t>,
+        S: for<'v> FromValue<'v> + 'static,
         T: Into<Value>,
-        F: Fn(&'t crate::Binding, S) -> Option<T> + Send + Sync + 'static,
+        F: Fn(&crate::Binding, S) -> Option<T> + Send + Sync + 'static,
     >(
         self,
         func: F,
     ) -> Self {
         Self {
             transform_to: Some(Box::new(move |binding, from_value| {
-                let from_value = from_value.get().expect("Wrong value type");
+                let from_value = from_value.get_owned().expect("Wrong value type");
                 func(binding, from_value).map(|r| r.into())
             })),
             ..self
