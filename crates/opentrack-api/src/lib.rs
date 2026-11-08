@@ -3,6 +3,7 @@ mod attachments;
 mod cycles;
 mod milestones;
 mod preferences;
+mod project_scope;
 mod projects;
 pub use attachments::AttachmentService;
 mod admission;
@@ -82,6 +83,7 @@ pub fn router_with_trusted_proxies(
         .merge(taxonomy::routes())
         .merge(templates::routes())
         .merge(projects::routes())
+        .merge(project_scope::routes())
         .merge(milestones::routes())
         .merge(cycles::routes())
         .merge(mentions::routes())

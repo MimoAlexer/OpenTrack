@@ -94,7 +94,11 @@ async fn exercise(h: &Harness, version: i64) {
             .fetch_one(&h.owner)
             .await
             .unwrap(),
-        29
+        opentrack_store::MIGRATOR
+            .iter()
+            .map(|migration| migration.version)
+            .max()
+            .unwrap()
     );
     assert_eq!(snapshot(h, &actor, workspace).await, before);
     let replay = h

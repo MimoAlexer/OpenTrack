@@ -1,0 +1,50 @@
+import { randomUUID } from 'node:crypto';
+import { test, expect, registerAdmission } from './fixtures';
+import type { Project } from '../src/projects/types';
+import type { ProjectScopeSnapshot } from '../src/projects/ProjectScopeHistory';
+registerAdmission(1);
+
+test('an authored baseline retains added and postponed work with reasons after reload', async ({ page, saved }) => {
+  const directory = `/teams/${saved.team.id}/projects`;
+  let project = await saved.request<Project>(directory, 'POST', { name: `Scope history ${randomUUID()}` }, { 'Idempotency-Key': randomUUID() });
+  const original = await saved.request<{ id: string; key: string; title: string; status_id: string }>('/issues', 'POST', {
+    team_id: saved.team.id, title: `Original planned work ${randomUUID()}`, project_id: project.id, project_etag: project.etag,
+  }, { 'Idempotency-Key': randomUUID() });
+  const path = `${directory}/${project.id}`;
+  await saved.open(page);
+  await page.goto(`/w/${saved.workspace}/projects/${project.id}?team_id=${saved.team.id}`);
+  await expect(page.getByRole('heading', { name: project.name, exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Scope history', exact: true }).click();
+  const scope = page.getByRole('region', { name: 'Project scope history', exact: true });
+  await expect(scope.getByRole('heading', { name: 'No baseline yet', exact: true })).toBeVisible();
+  const agreement = scope.getByRole('form', { name: 'Set scope baseline', exact: true });
+  await agreement.getByLabel(/^Baseline name/).fill('Reviewed delivery plan');
+  await agreement.getByLabel(/^Baseline reason/).fill('Reviewed the planned deliverable');
+  await agreement.getByRole('checkbox').check();
+  await agreement.getByRole('button', { name: 'Set baseline', exact: true }).click();
+  await expect(scope.getByText('Baseline set. Future scope changes will be compared with this plan.', { exact: true })).toBeVisible();
+  const baseline = (await saved.request<ProjectScopeSnapshot>(`${path}/scope-history`)).baseline!;
+  expect(baseline.author_id).toBe(saved.session.user.id);
+  const added = await saved.create(`Work added after agreement ${randomUUID()}`);
+  project = await saved.request<Project>(path);
+  await saved.request(`${path}/issues/${added.id}`, 'PUT', { included: true }, { 'If-Match': project.etag });
+  await scope.getByRole('button', { name: 'Refresh scope', exact: true }).click();
+  await expect(scope.getByRole('region', { name: 'Added since agreement', exact: true })).toContainText(added.title);
+  const change = scope.getByRole('form', { name: 'Record scope change', exact: true });
+  await change.getByLabel('Project issue', { exact: true }).selectOption(original.id);
+  await change.getByLabel('Change', { exact: true }).selectOption('postponed');
+  await change.getByLabel(/^Change reason/).fill('Wait for the external dependency');
+  await change.getByRole('button', { name: 'Record scope change', exact: true }).click();
+  const postponed = scope.getByRole('region', { name: 'Postponed since agreement', exact: true });
+  await expect(postponed).toContainText(original.title);
+  await expect(postponed).toContainText('Wait for the external dependency');
+  const retained = await saved.issue(original.id);
+  expect(retained.status_id).toBe(original.status_id);
+  await page.reload();
+  await page.getByRole('button', { name: 'Scope history', exact: true }).click();
+  await expect(scope.getByRole('region', { name: 'Postponed since agreement', exact: true })).toContainText('Wait for the external dependency');
+  const stored = await saved.request<ProjectScopeSnapshot>(`${path}/scope-history`);
+  expect(stored.baseline?.id).toBe(baseline.id);
+  expect(stored.comparison?.added.map(issue => issue.id)).toContain(added.id);
+  expect(stored.comparison?.postponed.map(issue => issue.id)).toContain(original.id);
+});

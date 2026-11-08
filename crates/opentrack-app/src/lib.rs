@@ -6,6 +6,7 @@ mod issue_ordering;
 mod milestones;
 mod planning_counts;
 mod preferences;
+mod project_scope;
 mod projects;
 pub use attachments::{
     AttachmentGcClaim, DownloadDescriptor, ScanOutcome, UploadFailure, UploadPermit,
