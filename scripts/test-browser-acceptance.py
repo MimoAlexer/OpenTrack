@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from textwrap import dedent
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
@@ -36,10 +37,14 @@ def manifest():
 
 
 def discovery(cases=89):
+    filename = "example.browser.ts"
+    specs = [{"title": f"case {index}", "file": filename, "line": 10, "column": 1,
+              "id": f"{browser}-{index}", "tests": [{"projectName": browser, "projectId": browser,
+                  "timeout": 60000, "expectedStatus": "passed", "status": "skipped", "results": []}]}
+             for browser in fixtures.BROWSERS for index in range(cases)]
     return {"config": {"workers": 1, "fullyParallel": False, "forbidOnly": True,
         "projects": [{"name": browser, "timeout": 60000, "retries": 0, "repeatEach": 1} for browser in fixtures.BROWSERS]},
-        "errors": [], "suites": [{"specs": [{"id": browser + str(index), "tests": [{"projectName": browser,
-            "timeout": 60000, "expectedStatus": "passed"}]} for browser in fixtures.BROWSERS for index in range(cases)]}]}
+        "errors": [], "suites": [{"title": filename, "file": filename, "line": 0, "column": 0, "specs": specs}]}
 
 
 class SuitePlanning(unittest.TestCase):
@@ -47,6 +52,28 @@ class SuitePlanning(unittest.TestCase):
         self.assertEqual(module.suite_plan(json.dumps(discovery())), (267, 1388))
         self.assertEqual(module.suite_plan(json.dumps(discovery(100))), (300, 1520))
         self.assertEqual(module.suite_plan(json.dumps(discovery(123))), (369, 1796))
+
+    def test_equal_browser_counts_must_include_the_same_cases(self):
+        plan = discovery(3)
+        specs = plan["suites"][0]["specs"]
+        # Playwright lists a separate spec ID and one test for each project.
+        for index, browser in enumerate(fixtures.BROWSERS):
+            specs.remove(next(spec for spec in specs if spec["id"] == f"{browser}-{index}"))
+        with self.assertRaisesRegex(RuntimeError, "complete projects"):
+            module.suite_plan(json.dumps(plan))
+
+    def test_suite_path_distinguishes_generated_cases_and_duplicates_fail(self):
+        plan = discovery(1)
+        suite = plan["suites"][0]
+        suite["suites"] = [{"title": name, "specs": copy.deepcopy(suite["specs"])} for name in ("first", "second")]
+        del suite["specs"]
+        second = suite["suites"][1]
+        for spec in second["specs"]:
+            spec["id"] += "-second"
+        self.assertEqual(module.suite_plan(json.dumps(plan)), (6, 344))
+        second["title"] = "first"
+        with self.assertRaisesRegex(RuntimeError, "repeated a case"):
+            module.suite_plan(json.dumps(plan))
 
     def test_plan_refuses_skips_errors_changed_guards_or_capacity_before_runtime(self):
         changes = [lambda p: p.update(errors=[{"message": "synthetic-private"}]),
@@ -925,16 +952,98 @@ class Boundaries(unittest.TestCase):
                 self.assertFalse(observed[0].exists())
                 runner.validate_cleanup_resources.assert_called_once()
 
-    def test_discovery_is_credential_free_bounded_and_does_not_start_services(self):
+    def discovery_process(self, code):
         runner = self.runner()
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        runner.root = Path(directory.name)
+        (runner.root / "web").mkdir()
+        node = runner.root / "node"
+        node.write_text(f"#!{sys.executable}\n" + "import os, sys, time\nfrom pathlib import Path\n"
+                        + "Path('child.pid').write_text(str(os.getpid()))\n" + dedent(code))
+        node.chmod(0o700)
+        runner.environment["PATH"] = str(runner.root)
         runner.environment["OPENTRACK_BROWSER_PASSWORD"] = "synthetic-private"
-        with patch.object(module.subprocess, "run", return_value=SimpleNamespace(returncode=0, stdout=json.dumps(discovery()))) as node:
-            self.assertEqual(module.BrowserAcceptance.plan(runner), (267, 1388))
-        self.assertEqual(node.call_args.args[0], ["node", "node_modules/@playwright/test/cli.js", "test", "--list", "--reporter=json"])
-        self.assertEqual(node.call_args.kwargs["timeout"], 30)
-        self.assertNotIn("synthetic-private", node.call_args.kwargs["env"].values())
+        del runner.plan
+        return runner
+
+    def test_discovery_is_credential_free_bounded_and_does_not_start_services(self):
+        runner = self.discovery_process("""
+            assert sys.argv[1:] == ["node_modules/@playwright/test/cli.js", "test", "--list", "--reporter=json"]
+            assert all(os.environ[key] == "" for key in ("OPENTRACK_BROWSER_PASSWORD", "OPENTRACK_BROWSER_SETUP_TOKEN",
+                "OPENTRACK_BROWSER_ORDER_FIXTURES_FILE", "OPENTRACK_BROWSER_ADMISSION_FILE"))
+            assert os.path.samestat(os.fstat(2), os.stat(os.devnull))
+            for _ in range(80):
+                os.write(2, b"synthetic-private" * 4096)
+            sys.stdout.buffer.write(Path("plan.json").read_bytes())
+        """)
+        (runner.root / "web" / "plan.json").write_text(json.dumps(discovery()))
+        self.assertEqual(runner.plan(), (267, 1388))
         runner.dc.assert_not_called()
         runner.create_claim.assert_not_called()
+
+    def test_real_discovery_streams_refuse_before_claim_and_reap_the_child(self):
+        streams = {
+            "overflow": ("for _ in range(65): os.write(1, b'x' * 65536)\ntime.sleep(1)", "bound"),
+            "slow": ("for _ in range(40):\n    os.write(1, b'x')\n    time.sleep(0.05)", "deadline"),
+            "closed stdout": ("os.close(1)\ntime.sleep(2)", "deadline"),
+        }
+        for name, (stream, reason) in streams.items():
+            with self.subTest(stream=name):
+                runner = self.discovery_process("os.write(2, b'synthetic-private')\n" + stream
+                                                + "\nPath('completed').touch()\n")
+                runner.command.side_effect = [json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), *[""] * 6]
+                captured = io.StringIO()
+                with redirect_stdout(captured), redirect_stderr(captured), \
+                        patch.object(module, "DISCOVERY_SECONDS", 3 if name == "overflow" else 0.8, create=True), \
+                        self.assertRaisesRegex(RuntimeError, reason) as raised:
+                    runner.run()
+                self.assertNotIn("synthetic-private", captured.getvalue() + str(raised.exception))
+                self.assertFalse((runner.root / "web" / "completed").exists())
+                pid = int((runner.root / "web" / "child.pid").read_text())
+                with self.assertRaises(ChildProcessError):
+                    os.waitpid(pid, os.WNOHANG)
+                runner.dc.assert_not_called()
+                runner.create_claim.assert_not_called()
+
+    def test_node_timeout_attempts_sanitized_diagnostics_before_cleanup_and_remains_primary(self):
+        for ownership_error in (False, True):
+            with self.subTest(ownership_error=ownership_error):
+                runner = self.runner()
+                runner.command.side_effect = [json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), *[""] * 6]
+                clock = [1000]
+                order = []
+                original = subprocess.TimeoutExpired("node", 1368)
+                def node(*args, timeout, **kwargs):
+                    clock[0] += timeout + 2
+                    order.append("timeout")
+                    raise original
+                def validate(*args, **kwargs):
+                    if "timeout" in kwargs:
+                        order.append("ownership")
+                        self.assertEqual(kwargs["timeout"], 18)
+                        clock[0] += 3
+                        if ownership_error:
+                            raise KeyError("synthetic-private")
+                def dc(*args, **kwargs):
+                    if args[0] == "logs":
+                        order.append("logs")
+                        self.assertEqual(kwargs["timeout"], 15)
+                        return "synthetic-private"
+                    return "127.0.0.1:18081" if args[0] == "port" else "a" * 64
+                runner.dc.side_effect = dc
+                runner.validate_live_resources.side_effect = validate
+                runner.validate_cleanup_resources.side_effect = lambda: order.append("cleanup")
+                output = io.StringIO()
+                with redirect_stdout(output), redirect_stderr(output), patch.object(module, "prepare", return_value=manifest()), \
+                        patch.object(module.time, "monotonic", side_effect=lambda: clock[0]), \
+                        patch.object(module.subprocess, "run", side_effect=node), self.assertRaises(subprocess.TimeoutExpired) as raised:
+                    runner.run()
+                self.assertIs(raised.exception, original)
+                expected = ["timeout", "ownership", "cleanup"] if ownership_error else ["timeout", "ownership", "logs", "cleanup"]
+                self.assertEqual(order, expected)
+                self.assertIn("capture_unavailable" if ownership_error else '"available": true', output.getvalue())
+                self.assertNotIn("synthetic-private", output.getvalue())
 
     def test_overcapacity_discovery_cannot_claim_or_create_runtime_resources(self):
         runner = self.runner()
