@@ -353,7 +353,7 @@ impl<T: 'static> futures_core::FusedFuture for JoinHandle<T> {
     }
 }
 
-unsafe impl<T> Send for JoinHandle<T> {}
+unsafe impl<T: Send> Send for JoinHandle<T> {}
 
 // rustdoc-stripper-ignore-next
 /// Variant of [`JoinHandle`] that is returned from [`MainContext::spawn_from_within`].
@@ -575,10 +575,10 @@ impl MainContext {
     // rustdoc-stripper-ignore-next
     /// Spawn a new infallible `Future` on the main context from inside the main context.
     ///
-    /// The given `Future` does not have to be `Send` but the closure to spawn it has to be.
+    /// The given `Future` does not have to be `Send` but the closure to spawn it and its result do.
     ///
     /// This can be called only from any thread.
-    pub fn spawn_from_within<R: 'static, F: Future<Output = R> + 'static>(
+    pub fn spawn_from_within<R: Send + 'static, F: Future<Output = R> + 'static>(
         &self,
         func: impl FnOnce() -> F + Send + 'static,
     ) -> SpawnWithinJoinHandle<R> {
@@ -588,10 +588,10 @@ impl MainContext {
     // rustdoc-stripper-ignore-next
     /// Spawn a new infallible `Future` on the main context from inside the main context.
     ///
-    /// The given `Future` does not have to be `Send` but the closure to spawn it has to be.
+    /// The given `Future` does not have to be `Send` but the closure to spawn it and its result do.
     ///
     /// This can be called only from any thread.
-    pub fn spawn_from_within_with_priority<R: 'static, F: Future<Output = R> + 'static>(
+    pub fn spawn_from_within_with_priority<R: Send + 'static, F: Future<Output = R> + 'static>(
         &self,
         priority: Priority,
         func: impl FnOnce() -> F + Send + 'static,

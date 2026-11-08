@@ -201,7 +201,9 @@ struct ChannelSource<T, F: FnMut(T) -> ControlFlow + 'static> {
     source: ffi::GSource,
     source_funcs: Box<ffi::GSourceFuncs>,
     channel: Channel<T>,
-    callback: ThreadGuard<F>,
+    // Keep a channel owner with the thread-bound callback. The native source may
+    // be finalized on another thread, but queued non-Send items must not be.
+    callback: ThreadGuard<(F, Channel<T>)>,
 }
 
 unsafe extern "C" fn dispatch<T, F: FnMut(T) -> ControlFlow + 'static>(
@@ -218,7 +220,7 @@ unsafe extern "C" fn dispatch<T, F: FnMut(T) -> ControlFlow + 'static>(
 
     // Get a reference to the callback. This will panic if we're called from a different
     // thread than where the source was attached to the main context.
-    let callback = source.callback.get_mut();
+    let callback = &mut source.callback.get_mut().0;
 
     // Now iterate over all items that we currently have in the channel until it is
     // empty again. If all senders are disconnected at some point we remove the GSource
@@ -251,7 +253,9 @@ unsafe extern "C" fn dispose<T, F: FnMut(T) -> ControlFlow + 'static>(source: *m
     }
 }
 
-unsafe extern "C" fn finalize<T, F: FnMut(T) -> ControlFlow + 'static>(source: *mut ffi::GSource) {
+unsafe extern "C" fn finalize<T: 'static, F: FnMut(T) -> ControlFlow + 'static>(
+    source: *mut ffi::GSource,
+) {
     let source = &mut *(source as *mut ChannelSource<T, F>);
 
     // Drop all memory we own by taking it out of the Options
@@ -286,13 +290,18 @@ unsafe extern "C" fn finalize<T, F: FnMut(T) -> ControlFlow + 'static>(source: *
     if source.callback.is_owner() {
         ptr::drop_in_place(&mut source.callback);
     } else {
-        let callback = ptr::read(&source.callback);
+        // invoke() can run immediately on an unowned context, or its queued
+        // closure can be destroyed without running. In either case retain the
+        // payload if the original thread cannot perform its destruction.
+        let callback = mem::ManuallyDrop::new(ptr::read(&source.callback));
         let context =
             ffi::g_source_get_context(source as *mut ChannelSource<T, F> as *mut ffi::GSource);
         if !context.is_null() {
             let context = MainContext::from_glib_none(context);
             context.invoke(move || {
-                drop(callback);
+                if callback.is_owner() {
+                    drop(mem::ManuallyDrop::into_inner(callback));
+                }
             });
         }
     }
@@ -448,6 +457,7 @@ impl<T> Receiver<T> {
     /// available on the channel.
     ///
     /// Passing `None` for the context will attach it to the thread default main context.
+    /// Items cannot borrow non-static data, because the source can outlive all channel handles.
     ///
     /// # Panics
     ///
@@ -457,7 +467,10 @@ impl<T> Receiver<T> {
         mut self,
         context: Option<&MainContext>,
         func: F,
-    ) -> SourceId {
+    ) -> SourceId
+    where
+        T: 'static,
+    {
         unsafe {
             let channel = self.0.take().expect("Receiver without channel");
 
@@ -505,8 +518,11 @@ impl<T> Receiver<T> {
             // Store all our data inside our part of the GSource
             {
                 let source = &mut *source;
+                ptr::write(
+                    ptr::addr_of_mut!(source.callback),
+                    ThreadGuard::new((func, channel.clone())),
+                );
                 ptr::write(ptr::addr_of_mut!(source.channel), channel);
-                ptr::write(ptr::addr_of_mut!(source.callback), ThreadGuard::new(func));
                 ptr::write(ptr::addr_of_mut!(source.source_funcs), source_funcs);
             }
 

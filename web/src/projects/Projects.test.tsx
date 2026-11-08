@@ -87,6 +87,23 @@ describe('project navigation and scope', () => {
 });
 
 describe('project edits', () => {
+  it.each([null, session.user.id])('keeps lead appointments read-only for a contributor with lead %s', async lead => {
+    const saved = vi.fn(); const fetch = vi.fn((_url: string, _options: RequestInit) => Promise.resolve(json({ ...project, can_manage: false, lead_id: lead, summary: 'Updated summary' }))); vi.stubGlobal('fetch', fetch);
+    await render(editor({ project: { ...project, can_manage: false, lead_id: lead }, saved }));
+    const picker = container.querySelector<HTMLButtonElement>('.project-lead-field button.reference-trigger')!;
+    expect(picker.disabled).toBe(true); expect(container.textContent).toContain('Only team managers can change a project lead.');
+    await input('input[name="project-summary"]', 'Updated summary'); await submit();
+    expect(JSON.parse(fetch.mock.calls[0][1].body as string)).not.toHaveProperty('lead_id');
+    expect(saved).toHaveBeenCalledTimes(1);
+  });
+  it('preserves initial lead selection when a contributor creates a project', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(json({ ...page([]), self_assignable: true }))));
+    await render(editor({ project: undefined, session: { ...session, workspaces: [{ ...session.workspaces[0], role: 'member' }] } }));
+    const picker = container.querySelector<HTMLButtonElement>('.project-lead-field button.reference-trigger')!;
+    expect(picker.disabled).toBe(false); await act(async () => picker.click());
+    expect(container.querySelector('[role="listbox"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('Only team managers can change a project lead.');
+  });
   it.each(['create', 'edit'] as const)('retains scalar-boundary drafts and repairs server rejections during %s', async mode => {
     const saved = vi.fn(); const denied = vi.fn(); let reject = true;
     const fetch = vi.fn((_url: string, _options: RequestInit) => Promise.resolve(reject ? json({ code: 'invalid', detail: 'Project text exceeds its limit' }, 422) : json(mode === 'create' ? fullProject() : project))); vi.stubGlobal('fetch', fetch);
@@ -155,6 +172,19 @@ describe('project edits', () => {
     const requests = fetch.mock.calls.filter(([, options]) => options.method === 'PATCH'); expect(new Headers(requests[1][1].headers).get('If-Match')).toBe(latest.etag);
     expect(fetch.mock.calls.every(([url]) => url.endsWith('/metadata'))).toBe(true);
     expect(requests.every(([, options]) => !('narrative' in JSON.parse(options.body as string)))).toBe(true);
+  });
+  it('keeps a contributor summary draft without resubmitting a concurrently changed lead', async () => {
+    const initial = { ...project, can_manage: false, lead_id: 'prior-lead', lead: { id: 'prior-lead', display_name: 'Prior Lead', assignable: true } };
+    const latest = { ...initial, lead_id: 'next-lead', lead: { id: 'next-lead', display_name: 'Next Lead', assignable: true }, version: '2', etag: '"project-metadata:project:2"' }; let writes = 0;
+    const saved = vi.fn(); const denied = vi.fn();
+    const fetch = vi.fn((_url: string, options: RequestInit) => Promise.resolve(options.method === 'PATCH' ? ++writes === 1 ? json({ code: 'version_conflict', detail: 'This project changed.' }, 412) : json({ ...latest, summary: 'My summary draft' }) : json(latest)));
+    vi.stubGlobal('fetch', fetch); await render(editor({ project: initial, saved, denied }));
+    await input('input[name="project-summary"]', 'My summary draft'); await submit(); await click('Keep my draft for review'); await submit();
+    const requests = fetch.mock.calls.filter(([, options]) => options.method === 'PATCH');
+    expect(JSON.parse(requests[1][1].body as string)).not.toHaveProperty('lead_id');
+    expect(new Headers(requests[1][1].headers).get('If-Match')).toBe(latest.etag);
+    expect(container.querySelector('.project-lead-field')?.textContent).toContain('Next Lead');
+    expect(saved).toHaveBeenCalledWith(expect.objectContaining({ lead_id: 'next-lead', summary: 'My summary draft' })); expect(denied).not.toHaveBeenCalled();
   });
   it('retries an uncertain creation with the same body and idempotency key', async () => {
     let writes = 0; const fetch = vi.fn(() => ++writes === 1 ? Promise.reject(new TypeError('connection lost')) : Promise.resolve(json(fullProject())));

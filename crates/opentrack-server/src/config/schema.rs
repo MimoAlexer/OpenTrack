@@ -68,6 +68,13 @@ pub(super) const FIELDS: &[Field] = &[
         9223372036854775807
     ),
     f!(
+        "storage.workspace_key_quota",
+        Integer,
+        "Maximum lifetime attachment storage keys per workspace, including deleted reservations and retained retirement markers.",
+        1,
+        9223372036854775807
+    ),
+    f!(
         "storage.quarantine_ttl",
         Integer,
         "Unlinked upload lifetime in seconds; expired bytes become eligible for fenced worker cleanup.",
@@ -148,6 +155,11 @@ pub(super) const FIELDS: &[Field] = &[
         "server.allowed_origins",
         Strings,
         "Additional exact origins. The public origin is always included. Arrays replace rather than concatenate."
+    ),
+    f!(
+        "server.trusted_proxy_ips",
+        Strings,
+        "At most 64 exact proxy socket IPs allowed to supply one X-OpenTrack-Client-IP header. Empty by default. Proxies must replace inbound headers with their direct client's address. No hostnames, CIDRs or wildcard trust."
     ),
     f!(
         "server.static_dir",

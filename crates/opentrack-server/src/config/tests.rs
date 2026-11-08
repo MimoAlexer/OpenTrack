@@ -41,6 +41,95 @@ fn environment() -> BTreeMap<String, String> {
         ),
     ])
 }
+#[test]
+fn cookie_security_uses_the_validated_url_scheme() {
+    for origin in [
+        "https://example.test",
+        "HTTPS://example.test",
+        "hTtPs://example.test/",
+        " HTTPS://example.test/ ",
+        "ht\ttps://example.test/",
+        "h\nttps://example.test/",
+    ] {
+        let mut values = environment();
+        values.insert("OPENTRACK_PUBLIC_URL".into(), origin.into());
+        values.insert("OPENTRACK_ENVIRONMENT".into(), "production".into());
+        values.insert(
+            "OPENTRACK__SERVER__ALLOWED_ORIGINS".into(),
+            "[\"https://example.test\"]".into(),
+        );
+        values.insert("OPENTRACK_STATIC_DIR".into(), "/app/web".into());
+        let mut settings = Settings::from_sources(&Cli::default(), &values).unwrap();
+        assert!(settings.secure_cookie().unwrap(), "{origin}");
+        settings.server.public_url = "invalid".into();
+        assert!(settings.secure_cookie().is_err());
+    }
+    for origin in ["http://127.0.0.1:8080", "hTtP://localhost:8080/"] {
+        let mut values = environment();
+        values.insert("OPENTRACK_PUBLIC_URL".into(), origin.into());
+        let settings = Settings::from_sources(&Cli::default(), &values).unwrap();
+        assert!(!settings.secure_cookie().unwrap(), "{origin}");
+    }
+}
+#[test]
+fn proxy_trust_defaults_empty_and_requires_bounded_exact_ip_addresses() {
+    assert!(
+        Settings::from_sources(&Cli::default(), &environment())
+            .unwrap()
+            .server
+            .trusted_proxy_ips
+            .is_empty()
+    );
+    for value in ["[\"192.0.2.1\",\"2001:db8::1\"]", "[\"::ffff:192.0.2.1\"]"] {
+        let mut values = environment();
+        values.insert("OPENTRACK__SERVER__TRUSTED_PROXY_IPS".into(), value.into());
+        assert!(Settings::from_sources(&Cli::default(), &values).is_ok());
+    }
+    for value in [
+        "[\"proxy\"]",
+        "[\"192.0.2.0/24\"]",
+        "[\"0.0.0.0\"]",
+        "[\"::\"]",
+        "[\"::ffff:0.0.0.0\"]",
+        "[\"ff02::1\"]",
+    ] {
+        let mut values = environment();
+        values.insert("OPENTRACK__SERVER__TRUSTED_PROXY_IPS".into(), value.into());
+        assert!(invalid(&Cli::default(), &values).contains("server.trusted_proxy_ips"));
+    }
+    let mut values = environment();
+    values.insert(
+        "OPENTRACK__SERVER__TRUSTED_PROXY_IPS".into(),
+        serde_json::to_string(&vec!["192.0.2.1"; 65]).unwrap(),
+    );
+    assert!(invalid(&Cli::default(), &values).contains("server.trusted_proxy_ips"));
+}
+#[test]
+fn lifetime_attachment_key_quota_is_explicit_and_positive() {
+    let mut values = environment();
+    assert_eq!(
+        Settings::from_sources(&Cli::default(), &values)
+            .unwrap()
+            .storage
+            .workspace_key_quota,
+        100000
+    );
+    values.insert("OPENTRACK__STORAGE__WORKSPACE_KEY_QUOTA".into(), "1".into());
+    assert_eq!(
+        Settings::from_sources(&Cli::default(), &values)
+            .unwrap()
+            .storage
+            .workspace_key_quota,
+        1
+    );
+    for value in ["0", "-1"] {
+        values.insert(
+            "OPENTRACK__STORAGE__WORKSPACE_KEY_QUOTA".into(),
+            value.into(),
+        );
+        assert!(invalid(&Cli::default(), &values).contains("storage.workspace_key_quota"));
+    }
+}
 #[tokio::test]
 async fn local_storage_accepts_existing_relative_development_webroot() {
     let temp = Temp::new();

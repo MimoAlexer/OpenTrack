@@ -6,7 +6,7 @@ Open **Projects** in the workspace sidebar, choose a team, then select **New pro
 
 A project has a name, short summary, rich-text brief, optional lead, start date and target date. Its state is Planned, Active, Paused, Completed or Canceled. Health is a separate manual assessment: On track, At risk or Off track.
 
-An inactive member remains visible as a historical lead and cannot be selected again. Other project metadata stays editable; choose **No lead** to clear the saved lead explicitly.
+An inactive member remains visible as a historical lead and cannot be selected again. Other project metadata stays editable. Team management authority is required to change or clear an existing lead; choose **No lead** to clear it explicitly. Contributors can select an eligible initial lead when creating a project.
 
 The overview brief supports ordinary text, lists, checklists, links, code, attachments, user mentions and issue references. It saves independently from project metadata. Conflicts retain the draft for review before an explicit save. **Brief history** opens read-only saved revisions without replacing the current draft; migrated initial snapshots clearly show unknown authorship and migration capture time. History follows the document retention and current-access rules. See the [project brief contract and executed evidence](evidence/2026-10-22-agent-2-issue-26-project-briefs.md).
 

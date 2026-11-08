@@ -311,6 +311,23 @@ impl App {
             lifecycle::require_active_team(&mut tx, w, team).await?;
             team
         };
+        // Attachment rows and their filesystem retirement records are permanent.
+        // Count every historical reservation, including never-uploaded and
+        // collected keys. The quota row held above serializes concurrent creates;
+        // payload refunds during GC must not restore this allocation allowance.
+        let allocated: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM (SELECT 1 FROM attachments WHERE workspace_id=$1 LIMIT $2) retained_keys",
+        )
+        .bind(w)
+        .bind(limits.workspace_key_quota)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(db_error)?;
+        if allocated >= limits.workspace_key_quota {
+            return Err(Error::Conflict(
+                "Workspace attachment key allocation limit is full; deleted files retain their allocation. Ask the operator to review storage capacity".into(),
+            ));
+        }
         let charged=sqlx::query("UPDATE workspace_storage_usage SET charged_bytes=charged_bytes+$2 WHERE workspace_id=$1 AND charged_bytes<=$3-$2").bind(w).bind(request.size_bytes).bind(limits.workspace_quota_bytes).execute(&mut *tx).await.map_err(db_error)?.rows_affected();
         if charged != 1 {
             return Err(Error::Conflict("Workspace attachment quota is full; remove files and wait for cleanup before retrying".into()));

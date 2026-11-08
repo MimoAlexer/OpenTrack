@@ -552,6 +552,11 @@ impl App {
         let target = req.target_date.unwrap_or(old.target_date);
         validate_project_dates(start, target)?;
         let lead_id = req.lead_id.unwrap_or(old.lead_id);
+        // Lead identity grants milestone-management authority. Metadata edit
+        // permission must not also allow appointing that authority over existing work.
+        if lead_id != old.lead_id && !manage {
+            return Err(Error::Forbidden);
+        }
         if req.lead_id.is_some() {
             validate_lead(&mut tx, w, t, lead_id).await?;
         }

@@ -65,6 +65,7 @@ services:
       OPENTRACK_ENVIRONMENT: production
       OPENTRACK_LISTEN: 0.0.0.0:8080
       OPENTRACK_PUBLIC_URL: ${OPENTRACK_PUBLIC_URL:-https://localhost:8443}
+      OPENTRACK__SERVER__TRUSTED_PROXY_IPS: '["${OPENTRACK_PROXY_ADDRESS:-172.31.253.2}"]'
       OPENTRACK_DATABASE_URL_FILE: /run/secrets/database_url
       OPENTRACK_SETUP_TOKEN_FILE: /run/secrets/setup_token
       OPENTRACK_STATIC_DIR: /app/web/dist
@@ -224,7 +225,9 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - proxy_data:/data
       - proxy_config:/config
-    networks: [web]
+    networks:
+      web:
+        ipv4_address: ${OPENTRACK_PROXY_ADDRESS:-172.31.253.2}
     depends_on:
       app:
         condition: service_healthy
@@ -233,6 +236,10 @@ networks:
   database:
     internal: true
   web:
+    ipam:
+      config:
+        - subnet: ${OPENTRACK_PROXY_SUBNET:-172.31.253.0/24}
+          ip_range: ${OPENTRACK_PROXY_DYNAMIC_RANGE:-172.31.253.128/25}
 
 volumes:
   database:

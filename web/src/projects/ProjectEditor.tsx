@@ -27,7 +27,8 @@ export function ProjectEditor({ workspaceId, team, session, project, mode = 'edi
   function dismiss() { if (busy || uncertain) return; if (dirty) setDiscard(true); else close(); }
   function reconcile(value: Project, keep: boolean) {
     setBase(value); setLatest(null); setUncertain(false); setError(null); sent.current = null; setAcknowledged(false);
-    if (!keep) { setName(value.name); setSummary(value.summary); setLead(value.lead_id); setState(value.state); setHealth(value.health); setStart(value.start_date ?? ''); setTarget(value.target_date ?? ''); }
+    if (!keep || !value.can_manage) setLead(value.lead_id);
+    if (!keep) { setName(value.name); setSummary(value.summary); setState(value.state); setHealth(value.health); setStart(value.start_date ?? ''); setTarget(value.target_date ?? ''); }
   }
   async function readLatest() {
     if (!base) return;
@@ -77,7 +78,7 @@ export function ProjectEditor({ workspaceId, team, session, project, mode = 'edi
       <label className="field">Name<input name="project-name" value={name} onChange={event => setName(event.target.value)} required data-autofocus placeholder="Project name"/></label>
       <label className="field">Summary<input name="project-summary" value={summary} onChange={event => setSummary(event.target.value)} placeholder="Short summary"/></label>
       {base && <div className="form-grid"><label className="field">State<select aria-label="Project state" value={state} onChange={event => { setState(event.target.value as ProjectState); setAcknowledged(false); }}>{Object.entries(states).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="field">Health<select aria-label="Project health" value={health} onChange={event => setHealth(event.target.value as ProjectHealth)}>{Object.entries(healthLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>}
-      <div className="project-lead-field"><ProjectLead workspaceId={workspaceId} teamId={team.id} session={session} value={lead} current={base?.lead ?? null} disabled={busy || uncertain || !writable} change={setLead}/></div>
+      <div className="project-lead-field"><ProjectLead workspaceId={workspaceId} teamId={team.id} session={session} value={lead} current={base?.lead ?? null} disabled={busy || uncertain || !writable || !!base && !base.can_manage} change={setLead}/>{base && !base.can_manage && <p>Only team managers can change a project lead.</p>}</div>
       <div className="form-grid"><label className="field">Start date<input name="project-start" aria-label="Start date" type="date" value={start} onChange={event => setStart(event.target.value)}/></label><label className="field">Target date<input name="project-target" aria-label="Target date" type="date" value={target} min={start || undefined} onChange={event => setTarget(event.target.value)}/></label></div>
       {!validDates && <p className="project-validation" role="alert">Target date must be on or after the start date.</p>}
       {!base && <section className="project-narrative-field"><h3>Project brief</h3><StructuredEditor value={body} onChange={setBody} label="Project brief" compact disabled={busy || uncertain || !writable}/></section>}

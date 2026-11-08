@@ -8,6 +8,7 @@ pub fn limits(cfg: &Settings) -> AttachmentLimits {
     AttachmentLimits {
         max_upload_bytes: cfg.storage.max_upload_bytes,
         workspace_quota_bytes: cfg.storage.workspace_quota_bytes,
+        workspace_key_quota: cfg.storage.workspace_key_quota,
         unlinked_ttl_seconds: cfg.storage.quarantine_ttl,
         upload_lease_seconds: 300,
         antivirus_required: cfg.storage.antivirus_required,

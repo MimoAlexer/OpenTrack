@@ -1,7 +1,7 @@
 // Take a look at the license at the top of the repository in the LICENSE file.
 
 use std::{
-    mem, ptr,
+    mem,
     sync::atomic::{AtomicUsize, Ordering},
 };
 fn next_thread_id() -> usize {
@@ -21,9 +21,11 @@ pub fn thread_id() -> usize {
 
 // rustdoc-stripper-ignore-next
 /// Thread guard that only gives access to the contained value on the thread it was created on.
+/// Dropping it on another thread panics and leaks the contained value rather
+/// than destroying thread-affine state on that thread.
 pub struct ThreadGuard<T> {
     thread_id: usize,
-    value: T,
+    value: mem::ManuallyDrop<T>,
 }
 
 impl<T> ThreadGuard<T> {
@@ -38,7 +40,7 @@ impl<T> ThreadGuard<T> {
     pub fn new(value: T) -> Self {
         Self {
             thread_id: thread_id(),
-            value,
+            value: mem::ManuallyDrop::new(value),
         }
     }
 
@@ -85,12 +87,15 @@ impl<T> ThreadGuard<T> {
     /// created.
     #[inline]
     pub fn into_inner(self) -> T {
+        // Suppress both field cleanup and a second owner assertion if this
+        // extraction is attempted from the wrong thread.
+        let mut this = mem::ManuallyDrop::new(self);
         assert!(
-            self.thread_id == thread_id(),
+            this.thread_id == thread_id(),
             "Value accessed from different thread than where it was created"
         );
 
-        unsafe { ptr::read(&mem::ManuallyDrop::new(self).value) }
+        unsafe { mem::ManuallyDrop::take(&mut this.value) }
     }
 
     // rustdoc-stripper-ignore-next
@@ -108,6 +113,9 @@ impl<T> Drop for ThreadGuard<T> {
             self.thread_id == thread_id(),
             "Value dropped on a different thread than where it was created"
         );
+        // On a foreign thread the assertion deliberately leaks the value:
+        // automatic field cleanup must not destroy thread-affine state.
+        unsafe { mem::ManuallyDrop::drop(&mut self.value) }
     }
 }
 

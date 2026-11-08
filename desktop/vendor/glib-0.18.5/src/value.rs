@@ -8,8 +8,10 @@
 //! type.
 //!
 //! [`SendValue`](struct.SendValue.html) is a version of [`Value`](struct.Value.html)
-//! that can only store types that implement `Send` and as such implements `Send` itself. It
-//! dereferences to `Value` so it can be used everywhere `Value` references are accepted.
+//! that stores native representations known to be thread-safe and implements `Send` itself.
+//! Safe promotions reject objects and unrecognized boxed representations even when their
+//! converter implements `Send`. It dereferences to `Value` so it can be used everywhere
+//! `Value` references are accepted.
 //!
 //! Supported types are `bool`, `i8`, `u8`, `i32`, `u32`, `i64`, `u64`, `f32`,
 //! `f64`, `String` and objects (`T: IsA<Object>`).
@@ -638,9 +640,17 @@ impl Value {
         }
     }
 
+    /// Tries to promote a value whose actual native storage is thread-safe.
+    ///
+    /// Supported boxed types are Bytes, Checksum, Date, DateTime, TimeZone,
+    /// Error, MainContext, MainLoop, Source, Closure, GStringBuilder, VariantType
+    /// and string arrays; parameter specifications, Variant and feature-enabled
+    /// Uri values are supported.
+    /// Objects and unrecognized boxed types are rejected even when `T` is
+    /// `Send`: a caller-provided `StaticType` is not a payload-safety guarantee.
     #[inline]
     pub fn try_into_send_value<T: Send + StaticType>(self) -> Result<SendValue, Self> {
-        if self.type_().is_a(T::static_type()) {
+        if self.type_().is_a(T::static_type()) && value_type_is_send(self.type_()) {
             unsafe { Ok(SendValue::unsafe_from(self.into_raw())) }
         } else {
             Err(self)
@@ -776,6 +786,53 @@ crate::wrapper! {
 
 unsafe impl Send for SendValue {}
 
+// Certify the stored representation, never the safe converter or type marker
+// supplied by a caller. Exact native boxed IDs have their own fixed copy/free
+// implementations; arbitrary boxed types and objects may contain local Rust
+// state. Registered enum/flags and parameter-specification types must inherit
+// their native integer/reference value table, with no custom lifecycle table.
+fn value_type_is_send(type_: Type) -> bool {
+    if matches!(
+        type_,
+        Type::I8 | Type::U8 | Type::BOOL | Type::I32 | Type::U32
+            | Type::I_LONG | Type::U_LONG | Type::I64 | Type::U64
+            | Type::F32 | Type::F64 | Type::STRING | Type::VARIANT
+    ) || [
+        Type::static_type(),
+        crate::Bytes::static_type(),
+        crate::Checksum::static_type(),
+        crate::Date::static_type(),
+        crate::DateTime::static_type(),
+        crate::TimeZone::static_type(),
+        crate::Error::static_type(),
+        crate::MainContext::static_type(),
+        crate::MainLoop::static_type(),
+        crate::Source::static_type(),
+        crate::Closure::static_type(),
+        crate::GStringBuilder::static_type(),
+        crate::VariantType::static_type(),
+        Vec::<String>::static_type(),
+    ].contains(&type_) {
+        return true;
+    }
+
+    #[cfg(feature = "v2_66")]
+    if type_ == crate::Uri::static_type() {
+        return true;
+    }
+
+    for fundamental in [Type::ENUM, Type::FLAGS, Type::PARAM_SPEC] {
+        if type_.is_a(fundamental) {
+            unsafe {
+                let table = gobject_ffi::g_type_value_table_peek(type_.into_glib());
+                return !table.is_null()
+                    && table == gobject_ffi::g_type_value_table_peek(fundamental.into_glib());
+            }
+        }
+    }
+    false
+}
+
 impl SendValue {
     // rustdoc-stripper-ignore-next
     /// Consumes `SendValue` and returns the corresponding `GValue`.
@@ -786,9 +843,24 @@ impl SendValue {
             ptr::read(&s.inner)
         }
     }
+    /// Converts owned native scalar, string, enum/flags and supported GLib
+    /// boxed values into transferable storage.
+    ///
+    /// # Panics
+    ///
+    /// Panics for objects or boxed types without a known thread-safe native
+    /// representation. `Send` on a converter alone does not certify its result.
     #[inline]
     pub fn from_owned<T: Send + Into<Value> + ?Sized>(t: T) -> Self {
-        unsafe { Self::unsafe_from(t.into().into_raw()) }
+        Self::from_value(t.into())
+    }
+
+    fn from_value(value: Value) -> Self {
+        assert!(
+            value_type_is_send(value.type_()),
+            "Value has no certified thread-safe native representation"
+        );
+        unsafe { Self::unsafe_from(value.into_raw()) }
     }
 }
 
@@ -819,13 +891,19 @@ impl<'a, T: ?Sized + ToSendValue> From<&'a T> for SendValue {
 pub trait ToSendValue: Send + ToValue {
     // rustdoc-stripper-ignore-next
     /// Returns a `SendValue` clone of `self`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the produced value is an object or an unrecognized boxed
+    /// type. Native scalars, strings, standard enums/flags and the supported
+    /// GLib boxed representations remain transferable.
     fn to_send_value(&self) -> SendValue;
 }
 
 impl<T: Send + ToValue + ?Sized> ToSendValue for T {
     #[inline]
     fn to_send_value(&self) -> SendValue {
-        unsafe { SendValue::unsafe_from(self.to_value().into_raw()) }
+        SendValue::from_value(self.to_value())
     }
 }
 

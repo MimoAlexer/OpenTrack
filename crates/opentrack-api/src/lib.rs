@@ -51,6 +51,12 @@ pub struct ApiState {
     pub static_dir: Arc<PathBuf>,
 }
 pub fn router(state: ApiState) -> Router {
+    router_with_trusted_proxies(state, Vec::new())
+}
+pub fn router_with_trusted_proxies(
+    state: ApiState,
+    trusted_proxies: Vec<std::net::IpAddr>,
+) -> Router {
     let api = Router::new()
         .route("/openapi.json", get(|| async { Json(openapi()) }))
         .route("/problems/{code}", get(problem_documentation))
@@ -89,7 +95,7 @@ pub fn router(state: ApiState) -> Router {
         .fallback(not_found)
         .layer(middleware::from_fn(problem::normalize))
         .layer(middleware::from_fn_with_state(
-            Arc::new(admission::Admission::default()),
+            Arc::new(admission::Admission::new(trusted_proxies)),
             admission::limit_auth,
         ))
         .layer(SetResponseHeaderLayer::overriding(
@@ -512,11 +518,20 @@ pub async fn serve(
     state: ApiState,
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,
 ) -> std::io::Result<()> {
+    serve_with_trusted_proxies(listener, state, Vec::new(), shutdown).await
+}
+pub async fn serve_with_trusted_proxies(
+    listener: tokio::net::TcpListener,
+    state: ApiState,
+    trusted_proxies: Vec<std::net::IpAddr>,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> std::io::Result<()> {
     use std::future::IntoFuture;
     let (sender, receiver) = tokio::sync::oneshot::channel();
     let server = axum::serve(
         listener,
-        router(state).into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        router_with_trusted_proxies(state, trusted_proxies)
+            .into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
     .with_graceful_shutdown(async move {
         shutdown.await;
