@@ -1,0 +1,29 @@
+{
+  "status": "failed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "project update notes survive date conflicts and remain immutable in the overview after reload",
+      "status": "passed",
+      "duration_ms": 925
+    },
+    {
+      "browser": "firefox",
+      "check": "project update notes survive date conflicts and remain immutable in the overview after reload",
+      "status": "passed",
+      "duration_ms": 2053
+    },
+    {
+      "browser": "webkit",
+      "check": "project update notes survive date conflicts and remain immutable in the overview after reload",
+      "status": "failed",
+      "duration_ms": 3,
+      "failure": "project-update-context.browser.ts:7"
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}

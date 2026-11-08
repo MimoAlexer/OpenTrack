@@ -3,9 +3,11 @@ mod assignment_cleanup;
 mod attachments;
 mod cycles;
 mod issue_ordering;
+mod issue_query;
 mod milestones;
 mod planning_counts;
 mod preferences;
+mod project_scope;
 mod projects;
 pub use attachments::{
     AttachmentGcClaim, DownloadDescriptor, ScanOutcome, UploadFailure, UploadPermit,

@@ -26,21 +26,32 @@ fn timezone() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IssueQuery {
-    #[serde(default = "query_version")]
+    #[schema(minimum = 1, maximum = 1)]
     pub version: u16,
-    #[serde(default)]
+    #[schema(required = true)]
+    #[serde(deserialize_with = "query_filter")]
     pub filter: Option<IssueFilterNode>,
     #[serde(default)]
     pub sort: IssueQuerySort,
     pub team_id: Option<Uuid>,
+    #[schema(max_length = 256)]
     pub q: Option<String>,
     #[serde(default)]
     pub archived: bool,
     #[serde(default = "page_limit")]
+    #[schema(default = 50, minimum = 1, maximum = 100)]
     pub limit: i64,
+    #[schema(max_length = 2048)]
     pub cursor: Option<String>,
     #[serde(default = "timezone")]
+    #[schema(default = "UTC", min_length = 1, max_length = 100)]
     pub timezone: String,
+}
+
+fn query_filter<'de, D: Deserializer<'de>>(
+    input: D,
+) -> std::result::Result<Option<IssueFilterNode>, D::Error> {
+    Option::<IssueFilterNode>::deserialize(input)
 }
 
 impl Default for IssueQuery {
@@ -67,7 +78,10 @@ impl IssueQuery {
             ));
         }
         if !(1..=100).contains(&self.limit)
-            || self.q.as_ref().is_some_and(|q| q.chars().count() > 256)
+            || self
+                .q
+                .as_ref()
+                .is_some_and(|q| q.chars().count() > 256 || q.contains('\0'))
             || self
                 .cursor
                 .as_ref()
@@ -126,11 +140,11 @@ impl IssueQuerySort {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum IssueFilterNode {
     All {
-        #[schema(no_recursion)]
+        #[schema(no_recursion, min_items = 1, max_items = 50)]
         children: Vec<IssueFilterNode>,
     },
     Any {
-        #[schema(no_recursion)]
+        #[schema(no_recursion, min_items = 1, max_items = 50)]
         children: Vec<IssueFilterNode>,
     },
     Predicate {
@@ -141,12 +155,14 @@ pub enum IssueFilterNode {
             skip_serializing_if = "Option::is_none",
             deserialize_with = "optional_value"
         )]
+        #[schema(nullable = false)]
         value: Option<IssueQueryValue>,
         #[serde(
             default,
             skip_serializing_if = "Option::is_none",
             deserialize_with = "optional_values"
         )]
+        #[schema(nullable = false, min_items = 1, max_items = 100)]
         values: Option<Vec<IssueQueryValue>>,
     },
 }
@@ -217,6 +233,7 @@ pub enum IssueQueryValue {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IssueQueryRelativeDate {
+    #[schema(minimum = -36500, maximum = 36500)]
     pub relative_days: i32,
 }
 
@@ -334,8 +351,7 @@ fn validate_value(field: IssueQueryField, value: &IssueQueryValue) -> Result<()>
                 if value.len() <= 64
                     && (value.len() == 10
                         && NaiveDate::parse_from_str(value, "%Y-%m-%d").is_ok()
-                        || field != IssueQueryField::DueDate
-                            && DateTime::parse_from_rfc3339(value).is_ok()) =>
+                        || field != IssueQueryField::DueDate && exact_timestamp(value)) =>
             {
                 Ok(())
             }
@@ -343,6 +359,25 @@ fn validate_value(field: IssueQueryField, value: &IssueQueryValue) -> Result<()>
         };
     }
     Err(invalid_predicate())
+}
+
+fn exact_timestamp(value: &str) -> bool {
+    let Ok(time) = DateTime::parse_from_rfc3339(value) else {
+        return false;
+    };
+    // Chrono can retain leap seconds and silently consume fraction digits after
+    // its nanosecond precision. PostgreSQL timestamps cannot retain those
+    // distinctions. Inspect the original fraction before binding any instant.
+    if time.timestamp_subsec_nanos() >= 1_000_000_000 {
+        return false;
+    }
+    value.split_once('.').is_none_or(|(_, fraction)| {
+        fraction
+            .bytes()
+            .take_while(u8::is_ascii_digit)
+            .skip(6)
+            .all(|digit| digit == b'0')
+    })
 }
 
 #[cfg(test)]
@@ -364,6 +399,13 @@ mod tests {
         let encoded = serde_json::to_value(&query).unwrap();
         let restored: IssueQuery = serde_json::from_value(encoded).unwrap();
         restored.validate().unwrap();
+        assert!(serde_json::from_value::<IssueQuery>(json!({})).is_err());
+        assert!(serde_json::from_value::<IssueQuery>(json!({"version":1})).is_err());
+        assert!(serde_json::from_value::<IssueQuery>(json!({"filter":null})).is_err());
+        serde_json::from_value::<IssueQuery>(json!({"version":1,"filter":null}))
+            .unwrap()
+            .validate()
+            .unwrap();
     }
 
     #[test]
@@ -376,6 +418,7 @@ mod tests {
             json!({"kind":"predicate","field":"priority","op":"is_null","value":true}),
             json!({"kind":"predicate","field":"due_date","op":"eq","value":"2026-13-01"}),
             json!({"kind":"predicate","field":"due_date","op":"eq","value":"2026-01-01T12:00:00Z"}),
+            json!({"kind":"predicate","field":"created_at","op":"eq","value":"2026-01-01T12:00:00.000000001Z"}),
             json!({"kind":"predicate","field":"assignee","op":"eq","value":null}),
             json!({"kind":"predicate","field":"priority","op":"in","values":[]}),
             json!({"kind":"predicate","field":"priority","op":"eq","value":1,"values":[]}),
@@ -384,9 +427,8 @@ mod tests {
             json!({"kind":"predicate","field":"priority","op":"eq","value":1,"sql":"true"}),
             json!({"kind":"all","children":[{"kind":"predicate","field":"priority","op":"eq","value":1}],"any":[]}),
         ] {
-            match serde_json::from_value::<IssueFilterNode>(value.clone()) {
-                Ok(node) => assert!(node.validate().is_err(), "accepted invalid filter {value}"),
-                Err(_) => {}
+            if let Ok(node) = serde_json::from_value::<IssueFilterNode>(value.clone()) {
+                assert!(node.validate().is_err(), "accepted invalid filter {value}");
             }
         }
     }
@@ -403,6 +445,10 @@ mod tests {
                 .collect(),
         };
         maximum.validate().unwrap();
+        let too_many_predicates = IssueFilterNode::All {
+            children: (0..51).map(|_| predicate()).collect(),
+        };
+        assert!(too_many_predicates.validate().is_err());
         let extra = IssueFilterNode::All {
             children: vec![maximum.clone(), predicate()],
         };
@@ -468,5 +514,35 @@ mod tests {
             .validate()
             .is_err()
         );
+    }
+
+    #[test]
+    fn timestamp_operands_never_discard_significant_fraction_or_leap_seconds() {
+        for text in [
+            "2026-01-01T12:00:00.0000000001Z",
+            "2026-01-01T12:00:00.1234560001Z",
+            "2016-12-31T23:59:60Z",
+            "2017-01-01T00:59:60+01:00",
+        ] {
+            let node: IssueFilterNode = serde_json::from_value(json!({
+                "kind":"predicate","field":"created_at","op":"eq","value":text,
+            }))
+            .unwrap();
+            assert!(node.validate().is_err(), "lossy timestamp accepted: {text}");
+        }
+        for text in [
+            "2026-01-01T12:00:00.123456Z",
+            "2026-01-01T12:00:00.123456000000Z",
+            "2026-01-01T12:00:00.000000000000Z",
+            "2026-01-01T13:00:00.123456+01:00",
+            "2026-01-01T12:00:00.123456-00:00",
+            "2026-01-01T23:59:00+23:59",
+        ] {
+            let node: IssueFilterNode = serde_json::from_value(json!({
+                "kind":"predicate","field":"created_at","op":"eq","value":text,
+            }))
+            .unwrap();
+            node.validate().unwrap();
+        }
     }
 }

@@ -3,6 +3,7 @@ mod attachments;
 mod cycles;
 mod milestones;
 mod preferences;
+mod project_scope;
 mod projects;
 pub use attachments::AttachmentService;
 mod admission;
@@ -12,6 +13,7 @@ mod deletion;
 mod documents;
 mod graph;
 mod issue_ordering;
+mod issue_query;
 mod management;
 mod mentions;
 mod native;
@@ -82,6 +84,7 @@ pub fn router_with_trusted_proxies(
         .merge(taxonomy::routes())
         .merge(templates::routes())
         .merge(projects::routes())
+        .merge(project_scope::routes())
         .merge(milestones::routes())
         .merge(cycles::routes())
         .merge(mentions::routes())
@@ -92,6 +95,7 @@ pub fn router_with_trusted_proxies(
         .merge(attachments::routes())
         .merge(workflows::routes())
         .merge(issue_ordering::routes())
+        .merge(issue_query::routes())
         .fallback(not_found)
         .layer(middleware::from_fn(problem::normalize))
         .layer(middleware::from_fn_with_state(

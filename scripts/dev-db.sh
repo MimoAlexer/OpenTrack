@@ -156,6 +156,13 @@ for database in ['opentrack', 'opentrack_test']:
     for table in ['planning_backfills', 'assignment_reconciliations', 'consumer_registrations', 'consumer_checkpoints', 'consumer_receipts', 'consumer_dead_letters', 'consumer_alerts', 'event_retention_state', 'consumer_operations', 'document_retention_operations', 'attachment_storage_operations']:
         print(f"SELECT 'REVOKE ALL ON public.{table} FROM {database}' WHERE to_regclass('public.{table}') IS NOT NULL\\gexec")
     print(f"SELECT 'REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER ON public.planning_issue_facts FROM {database}' WHERE to_regclass('public.planning_issue_facts') IS NOT NULL\\gexec")
+    for command in [
+        f'REVOKE INSERT,UPDATE,DELETE,TRUNCATE ON public.project_scope_heads FROM {database}',
+        f'GRANT UPDATE(revision) ON public.project_scope_heads TO {database}',
+    ]:
+        print("SELECT '" + command + "' WHERE to_regclass('public.project_scope_heads') IS NOT NULL\\gexec")
+    print(f"SELECT 'REVOKE INSERT,UPDATE,DELETE,TRUNCATE ON public.project_scope_events FROM {database}' WHERE to_regclass('public.project_scope_events') IS NOT NULL\\gexec")
+
     print(f'ALTER DEFAULT PRIVILEGES FOR ROLE {owner} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {database};')
     print(f'ALTER DEFAULT PRIVILEGES FOR ROLE {owner} IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO {database};')
     print(f'ALTER ROLE {database} SET statement_timeout = \'3s\';')

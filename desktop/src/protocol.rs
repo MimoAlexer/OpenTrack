@@ -149,6 +149,8 @@ impl ApiRequest {
             || project_narrative_request(self.method, &self.path)
         {
             1024 * 1024
+        } else if project_update_request(self.method, &self.path) {
+            128 * 1024
         } else {
             65536
         };
@@ -190,6 +192,24 @@ fn project_narrative_request(method: Method, path: &str) -> bool {
         ["", "api", "v1", "workspaces", _, "teams", _, "projects", _] => method == Method::Patch,
         _ => false,
     }
+}
+fn project_update_request(method: Method, path: &str) -> bool {
+    method == Method::Post
+        && matches!(
+            path.split('/').collect::<Vec<_>>().as_slice(),
+            [
+                "",
+                "api",
+                "v1",
+                "workspaces",
+                _,
+                "teams",
+                _,
+                "projects",
+                _,
+                "updates"
+            ]
+        )
 }
 fn route_allowed(method: Method, path: &str) -> bool {
     use Method::*;
@@ -323,6 +343,26 @@ pub(crate) fn large_cycle_response(method: Method, path: &str) -> bool {
         _ => false,
     }
 }
+pub(crate) fn large_project_update_response(method: Method, path: &str) -> bool {
+    if method != Method::Get || !route_allowed(method, path) {
+        return false;
+    }
+    matches!(
+        path.split('/').collect::<Vec<_>>().as_slice(),
+        [
+            "",
+            "api",
+            "v1",
+            "workspaces",
+            _,
+            "teams",
+            _,
+            "projects",
+            _,
+            "updates"
+        ]
+    )
+}
 fn cycle_route(method: Method, path: &[&str]) -> bool {
     use Method::*;
     match path {
@@ -342,7 +382,8 @@ fn project_route(method: Method, path: &[&str]) -> bool {
     match path {
         [] => matches!(method, Get | Patch),
         ["metadata"] => matches!(method, Get | Patch),
-        ["progress" | "issues" | "document"] => method == Get,
+        ["progress" | "issues" | "document" | "scope-history"] => method == Get,
+        ["scope-baselines" | "scope-changes"] => method == Post,
         ["issues", issue] => id(issue) && method == Put,
         ["issues", issue, "milestone"] => id(issue) && method == Put,
         ["milestones"] => matches!(method, Get | Post),
@@ -364,6 +405,67 @@ mod tests {
 
     fn projects_path() -> String {
         format!("/api/v1/workspaces/{PROJECT_WORKSPACE}/teams/{PROJECT_TEAM}/projects")
+    }
+    #[test]
+    fn update_and_scope_history_envelopes_are_exactly_scoped() {
+        let base = format!("{}/{PROJECT}", projects_path());
+        let feed = format!("{base}/updates");
+        assert!(large_project_update_response(Method::Get, &feed));
+        for (method, path) in [
+            (Method::Post, feed.clone()),
+            (Method::Get, format!("{feed}/{PROJECT_ISSUE}")),
+            (Method::Get, format!("{feed}/extra/extra")),
+            (Method::Get, format!("{base}/metadata")),
+            (Method::Get, format!("{base}/scope-history")),
+            (Method::Get, feed.replace(PROJECT_TEAM, "invalid")),
+            (Method::Get, format!("{feed}/")),
+        ] {
+            assert!(
+                !large_project_update_response(method, &path),
+                "{} {path}",
+                method.as_str()
+            );
+        }
+        for suffix in ["scope-history", "scope-baselines", "scope-changes"] {
+            for method in [
+                Method::Get,
+                Method::Post,
+                Method::Patch,
+                Method::Put,
+                Method::Delete,
+            ] {
+                assert_eq!(
+                    route_allowed(method, &format!("{base}/{suffix}")),
+                    if suffix == "scope-history" {
+                        method == Method::Get
+                    } else {
+                        method == Method::Post
+                    }
+                );
+                assert!(!route_allowed(
+                    method,
+                    &format!("{base}/{suffix}/{PROJECT_ISSUE}")
+                ));
+            }
+        }
+        let risks=(0..6).map(|i|serde_json::json!({"id":Uuid::from_u128(100+i),"title":"🧭".repeat(160),"detail":"🧭".repeat(1000),"status":"open"})).collect::<Vec<_>>();
+        let decisions=(0..6).map(|i|serde_json::json!({"id":Uuid::from_u128(200+i),"title":"🧭".repeat(160),"detail":"🧭".repeat(1000),"status":"needed"})).collect::<Vec<_>>();
+        let mut update = request(Method::Post, &feed);
+        update.body = Some(
+            serde_json::json!({"body":"🧭".repeat(8000),"notes":{"risks":risks,"decisions":decisions}}),
+        );
+        let length = update.check().unwrap().body.unwrap().len();
+        assert!(length > 65536 && length < 128 * 1024);
+        for suffix in ["metadata", "scope-baselines", "scope-changes"] {
+            let method = if suffix == "metadata" {
+                Method::Patch
+            } else {
+                Method::Post
+            };
+            let mut too_large = request(method, &format!("{base}/{suffix}"));
+            too_large.body = Some(serde_json::json!({"body":"x".repeat(65536)}));
+            assert!(too_large.check().is_err());
+        }
     }
 
     #[test]
@@ -547,7 +649,11 @@ mod tests {
             (Method::Post, base.clone(), 1024 * 1024),
             (Method::Patch, format!("{base}/{PROJECT}"), 1024 * 1024),
             (Method::Patch, format!("{base}/{PROJECT}/metadata"), 65536),
-            (Method::Post, format!("{base}/{PROJECT}/updates"), 65536),
+            (
+                Method::Post,
+                format!("{base}/{PROJECT}/updates"),
+                128 * 1024,
+            ),
             (
                 Method::Put,
                 format!("{base}/{PROJECT}/issues/{PROJECT_ISSUE}"),
