@@ -205,7 +205,122 @@ pub struct ProjectIssue {
 #[serde(deny_unknown_fields)]
 pub struct CreateProjectUpdate {
     pub body: String,
+    /// Omission preserves compatibility with body-only clients and means notes were not reviewed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes: Option<ProjectUpdateNotes>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectRiskStatus {
+    Open,
+    Mitigated,
+    Closed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectDecisionStatus {
+    Needed,
+    Decided,
+    Deferred,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectRiskNote {
+    /// Identity within authored update snapshots, not a separate risk entity or access grant.
+    pub id: Uuid,
+    pub title: String,
+    #[serde(default)]
+    pub detail: String,
+    pub status: ProjectRiskStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectDecisionNote {
+    pub id: Uuid,
+    pub title: String,
+    #[serde(default)]
+    pub detail: String,
+    pub status: ProjectDecisionStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectUpdateNotes {
+    /// Empty arrays explicitly record that the author reviewed this context and recorded no notes.
+    pub risks: Vec<ProjectRiskNote>,
+    pub decisions: Vec<ProjectDecisionNote>,
+}
+
+impl ProjectUpdateNotes {
+    pub fn normalize(mut self) -> Result<Self> {
+        if self.risks.len() > 6 || self.decisions.len() > 6 {
+            return Err(Error::Invalid(
+                "An update supports at most six risks and six decision notes".into(),
+            ));
+        }
+        let mut ids = std::collections::HashSet::new();
+        for risk in &mut self.risks {
+            if !ids.insert(risk.id) {
+                return Err(Error::Invalid(
+                    "Each update note must have a unique ID".into(),
+                ));
+            }
+            risk.title = bounded_text(&risk.title, "Risk title", 160)?;
+            risk.detail = update_note_detail(&risk.detail)?;
+        }
+        for decision in &mut self.decisions {
+            if !ids.insert(decision.id) {
+                return Err(Error::Invalid(
+                    "Each update note must have a unique ID".into(),
+                ));
+            }
+            decision.title = bounded_text(&decision.title, "Decision title", 160)?;
+            decision.detail = update_note_detail(&decision.detail)?;
+        }
+        Ok(self)
+    }
+}
+
+fn update_note_detail(value: &str) -> Result<String> {
+    let value = value.trim();
+    if value.chars().count() > 1000
+        || value
+            .chars()
+            .any(|c| c.is_control() && !matches!(c, '\n' | '\t' | '\r'))
+    {
+        return Err(Error::Invalid("Update note details support at most 1000 characters without unsupported control characters".into()));
+    }
+    Ok(value.to_owned())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct ProjectUpdateContext {
+    #[schema(required = true)]
+    pub start_date: Option<NaiveDate>,
+    #[schema(required = true)]
+    pub target_date: Option<NaiveDate>,
+    /// Null means the author did not supply reviewed risk and decision context.
+    #[schema(required = true)]
+    pub notes: Option<ProjectUpdateNotes>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ProjectUpdateSnapshot {
+    pub id: Uuid,
+    pub state: ProjectState,
+    pub health: ProjectHealth,
+    pub completed: i64,
+    pub eligible: i64,
+    pub created_at: DateTime<Utc>,
+    #[serde(default)]
+    #[schema(required = true)]
+    pub context: Option<ProjectUpdateContext>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ProjectUpdate {
     pub id: Uuid,
@@ -217,6 +332,14 @@ pub struct ProjectUpdate {
     pub completed: i64,
     pub eligible: i64,
     pub created_at: DateTime<Utc>,
+    /// Null for legacy rows whose dates and authored notes were never captured.
+    #[serde(default)]
+    #[schema(required = true)]
+    pub context: Option<ProjectUpdateContext>,
+    /// The immediately preceding saved snapshot, even when it is outside this feed page.
+    #[serde(default)]
+    #[schema(required = true)]
+    pub previous: Option<ProjectUpdateSnapshot>,
 }
 pub fn validate_project_dates(start: Option<NaiveDate>, target: Option<NaiveDate>) -> Result<()> {
     if start.zip(target).is_some_and(|(a, b)| a > b) {
@@ -298,5 +421,96 @@ mod tests {
         assert!(validate_project_dates(Some(a), Some(a)).is_ok());
         assert!(project_summary(&"x".repeat(501)).is_err());
         assert_eq!(project_summary("  ").unwrap(), "");
+    }
+    #[test]
+    fn update_notes_preserve_unknown_and_explicit_empty_context() {
+        let old: CreateProjectUpdate = serde_json::from_str(r#"{"body":"Legacy client"}"#).unwrap();
+        assert!(old.notes.is_none());
+        assert_eq!(
+            serde_json::to_string(&old).unwrap(),
+            r#"{"body":"Legacy client"}"#
+        );
+        let reviewed: CreateProjectUpdate =
+            serde_json::from_str(r#"{"body":"Reviewed","notes":{"risks":[],"decisions":[]}}"#)
+                .unwrap();
+        assert!(
+            reviewed
+                .notes
+                .unwrap()
+                .normalize()
+                .unwrap()
+                .risks
+                .is_empty()
+        );
+        let legacy: ProjectUpdate = serde_json::from_str(r#"{"id":"00000000-0000-4000-8000-000000000001","author_id":"00000000-0000-4000-8000-000000000002","author_name":"Example Author","body":"Legacy","state":"planned","health":"on_track","completed":0,"eligible":0,"created_at":"2026-01-01T00:00:00Z"}"#).unwrap();
+        assert!(legacy.context.is_none());
+        assert!(legacy.previous.is_none());
+    }
+    #[test]
+    fn update_note_fields_have_scalar_bounds_and_unique_local_ids() {
+        let note = ProjectRiskNote {
+            id: Uuid::new_v4(),
+            title: " Risk ".into(),
+            detail: " detail\nwith context ".into(),
+            status: ProjectRiskStatus::Open,
+        };
+        let normalized = ProjectUpdateNotes {
+            risks: vec![note.clone()],
+            decisions: vec![],
+        }
+        .normalize()
+        .unwrap();
+        assert_eq!(normalized.risks[0].title, "Risk");
+        assert_eq!(normalized.risks[0].detail, "detail\nwith context");
+        let mut limit = note.clone();
+        limit.title = "🧭".repeat(160);
+        limit.detail = "🧭".repeat(1000);
+        assert!(
+            ProjectUpdateNotes {
+                risks: vec![limit.clone()],
+                decisions: vec![]
+            }
+            .normalize()
+            .is_ok()
+        );
+        limit.detail.push('x');
+        assert!(
+            ProjectUpdateNotes {
+                risks: vec![limit],
+                decisions: vec![]
+            }
+            .normalize()
+            .is_err()
+        );
+        assert!(
+            ProjectUpdateNotes {
+                risks: vec![note.clone(); 7],
+                decisions: vec![]
+            }
+            .normalize()
+            .is_err()
+        );
+        assert!(
+            ProjectUpdateNotes {
+                risks: vec![note.clone()],
+                decisions: vec![ProjectDecisionNote {
+                    id: note.id,
+                    title: "Decision".into(),
+                    detail: String::new(),
+                    status: ProjectDecisionStatus::Needed
+                }]
+            }
+            .normalize()
+            .is_err()
+        );
+        assert!(
+            serde_json::from_str::<ProjectUpdateNotes>(r#"{"risks":null,"decisions":[]}"#).is_err()
+        );
+        assert!(
+            serde_json::from_str::<ProjectUpdateNotes>(
+                r#"{"risks":[],"decisions":[],"private":true}"#
+            )
+            .is_err()
+        );
     }
 }

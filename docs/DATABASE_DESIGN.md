@@ -409,6 +409,12 @@ Progress is an indexed, current SQL aggregation over linked issues and their sta
 Apply 0022 before starting the matching API and worker; both require the new relations. Earlier migrations remain immutable. No destructive down-migration is supplied: a schema rollback requires the matching pre-upgrade database backup and application/frontend, with writes and cleanup quiesced for a consistent capture. Upgrade and recovery results must be recorded separately in the [Projects evidence](evidence/2026-10-20-projects.md). Milestone/cycle tables, project deletion, update correction records and independent project documents remain future schema work.
 
 
+## Project update context (0030)
+
+`project_updates.context_captured` defaults to false for historical rows, whose new nullable date/note columns remain empty. New API publications set it true and atomically copy `snapshot_start_date`/`snapshot_target_date` from the locked project; an undated captured project therefore differs from unknown historical dates. `notes` is either SQL null for unreviewed context or an explicitly authored `{risks,decisions}` object. Database and domain validation constrain exact keys, six items per kind, unique local UUIDs, strings/statuses and scalar bounds. Existing append-only triggers cover all new columns.
+
+The indexed `(created_at,id)` predecessor projection is read-only and scoped to the same workspace/team/project. Feed pages retain their count cap and also bound actual JSON bytes, including predecessor notes. No historical context is backfilled, and no down-migration discards published context; restore a matching pre-upgrade backup and binaries for rollback.
+
 ## Implemented cycle storage (migration 0024)
 
 `cycles` captures immutable timezone, local dates with exclusive end, planned/active/closed lifecycle, version and unused-plan tombstone. A `btree_gist` exclusion constraint prevents concurrent overlapping nondeleted team intervals; a database-wide transaction advisory lock serializes first extension installation across application schemas. Trusted extension objects live in migration-owned `opentrack_extensions`, with PUBLIC schema access revoked and no runtime/worker USAGE or CREATE. Ownership checks fail closed and require explicit operator relocation of preinstalled extensions. `cycle_issues` is the single authoritative issue membership, keyed `(workspace_id,issue_id)`, with workspace/team-qualified foreign keys to both endpoints. It follows the existing project join approach rather than adding a competing `issues.cycle_id` source.

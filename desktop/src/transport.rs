@@ -79,6 +79,8 @@ impl Transport {
         }
         let long_finalize = method == Method::Post && attachment_finalize(path);
         let large_cycle_response = crate::protocol::large_cycle_response(method, path);
+        let large_project_update_response =
+            crate::protocol::large_project_update_response(method, path);
         let method = reqwest::Method::from_bytes(method.as_str().as_bytes())
             .map_err(|_| NativeError::invalid())?;
         let mut request = self
@@ -135,6 +137,7 @@ impl Transport {
         let response_limit = if path.contains("/documents/")
             || path.ends_with("/document")
             || large_cycle_response
+            || large_project_update_response
         {
             4 * 1024 * 1024
         } else {

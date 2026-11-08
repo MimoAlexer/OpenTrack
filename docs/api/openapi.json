@@ -1051,6 +1051,17 @@
         "properties": {
           "body": {
             "type": "string"
+          },
+          "notes": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProjectUpdateNotes",
+                "description": "Omission preserves compatibility with body-only clients and means notes were not reviewed."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -4763,6 +4774,17 @@
                   "format": "int64",
                   "type": "integer"
                 },
+                "context": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ProjectUpdateContext",
+                      "description": "Null for legacy rows whose dates and authored notes were never captured."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "created_at": {
                   "format": "date-time",
                   "type": "string"
@@ -4778,6 +4800,17 @@
                   "format": "uuid",
                   "type": "string"
                 },
+                "previous": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ProjectUpdateSnapshot",
+                      "description": "The immediately preceding saved snapshot, even when it is outside this feed page."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "state": {
                   "$ref": "#/components/schemas/ProjectState"
                 }
@@ -4791,7 +4824,9 @@
                 "health",
                 "completed",
                 "eligible",
-                "created_at"
+                "created_at",
+                "context",
+                "previous"
               ],
               "type": "object"
             },
@@ -5371,6 +5406,38 @@
         ],
         "type": "object"
       },
+      "ProjectDecisionNote": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProjectDecisionStatus"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status"
+        ],
+        "type": "object"
+      },
+      "ProjectDecisionStatus": {
+        "enum": [
+          "needed",
+          "decided",
+          "deferred"
+        ],
+        "type": "string"
+      },
       "ProjectHealth": {
         "enum": [
           "on_track",
@@ -5497,6 +5564,39 @@
           "facts_as_of"
         ],
         "type": "object"
+      },
+      "ProjectRiskNote": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "id": {
+            "description": "Identity within authored update snapshots, not a separate risk entity or access grant.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProjectRiskStatus"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status"
+        ],
+        "type": "object"
+      },
+      "ProjectRiskStatus": {
+        "enum": [
+          "open",
+          "mitigated",
+          "closed"
+        ],
+        "type": "string"
       },
       "ProjectState": {
         "enum": [
@@ -5631,6 +5731,136 @@
             "format": "int64",
             "type": "integer"
           },
+          "context": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProjectUpdateContext",
+                "description": "Null for legacy rows whose dates and authored notes were never captured."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "eligible": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "health": {
+            "$ref": "#/components/schemas/ProjectHealth"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "previous": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProjectUpdateSnapshot",
+                "description": "The immediately preceding saved snapshot, even when it is outside this feed page."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/ProjectState"
+          }
+        },
+        "required": [
+          "id",
+          "author_id",
+          "author_name",
+          "body",
+          "state",
+          "health",
+          "completed",
+          "eligible",
+          "created_at",
+          "context",
+          "previous"
+        ],
+        "type": "object"
+      },
+      "ProjectUpdateContext": {
+        "properties": {
+          "notes": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProjectUpdateNotes",
+                "description": "Null means the author did not supply reviewed risk and decision context."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start_date": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_date": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "start_date",
+          "target_date",
+          "notes"
+        ],
+        "type": "object"
+      },
+      "ProjectUpdateNotes": {
+        "additionalProperties": false,
+        "properties": {
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectDecisionNote"
+            },
+            "type": "array"
+          },
+          "risks": {
+            "description": "Empty arrays explicitly record that the author reviewed this context and recorded no notes.",
+            "items": {
+              "$ref": "#/components/schemas/ProjectRiskNote"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "risks",
+          "decisions"
+        ],
+        "type": "object"
+      },
+      "ProjectUpdateSnapshot": {
+        "properties": {
+          "completed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "context": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProjectUpdateContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -5652,14 +5882,12 @@
         },
         "required": [
           "id",
-          "author_id",
-          "author_name",
-          "body",
           "state",
           "health",
           "completed",
           "eligible",
-          "created_at"
+          "created_at",
+          "context"
         ],
         "type": "object"
       },
@@ -80979,6 +81207,18 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Optional current project metadata or full validator; checked for a new publication, not a replay",
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           {

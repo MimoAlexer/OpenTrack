@@ -99,6 +99,14 @@ describe('update notes authoring', () => {
     await click('Retry safely'); const requests = fetch.mock.calls.filter(([, options]) => options.method === 'POST').map(([, options]) => options);
     expect(requests[0].body).toBe(requests[1].body); expect(new Headers(requests[0].headers).get('Idempotency-Key')).toBe(new Headers(requests[1].headers).get('Idempotency-Key')); expect(new Headers(requests[0].headers).get('If-Match')).toBe(new Headers(requests[1].headers).get('If-Match')); expect(hasUnsavedChanges()).toBe(false);
   });
+  it('keeps the original unresolved publication frozen when its retry is rate limited', async () => {
+    let posts = 0; const fetch = vi.fn((_url: string, options: RequestInit) => options.method === 'POST' ? ++posts === 1 ? Promise.reject(new TypeError('lost response')) : Promise.resolve(posts === 2 ? json({ code: 'rate_limited', detail: 'Try again later' }, 429) : json(update(), 201)) : Promise.resolve(json(page([])))); vi.stubGlobal('fetch', fetch);
+    await render(screen()); await body('Uncertain authored review'); await includeNotes(); await click('Add decision'); await input('Decision 1 title', 'Review rollout'); await submit(); await click('Retry safely');
+    expect(container.querySelector<HTMLTextAreaElement>('[name="project-update"]')!.disabled).toBe(true); expect(hasUnsavedChanges()).toBe(true);
+    await click('Retry safely'); const requests = fetch.mock.calls.filter(([, options]) => options.method === 'POST').map(([, options]) => options);
+    expect(requests).toHaveLength(3); for (const sent of requests.slice(1)) { expect(sent.body).toBe(requests[0].body); expect(new Headers(sent.headers).get('Idempotency-Key')).toBe(new Headers(requests[0].headers).get('Idempotency-Key')); expect(new Headers(sent.headers).get('If-Match')).toBe(new Headers(requests[0].headers).get('If-Match')); }
+    expect(hasUnsavedChanges()).toBe(false);
+  });
   it('preserves authored notes through an explicit review of changed project dates', async () => {
     let posts = 0; const latest = { ...project, target_date: '2026-12-15', etag: '"project:2"', version: '2' }; const changed = vi.fn();
     const fetch = vi.fn((url: string, options: RequestInit) => Promise.resolve(options.method === 'POST' ? ++posts === 1 ? json({ code: 'version_conflict', detail: 'Changed' }, 412) : json(update(), 201) : json(url.endsWith('/metadata') ? latest : page([])))); vi.stubGlobal('fetch', fetch);

@@ -48,7 +48,8 @@ export function ProjectUpdates({ project, session, refresh, readOnly, denied, ch
     } catch (error) {
       setError(error);
       if (isAccessError(error)) { setAccessError(error); denied(error); }
-      setUncertain(error instanceof ApiError && (error.status === 0 || error.status === 408 || error.status >= 500));
+      const conditionalConflict = error instanceof ApiError && error.status === 412;
+      setUncertain(!conditionalConflict && (uncertain || error instanceof ApiError && (error.status === 0 || error.status === 408 || error.status >= 500)));
       if (error instanceof ApiError && error.status === 412) { pending.current = null; setReviewRequired(true); setReview(null); await loadCurrentProject(); }
     } finally { setBusy(false); flight.current = false; }
   }

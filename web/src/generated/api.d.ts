@@ -2028,6 +2028,7 @@ export interface components {
         };
         CreateProjectUpdate: {
             body: string;
+            notes?: components["schemas"]["ProjectUpdateNotes"] | null;
         };
         /** @enum {string} */
         CreateRelationKind: "blocks" | "blocked_by" | "related" | "duplicate_of";
@@ -3027,6 +3028,7 @@ export interface components {
                 body: string;
                 /** Format: int64 */
                 completed: number;
+                context: components["schemas"]["ProjectUpdateContext"] | null;
                 /** Format: date-time */
                 created_at: string;
                 /** Format: int64 */
@@ -3034,6 +3036,7 @@ export interface components {
                 health: components["schemas"]["ProjectHealth"];
                 /** Format: uuid */
                 id: string;
+                previous: components["schemas"]["ProjectUpdateSnapshot"] | null;
                 state: components["schemas"]["ProjectState"];
             }[];
             has_more: boolean;
@@ -3183,6 +3186,15 @@ export interface components {
             /** Format: uuid */
             workspace_id: string;
         };
+        ProjectDecisionNote: {
+            detail?: string;
+            /** Format: uuid */
+            id: string;
+            status: components["schemas"]["ProjectDecisionStatus"];
+            title: string;
+        };
+        /** @enum {string} */
+        ProjectDecisionStatus: "needed" | "decided" | "deferred";
         /** @enum {string} */
         ProjectHealth: "on_track" | "at_risk" | "off_track";
         ProjectIssue: {
@@ -3222,6 +3234,18 @@ export interface components {
             total: number;
             unscoped: boolean;
         };
+        ProjectRiskNote: {
+            detail?: string;
+            /**
+             * Format: uuid
+             * @description Identity within authored update snapshots, not a separate risk entity or access grant.
+             */
+            id: string;
+            status: components["schemas"]["ProjectRiskStatus"];
+            title: string;
+        };
+        /** @enum {string} */
+        ProjectRiskStatus: "open" | "mitigated" | "closed";
         /** @enum {string} */
         ProjectState: "planned" | "active" | "paused" | "completed" | "canceled";
         ProjectSummary: {
@@ -3260,6 +3284,33 @@ export interface components {
             body: string;
             /** Format: int64 */
             completed: number;
+            context: components["schemas"]["ProjectUpdateContext"] | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            eligible: number;
+            health: components["schemas"]["ProjectHealth"];
+            /** Format: uuid */
+            id: string;
+            previous: components["schemas"]["ProjectUpdateSnapshot"] | null;
+            state: components["schemas"]["ProjectState"];
+        };
+        ProjectUpdateContext: {
+            notes: components["schemas"]["ProjectUpdateNotes"] | null;
+            /** Format: date */
+            start_date: string | null;
+            /** Format: date */
+            target_date: string | null;
+        };
+        ProjectUpdateNotes: {
+            decisions: components["schemas"]["ProjectDecisionNote"][];
+            /** @description Empty arrays explicitly record that the author reviewed this context and recorded no notes. */
+            risks: components["schemas"]["ProjectRiskNote"][];
+        };
+        ProjectUpdateSnapshot: {
+            /** Format: int64 */
+            completed: number;
+            context: components["schemas"]["ProjectUpdateContext"] | null;
             /** Format: date-time */
             created_at: string;
             /** Format: int64 */
@@ -51100,6 +51151,8 @@ export interface operations {
             query?: never;
             header: {
                 "Idempotency-Key": string;
+                /** @description Optional current project metadata or full validator; checked for a new publication, not a replay */
+                "If-Match"?: string | null;
                 /** @description Required with browser cookies and browser-only public flows; must match an allowed origin. Authenticated native bearer requests do not require it. */
                 Origin?: string;
             };

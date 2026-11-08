@@ -74,6 +74,20 @@ fn etag(headers: &HeaderMap) -> Result<&str, Error> {
         .and_then(|v| v.to_str().ok())
         .ok_or(Error::PreconditionRequired)
 }
+fn optional_etag(headers: &HeaderMap) -> Result<Option<&str>, Error> {
+    headers
+        .get(header::IF_MATCH)
+        .map(|value| {
+            let value = value
+                .to_str()
+                .map_err(|_| Error::Invalid("Provide a valid If-Match validator".into()))?;
+            if value.trim().is_empty() || value.len() > 1024 {
+                return Err(Error::Invalid("Provide a valid If-Match validator".into()));
+            }
+            Ok(value)
+        })
+        .transpose()
+}
 #[utoipa::path(get,path="/api/v1/workspaces/{w}/teams/{t}/projects",params(("w"=Uuid,Path),("t"=Uuid,Path),("q"=Option<String>,Query),("archived"=Option<bool>,Query),("limit"=Option<u32>,Query,minimum=1,maximum=100),("cursor"=Option<String>,Query)),responses((status=200,body=Page<ProjectSummary>)))]
 pub(crate) async fn list(
     State(s): State<ApiState>,
@@ -206,7 +220,7 @@ pub(crate) async fn updates(
 ) -> Result<Json<Page<ProjectUpdate>>, ApiError> {
     Ok(Json(s.app.project_updates(&a, w, t, id, q).await?))
 }
-#[utoipa::path(post,path="/api/v1/workspaces/{w}/teams/{t}/projects/{id}/updates",params(("w"=Uuid,Path),("t"=Uuid,Path),("id"=Uuid,Path),("Idempotency-Key"=String,Header)),request_body=CreateProjectUpdate,responses((status=201,body=ProjectUpdate)))]
+#[utoipa::path(post,path="/api/v1/workspaces/{w}/teams/{t}/projects/{id}/updates",params(("w"=Uuid,Path),("t"=Uuid,Path),("id"=Uuid,Path),("Idempotency-Key"=String,Header),("If-Match"=Option<String>,Header,description="Optional current project metadata or full validator; checked for a new publication, not a replay")),request_body=CreateProjectUpdate,responses((status=201,body=ProjectUpdate)))]
 pub(crate) async fn publish(
     State(s): State<ApiState>,
     Auth(a): Auth,
@@ -217,7 +231,15 @@ pub(crate) async fn publish(
     csrf(&s, &headers, &a)?;
     let item = s
         .app
-        .create_project_update(&a, w, t, id, key(&headers)?, payload(body)?)
+        .create_project_update_checked(
+            &a,
+            w,
+            t,
+            id,
+            key(&headers)?,
+            optional_etag(&headers)?,
+            payload(body)?,
+        )
         .await?;
     let location = format!(
         "/api/v1/workspaces/{w}/teams/{t}/projects/{id}/updates/{}",
