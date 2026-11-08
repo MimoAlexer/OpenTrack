@@ -353,15 +353,10 @@ pub fn openapi() -> Value {
         .filter(|(path, _)| path.contains("/views"))
         .map(|(path, item)| {
             let mut item = item.clone();
-            for (method, op) in item.as_object_mut().expect("Path object") {
-                op["operationId"] = json!(format!(
-                    "saved_searches_{}_{}",
-                    method,
-                    path.rsplit('/')
-                        .next()
-                        .unwrap_or("list")
-                        .replace(['{', '}'], "")
-                ));
+            for (_, op) in item.as_object_mut().expect("Path object") {
+                if let Some(id) = op["operationId"].as_str() {
+                    op["operationId"] = json!(id.replace("views_", "saved_searches_"));
+                }
             }
             (path.replace("/views", "/saved-searches"), item)
         })
@@ -509,6 +504,8 @@ pub fn openapi() -> Value {
                         && [
                             "/api/v1/workspaces/{w}",
                             "/api/v1/workspaces/{w}/preferences",
+                            "/api/v1/workspaces/{w}/views/{id}",
+                            "/api/v1/workspaces/{w}/saved-searches/{id}",
                             "/api/v1/workspaces/{w}/issues/{id}",
                             "/api/v1/workspaces/{w}/issues/{id}/subscription",
                             "/api/v1/workspaces/{w}/issues/{issue}/document",

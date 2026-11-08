@@ -81,10 +81,67 @@ async fn write_scope(tx: &mut store::Tx, a: &Actor, w: Uuid, item: &SavedDiscove
     }
     Ok(())
 }
-async fn audit(tx: &mut store::Tx, a: &Actor, w: Uuid, id: Uuid, action: &str) -> Result<()> {
-    sqlx::query("INSERT INTO audit_entries(id,workspace_id,actor_id,action,target_id,metadata) VALUES($1,$2,$3,$4,$5,'{}')").bind(Uuid::new_v4()).bind(w).bind(a.user.id).bind(action).bind(id).execute(&mut **tx).await.map_err(db_error)?;
+async fn lock_personal(tx: &mut store::Tx, w: Uuid, user: Uuid) -> Result<()> {
+    sqlx::query("SELECT user_id FROM workspace_members WHERE workspace_id=$1 AND user_id=$2 AND active FOR UPDATE").bind(w).bind(user).fetch_one(&mut **tx).await.map_err(db_error)?;
     Ok(())
 }
+async fn record(
+    tx: &mut store::Tx,
+    a: &Actor,
+    w: Uuid,
+    item: &SavedDiscovery,
+    action: &str,
+    deleted: bool,
+    personal_only: bool,
+) -> Result<()> {
+    let mutation = Uuid::new_v4();
+    if item.visibility == DiscoveryVisibility::Personal || personal_only {
+        let version:i64=sqlx::query_scalar("INSERT INTO discovery_personal_heads(workspace_id,user_id,version) VALUES($1,$2,1) ON CONFLICT(workspace_id,user_id) DO UPDATE SET version=discovery_personal_heads.version+1 RETURNING version").bind(w).bind(a.user.id).fetch_one(&mut **tx).await.map_err(db_error)?;
+        graph::one(sqlx::query("INSERT INTO discovery_personal_events(workspace_id,id,user_id,discovery_id,version,action) VALUES($1,$2,$3,$4,$5,$6)").bind(w).bind(mutation).bind(a.user.id).bind(item.id).bind(version).bind(action).execute(&mut **tx).await.map_err(db_error)?.rows_affected())?;
+        store::identity_event_correlated(
+            tx,
+            store::IdentityEvent {
+                workspace: w,
+                actor: a.user.id,
+                entity: a.user.id,
+                version,
+                team: None,
+                action: "discovery.personal_changed",
+                access_changed: false,
+            },
+            mutation,
+        )
+        .await
+        .map_err(db_error)?;
+    } else {
+        let version =
+            item.version.parse::<i64>().map_err(|_| Error::Internal)? + i64::from(deleted);
+        graph::one(sqlx::query("INSERT INTO discovery_view_sources(workspace_id,id,owner_id,visibility,team_id,version,deleted_at) VALUES($1,$2,$3,$4,$5,$6,CASE WHEN $7 THEN clock_timestamp() END) ON CONFLICT(workspace_id,id) DO UPDATE SET version=EXCLUDED.version,deleted_at=EXCLUDED.deleted_at").bind(w).bind(item.id).bind(item.owner_id).bind(item.visibility.as_str()).bind(item.team_id).bind(version).bind(deleted).execute(&mut **tx).await.map_err(db_error)?.rows_affected())?;
+        let event = match action {
+            "discovery.created" => "view.created",
+            "discovery.updated" => "view.updated",
+            "discovery.deleted" => "view.deleted",
+            _ => return Err(Error::Internal),
+        };
+        store::identity_event_correlated(
+            tx,
+            store::IdentityEvent {
+                workspace: w,
+                actor: a.user.id,
+                entity: item.id,
+                version,
+                team: item.team_id,
+                action: event,
+                access_changed: false,
+            },
+            mutation,
+        )
+        .await
+        .map_err(db_error)?;
+    }
+    Ok(())
+}
+
 impl App {
     pub async fn discoveries(
         &self,
@@ -215,10 +272,10 @@ impl App {
             ));
         }
         let id = Uuid::new_v4();
-        sqlx::query("INSERT INTO saved_discoveries(workspace_id,id,owner_id,kind,visibility,team_id,name,definition) VALUES($1,$2,$3,$4,$5,$6,$7,$8)").bind(w).bind(id).bind(a.user.id).bind(request.kind.as_str()).bind(request.visibility.as_str()).bind(request.team_id).bind(&request.name).bind(serde_json::to_value(request.definition).map_err(|_|Error::Internal)?).execute(&mut *tx).await.map_err(db_error)?;
-        audit(&mut tx, a, w, id, "discovery.created").await?;
+        graph::one(sqlx::query("INSERT INTO saved_discoveries(workspace_id,id,owner_id,kind,visibility,team_id,name,definition) VALUES($1,$2,$3,$4,$5,$6,$7,$8)").bind(w).bind(id).bind(a.user.id).bind(request.kind.as_str()).bind(request.visibility.as_str()).bind(request.team_id).bind(&request.name).bind(serde_json::to_value(request.definition).map_err(|_|Error::Internal)?).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
         lifecycle::save_retry(&mut tx, w, a.user.id, "discovery-create", &kh, &id).await?;
         let item = read(&mut tx, a, w, id).await?;
+        record(&mut tx, a, w, &item, "discovery.created", false, false).await?;
         tx.commit().await.map_err(db_error)?;
         Ok(item)
     }
@@ -237,6 +294,7 @@ impl App {
         let route = format!("discovery-update:{id}");
         let mut tx = self.scoped(a, w, false).await?;
         let replay = lifecycle::retry::<Uuid>(&mut tx, w, a.user.id, &route, &kh, &rh).await?;
+        lock_personal(&mut tx, w, a.user.id).await?;
         sqlx::query("SELECT id FROM saved_discoveries WHERE workspace_id=$1 AND id=$2 FOR UPDATE")
             .bind(w)
             .bind(id)
@@ -256,9 +314,10 @@ impl App {
         if replay.is_none() {
             lifecycle::version(etag, &old.etag, &old)?;
             issue_query::validate_targets(&mut tx, a, w, &request.definition.query).await?;
-            sqlx::query("UPDATE saved_discoveries SET name=$3,definition=$4,version=version+1,updated_at=clock_timestamp() WHERE workspace_id=$1 AND id=$2").bind(w).bind(id).bind(request.name).bind(serde_json::to_value(request.definition).map_err(|_|Error::Internal)?).execute(&mut *tx).await.map_err(db_error)?;
-            audit(&mut tx, a, w, id, "discovery.updated").await?;
+            graph::one(sqlx::query("UPDATE saved_discoveries SET name=$3,definition=$4,version=version+1,updated_at=clock_timestamp() WHERE workspace_id=$1 AND id=$2").bind(w).bind(id).bind(request.name).bind(serde_json::to_value(request.definition).map_err(|_|Error::Internal)?).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
             lifecycle::save_retry(&mut tx, w, a.user.id, &route, &kh, &id).await?;
+            let changed = read(&mut tx, a, w, id).await?;
+            record(&mut tx, a, w, &changed, "discovery.updated", false, false).await?;
         }
         let item = read(&mut tx, a, w, id).await?;
         tx.commit().await.map_err(db_error)?;
@@ -276,6 +335,7 @@ impl App {
         let route = format!("discovery-delete:{id}");
         let mut tx = self.scoped(a, w, false).await?;
         let replay = lifecycle::retry::<bool>(&mut tx, w, a.user.id, &route, &kh, &rh).await?;
+        lock_personal(&mut tx, w, a.user.id).await?;
         if replay.is_none() {
             sqlx::query(
                 "SELECT id FROM saved_discoveries WHERE workspace_id=$1 AND id=$2 FOR UPDATE",
@@ -288,14 +348,17 @@ impl App {
             let item = read(&mut tx, a, w, id).await?;
             write_scope(&mut tx, a, w, &item).await?;
             lifecycle::version(etag, &item.etag, &item)?;
-            sqlx::query("DELETE FROM saved_discoveries WHERE workspace_id=$1 AND id=$2")
-                .bind(w)
-                .bind(id)
-                .execute(&mut *tx)
-                .await
-                .map_err(db_error)?;
-            audit(&mut tx, a, w, id, "discovery.deleted").await?;
+            graph::one(
+                sqlx::query("DELETE FROM saved_discoveries WHERE workspace_id=$1 AND id=$2")
+                    .bind(w)
+                    .bind(id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(db_error)?
+                    .rows_affected(),
+            )?;
             lifecycle::save_retry(&mut tx, w, a.user.id, &route, &kh, &true).await?;
+            record(&mut tx, a, w, &item, "discovery.deleted", true, false).await?;
         }
         tx.commit().await.map_err(db_error)?;
         Ok(())
@@ -312,14 +375,35 @@ impl App {
         let route = format!("discovery-favorite:{id}");
         let mut tx = self.scoped(a, w, false).await?;
         let replay = lifecycle::retry::<bool>(&mut tx, w, a.user.id, &route, &kh, &rh).await?;
-        read(&mut tx, a, w, id).await?;
+        lock_personal(&mut tx, w, a.user.id).await?;
+        let old = read(&mut tx, a, w, id).await?;
         if replay.is_none() {
             if favorite {
                 sqlx::query("INSERT INTO discovery_favorites(workspace_id,user_id,discovery_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING").bind(w).bind(a.user.id).bind(id).execute(&mut *tx).await.map_err(db_error)?;
             } else {
                 sqlx::query("DELETE FROM discovery_favorites WHERE workspace_id=$1 AND user_id=$2 AND discovery_id=$3").bind(w).bind(a.user.id).bind(id).execute(&mut *tx).await.map_err(db_error)?;
             }
+            let current = read(&mut tx, a, w, id).await?;
+            if current.favorite != favorite {
+                return Err(Error::Internal);
+            }
             lifecycle::save_retry(&mut tx, w, a.user.id, &route, &kh, &favorite).await?;
+            if old.favorite != favorite {
+                record(
+                    &mut tx,
+                    a,
+                    w,
+                    &current,
+                    if favorite {
+                        "discovery.favorited"
+                    } else {
+                        "discovery.unfavorited"
+                    },
+                    false,
+                    true,
+                )
+                .await?;
+            }
         }
         let item = read(&mut tx, a, w, id).await?;
         tx.commit().await.map_err(db_error)?;
@@ -345,7 +429,8 @@ impl App {
             DiscoveryExecution {
                 issues: None,
                 search: Some(
-                    self.search(
+                    self.search_in(
+                        &mut tx,
                         a,
                         w,
                         SearchRequest {
@@ -358,7 +443,7 @@ impl App {
             }
         } else {
             DiscoveryExecution {
-                issues: Some(self.query_issues(a, w, query).await?),
+                issues: Some(self.query_issues_in(&mut tx, a, w, query).await?),
                 search: None,
             }
         };
@@ -373,26 +458,33 @@ struct SearchCursor {
     position: store::SearchPosition,
 }
 impl App {
-    pub async fn search(
+    pub async fn search(&self, a: &Actor, w: Uuid, request: SearchRequest) -> Result<SearchPage> {
+        request.validate()?;
+        let mut tx = self.scoped(a, w, false).await?;
+        let result = self.search_in(&mut tx, a, w, request).await?;
+        tx.commit().await.map_err(db_error)?;
+        Ok(result)
+    }
+    async fn search_in(
         &self,
+        tx: &mut store::Tx,
         a: &Actor,
         w: Uuid,
         mut request: SearchRequest,
     ) -> Result<SearchPage> {
         request.validate()?;
         request.query.q = request.query.q.map(|q| q.trim().to_owned());
-        let mut tx = self.scoped(a, w, false).await?;
         sqlx::query("SET LOCAL statement_timeout='1000ms'")
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await
             .map_err(db_error)?;
-        issue_query::validate_targets(&mut tx, a, w, &request.query).await?;
-        let epoch = store::auth_epoch(&mut tx, w).await.map_err(db_error)?;
+        issue_query::validate_targets(tx, a, w, &request.query).await?;
+        let epoch = store::auth_epoch(tx, w).await.map_err(db_error)?;
         let (as_of, valid_zone): (chrono::DateTime<chrono::Utc>, bool) = sqlx::query_as(
             "SELECT statement_timestamp(),EXISTS(SELECT 1 FROM pg_timezone_names WHERE name=$1)",
         )
         .bind(&request.query.timezone)
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await
         .map_err(db_error)?;
         if !valid_zone || !(request.query.timezone == "UTC" || request.query.timezone.contains('/'))
@@ -416,7 +508,7 @@ impl App {
             },
             None,
         ));
-        let mut rows = store::search(&mut tx, w, a.user.id, &request, &context, after)
+        let mut rows = store::search(tx, w, a.user.id, &request, &context, after)
             .await
             .map_err(db_error)?;
         let has_more = rows.len() > request.query.limit as usize;
@@ -433,7 +525,6 @@ impl App {
         } else {
             None
         };
-        tx.commit().await.map_err(db_error)?;
         Ok(SearchPage{data:rows.into_iter().map(|r|r.hit).collect(),has_more,next_cursor,query_context:context,fuzzy_degraded:true,notice:Some("Exact keys and full-text search are available. Fuzzy title matching is not enabled in this increment.".into())})
     }
 }

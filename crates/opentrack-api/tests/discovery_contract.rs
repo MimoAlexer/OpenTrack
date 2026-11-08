@@ -12,7 +12,6 @@ use tower::ServiceExt;
 
 #[derive(Clone)]
 struct Client {
-    user: String,
     cookie: String,
     csrf: String,
 }
@@ -90,7 +89,6 @@ async fn request(
 
 fn client(reply: &Reply) -> Client {
     Client {
-        user: reply.body["user"]["id"].as_str().unwrap().into(),
         cookie: reply.headers["set-cookie"]
             .to_str()
             .unwrap()
@@ -146,7 +144,19 @@ async fn exercise(h: &Harness) {
         &[("idempotency-key", "http-save-1")],
     )
     .await;
-    created.expect(StatusCode::OK);
+    created.expect(StatusCode::CREATED);
+    let mut malicious = definition.clone();
+    malicious["visibility"] = json!("workspace");
+    request(
+        r,
+        Some(&a),
+        "POST",
+        &path,
+        Some(malicious),
+        &[("idempotency-key", "http-private-only")],
+    )
+    .await
+    .problem(StatusCode::UNPROCESSABLE_ENTITY, "validation_failed");
     let id = created.body["id"].as_str().unwrap();
     let item = format!("{path}/{id}");
     let other = request(r, Some(&b), "GET", &path, None, &[]).await;
@@ -212,6 +222,18 @@ async fn exercise(h: &Harness) {
     )
     .await
     .problem(StatusCode::UNPROCESSABLE_ENTITY, "validation_failed");
+    let oversized =
+        json!({"query":{"version":1,"filter":null,"q":"x".repeat(1024*1024)},"types":["issue"]});
+    request(
+        r,
+        Some(&a),
+        "POST",
+        &format!("{base}/search/query"),
+        Some(oversized),
+        &[],
+    )
+    .await
+    .problem(StatusCode::PAYLOAD_TOO_LARGE, "payload_too_large");
     let mut no_csrf = a.clone();
     no_csrf.csrf.clear();
     request(

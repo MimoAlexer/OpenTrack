@@ -57,7 +57,7 @@ fn response(d: SavedDiscovery) -> Result<Response, ApiError> {
     r.headers_mut().insert(header::ETAG, etag);
     Ok(r)
 }
-#[utoipa::path(get,path="/api/v1/workspaces/{w}/views",params(("w"=Uuid,Path)),responses((status=200,body=Page<SavedDiscovery>)))]
+#[utoipa::path(get,operation_id="views_list",path="/api/v1/workspaces/{w}/views",params(("w"=Uuid,Path),("limit"=Option<i64>,Query),("cursor"=Option<String>,Query),("favorites"=Option<bool>,Query)),responses((status=200,body=Page<SavedDiscovery>)))]
 pub(crate) async fn list(
     OriginalUri(uri): OriginalUri,
     State(s): State<ApiState>,
@@ -65,10 +65,14 @@ pub(crate) async fn list(
     Path(w): Path<Uuid>,
     Query(mut q): Query<DiscoveryListQuery>,
 ) -> Result<Json<Page<SavedDiscovery>>, ApiError> {
-    q.kind = Some(route_kind(&uri));
+    let expected = route_kind(&uri);
+    if q.kind.is_some_and(|kind| kind != expected) {
+        return Err(Error::Invalid("The kind filter must match this resource route".into()).into());
+    }
+    q.kind = Some(expected);
     Ok(Json(s.app.discoveries(&a, w, q).await?))
 }
-#[utoipa::path(post,path="/api/v1/workspaces/{w}/views",params(("w"=Uuid,Path),("Idempotency-Key"=String,Header)),request_body=SaveDiscovery,responses((status=200,body=SavedDiscovery)))]
+#[utoipa::path(post,operation_id="views_create",path="/api/v1/workspaces/{w}/views",params(("w"=Uuid,Path),("Idempotency-Key"=String,Header)),request_body=SaveDiscovery,responses((status=201,body=SavedDiscovery)))]
 pub(crate) async fn create(
     OriginalUri(uri): OriginalUri,
     State(s): State<ApiState>,
@@ -84,9 +88,15 @@ pub(crate) async fn create(
             Error::Invalid("The definition kind must match this resource route".into()).into(),
         );
     }
-    response(s.app.create_discovery(&a, w, key(&h)?, request).await?)
+    let item = s.app.create_discovery(&a, w, key(&h)?, request).await?;
+    let location = HeaderValue::from_str(&format!("{}/{}", uri.path(), item.id))
+        .map_err(|_| Error::Internal)?;
+    let mut result = response(item)?;
+    *result.status_mut() = StatusCode::CREATED;
+    result.headers_mut().insert(header::LOCATION, location);
+    Ok(result)
 }
-#[utoipa::path(get,path="/api/v1/workspaces/{w}/views/{id}",params(("w"=Uuid,Path),("id"=Uuid,Path)),responses((status=200,body=SavedDiscovery)))]
+#[utoipa::path(get,operation_id="views_detail",path="/api/v1/workspaces/{w}/views/{id}",params(("w"=Uuid,Path),("id"=Uuid,Path)),responses((status=200,body=SavedDiscovery)))]
 pub(crate) async fn detail(
     OriginalUri(uri): OriginalUri,
     State(s): State<ApiState>,
@@ -97,9 +107,9 @@ pub(crate) async fn detail(
     if item.kind != route_kind(&uri) {
         return Err(Error::NotFound.into());
     }
-    response(s.app.discovery(&a, w, id).await?)
+    response(item)
 }
-#[utoipa::path(patch,path="/api/v1/workspaces/{w}/views/{id}",params(("w"=Uuid,Path),("id"=Uuid,Path),("If-Match"=String,Header),("Idempotency-Key"=String,Header)),request_body=SaveDiscovery,responses((status=200,body=SavedDiscovery)))]
+#[utoipa::path(patch,operation_id="views_update",path="/api/v1/workspaces/{w}/views/{id}",params(("w"=Uuid,Path),("id"=Uuid,Path),("If-Match"=String,Header),("Idempotency-Key"=String,Header)),request_body=SaveDiscovery,responses((status=200,body=SavedDiscovery)))]
 pub(crate) async fn update(
     OriginalUri(uri): OriginalUri,
     State(s): State<ApiState>,
@@ -119,7 +129,7 @@ pub(crate) async fn update(
             .await?,
     )
 }
-#[utoipa::path(delete,path="/api/v1/workspaces/{w}/views/{id}",params(("w"=Uuid,Path),("id"=Uuid,Path),("If-Match"=String,Header),("Idempotency-Key"=String,Header)),responses((status=204)))]
+#[utoipa::path(delete,operation_id="views_delete",path="/api/v1/workspaces/{w}/views/{id}",params(("w"=Uuid,Path),("id"=Uuid,Path),("If-Match"=String,Header),("Idempotency-Key"=String,Header)),responses((status=204)))]
 pub(crate) async fn delete(
     OriginalUri(uri): OriginalUri,
     State(s): State<ApiState>,
@@ -138,7 +148,7 @@ pub(crate) async fn delete(
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }
-#[utoipa::path(put,path="/api/v1/workspaces/{w}/views/{id}/favorite",params(("w"=Uuid,Path),("id"=Uuid,Path),("Idempotency-Key"=String,Header)),request_body=FavoriteDiscovery,responses((status=200,body=SavedDiscovery)))]
+#[utoipa::path(put,operation_id="views_favorite",path="/api/v1/workspaces/{w}/views/{id}/favorite",params(("w"=Uuid,Path),("id"=Uuid,Path),("Idempotency-Key"=String,Header)),request_body=FavoriteDiscovery,responses((status=200,body=SavedDiscovery)))]
 pub(crate) async fn favorite(
     OriginalUri(uri): OriginalUri,
     State(s): State<ApiState>,
@@ -158,7 +168,7 @@ pub(crate) async fn favorite(
             .await?,
     )
 }
-#[utoipa::path(post,path="/api/v1/workspaces/{w}/views/{id}/execute",params(("w"=Uuid,Path),("id"=Uuid,Path)),request_body=ExecuteDiscovery,responses((status=200,body=DiscoveryExecution)))]
+#[utoipa::path(post,operation_id="views_execute",path="/api/v1/workspaces/{w}/views/{id}/execute",params(("w"=Uuid,Path),("id"=Uuid,Path)),request_body=ExecuteDiscovery,responses((status=200,body=DiscoveryExecution)))]
 pub(crate) async fn execute(
     OriginalUri(uri): OriginalUri,
     State(s): State<ApiState>,
@@ -178,7 +188,7 @@ pub(crate) async fn execute(
             .await?,
     ))
 }
-#[utoipa::path(post,path="/api/v1/workspaces/{w}/search/query",params(("w"=Uuid,Path)),request_body=SearchRequest,responses((status=200,body=SearchPage)))]
+#[utoipa::path(post,operation_id="search_query",path="/api/v1/workspaces/{w}/search/query",params(("w"=Uuid,Path)),request_body=SearchRequest,responses((status=200,body=SearchPage)))]
 pub(crate) async fn search_query(
     State(s): State<ApiState>,
     Auth(a): Auth,
@@ -226,7 +236,7 @@ impl SearchGet {
         })
     }
 }
-#[utoipa::path(get,path="/api/v1/workspaces/{w}/search",params(("w"=Uuid,Path),("q"=String,Query),("kind"=Option<SearchEntity>,Query),("team_id"=Option<Uuid>,Query),("limit"=Option<i64>,Query),("cursor"=Option<String>,Query)),responses((status=200,body=SearchPage)))]
+#[utoipa::path(get,operation_id="search_get",path="/api/v1/workspaces/{w}/search",params(("w"=Uuid,Path),("q"=String,Query),("kind"=Option<SearchEntity>,Query),("team_id"=Option<Uuid>,Query),("limit"=Option<i64>,Query),("cursor"=Option<String>,Query)),responses((status=200,body=SearchPage)))]
 pub(crate) async fn search_get(
     State(s): State<ApiState>,
     Auth(a): Auth,
@@ -235,7 +245,7 @@ pub(crate) async fn search_get(
 ) -> Result<Json<SearchPage>, ApiError> {
     Ok(Json(s.app.search(&a, w, q.request(false)?).await?))
 }
-#[utoipa::path(get,path="/api/v1/workspaces/{w}/search/suggestions",params(("w"=Uuid,Path),("q"=String,Query),("kind"=Option<SearchEntity>,Query),("limit"=Option<i64>,Query)),responses((status=200,body=SearchPage)))]
+#[utoipa::path(get,operation_id="search_suggestions",path="/api/v1/workspaces/{w}/search/suggestions",params(("w"=Uuid,Path),("q"=String,Query),("kind"=Option<SearchEntity>,Query),("limit"=Option<i64>,Query)),responses((status=200,body=SearchPage)))]
 pub(crate) async fn suggestions(
     State(s): State<ApiState>,
     Auth(a): Auth,

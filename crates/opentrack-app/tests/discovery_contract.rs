@@ -4,6 +4,7 @@ mod graph_support;
 mod support;
 use graph_support::*;
 use opentrack_domain::*;
+use opentrack_store as store;
 use serde_json::json;
 use support::Harness;
 
@@ -23,7 +24,7 @@ async fn saved_discovery_authority_versions_and_repair() {
     }
 }
 async fn exercise(h: &Harness) {
-    let (a, w, _) = setup(h).await;
+    let (a, w, t) = setup(h).await;
     let b = person(h, &a, w, "member").await;
     let created = h
         .app
@@ -36,6 +37,38 @@ async fn exercise(h: &Harness) {
         .await
         .unwrap();
     assert_eq!(created.id, replay.id);
+    let public = issue(h, &a, w, t, json!({"title":"Café public result"})).await;
+    let permitted = h
+        .app
+        .execute_discovery(&a, w, created.id, None)
+        .await
+        .unwrap();
+    assert_eq!(permitted.search.unwrap().data[0].id, public.id);
+    let visible = h
+        .app
+        .search(
+            &b,
+            w,
+            req(json!({"query":{"version":1,"filter":null,"q":"café"},"types":["issue"]})),
+        )
+        .await
+        .unwrap();
+    assert_eq!(visible.data[0].id, public.id);
+
+    let mut raw = store::begin(&h.app.pool).await.unwrap();
+    store::context(&mut raw, b.user.id, Some(w)).await.unwrap();
+    let hidden: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM saved_discoveries WHERE workspace_id=$1 AND id=$2",
+    )
+    .bind(w)
+    .bind(created.id)
+    .fetch_one(&mut *raw)
+    .await
+    .unwrap();
+    assert_eq!(hidden, 0);
+    assert_eq!(sqlx::query("UPDATE saved_discoveries SET name='Unauthorized rename' WHERE workspace_id=$1 AND id=$2").bind(w).bind(created.id).execute(&mut *raw).await.unwrap().rows_affected(),0);
+    raw.rollback().await.unwrap();
+
     assert_eq!(
         created.definition.as_ref().unwrap().query.q.as_deref(),
         Some("café")
@@ -189,6 +222,24 @@ async fn search_relevance_live_projection_and_acl() {
         assert_eq!(page.data.len(), 2);
         assert_eq!(page.data[0].id, title.id);
         assert!(page.fuzzy_degraded);
+        let mut paged = query("nebula");
+        paged.query.limit = 1;
+        let first = h.app.search(&b, w, paged.clone()).await.unwrap();
+        assert!(first.has_more);
+        paged.query.cursor = first.next_cursor;
+        let second = h.app.search(&b, w, paged.clone()).await.unwrap();
+        assert_eq!(second.data.len(), 1);
+        assert_ne!(first.data[0].id, second.data[0].id);
+        assert!(matches!(
+            h.app.search(&a, w, paged.clone()).await,
+            Err(Error::Invalid(_))
+        ));
+        paged.query.q = Some("quasar".into());
+        assert!(matches!(
+            h.app.search(&b, w, paged).await,
+            Err(Error::Invalid(_))
+        ));
+
         let exact = h.app.search(&b, w, query(&body.key)).await.unwrap();
         assert_eq!(exact.data[0].id, body.id);
         let changed = h
@@ -204,6 +255,53 @@ async fn search_relevance_live_projection_and_acl() {
             .unwrap();
         let updated = h.app.search(&b, w, query("quasar")).await.unwrap();
         assert_eq!(updated.data[0].id, changed.id);
+        let destination = team(h, &a, w, false).await;
+        let preview = h
+            .app
+            .preview_issue_move(&a, w, changed.id, destination)
+            .await
+            .unwrap();
+        let moved = h
+            .app
+            .move_issue(
+                &a,
+                w,
+                changed.id,
+                "search-historical-key",
+                &preview.issue_etag,
+                MoveIssue {
+                    destination_team_id: destination,
+                    status_id: preview.destination_default_status_id,
+                    assignee_id: None,
+                    label_ids: vec![],
+                    preview_token: preview.preview_token,
+                },
+            )
+            .await
+            .unwrap();
+        let historical = h.app.search(&b, w, query(&body.key)).await.unwrap();
+        assert_eq!(historical.data[0].id, moved.id);
+        assert_eq!(historical.data[0].key.as_deref(), Some(moved.key.as_str()));
+
+        // Keyset continuations bind principal, query and current authority.
+        let mut first = query("nebula");
+        first.query.limit = 1;
+        let first_page = h.app.search(&b, w, first.clone()).await.unwrap();
+        // After the body edit only one public match remains.
+        assert_eq!(first_page.data.len(), 1);
+        h.app
+            .delete_issue(&a, w, title.id, &title.etag())
+            .await
+            .unwrap();
+        assert!(
+            h.app
+                .search(&b, w, query("nebula"))
+                .await
+                .unwrap()
+                .data
+                .is_empty()
+        );
+
         assert!(h.app.search(&b, w, query(&"x".repeat(257))).await.is_err());
         assert!(
             h.app
@@ -241,6 +339,20 @@ async fn shared_definition_rechecks_targets_and_redacts_unavailable_references()
             .create_discovery(&a, w, "shared-view-1", request.clone())
             .await
             .unwrap();
+        let public = issue(h, &a, w, t, json!({"title":"Shared public issue"})).await;
+        issue(
+            h,
+            &a,
+            w,
+            hidden,
+            json!({"title":"Private source remains hidden"}),
+        )
+        .await;
+        let run = h.app.execute_discovery(&b, w, view.id, None).await.unwrap();
+        let rows = run.issues.unwrap().page.data;
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, public.id);
+
         assert!(
             h.app
                 .discovery(&b, w, view.id)
@@ -309,6 +421,153 @@ async fn shared_definition_rechecks_targets_and_redacts_unavailable_references()
         let _ = t;
     })
     .await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn concurrent_saved_execution_does_not_hold_a_pool_connection_while_waiting_for_another() {
+    let h = Harness::with_connections(2).await;
+    let copy = h.clone();
+    let result = tokio::spawn(async move {
+        let (a, w, _) = setup(&copy).await;
+        let saved = copy
+            .app
+            .create_discovery(&a, w, "execution-pool-1", definition("Run search"))
+            .await
+            .unwrap();
+        let one = copy.app.execute_discovery(&a, w, saved.id, None);
+        let two = copy.app.execute_discovery(&a, w, saved.id, None);
+        let (one, two) = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            tokio::join!(one, two)
+        })
+        .await
+        .expect("Execution must not starve the connection pool");
+        one.unwrap();
+        two.unwrap();
+    })
+    .await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn project_search_uses_current_narrative_document() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let result=tokio::spawn(async move {
+        let h=&copy;let (a,w,t)=setup(h).await;
+        let p=h.app.create_project(&a,w,t,"search-project-1",req(json!({"name":"Project search corpus","narrative":DocumentWrite::from_plain_text("olduniqueprojectword")}))).await.unwrap();
+        let query=|q:&str|req::<SearchRequest>(json!({"query":{"version":1,"filter":null,"q":q},"types":["project"]}));
+        assert_eq!(h.app.search(&a,w,query("olduniqueprojectword")).await.unwrap().data[0].id,p.id);
+        h.app.update_project(&a,w,t,p.id,&p.etag,req(json!({"narrative":DocumentWrite::from_plain_text("newuniqueprojectword")}))).await.unwrap();
+        assert_eq!(h.app.search(&a,w,query("newuniqueprojectword")).await.unwrap().data[0].id,p.id);
+        assert!(h.app.search(&a,w,query("olduniqueprojectword")).await.unwrap().data.is_empty());
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn saved_definition_write_failure_rolls_back_receipt_and_quota_is_serialized() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let result=tokio::spawn(async move {
+        let h=&copy;let(a,w,_)=setup(h).await;
+        fault(h,"audit_entries","INSERT").await;
+        assert!(h.app.create_discovery(&a,w,"rollback-search-1",definition("Rolled back")).await.is_err());
+        clear(h,"audit_entries").await;
+        assert!(h.app.discoveries(&a,w,DiscoveryListQuery::default()).await.unwrap().data.is_empty());
+        let saved=h.app.create_discovery(&a,w,"rollback-search-1",definition("Retry after rollback")).await.unwrap();
+        let mut tx=h.context(a.user.id,w).await;
+        sqlx::query("INSERT INTO saved_discoveries(workspace_id,id,owner_id,kind,visibility,name,definition) SELECT workspace_id,gen_random_uuid(),owner_id,kind,visibility,'Quota seed '||n,definition FROM saved_discoveries CROSS JOIN generate_series(1,98) n WHERE workspace_id=$1 AND id=$2").bind(w).bind(saved.id).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+        let one=h.app.create_discovery(&a,w,"quota-concurrent-1",definition("Last slot"));
+        let two=h.app.create_discovery(&a,w,"quota-concurrent-2",definition("Beyond cap"));
+        let(left,right)=tokio::join!(one,two);assert_eq!(usize::from(left.is_ok())+usize::from(right.is_ok()),1);
+        assert!(matches!(left.as_ref().err().or(right.as_ref().err()),Some(Error::Conflict(_))));
+        let page=h.app.discoveries(&a,w,DiscoveryListQuery{limit:Some(1),..Default::default()}).await.unwrap();assert!(page.has_more);
+        let next=h.app.discoveries(&a,w,DiscoveryListQuery{limit:Some(1),cursor:page.next_cursor.clone(),..Default::default()}).await.unwrap();assert_ne!(page.data[0].id,next.data[0].id);
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn discovery_upgrade_builds_live_search_from_existing_sources() {
+    let h = Harness::with_version(5, 32).await;
+    let copy = h.clone();
+    let result=tokio::spawn(async move {
+        let h=&copy;let(a,w,t)=setup(h).await;
+        let existing=issue(h,&a,w,t,json!({"title":"Upgrade corpus","description":"migrationsearchtoken"})).await;
+        assert!(!store::discovery_schema_ready(&h.app.pool).await.unwrap());
+        store::MIGRATOR.run(&h.owner).await.unwrap();
+        assert!(store::discovery_schema_ready(&h.app.pool).await.unwrap());
+        let q=req(json!({"query":{"version":1,"filter":null,"q":"migrationsearchtoken"},"types":["issue"]}));
+        assert_eq!(h.app.search(&a,w,q).await.unwrap().data[0].id,existing.id);
+        let saved=h.app.create_discovery(&a,w,"upgraded-search",definition("Upgrade saved search")).await.unwrap();assert!(saved.definition.is_some());
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn personal_mutation_events_are_private_durable_and_required() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let result=tokio::spawn(async move {
+        let h=&copy;let(a,w,_)=setup(h).await;let b=person(h,&a,w,"member").await;
+        let own=h.app.create_discovery(&a,w,"private-event-create",definition("Private event source")).await.unwrap();
+        let mut tx=h.context(a.user.id,w).await;
+        let count:i64=sqlx::query_scalar("SELECT count(*) FROM discovery_personal_events WHERE workspace_id=$1 AND user_id=$2 AND discovery_id=$3").bind(w).bind(a.user.id).bind(own.id).fetch_one(&mut *tx).await.unwrap();assert_eq!(count,1);tx.commit().await.unwrap();
+        let mut tx=store::begin(&h.app.pool).await.unwrap();store::context(&mut tx,b.user.id,Some(w)).await.unwrap();
+        let count:i64=sqlx::query_scalar("SELECT count(*) FROM discovery_personal_events WHERE workspace_id=$1 AND discovery_id=$2").bind(w).bind(own.id).fetch_one(&mut *tx).await.unwrap();assert_eq!(count,0);
+        let count:i64=sqlx::query_scalar("SELECT count(*) FROM workspace_events WHERE workspace_id=$1 AND entity_id=$2").bind(w).bind(own.id).fetch_one(&mut *tx).await.unwrap();assert_eq!(count,0);tx.rollback().await.unwrap();
+        fault(h,"discovery_personal_events","INSERT").await;
+        assert!(h.app.update_discovery(&a,w,own.id,&own.etag,"private-event-update",definition("Must roll back")).await.is_err());
+        clear(h,"discovery_personal_events").await;
+        assert_eq!(h.app.discovery(&a,w,own.id).await.unwrap().name,"Private event source");
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn shared_view_events_keep_current_authority_after_deletion_and_roll_back_atomically() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let result=tokio::spawn(async move {
+        let h=&copy;let(a,w,_)=setup(h).await;let b=person(h,&a,w,"member").await;
+        let private=team(h,&a,w,true).await;
+        let mut request=definition("Private team view");request.kind=DiscoveryKind::View;request.visibility=DiscoveryVisibility::Team;request.team_id=Some(private);
+        let saved=h.app.create_discovery(&a,w,"shared-event-create",request).await.unwrap();
+        let mut tx=store::begin(&h.app.pool).await.unwrap();store::context(&mut tx,b.user.id,Some(w)).await.unwrap();
+        assert!(!store::discovery_event_visible(&mut tx,w,b.user.id,"view.created",saved.id).await.unwrap());tx.rollback().await.unwrap();
+        grant(h,&a,w,private,b.user.id).await;
+        fault(h,"workspace_events","INSERT").await;
+        assert!(h.app.delete_discovery(&a,w,saved.id,&saved.etag,"shared-event-delete").await.is_err());
+        clear(h,"workspace_events").await;
+        assert!(h.app.discovery(&a,w,saved.id).await.is_ok());
+        h.app.delete_discovery(&a,w,saved.id,&saved.etag,"shared-event-delete").await.unwrap();
+        assert!(matches!(h.app.discovery(&a,w,saved.id).await,Err(Error::NotFound)));
+        let mut tx=store::begin(&h.app.pool).await.unwrap();store::context(&mut tx,b.user.id,Some(w)).await.unwrap();
+        assert!(store::discovery_event_visible(&mut tx,w,b.user.id,"view.deleted",saved.id).await.unwrap());
+        let event:(i64,bool)=sqlx::query_as("SELECT version,deleted_at IS NOT NULL FROM discovery_view_sources WHERE workspace_id=$1 AND id=$2").bind(w).bind(saved.id).fetch_one(&mut *tx).await.unwrap();assert_eq!(event,(2,true));tx.rollback().await.unwrap();
+        let mut tx=h.context(a.user.id,w).await;sqlx::query("DELETE FROM team_members WHERE workspace_id=$1 AND team_id=$2 AND user_id=$3").bind(w).bind(private).bind(b.user.id).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+        let mut tx=store::begin(&h.app.pool).await.unwrap();store::context(&mut tx,b.user.id,Some(w)).await.unwrap();
+        assert!(!store::discovery_event_visible(&mut tx,w,b.user.id,"view.deleted",saved.id).await.unwrap());tx.rollback().await.unwrap();
+    }).await;
     h.cleanup().await;
     if let Err(error) = result {
         std::panic::resume_unwind(error.into_panic());
