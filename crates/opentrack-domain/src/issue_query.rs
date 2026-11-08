@@ -26,6 +26,7 @@ fn timezone() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IssueQuery {
+    #[schema(minimum = 1, maximum = 1)]
     pub version: u16,
     #[schema(required = true)]
     #[serde(deserialize_with = "query_filter")]
@@ -33,13 +34,17 @@ pub struct IssueQuery {
     #[serde(default)]
     pub sort: IssueQuerySort,
     pub team_id: Option<Uuid>,
+    #[schema(max_length = 256)]
     pub q: Option<String>,
     #[serde(default)]
     pub archived: bool,
     #[serde(default = "page_limit")]
+    #[schema(default = 50, minimum = 1, maximum = 100)]
     pub limit: i64,
+    #[schema(max_length = 2048)]
     pub cursor: Option<String>,
     #[serde(default = "timezone")]
+    #[schema(default = "UTC", min_length = 1, max_length = 100)]
     pub timezone: String,
 }
 
@@ -135,11 +140,11 @@ impl IssueQuerySort {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum IssueFilterNode {
     All {
-        #[schema(no_recursion)]
+        #[schema(no_recursion, min_items = 1, max_items = 50)]
         children: Vec<IssueFilterNode>,
     },
     Any {
-        #[schema(no_recursion)]
+        #[schema(no_recursion, min_items = 1, max_items = 50)]
         children: Vec<IssueFilterNode>,
     },
     Predicate {
@@ -150,12 +155,14 @@ pub enum IssueFilterNode {
             skip_serializing_if = "Option::is_none",
             deserialize_with = "optional_value"
         )]
+        #[schema(nullable = false)]
         value: Option<IssueQueryValue>,
         #[serde(
             default,
             skip_serializing_if = "Option::is_none",
             deserialize_with = "optional_values"
         )]
+        #[schema(nullable = false, min_items = 1, max_items = 100)]
         values: Option<Vec<IssueQueryValue>>,
     },
 }
@@ -226,6 +233,7 @@ pub enum IssueQueryValue {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IssueQueryRelativeDate {
+    #[schema(minimum = -36500, maximum = 36500)]
     pub relative_days: i32,
 }
 
