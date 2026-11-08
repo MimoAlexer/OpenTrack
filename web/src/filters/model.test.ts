@@ -91,6 +91,31 @@ describe('structured query URL state', () => {
   });
 
   it.each([
+    '2026-01-01T12:00:00.123456000000Z',
+    `2026-01-01T12:00:00.123456${'0'.repeat(37)}Z`,
+  ])('round-trips bounded exact microsecond timestamps with extra zero digits: %s', instant => {
+    const state = { ...view(), filter: { kind: 'predicate', field: 'created_at', op: 'eq', value: instant } as FilterNode };
+    expect(instant.length).toBeLessThanOrEqual(64);
+    expect(validateView(state)).toBeNull();
+    expect(queryBody(state).filter).toEqual({ kind: 'predicate', field: 'created_at', op: 'eq', value: instant });
+    expect(parseStructuredHash(viewHash(state))).toEqual({ kind: 'valid', view: state });
+  });
+
+  it.each([
+    '2026-01-01T12:00:00.123456000001Z',
+    '2016-12-31T23:59:60Z',
+    `2026-01-01T12:00:00.123456${'0'.repeat(38)}Z`,
+  ])('rejects significant discarded timestamp digits, leap seconds and values beyond 64 characters: %s', instant => {
+    expect(validateFilter({ kind: 'predicate', field: 'updated_at', op: 'eq', value: instant })).not.toBeNull();
+  });
+
+  it('blocks imported text queries containing a null character before constructing a query', () => {
+    const state = { ...view(), q: 'visible\0hidden' };
+    expect(validateView(state)).not.toBeNull();
+    expect(parseStructuredHash(`#filters=${encodeURIComponent(JSON.stringify(state))}`).kind).toBe('invalid');
+  });
+
+  it.each([
     ['America/Havana', '2026-11-01'],
     ['America/Goose_Bay', '1988-10-30'],
     ['Pacific/Apia', '2011-12-30'],
