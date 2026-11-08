@@ -49,6 +49,12 @@ impl App {
             .bind(workspace).bind(mutation).bind(actor.user.id).bind(result.version.parse::<i64>().map_err(|_| Error::Internal)?).bind(request.shortcut_mode.as_str()).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
         graph::one(sqlx::query("INSERT INTO audit_entries(id,workspace_id,actor_id,action,target_id,metadata) VALUES($1,$2,$3,'user.preferences_changed',$3,$4)")
             .bind(mutation).bind(workspace).bind(actor.user.id).bind(json!({"shortcut_mode":request.shortcut_mode})).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
+        // Personal invalidations share the commit-ordered workspace stream,
+        // but their source registry permits only the preference owner.
+        let sequence: i64 = sqlx::query_scalar("UPDATE workspace_stream_heads SET last_seq=last_seq+1 WHERE workspace_id=$1 RETURNING last_seq")
+            .bind(workspace).fetch_one(&mut *tx).await.map_err(db_error)?;
+        graph::one(sqlx::query("INSERT INTO workspace_events(workspace_id,seq,event_id,event_type,team_id,entity_id,entity_version,actor_id,mutation_id) VALUES($1,$2,$3,'user.preferences_changed',NULL,$4,$5,$4,$3)")
+            .bind(workspace).bind(sequence).bind(mutation).bind(actor.user.id).bind(result.version.parse::<i64>().map_err(|_| Error::Internal)?).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
         tx.commit().await.map_err(db_error)?;
         Ok(result)
     }

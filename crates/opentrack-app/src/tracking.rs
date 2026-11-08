@@ -67,18 +67,29 @@ pub(crate) async fn status_transition(
 
 impl App {
     pub async fn bootstrap(&self, actor: &Actor, w: Uuid) -> Result<Bootstrap> {
-        let mut tx = self.scoped(actor, w, false).await?;
+        for attempt in 0..3 {
+            match self.bootstrap_snapshot(actor, w).await {
+                Err(Error::Unavailable) if attempt < 2 => continue,
+                outcome => return outcome,
+            }
+        }
+        Err(Error::Unavailable)
+    }
+    async fn bootstrap_snapshot(&self, actor: &Actor, w: Uuid) -> Result<Bootstrap> {
+        let mut tx = self.realtime_snapshot_scope(actor, w).await?;
         let auth_epoch = store::auth_epoch(&mut tx, w)
             .await
-            .map_err(db_error)?
+            .map_err(crate::realtime::snapshot_error)?
             .to_string();
         let teams = store::teams(&mut tx, w, actor.user.id)
             .await
-            .map_err(db_error)?;
+            .map_err(crate::realtime::snapshot_error)?;
         let statuses = store::statuses(&mut tx, w, actor.user.id)
             .await
-            .map_err(db_error)?;
-        let members = store::members(&mut tx, w).await.map_err(db_error)?;
+            .map_err(crate::realtime::snapshot_error)?;
+        let members = store::members(&mut tx, w)
+            .await
+            .map_err(crate::realtime::snapshot_error)?;
         let mut issues = store::list_issues(
             &mut tx,
             w,
@@ -90,10 +101,20 @@ impl App {
             None,
         )
         .await
-        .map_err(db_error)?;
+        .map_err(crate::realtime::snapshot_error)?;
         issues.truncate(100);
-        tx.commit().await.map_err(db_error)?;
+        let head = store::stream_head(&mut tx, w)
+            .await
+            .map_err(crate::realtime::snapshot_error)?;
+        let realtime_cursor = self.realtime_cursor(
+            actor,
+            w,
+            auth_epoch.parse().map_err(|_| Error::Internal)?,
+            head,
+        )?;
+        tx.commit().await.map_err(crate::realtime::snapshot_error)?;
         Ok(Bootstrap {
+            realtime_cursor: Some(realtime_cursor),
             auth_epoch,
             teams,
             statuses,

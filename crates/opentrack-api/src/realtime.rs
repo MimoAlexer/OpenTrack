@@ -372,13 +372,13 @@ async fn enqueue(
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct StreamQuery {
+pub(crate) struct StreamQuery {
     cursor: Option<String>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct PageQuery {
+pub(crate) struct PageQuery {
     cursor: String,
     limit: Option<u32>,
 }
@@ -414,7 +414,8 @@ fn validate_cursor(cursor: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
-async fn page(
+#[utoipa::path(get, operation_id="realtime_page", path="/api/v1/workspaces/{w}/events/page", params(("w"=Uuid,Path),("cursor"=String,Query,max_length=4096),("limit"=Option<u32>,Query,minimum=1,maximum=100)), responses((status=200,body=opentrack_domain::RealtimePage),(status=409,body=crate::problem::Problem)))]
+pub(crate) async fn page(
     State(state): State<ApiState>,
     Auth(actor): Auth,
     Path(workspace): Path<Uuid>,
@@ -435,7 +436,8 @@ async fn page(
     .into_response())
 }
 
-async fn events(
+#[utoipa::path(get, operation_id="realtime_events", path="/api/v1/workspaces/{w}/events", params(("w"=Uuid,Path),("Last-Event-ID"=Option<String>,Header,description="Opaque session-bound replay cursor returned by bootstrap or SSE"),("cursor"=Option<String>,Query,max_length=4096)), responses((status=200,body=String,content_type="text/event-stream",description="Authorized invalidation, opaque checkpoint and reset_required frames; no mutation channel"),(status=409,body=crate::problem::Problem)))]
+pub(crate) async fn events(
     Extension(node): Extension<Arc<RealtimeNode>>,
     Auth(actor): Auth,
     Path(workspace): Path<Uuid>,

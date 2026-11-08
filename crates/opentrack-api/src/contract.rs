@@ -224,6 +224,8 @@ pub(crate) struct IssuePatch {
         super::account::complete_recovery,
         super::capabilities,
         super::bootstrap,
+        crate::realtime::page,
+        crate::realtime::events,
         super::list_issues,
         super::get_issue,
         super::create_issue,

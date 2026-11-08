@@ -7,6 +7,8 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+chacha20poly1305.workspace = true
+base64.workspace = true
 opentrack-domain.workspace = true
 opentrack-store.workspace = true
 sqlx.workspace = true
