@@ -118,6 +118,9 @@ impl ApiRequest {
         {
             return Err(NativeError::invalid());
         }
+        if self.path.ends_with("/events/page") && !realtime_page_query(self.query.as_deref()) {
+            return Err(NativeError::invalid());
+        }
         let mut headers = BTreeMap::new();
         let mut names = BTreeSet::new();
         for (name, value) in self.headers {
@@ -147,6 +150,7 @@ impl ApiRequest {
             || self.path.ends_with("/issues")
             || self.path.split('/').any(|segment| segment == "templates")
             || project_narrative_request(self.method, &self.path)
+            || issue_query_request(self.method, &self.path)
         {
             1024 * 1024
         } else {
@@ -191,6 +195,53 @@ fn project_narrative_request(method: Method, path: &str) -> bool {
         _ => false,
     }
 }
+fn issue_query_request(method: Method, path: &str) -> bool {
+    matches!(
+        path.split('/').collect::<Vec<_>>().as_slice(),
+        ["", "api", "v1", "workspaces", _, "issues", "query"]
+    ) && method == Method::Post
+}
+fn realtime_page_query(query: Option<&str>) -> bool {
+    let Some(query) = query else {
+        return false;
+    };
+    let bytes = query.as_bytes();
+    for (index, byte) in bytes.iter().enumerate() {
+        if *byte == b'%'
+            && (index + 2 >= bytes.len()
+                || !bytes[index + 1].is_ascii_hexdigit()
+                || !bytes[index + 2].is_ascii_hexdigit())
+        {
+            return false;
+        }
+    }
+    let mut cursor = false;
+    let mut limit = false;
+    for (name, value) in url::form_urlencoded::parse(bytes) {
+        match name.as_ref() {
+            "cursor" if !cursor => {
+                if value.is_empty()
+                    || value.len() > 4096
+                    || !value.bytes().all(|byte| (0x21..=0x7e).contains(&byte))
+                {
+                    return false;
+                }
+                cursor = true;
+            }
+            "limit" if !limit => {
+                if !value
+                    .parse::<u16>()
+                    .is_ok_and(|number| (1..=100).contains(&number) && number.to_string() == value)
+                {
+                    return false;
+                }
+                limit = true;
+            }
+            _ => return false,
+        }
+    }
+    cursor
+}
 fn route_allowed(method: Method, path: &str) -> bool {
     use Method::*;
     let segments: Vec<_> = path.split('/').collect();
@@ -209,6 +260,8 @@ fn workspace_route(method: Method, path: &[&str]) -> bool {
     match path {
         [] => matches!(method, Get | Patch),
         ["access" | "bootstrap"] => method == Get,
+        ["events", "page"] => method == Get,
+        ["issues", "query"] => method == Post,
         ["invitations" | "issues" | "labels" | "teams"] => matches!(method, Get | Post),
         ["members" | "mention-candidates" | "issue-reference-candidates"] => method == Get,
         ["attachments"] => matches!(method, Get | Post),
@@ -882,6 +935,15 @@ mod tests {
                 assert!(!route_allowed(Method::Put, raw));
                 continue;
             }
+            // Streaming SSE is browser-only. Native renders bounded replay
+            // pages through the authenticated broker, never stream IPC.
+            if path == "/api/v1/workspaces/{w}/events" {
+                assert!(!route_allowed(
+                    Method::Get,
+                    "/api/v1/workspaces/00000000-0000-0000-0000-000000000001/events"
+                ));
+                continue;
+            }
             let mut concrete = path.clone();
             while let Some(start) = concrete.find('{') {
                 let end = concrete[start..].find('}').unwrap() + start;
@@ -1005,5 +1067,131 @@ mod cycle_route_tests {
                 assert!(!route_allowed(method, &path));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod realtime_and_query_tests {
+    use super::*;
+    fn request(method: Method, suffix: &str, query: Option<&str>) -> ApiRequest {
+        ApiRequest {
+            expected_generation: "7".into(),
+            method,
+            path: format!("/api/v1/workspaces/00000000-0000-0000-0000-000000000001/{suffix}"),
+            query: query.map(str::to_owned),
+            headers: BTreeMap::new(),
+            body: None,
+        }
+    }
+    #[test]
+    fn realtime_pages_are_bounded_reads_without_stream_or_header_escape() {
+        for query in [
+            "cursor=opaque_1",
+            "cursor=opaque%2F%2B%3D&limit=100",
+            "limit=1&cursor=opaque",
+        ] {
+            let checked = request(Method::Get, "events/page", Some(query))
+                .check()
+                .unwrap();
+            assert_eq!(checked.generation, 7);
+            assert_eq!(checked.query.as_deref(), Some(query));
+        }
+        for query in [
+            None,
+            Some(""),
+            Some("cursor="),
+            Some("cursor=x&cursor=y"),
+            Some("cursor=x&limit=101"),
+            Some("cursor=x&limit=0"),
+            Some("cursor=x&limit=01"),
+            Some("cursor=x&limit=1&limit=2"),
+            Some("cursor=x&token=secret"),
+            Some("cursor=x%0Aheader"),
+            Some("cursor=x+y"),
+            Some("cursor=%GG"),
+        ] {
+            assert!(
+                request(Method::Get, "events/page", query).check().is_err(),
+                "{query:?}"
+            );
+        }
+        assert!(
+            request(
+                Method::Get,
+                "events/page",
+                Some(&format!("cursor={}", "x".repeat(4097)))
+            )
+            .check()
+            .is_err()
+        );
+        for suffix in [
+            "events",
+            "events/page/",
+            "events/page/extra",
+            "events/%70age",
+        ] {
+            assert!(
+                request(Method::Get, suffix, Some("cursor=x"))
+                    .check()
+                    .is_err()
+            );
+        }
+        for method in [Method::Post, Method::Put, Method::Patch, Method::Delete] {
+            assert!(
+                request(method, "events/page", Some("cursor=x"))
+                    .check()
+                    .is_err()
+            );
+        }
+        for header in ["Authorization", "Last-Event-ID", "Cookie"] {
+            let mut value = request(Method::Get, "events/page", Some("cursor=x"));
+            value.headers.insert(header.into(), "untrusted".into());
+            assert!(value.check().is_err());
+        }
+        let mut body = request(Method::Get, "events/page", Some("cursor=x"));
+        body.body = Some(serde_json::json!({}));
+        assert!(body.check().is_err());
+        let mut stale = request(Method::Get, "events/page", Some("cursor=x"));
+        stale.expected_generation = "07".into();
+        assert!(stale.check().is_err());
+    }
+    #[test]
+    fn structured_query_has_an_exact_post_route_and_isolated_body_budget() {
+        let mut query = request(Method::Post, "issues/query", None);
+        query.body = Some(
+            serde_json::json!({"filter":{"and":(0..50).map(|_| serde_json::json!({"field":"assignee_id","operator":"in","values":vec!["00000000-0000-0000-0000-000000000002";100]})).collect::<Vec<_>>()}}),
+        );
+        assert!(query.check().is_ok());
+        for (suffix, method, limit) in [
+            ("issues/query", Method::Post, 1024 * 1024),
+            ("preferences", Method::Patch, 65536),
+        ] {
+            let overhead = serde_json::to_vec(&serde_json::json!({"value":""}))
+                .unwrap()
+                .len();
+            let mut value = request(method, suffix, None);
+            value.body = Some(serde_json::json!({"value":"x".repeat(limit-overhead)}));
+            assert_eq!(value.check().unwrap().body.unwrap().len(), limit);
+            let mut value = request(method, suffix, None);
+            value.body = Some(serde_json::json!({"value":"x".repeat(limit-overhead+1)}));
+            assert!(value.check().is_err());
+        }
+        for method in [Method::Get, Method::Put, Method::Patch, Method::Delete] {
+            assert!(request(method, "issues/query", None).check().is_err());
+        }
+        for suffix in [
+            "search/query",
+            "issues/query/",
+            "issues/query/extra",
+            "issues/%71uery",
+            "issues/QUERY",
+        ] {
+            assert!(request(Method::Post, suffix, None).check().is_err());
+        }
+        let mut noncanonical = request(Method::Post, "issues/query", None);
+        noncanonical.path = noncanonical
+            .path
+            .replace("00000000-0000-0000-0000-000000000001", "not-a-uuid");
+        assert!(noncanonical.check().is_err());
     }
 }
