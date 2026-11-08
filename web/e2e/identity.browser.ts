@@ -2,7 +2,7 @@ import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import { test, expect, SavedWorkspace } from './fixtures';
 import type { Bootstrap } from '../src/types';
-import type { OrganizationSummary, WorkspaceDetail } from '../src/settings/types';
+import type { OrganizationSummary, Page, WorkspaceDetail, WorkspaceMember } from '../src/settings/types';
 registerAdmission(5);
 
 test('local password login works with every external origin blocked and recovers keyboard focus', async ({ page, saved }) => {
@@ -83,7 +83,30 @@ test('invitation keyboard acceptance switches accounts and member settings conce
   await page.goto(`/w/${saved.workspace}/settings/invitations`);
   await expect(page.getByText('Workspace owners and administrators manage invitations.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Create invitation', exact: true })).toHaveCount(0);
+  const memberPath = `/api/v1/workspaces/${saved.workspace}/members`;
+  const memberResponse = (cursor: string | null) => page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.origin === saved.origin && url.pathname === memberPath && response.request().method() === 'GET'
+      && url.searchParams.get('state') === 'active' && url.searchParams.get('cursor') === cursor;
+  });
+  let pendingMembers = memberResponse(null);
   await page.getByRole('link', { name: 'Members', exact: true }).click();
+  let displayedMembers = 0; let foundOwner = false;
+  for (let directoryPage = 0; directoryPage < 256; directoryPage++) {
+    const response = await pendingMembers;
+    expect(response.status(), 'The current member can read each active directory page').toBe(200);
+    const members = await response.json() as Page<WorkspaceMember>;
+    displayedMembers += members.data.length;
+    await expect(page.locator('.settings-row')).toHaveCount(displayedMembers);
+    if (members.data.some(member => member.user.id === saved.session.user.id && member.role === 'owner')) {
+      foundOwner = true; break;
+    }
+    if (!members.has_more || directoryPage === 255) break;
+    expect(members.next_cursor, 'A further member page has an explicit cursor').toBeTruthy();
+    pendingMembers = memberResponse(members.next_cursor);
+    await page.getByRole('button', { name: 'Load more', exact: true }).click();
+  }
+  expect(foundOwner, 'The active owner appears within the bounded member directory').toBe(true);
   await expect(page.getByText('Example Owner', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Deactivate / })).toHaveCount(0);
   await page.goto('/join'); await page.getByRole('textbox', { name: 'Invitation token', exact: true }).fill(token);

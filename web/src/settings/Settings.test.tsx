@@ -109,6 +109,34 @@ it('keeps a rejected member role change and requires a deliberate conflict reloa
   expect(changed).not.toHaveBeenCalled();
 });
 
+it('lets an ordinary member reach an owner on a later directory page without exposing management actions', async () => {
+  const memberWorkspace = { ...workspace, role: 'member' };
+  const memberSession = { ...invited, workspaces: [memberWorkspace] };
+  const firstPage = Array.from({ length: 50 }, (_, index) => ({
+    user: { id: `directory-${index}`, display_name: `Example directory member ${index}`, email: `directory-${index}@example.test` },
+    role: 'viewer', active: true, version: '1',
+  }));
+  const fetch = vi.fn((url: string) => {
+    const query = new URL(url, 'http://localhost').searchParams;
+    expect(query.get('state')).toBe('active'); expect(query.get('limit')).toBe('50');
+    if (!query.has('cursor')) return Promise.resolve(json(page(firstPage, 'next-members')));
+    expect(query.get('cursor')).toBe('next-members');
+    return Promise.resolve(json(page([{ user: session.user, role: 'owner', active: true, version: '1' }])));
+  });
+  vi.stubGlobal('fetch', fetch);
+  const changed = vi.fn(async () => {});
+  await render(<MemberSettings workspace={memberWorkspace} session={memberSession} changed={changed} reauthenticate={() => {}} />);
+  expect(container.querySelectorAll('.settings-row')).toHaveLength(50);
+  expect(container.textContent).not.toContain('Owner');
+  expect(container.querySelectorAll('.row-actions')).toHaveLength(0);
+  await click('Load more');
+  expect(container.querySelectorAll('.settings-row')).toHaveLength(51);
+  expect(container.querySelectorAll('.settings-row-main strong')[50].textContent).toBe('Owner');
+  expect(container.querySelectorAll('.row-actions')).toHaveLength(0);
+  expect(button('Load more')).toBeUndefined();
+  expect(fetch).toHaveBeenCalledTimes(2); expect(changed).not.toHaveBeenCalled();
+});
+
 it.each([403, 503])('preserves a workspace name draft after a %s mutation failure without offering a destructive reload', async status => {
   const detail = { ...workspace, organization_id: 'org', version: '1', archived_at: null };
   const fetch = vi.fn((_url: string, options: RequestInit) => Promise.resolve(options.method === 'PATCH' ? json({ code: status === 403 ? 'reauthentication_required' : 'unavailable', detail: 'The change was not saved.' }, status) : json(detail)));
