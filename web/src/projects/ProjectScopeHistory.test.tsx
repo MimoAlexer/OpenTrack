@@ -111,6 +111,40 @@ describe('project scope history', () => {
     expect(new Headers(posts[1][1].headers).get('Idempotency-Key')).not.toBe(new Headers(posts[0][1].headers).get('Idempotency-Key'));
   });
 
+  it('requires fresh agreement after a refresh loads changed scope without discarding the draft', async () => {
+    let reads = 0;
+    const fetch = vi.fn((_url: string, options: RequestInit) => Promise.resolve(json(snapshot({ scope_etag: options.method === 'POST' || ++reads > 1 ? '"scope-two"' : '"scope-one"' })))); vi.stubGlobal('fetch', fetch);
+    await render(view()); await baselineDraft();
+    expect(container.querySelector<HTMLInputElement>('.scope-agreement input')!.checked).toBe(true);
+    await click('Refresh scope');
+    expect(container.querySelector<HTMLInputElement>('.scope-agreement input')!.checked).toBe(false);
+    expect(container.querySelector<HTMLInputElement>('[name="scope-baseline-name"]')!.value).toBe(' Release plan ');
+    expect(container.querySelector<HTMLTextAreaElement>('[name="scope-baseline-reason"]')!.value).toBe(' Reviewed with the team. ');
+    await submit('Set scope baseline');
+    expect(fetch.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(0);
+    await agree(); await submit('Set scope baseline');
+    const posts = fetch.mock.calls.filter(([, options]) => options.method === 'POST');
+    expect(posts).toHaveLength(1);
+    expect(new Headers(posts[0][1].headers).get('If-Match')).toBe('"scope-two"');
+  });
+
+  it('preserves the original uncertain request even when a refresh clears agreement', async () => {
+    let writes = 0; let reads = 0;
+    const fetch = vi.fn((_url: string, options: RequestInit) => {
+      if (options.method === 'POST') return ++writes === 1 ? Promise.reject(new TypeError('Connection lost')) : Promise.resolve(json(snapshot()));
+      return Promise.resolve(json(snapshot({ scope_etag: ++reads === 1 ? '"scope-one"' : '"scope-two"' })));
+    }); vi.stubGlobal('fetch', fetch);
+    await render(view()); await baselineDraft(); await submit('Set scope baseline');
+    await render(view({ refresh: 1 }));
+    expect(container.querySelector<HTMLInputElement>('.scope-agreement input')!.checked).toBe(false);
+    expect(container.querySelector<HTMLInputElement>('[name="scope-baseline-name"]')!.disabled).toBe(true);
+    await click('Retry safely');
+    const posts = fetch.mock.calls.filter(([, options]) => options.method === 'POST');
+    expect(posts).toHaveLength(2); expect(posts[1][1].body).toBe(posts[0][1].body);
+    expect(new Headers(posts[1][1].headers).get('If-Match')).toBe('"scope-one"');
+    expect(new Headers(posts[1][1].headers).get('Idempotency-Key')).toBe(new Headers(posts[0][1].headers).get('Idempotency-Key'));
+  });
+
   it('records explicit postponement with its reason and retains ordinary rejected drafts', async () => {
     let reject = true;
     const fetch = vi.fn((_url: string, options: RequestInit) => Promise.resolve(options.method === 'POST' && reject ? problem(422, 'Please revise the reason.') : json(snapshot()))); vi.stubGlobal('fetch', fetch);
