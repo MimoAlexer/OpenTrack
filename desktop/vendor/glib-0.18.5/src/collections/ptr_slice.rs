@@ -777,12 +777,11 @@ impl<T: TransparentPtrType> PtrSlice<T> {
             for item in other {
                 ptr::write(self.ptr.as_ptr().add(self.len) as *mut T, item.clone());
                 self.len += 1;
+                ptr::write(
+                    self.ptr.as_ptr().add(self.len),
+                    Ptr::from(ptr::null_mut::<<T as GlibPtrDefault>::GlibType>()),
+                );
             }
-
-            ptr::write(
-                self.ptr.as_ptr().add(self.len),
-                Ptr::from(ptr::null_mut::<<T as GlibPtrDefault>::GlibType>()),
-            );
         }
     }
 
@@ -1046,6 +1045,9 @@ impl<T: TransparentPtrType> IntoGlibPtr<*mut <T as GlibPtrDefault>::GlibType> fo
 
 impl<T: TransparentPtrType> From<super::Slice<T>> for PtrSlice<T> {
     fn from(value: super::Slice<T>) -> Self {
+        if value.is_empty() {
+            return Self::new();
+        }
         let len = value.len();
         let capacity = value.capacity();
         unsafe {

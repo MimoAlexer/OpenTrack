@@ -700,6 +700,7 @@ impl StrV {
             ) as *mut *mut c_char;
             self.ptr = ptr::NonNull::new_unchecked(new_ptr);
             self.capacity = new_capacity;
+            *self.ptr.as_ptr().add(self.len) = ptr::null_mut();
         }
     }
 
@@ -726,6 +727,9 @@ impl StrV {
             }
 
             self.len = 0;
+            if self.capacity != 0 {
+                *self.ptr.as_ptr() = ptr::null_mut();
+            }
         }
     }
 
@@ -742,9 +746,8 @@ impl StrV {
             for item in other {
                 *self.ptr.as_ptr().add(self.len) = GString::from(item.as_ref()).into_glib_ptr();
                 self.len += 1;
+                *self.ptr.as_ptr().add(self.len) = ptr::null_mut();
             }
-
-            *self.ptr.as_ptr().add(self.len) = ptr::null_mut();
         }
     }
 
