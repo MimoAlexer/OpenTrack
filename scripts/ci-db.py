@@ -66,7 +66,6 @@ statements += [
     f"ALTER ROLE {runtime} SET idle_in_transaction_session_timeout='5s';",
 ]
 for command in [
-    f'REVOKE ALL ON public.issue_order_staging FROM {runtime}',
     f'REVOKE UPDATE,DELETE,TRUNCATE ON public.issue_order_normalizations,public.issue_order_guards FROM {runtime}',
 ]:
     statements.append("SELECT '" + command + "' WHERE to_regclass('public.issue_order_staging') IS NOT NULL\\gexec")
@@ -77,7 +76,18 @@ for command in [
     f'GRANT SELECT,INSERT ON public.worker_workspace_registry TO {runtime}',
 ]:
     statements.append("SELECT '" + command + "' WHERE to_regclass('public.jobs') IS NOT NULL\\gexec")
-statements.append(f"SELECT 'REVOKE ALL ON public.planning_backfills FROM {runtime}; REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER ON public.planning_issue_facts FROM {runtime}' WHERE to_regclass('public.planning_issue_facts') IS NOT NULL\\gexec")
+# Match App::connect's no-access consumer relations after the broad table grant.
+for table in ['planning_backfills', 'assignment_reconciliations', 'consumer_registrations', 'consumer_checkpoints', 'consumer_receipts', 'consumer_dead_letters', 'consumer_alerts', 'event_retention_state', 'consumer_operations', 'document_retention_operations', 'attachment_storage_operations', 'issue_order_staging', 'document_mentions', 'mention_intents', 'discussion_sources']:
+    statements.append(f"SELECT 'REVOKE ALL ON public.{table} FROM {runtime}' WHERE to_regclass('public.{table}') IS NOT NULL\\gexec")
+statements.append(f"SELECT 'REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER ON public.planning_issue_facts FROM {runtime}' WHERE to_regclass('public.planning_issue_facts') IS NOT NULL\\gexec")
+# A rerun must preserve the trigger-owned facts and the revision-only writer,
+# just as migration 0031 does after initially creating these relations.
+for command in [
+    f'REVOKE INSERT,UPDATE,DELETE,TRUNCATE ON public.project_scope_heads FROM {runtime}',
+    f'GRANT UPDATE(revision) ON public.project_scope_heads TO {runtime}',
+]:
+    statements.append("SELECT '" + command + "' WHERE to_regclass('public.project_scope_heads') IS NOT NULL\\gexec")
+statements.append(f"SELECT 'REVOKE INSERT,UPDATE,DELETE,TRUNCATE ON public.project_scope_events FROM {runtime}' WHERE to_regclass('public.project_scope_events') IS NOT NULL\\gexec")
 result = subprocess.run(
     ["psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "--dbname", "postgres"],
     input="\n".join(statements), text=True, capture_output=True, check=False,

@@ -51,3 +51,13 @@ F05-A1: one issue cannot join a project in another team. F05-A2: completing proj
 ## 12. Testing strategy
 
 Constraint and aggregate tests; project state browser flow; date ordering and zero-denominator cases; stale version and delayed projection fixtures.
+
+## Scope history and agreed baselines
+
+The Scope history tab records actual membership additions, removals and explicit postponements with actor, time and a reason when supplied. A postponement detaches the issue from this plan while preserving its workflow state. Soft deletion and archive retain membership; hidden/deleted source rows are omitted from history and comparison rather than presented as removals.
+
+A currently appointed project lead or team manager can set an immutable, named baseline of up to 1,000 current non-deleted members. This is one attributable agreement record, not proof of approval by every participant. Contributors retain ordinary membership editing. Existing projects start with explicitly unknown earlier history; the migration invents neither agreement nor earlier actors/reasons.
+
+Comparison, source references, baseline choices and history are independently paged. Counts and labels describe currently accessible sources only: unavailable/deleted/moved-private references are not exposed as IDs, titles or hidden totals. No empty comparison proves that all historical work remains unchanged. Changing referenced issues invalidates outstanding review/page tokens. An invalid continuation clears the previous pages and agreement while the client fetches a fresh comparison. Stale writes require refreshed review. An interrupted command can retry the original body, key and token. After receipt expiry, inspect refreshed history and close the attempted draft.
+
+Migration 0031 adds immutable reference-only facts and baseline members, a scoped revision head, and membership/source invalidation triggers. Upgrade preserves membership and marks earlier history unknown. Deploy matching API/client and retain a database backup with its matching binaries before upgrading; no destructive down-migration is supplied.

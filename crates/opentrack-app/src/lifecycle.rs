@@ -84,6 +84,26 @@ pub(crate) async fn retry<T: DeserializeOwned>(
     key: &str,
     hash: &str,
 ) -> Result<Option<T>> {
+    retry_with_expiry(tx, w, u, route, key, hash)
+        .await
+        .map_err(legacy_retry_error)
+}
+
+fn legacy_retry_error(error: Error) -> Error {
+    match error {
+        Error::RetryWindowExpired => Error::Conflict(error.to_string()),
+        other => other,
+    }
+}
+
+pub(crate) async fn retry_with_expiry<T: DeserializeOwned>(
+    tx: &mut store::Tx,
+    w: Uuid,
+    u: Uuid,
+    route: &str,
+    key: &str,
+    hash: &str,
+) -> Result<Option<T>> {
     sqlx::query("INSERT INTO idempotency_records(workspace_id,principal_id,route,key_hash,request_hash) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING").bind(w).bind(u).bind(route).bind(key).bind(hash).execute(&mut **tx).await.map_err(db_error)?;
     let r=sqlx::query("SELECT request_hash,response_body,expires_at>now() AS valid FROM idempotency_records WHERE workspace_id=$1 AND principal_id=$2 AND route=$3 AND key_hash=$4 FOR UPDATE").bind(w).bind(u).bind(route).bind(key).fetch_one(&mut **tx).await.map_err(db_error)?;
     retry_body(r, hash)
@@ -95,9 +115,7 @@ fn retry_body<T: DeserializeOwned>(r: sqlx::postgres::PgRow, hash: &str) -> Resu
         ));
     }
     if !r.try_get::<bool, _>("valid").map_err(db_error)? {
-        return Err(Error::Conflict(
-            "The retry window expired. Reconcile the original result before trying again".into(),
-        ));
+        return Err(Error::RetryWindowExpired);
     }
     r.try_get::<Option<Value>, _>("response_body")
         .map_err(db_error)?
@@ -322,7 +340,7 @@ impl App {
         }
         sqlx::query("INSERT INTO organization_idempotency_records(organization_id,principal_id,route,key_hash,request_hash) VALUES($1,$2,'workspaces.create',$3,$4) ON CONFLICT DO NOTHING").bind(req.organization_id).bind(actor.user.id).bind(&kh).bind(&rh).execute(&mut *tx).await.map_err(db_error)?;
         let row=sqlx::query("SELECT request_hash,response_body,expires_at>now() AS valid FROM organization_idempotency_records WHERE organization_id=$1 AND principal_id=$2 AND route='workspaces.create' AND key_hash=$3 FOR UPDATE").bind(req.organization_id).bind(actor.user.id).bind(&kh).fetch_one(&mut *tx).await.map_err(db_error)?;
-        if let Some(item) = retry_body::<WorkspaceDetail>(row, &rh)? {
+        if let Some(item) = retry_body::<WorkspaceDetail>(row, &rh).map_err(legacy_retry_error)? {
             store::context(&mut tx, actor.user.id, Some(item.id))
                 .await
                 .map_err(db_error)?;

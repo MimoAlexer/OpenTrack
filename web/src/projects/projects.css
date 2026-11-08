@@ -143,3 +143,35 @@
   @media (max-width: 780px) { .projects-screen { padding: 0 18px 30px; } .project-overview { display: flex; flex-direction: column-reverse; } .project-properties { border-left: 0; border-bottom: 1px solid var(--line); padding: 0 0 20px; } .project-properties dl { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; } .project-properties > p { margin-top: 10px; } .project-title-line { flex-direction: column; gap: 14px; } .project-title h2 { font-size: 22px; } .project-summary { margin-left: 0; } .project-readonly { display: none; } }
   @media (max-width: 530px) { .project-directory-labels, .project-row { grid-template-columns: minmax(150px, 1fr) 90px; } .project-row > .project-health, .project-row-lead, .project-directory-labels > :nth-child(n+3) { display: none; } .projects-toolbar { flex-wrap: wrap; } .projects-toolbar form { width: 100%; } .projects-toolbar input { flex: 1; width: auto; } .projects-heading { align-items: flex-start; } .projects-heading p { max-width: 180px; } .projects-team-bar { gap: 10px; } .projects-team-bar select { max-width: 180px; } .project-properties dl { grid-template-columns: 1fr; } .project-comparison { grid-template-columns: 1fr; } .project-form .form-grid { grid-template-columns: 1fr; gap: 0; } .project-issue-row { gap: 8px; } .project-issue-row > a { flex-wrap: wrap; gap: 4px; } .project-issue-key { width: 100%; } .project-update time { max-width: 125px; text-align: right; } }
 }
+
+@layer components {
+  .project-latest-update { margin: 28px 0; padding: 20px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .project-update-attribution { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; font-size: 13px; }
+  .project-update-attribution time { color: var(--secondary); }
+  .project-update-context { margin-top: 18px; font-size: 13px; }
+  .project-update-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0 0 18px; }
+  .project-update-dates dt { color: var(--secondary); margin-bottom: 5px; }
+  .project-update-dates dd { margin: 0; }
+  .project-update-note-groups { display: grid; gap: 16px; }
+  .project-update-note-groups h4 { margin: 0 0 8px; font-size: 13px; }
+  .project-update-note-groups ul { padding: 0; list-style: none; display: grid; gap: 10px; }
+  .project-update-note-groups li { border-left: 2px solid var(--line); padding-left: 12px; overflow-wrap: anywhere; }
+  .project-update-note-groups li > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
+  .project-update-note-groups li span { color: var(--secondary); }
+  .project-update-note-groups li p { white-space: pre-wrap; margin: 6px 0 0; }
+  .project-update-comparison { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; overflow-wrap: anywhere; }
+  .project-update-context .muted, .project-update-comparison .muted, .project-update-composer .muted { color: var(--secondary); font-size: 12px; }
+  .project-update-composer > fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+  .project-update-include-notes { display: flex; align-items: flex-start; gap: 10px; margin: 16px 0 10px; font-size: 13px; }
+  .project-update-include-notes input { flex: none; min-height: 20px; min-width: 20px; }
+  .project-update-notes-editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 18px; }
+  .project-update-note-editor { border: 1px solid var(--line); padding: 14px; border-radius: 8px; min-width: 0; }
+  .project-update-note-editor > legend { font-size: 14px; font-weight: 600; padding: 0 6px; }
+  .project-update-note-editor > p { color: var(--secondary); font-size: 12px; margin: 0 0 12px; }
+  .project-update-note-fields { border-top: 1px solid var(--line); margin: 16px 0; padding-top: 12px; }
+  .project-update-note-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 13px; }
+  .project-update-note-fields .field { margin-bottom: 12px; }
+  .project-update-note-fields .field > span { font-size: 11px; }
+  .project-update-review { margin-top: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; }
+  @media (max-width: 780px) { .project-update-notes-editor, .project-update-dates { grid-template-columns: minmax(0, 1fr); } }
+}

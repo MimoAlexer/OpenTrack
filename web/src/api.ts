@@ -11,6 +11,10 @@ export class ApiError extends Error {
   ) { super(message); this.name = 'ApiError'; }
 }
 
+export function retryWindowExpired(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 409 && error.details?.retry_window_expired === true;
+}
+
 // The write committed. Stop authenticated follow-up work without presenting it
 // as a failed write that should be replayed.
 export class SessionInvalidatedError extends Error {

@@ -143,6 +143,14 @@ impl Harness {
                 .await
                 .unwrap();
         }
+        let scope_history: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
+            .bind(format!("{schema}.project_scope_heads"))
+            .fetch_one(&owner_base)
+            .await
+            .unwrap();
+        if scope_history {
+            sqlx::raw_sql(AssertSqlSafe(format!("REVOKE INSERT,UPDATE,DELETE,TRUNCATE ON {schema}.project_scope_heads FROM \"{role}\"; GRANT UPDATE(revision) ON {schema}.project_scope_heads TO \"{role}\"; REVOKE INSERT,UPDATE,DELETE,TRUNCATE ON {schema}.project_scope_events FROM \"{role}\""))).execute(&owner_base).await.unwrap();
+        }
         let planning: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
             .bind(format!("{schema}.planning_issue_facts"))
             .fetch_one(&owner_base)
