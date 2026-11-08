@@ -104,6 +104,7 @@ fn registration(kind: &str) -> Option<(SourceKind, &'static str)> {
         | "project.archived"
         | "project.restored"
         | "project.scope_changed"
+        | "project.scope_agreed"
         | "project.update_published"
         | "milestone.order_changed"
         | "milestone.assignment_changed" => (Project, "project"),

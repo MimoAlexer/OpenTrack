@@ -86,6 +86,12 @@ for command in [
 ]:
     statements.append("SELECT '" + command + "' WHERE to_regclass('public.project_scope_heads') IS NOT NULL\\gexec")
 statements.append(f"SELECT 'REVOKE INSERT,UPDATE,DELETE,TRUNCATE ON public.project_scope_events FROM {runtime}' WHERE to_regclass('public.project_scope_events') IS NOT NULL\\gexec")
+for command in [
+    f'REVOKE UPDATE,TRUNCATE,REFERENCES,TRIGGER ON public.realtime_stream_leases FROM {runtime}',
+    f'REVOKE UPDATE(id,workspace_id,user_id,session_id) ON public.realtime_stream_leases FROM {runtime}',
+    f'GRANT UPDATE(expires_at) ON public.realtime_stream_leases TO {runtime}',
+]:
+    statements.append("SELECT '" + command + "' WHERE to_regclass('public.realtime_stream_leases') IS NOT NULL\\gexec")
 result = subprocess.run(
     ["psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "--dbname", "postgres"],
     input="\n".join(statements), text=True, capture_output=True, check=False,

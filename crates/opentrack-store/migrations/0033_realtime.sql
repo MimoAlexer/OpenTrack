@@ -32,7 +32,7 @@ CREATE POLICY realtime_account_scope ON realtime_stream_leases
    AND workspace_id=nullif(current_setting('opentrack.workspace_id',true),'')::uuid);
 DO $$ DECLARE role_name text; BEGIN
  FOR role_name IN SELECT DISTINCT grantee FROM information_schema.role_table_grants
- WHERE table_schema=current_schema() AND table_name='issues' AND grantee<>current_user LOOP
+ WHERE table_schema=current_schema() AND table_name='issues' AND privilege_type='INSERT' AND grantee<>current_user LOOP
   EXECUTE format('GRANT SELECT,INSERT,DELETE ON realtime_stream_leases TO %I',role_name);
   EXECUTE format('REVOKE UPDATE ON realtime_stream_leases FROM %I',role_name);
   EXECUTE format('GRANT UPDATE(expires_at) ON realtime_stream_leases TO %I',role_name);

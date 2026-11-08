@@ -162,6 +162,12 @@ for database in ['opentrack', 'opentrack_test']:
     ]:
         print("SELECT '" + command + "' WHERE to_regclass('public.project_scope_heads') IS NOT NULL\\gexec")
     print(f"SELECT 'REVOKE INSERT,UPDATE,DELETE,TRUNCATE ON public.project_scope_events FROM {database}' WHERE to_regclass('public.project_scope_events') IS NOT NULL\\gexec")
+    for command in [
+        f'REVOKE UPDATE,TRUNCATE,REFERENCES,TRIGGER ON public.realtime_stream_leases FROM {database}',
+        f'REVOKE UPDATE(id,workspace_id,user_id,session_id) ON public.realtime_stream_leases FROM {database}',
+        f'GRANT UPDATE(expires_at) ON public.realtime_stream_leases TO {database}',
+    ]:
+        print("SELECT '" + command + "' WHERE to_regclass('public.realtime_stream_leases') IS NOT NULL\\gexec")
 
     print(f'ALTER DEFAULT PRIVILEGES FOR ROLE {owner} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {database};')
     print(f'ALTER DEFAULT PRIVILEGES FOR ROLE {owner} IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO {database};')
