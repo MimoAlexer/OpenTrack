@@ -120,38 +120,23 @@ impl App {
             .transpose()?;
         // A single SQL statement derives every item and count from the same
         // authorized snapshot. Never resolve retained titles or emit hidden IDs.
-        let row=sqlx::query(r#"
-WITH visible AS MATERIALIZED (
- SELECT i.id,ct.key||'-'||i.number AS key,i.title
- FROM issues i JOIN teams ct ON ct.workspace_id=i.workspace_id AND ct.id=i.team_id
- WHERE i.workspace_id=$1 AND i.deleted_at IS NULL
- AND (NOT ct.private OR EXISTS(SELECT 1 FROM team_members tm WHERE tm.workspace_id=$1 AND tm.team_id=ct.id AND tm.user_id=$4))
- AND (EXISTS(SELECT 1 FROM project_issues pi WHERE pi.workspace_id=$1 AND pi.project_id=$3 AND pi.issue_id=i.id)
-   OR EXISTS(SELECT 1 FROM project_scope_baseline_items bi WHERE bi.workspace_id=$1 AND bi.baseline_id=$5 AND bi.issue_id=i.id)
-   OR EXISTS(SELECT 1 FROM project_scope_events e WHERE e.workspace_id=$1 AND e.project_id=$3 AND e.issue_id=i.id))
-), states AS (
- SELECT v.*,EXISTS(SELECT 1 FROM project_issues pi WHERE pi.workspace_id=$1 AND pi.project_id=$3 AND pi.issue_id=v.id) AS included,
- EXISTS(SELECT 1 FROM project_scope_baseline_items bi WHERE bi.workspace_id=$1 AND bi.baseline_id=$5 AND bi.issue_id=v.id) AS agreed,
- coalesce(last.action,'removed') AS last_action,coalesce(last.reason,'') AS reason
- FROM visible v LEFT JOIN LATERAL (SELECT action,reason FROM project_scope_events e WHERE e.workspace_id=$1 AND e.project_id=$3 AND e.issue_id=v.id AND e.ordinal>$6 ORDER BY e.ordinal DESC LIMIT 1) last ON true
-), paged AS (
- SELECT * FROM states WHERE (included OR agreed) AND ($9::uuid IS NULL OR id>$9) ORDER BY id LIMIT $8
-), items AS (SELECT * FROM paged ORDER BY id LIMIT $10), events AS (
- SELECT e.*,v.key,v.title,u.display_name AS actor_name FROM project_scope_events e JOIN visible v ON v.id=e.issue_id
- LEFT JOIN users u ON u.id=e.actor_id WHERE e.workspace_id=$1 AND e.team_id=$2 AND e.project_id=$3 AND e.ordinal>$6 AND ($7::bigint IS NULL OR e.ordinal<$7)
- ORDER BY e.ordinal DESC LIMIT $8
-)
-SELECT
- (SELECT count(*) FROM states WHERE included) AS current_count,
- (SELECT count(*) FROM paged)>$10 AS items_has_more,
- (SELECT id FROM items ORDER BY id DESC LIMIT 1) AS last_item,
- (SELECT count(*) FROM states WHERE included AND agreed) AS unchanged,
- coalesce((SELECT jsonb_agg(jsonb_build_object('id',id,'key',key,'title',title,'reason','') ORDER BY key,id) FROM items WHERE included),'[]') AS current,
- coalesce((SELECT jsonb_agg(jsonb_build_object('id',id,'key',key,'title',title,'reason',reason) ORDER BY key,id) FROM items WHERE included AND NOT agreed),'[]') AS added,
- coalesce((SELECT jsonb_agg(jsonb_build_object('id',id,'key',key,'title',title,'reason',reason) ORDER BY key,id) FROM items WHERE agreed AND NOT included AND last_action<>'postponed'),'[]') AS removed,
- coalesce((SELECT jsonb_agg(jsonb_build_object('id',id,'key',key,'title',title,'reason',reason) ORDER BY key,id) FROM items WHERE agreed AND NOT included AND last_action='postponed'),'[]') AS postponed,
- coalesce((SELECT jsonb_agg(jsonb_build_object('ordinal',ordinal,'id',id,'action',action,'reason',reason,'issue',jsonb_build_object('id',issue_id,'key',key,'title',title,'reason',''),'actor_id',actor_id,'actor_name',actor_name,'created_at',created_at) ORDER BY ordinal DESC) FROM events),'[]') AS events
-"#).bind(w).bind(t).bind(id).bind(a.user.id).bind(selected_id).bind(cut).bind(after).bind(i64::from(limit)+1).bind(item_after).bind(i64::from(limit)).fetch_one(&mut **tx).await.map_err(db_error)?;
+        // Project and baseline sizes are highly skewed. An unnamed statement lets
+        // PostgreSQL cost the scoped membership indexes for this specific request.
+        let row = sqlx::query(include_str!("project_scope_page.sql"))
+            .persistent(false)
+            .bind(w)
+            .bind(t)
+            .bind(id)
+            .bind(a.user.id)
+            .bind(selected_id)
+            .bind(cut)
+            .bind(after.map_or(i64::MAX, |ordinal| ordinal - 1))
+            .bind(i64::from(limit) + 1)
+            .bind(item_after)
+            .bind(i64::from(limit))
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(db_error)?;
         let items_has_more: bool = row.try_get("items_has_more").map_err(db_error)?;
         let items_next_cursor = if items_has_more {
             Some(self.taxonomy_cursor_encode(
@@ -243,13 +228,16 @@ SELECT
         let (kh, rh) = lifecycle::request_hash(key, &req)?;
         let route = format!("project-scope-agree:{t}:{id}");
         let mut tx = self.scoped(a, w, false).await?;
-        let replay = lifecycle::retry::<Uuid>(&mut tx, w, a.user.id, &route, &kh, &rh).await?;
+        visible_scope_target(&mut tx, a, w, t, id).await?;
+        let replay =
+            lifecycle::retry_with_expiry::<Uuid>(&mut tx, w, a.user.id, &route, &kh, &rh).await;
         projects::scope(&mut tx, a, w, t, true).await?;
         projects::lock(&mut tx, w, t, id).await?;
         let p = projects::project(&mut tx, a, w, t, id).await?;
         if !p.can_manage && p.lead_id != Some(a.user.id) {
             return Err(Error::Forbidden);
         }
+        let replay = replay?;
         if p.archived_at.is_some() {
             return Err(Error::Conflict(
                 "Restore this project before agreeing its scope".into(),
@@ -316,19 +304,20 @@ SELECT
         let (kh, rh) = lifecycle::request_hash(key, &req)?;
         let route = format!("project-scope-change:{t}:{id}");
         let mut tx = self.scoped(a, w, false).await?;
-        let replay = lifecycle::retry::<Uuid>(&mut tx, w, a.user.id, &route, &kh, &rh).await?;
+        visible_scope_target(&mut tx, a, w, t, id).await?;
+        scope_issue(&mut tx, w, t, &req).await?;
+        let replay =
+            lifecycle::retry_with_expiry::<Uuid>(&mut tx, w, a.user.id, &route, &kh, &rh).await;
         projects::scope(&mut tx, a, w, t, true).await?;
         projects::lock(&mut tx, w, t, id).await?;
         let p = projects::project(&mut tx, a, w, t, id).await?;
+        // A move can finish while the command waits on the receipt or team lock.
+        scope_issue(&mut tx, w, t, &req).await?;
+        let replay = replay?;
         if p.archived_at.is_some() {
             return Err(Error::Conflict(
                 "Restore this project before changing its scope".into(),
             ));
-        }
-        // Reauthorize even retries, and never replay retained issue data.
-        let valid:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM issues WHERE workspace_id=$1 AND team_id=$2 AND id=$3 AND deleted_at IS NULL AND (NOT $4 OR archived_at IS NULL))").bind(w).bind(t).bind(req.issue_id).bind(req.action==ProjectScopeAction::Added).fetch_one(&mut *tx).await.map_err(db_error)?;
-        if !valid {
-            return Err(Error::NotFound);
         }
         if replay.is_none() {
             let linked: Option<Uuid> = sqlx::query_scalar(
@@ -385,6 +374,54 @@ SELECT
         tx.commit().await.map_err(db_error)?;
         Ok(out)
     }
+}
+
+// Check source visibility without loading project documents or taking write locks.
+// The command rechecks authority and source state after receipt admission.
+async fn visible_scope_target(
+    tx: &mut store::Tx,
+    a: &Actor,
+    w: Uuid,
+    t: Uuid,
+    id: Uuid,
+) -> Result<()> {
+    if !store::visible_team(tx, w, t, a.user.id, false)
+        .await
+        .map_err(db_error)?
+    {
+        return Err(Error::NotFound);
+    }
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM projects WHERE workspace_id=$1 AND team_id=$2 AND id=$3)",
+    )
+    .bind(w)
+    .bind(t)
+    .bind(id)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(db_error)?;
+    if !exists {
+        return Err(Error::NotFound);
+    }
+    Ok(())
+}
+
+async fn scope_issue(tx: &mut store::Tx, w: Uuid, t: Uuid, req: &ChangeProjectScope) -> Result<()> {
+    let visible: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM issues WHERE workspace_id=$1 AND team_id=$2 AND id=$3
+                       AND deleted_at IS NULL AND (NOT $4 OR archived_at IS NULL))",
+    )
+    .bind(w)
+    .bind(t)
+    .bind(req.issue_id)
+    .bind(req.action == ProjectScopeAction::Added)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(db_error)?;
+    if !visible {
+        return Err(Error::NotFound);
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]

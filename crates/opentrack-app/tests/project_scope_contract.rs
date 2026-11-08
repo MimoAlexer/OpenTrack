@@ -226,11 +226,13 @@ async fn deleted_and_moved_private_sources_are_omitted_without_false_membership_
         for id in [moved.id,deleted.id,retained.id] {link(&h,&a,w,t,p.id,id,true).await;}
         let before=history(&h,&a,w,t,p.id).await;
         h.app.agree_project_scope(&a,w,t,p.id,&before.scope_etag,"scope-privacy-agreement",agreement()).await.unwrap();
-        link(&h,&a,w,t,p.id,moved.id,false).await;
+        let remove = |reason: &str| ChangeProjectScope { issue_id: moved.id, action: ProjectScopeAction::Removed, reason: reason.into() };
+        h.app.change_project_scope(&member,w,t,p.id,&history(&h,&member,w,t,p.id).await.scope_etag,"relocated-issue",remove("Moved")).await.unwrap();
         let destination=team(&h,&a,w,true).await;
         let current=h.app.get_issue(&a,w,moved.id).await.unwrap();
         let preview=h.app.preview_issue_move(&a,w,moved.id,destination).await.unwrap();
         h.app.move_issue(&a,w,moved.id,"scope-private-move",&current.etag,MoveIssue{destination_team_id:destination,status_id:preview.destination_default_status_id,assignee_id:None,label_ids:vec![],preview_token:preview.preview_token}).await.unwrap();
+        assert!(matches!(h.app.change_project_scope(&member,w,t,p.id,&before.scope_etag,"relocated-issue",remove("Changed reason")).await,Err(Error::NotFound)));
         let current=h.app.get_issue(&a,w,deleted.id).await.unwrap();
         h.app.delete_issue(&a,w,deleted.id,&current.etag).await.unwrap();
         let current=h.app.get_issue(&a,w,retained.id).await.unwrap();
@@ -260,6 +262,8 @@ async fn deleted_and_moved_private_sources_are_omitted_without_false_membership_
         let visible=history(&h,&member,w,destination,private.id).await;
         assert!(visible.can_agree);
         h.app.agree_project_scope(&member,w,destination,private.id,&visible.scope_etag,"private-history-agreement",agreement()).await.unwrap();
+        let change = |reason: &str| ChangeProjectScope { issue_id: moved.id, action: ProjectScopeAction::Added, reason: reason.into() };
+        h.app.change_project_scope(&member,w,destination,private.id,&history(&h,&member,w,destination,private.id).await.scope_etag,"private-history-change",change("Reviewed")).await.unwrap();
         let mut tx=h.context(a.user.id,w).await;
         sqlx::query("DELETE FROM team_members WHERE workspace_id=$1 AND team_id=$2 AND user_id=$3").bind(w).bind(destination).bind(member.user.id).execute(&mut *tx).await.unwrap();
         sqlx::query("UPDATE workspace_auth_guards SET epoch=epoch+1 WHERE workspace_id=$1").bind(w).execute(&mut *tx).await.unwrap();
@@ -267,8 +271,19 @@ async fn deleted_and_moved_private_sources_are_omitted_without_false_membership_
         assert!(matches!(h.app.project_scope_history(&member,w,destination,private.id,ProjectScopeQuery::default()).await,Err(Error::NotFound)));
         let before=snapshot(&h,&a,w).await;
         assert!(matches!(h.app.agree_project_scope(&member,w,destination,private.id,&visible.scope_etag,"private-history-agreement",agreement()).await,Err(Error::NotFound)));
+        for reason in ["Reviewed","Different"] {
+            assert!(matches!(h.app.change_project_scope(&member,w,destination,private.id,&visible.scope_etag,"private-history-change",change(reason)).await,Err(Error::NotFound)));
+            let mut body = agreement();
+            body.reason = reason.into();
+            assert!(matches!(h.app.agree_project_scope(&member,w,destination,private.id,&visible.scope_etag,"private-history-agreement",body).await,Err(Error::NotFound)));
+        }
         assert_eq!(snapshot(&h,&a,w).await,before,"a saved receipt must not bypass current private-team access");
-
+        let mut tx=h.context(a.user.id,w).await;
+        sqlx::query("UPDATE idempotency_records SET expires_at=now()-interval '1 day' WHERE workspace_id=$1 AND principal_id=$2").bind(w).bind(member.user.id).execute(&mut *tx).await.unwrap();
+        tx.commit().await.unwrap();
+        assert!(matches!(h.app.change_project_scope(&member,w,t,p.id,&visible.scope_etag,"relocated-issue",remove("Moved")).await,Err(Error::NotFound)));
+        assert!(matches!(h.app.agree_project_scope(&member,w,destination,private.id,&visible.scope_etag,"private-history-agreement",agreement()).await,Err(Error::NotFound)));
+        assert!(matches!(h.app.change_project_scope(&member,w,destination,private.id,&visible.scope_etag,"private-history-change",change("Reviewed")).await,Err(Error::NotFound)));
     }).await;
 }
 
@@ -531,4 +546,137 @@ async fn cursors_disclose_visible_identities_instead_of_hidden_revision_gaps() {
   let mut tx=h.context(a.user.id,w).await;sqlx::query("UPDATE issues SET title='Renamed visible source',version=version+1 WHERE workspace_id=$1 AND id=$2").bind(w).bind(visible.id).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
   assert!(h.app.project_scope_history(&a,w,t,p.id,ProjectScopeQuery{limit:Some(1),cursor:Some(cursor.clone()),..Default::default()}).await.is_err());
  }).await;
+}
+
+#[tokio::test]
+async fn small_scope_page_limits_source_reads_with_unrelated_issues_and_deep_history() {
+    checked(i64::MAX, check_scope_plan).await;
+}
+
+async fn check_scope_plan(h: Harness) {
+    let (a, w, t) = setup(&h).await;
+    let p = project(&h, &a, w, t).await;
+    let i = issue(&h, &a, w, t, json!({})).await;
+    link(&h, &a, w, t, p.id, i.id, true).await;
+    let baseline = h
+        .app
+        .agree_project_scope(
+            &a,
+            w,
+            t,
+            p.id,
+            &history(&h, &a, w, t, p.id).await.scope_etag,
+            "scope-plan-baseline",
+            agreement(),
+        )
+        .await
+        .unwrap()
+        .baseline
+        .unwrap();
+    let other = project(&h, &a, w, t).await;
+    let other_baseline = h
+        .app
+        .agree_project_scope(
+            &a,
+            w,
+            t,
+            other.id,
+            &history(&h, &a, w, t, other.id).await.scope_etag,
+            "scope-plan-control",
+            agreement(),
+        )
+        .await
+        .unwrap()
+        .baseline
+        .unwrap();
+    let mut tx = h.context(a.user.id, w).await;
+    sqlx::query("SET LOCAL statement_timeout='60s'")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO issues SELECT (jsonb_populate_record(NULL::issues,to_jsonb(i)||jsonb_build_object('id',gen_random_uuid(),'number',n))).* FROM issues i, generate_series(10000,13999) n WHERE i.workspace_id=$1 AND i.id=$2")
+            .bind(w).bind(i.id).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO project_issues(workspace_id,team_id,project_id,issue_id)
+                     SELECT workspace_id,team_id,$3,id FROM issues WHERE workspace_id=$1 AND team_id=$2 AND number BETWEEN 10000 AND 10999")
+            .bind(w).bind(t).bind(other.id).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO project_scope_baseline_items(workspace_id,baseline_id,issue_id)
+                     SELECT workspace_id,$2,issue_id FROM project_issues WHERE workspace_id=$1 AND project_id=$3")
+            .bind(w).bind(other_baseline.id).bind(other.id).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO project_scope_events(workspace_id,team_id,project_id,ordinal,issue_id,action) SELECT $1,$2,$3,n,$4,CASE WHEN n%2=0 THEN 'added' ELSE 'removed' END FROM generate_series(3,8002) n")
+            .bind(w).bind(t).bind(p.id).bind(i.id).execute(&mut *tx).await.unwrap();
+    sqlx::raw_sql("ANALYZE issues; ANALYZE teams; ANALYZE project_scope_events; ANALYZE project_issues; ANALYZE project_scope_baseline_items").execute(&mut *tx).await.unwrap();
+    tx.commit().await.unwrap();
+    let mut runtime = opentrack_store::begin(&h.app.pool).await.unwrap();
+    opentrack_store::context(&mut runtime, a.user.id, Some(w))
+        .await
+        .unwrap();
+    let sql = concat!(
+        "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ",
+        include_str!("../src/project_scope_page.sql")
+    );
+    fn source_rows(node: &Value) -> f64 {
+        let examined = if matches!(
+            node["Relation Name"].as_str(),
+            Some(
+                "issues"
+                    | "project_scope_events"
+                    | "project_issues"
+                    | "project_scope_baseline_items"
+            )
+        ) {
+            (node["Actual Rows"].as_f64().unwrap()
+                + node["Rows Removed by Filter"].as_f64().unwrap_or_default())
+                * node["Actual Loops"].as_f64().unwrap()
+        } else {
+            0.0
+        };
+        examined
+            + node["Plans"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(source_rows)
+                .sum::<f64>()
+    }
+    let mut max_rows = 0.0_f64;
+    for before in [None, Some(4000_i64)] {
+        let plan: Value = sqlx::query_scalar(sql)
+            .persistent(false)
+            .bind(w)
+            .bind(t)
+            .bind(p.id)
+            .bind(a.user.id)
+            .bind(baseline.id)
+            .bind(2_i64)
+            .bind(before.map_or(i64::MAX, |ordinal| ordinal - 1))
+            .bind(2_i64)
+            .bind(None::<Uuid>)
+            .bind(1_i64)
+            .fetch_one(&mut *runtime)
+            .await
+            .unwrap();
+        let root = &plan[0]["Plan"];
+        let blocks = root["Shared Hit Blocks"].as_u64().unwrap()
+            + root["Shared Read Blocks"].as_u64().unwrap();
+        eprintln!(
+            "Scope page before {before:?}: {blocks} shared blocks, {} ms",
+            plan[0]["Execution Time"]
+        );
+        if let Ok(dir) = std::env::var("OPENTRACK_SCOPE_PLAN_DIR") {
+            std::fs::write(
+                std::path::Path::new(&dir).join(if before.is_some() {
+                    "deep.json"
+                } else {
+                    "first.json"
+                }),
+                serde_json::to_vec_pretty(&plan).unwrap(),
+            )
+            .unwrap();
+        }
+        max_rows = max_rows.max(source_rows(root));
+    }
+    assert!(
+        max_rows < 100.0,
+        "Small scope pages must not visit unrelated issues or walk distant history"
+    );
 }

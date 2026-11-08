@@ -53,6 +53,8 @@ pub enum Error {
     NotFound,
     #[error("{0}")]
     Conflict(String),
+    #[error("The retry window expired. Reconcile the original result before trying again")]
+    RetryWindowExpired,
     #[error("Issue order maintenance is active; this change was not applied")]
     IssueOrderMaintenance(Vec<IssueOrderMaintenance>),
     #[error("This item changed since you opened it")]

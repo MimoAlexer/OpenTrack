@@ -82,7 +82,9 @@ impl IntoResponse for ApiError {
                     Error::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthenticated"),
                     Error::Forbidden => (StatusCode::FORBIDDEN, "forbidden"),
                     Error::NotFound => (StatusCode::NOT_FOUND, "not_found"),
-                    Error::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
+                    Error::Conflict(_) | Error::RetryWindowExpired => {
+                        (StatusCode::CONFLICT, "conflict")
+                    }
                     Error::IssueOrderMaintenance(_) => {
                         (StatusCode::CONFLICT, "issue_order_maintenance")
                     }
@@ -108,6 +110,8 @@ impl IntoResponse for ApiError {
                     Some(json!({"current":current}))
                 } else if let Error::VersionConflict(current) = &error {
                     Some(json!({"current":current}))
+                } else if matches!(error, Error::RetryWindowExpired) {
+                    Some(json!({"retry_window_expired":true}))
                 } else if let Error::IssueOrderMaintenance(maintenance) = &error {
                     Some(json!({"maintenance":maintenance,"applied":false}))
                 } else {

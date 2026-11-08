@@ -243,4 +243,73 @@ async fn exercise(h: &Harness) {
     .await;
     live.expect(StatusCode::OK);
     assert_eq!(live.body["status_id"], issue.body["status_id"]);
+
+    let update = json!({"body":"Delivery update"});
+    request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &format!("{project_path}/updates"),
+        Some(update.clone()),
+        &[("idempotency-key", "http-expiring-update")],
+    )
+    .await
+    .expect(StatusCode::CREATED);
+    let mut tx = h
+        .lock_team(
+            setup.body["workspaces"][0]["id"]
+                .as_str()
+                .unwrap()
+                .parse()
+                .unwrap(),
+            team.parse().unwrap(),
+            setup.body["user"]["id"].as_str().unwrap().parse().unwrap(),
+        )
+        .await;
+    sqlx::query("UPDATE idempotency_records SET expires_at=now()-interval '1 day'")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    for (route, key, body, changed) in [
+        (
+            "scope-baselines",
+            "http-scope-agree",
+            json!({"label":"Delivery baseline","reason":"Reviewed deliverable"}),
+            json!({"label":"Other baseline","reason":"Reviewed deliverable"}),
+        ),
+        (
+            "scope-changes",
+            "http-scope-postpone",
+            json!({"issue_id":issue.body["id"],"action":"postponed","reason":"Await dependency"}),
+            json!({"issue_id":issue.body["id"],"action":"postponed","reason":"Different reason"}),
+        ),
+        (
+            "updates",
+            "http-expiring-update",
+            update,
+            json!({"body":"Other update"}),
+        ),
+    ] {
+        let path = format!("{project_path}/{route}");
+        let headers = [("if-match", token), ("idempotency-key", key)];
+        let expired = request(&h.router, Some(&c), "POST", &path, Some(body), &headers).await;
+        expired.expect(StatusCode::CONFLICT);
+        assert_eq!(expired.body["code"], "conflict");
+        assert_eq!(expired.body["details"]["retry_window_expired"], true);
+        let mismatch = request(&h.router, Some(&c), "POST", &path, Some(changed), &headers).await;
+        mismatch.expect(StatusCode::CONFLICT);
+        assert!(mismatch.body["details"].is_null());
+    }
+    let other_route = request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &directory,
+        Some(json!({"name":"Reviewed scope"})),
+        &[("idempotency-key", "http-scope-project")],
+    )
+    .await;
+    other_route.expect(StatusCode::CONFLICT);
+    assert!(other_route.body["details"].is_null());
 }

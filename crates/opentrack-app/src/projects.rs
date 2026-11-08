@@ -827,7 +827,8 @@ impl App {
         // taking the team write lock ahead of the idempotency lock.
         project(&mut tx, a, w, t, id).await?;
         let replay =
-            lifecycle::retry::<ProjectUpdate>(&mut tx, w, a.user.id, &route, &kh, &rh).await?;
+            lifecycle::retry_with_expiry::<ProjectUpdate>(&mut tx, w, a.user.id, &route, &kh, &rh)
+                .await?;
         scope(&mut tx, a, w, t, true).await?;
         lock(&mut tx, w, t, id).await?;
         let item = project(&mut tx, a, w, t, id).await?;
