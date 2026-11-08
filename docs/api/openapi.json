@@ -308,6 +308,22 @@
         ],
         "type": "object"
       },
+      "AgreeProjectScope": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "reason"
+        ],
+        "type": "object"
+      },
       "AssignableUser": {
         "properties": {
           "display_name": {
@@ -574,6 +590,27 @@
         "required": [
           "issue_id",
           "issue_version"
+        ],
+        "type": "object"
+      },
+      "ChangeProjectScope": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ProjectScopeAction"
+          },
+          "issue_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "issue_id",
+          "action",
+          "reason"
         ],
         "type": "object"
       },
@@ -4626,6 +4663,72 @@
         ],
         "type": "object"
       },
+      "Page_ProjectScopeEvent": {
+        "properties": {
+          "data": {
+            "items": {
+              "properties": {
+                "action": {
+                  "$ref": "#/components/schemas/ProjectScopeAction"
+                },
+                "actor_id": {
+                  "format": "uuid",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "actor_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "created_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "issue": {
+                  "$ref": "#/components/schemas/ProjectScopeIssue"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "action",
+                "reason",
+                "issue",
+                "actor_id",
+                "actor_name",
+                "created_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data",
+          "next_cursor",
+          "has_more"
+        ],
+        "type": "object"
+      },
       "Page_ProjectSummary": {
         "properties": {
           "data": {
@@ -5597,6 +5700,203 @@
           "closed"
         ],
         "type": "string"
+      },
+      "ProjectScopeAction": {
+        "enum": [
+          "added",
+          "removed",
+          "postponed"
+        ],
+        "type": "string"
+      },
+      "ProjectScopeBaseline": {
+        "properties": {
+          "author_id": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "author_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "reason",
+          "author_id",
+          "author_name",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "ProjectScopeComparison": {
+        "properties": {
+          "added": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectScopeIssue"
+            },
+            "type": "array"
+          },
+          "postponed": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectScopeIssue"
+            },
+            "type": "array"
+          },
+          "removed": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectScopeIssue"
+            },
+            "type": "array"
+          },
+          "unchanged": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "unchanged",
+          "added",
+          "removed",
+          "postponed"
+        ],
+        "type": "object"
+      },
+      "ProjectScopeHistory": {
+        "properties": {
+          "baseline": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProjectScopeBaseline"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baselines": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectScopeBaseline"
+            },
+            "type": "array"
+          },
+          "baselines_has_more": {
+            "type": "boolean"
+          },
+          "baselines_next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "can_agree": {
+            "type": "boolean"
+          },
+          "capture_limit": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "comparison": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProjectScopeComparison"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectScopeIssue"
+            },
+            "type": "array"
+          },
+          "events": {
+            "$ref": "#/components/schemas/Page_ProjectScopeEvent"
+          },
+          "history_started_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items_has_more": {
+            "type": "boolean"
+          },
+          "items_next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legacy_history_unknown": {
+            "type": "boolean"
+          },
+          "scope_etag": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "capture_limit",
+          "items_has_more",
+          "items_next_cursor",
+          "baselines_has_more",
+          "baselines_next_cursor",
+          "scope_etag",
+          "history_started_at",
+          "legacy_history_unknown",
+          "can_agree",
+          "baselines",
+          "baseline",
+          "comparison",
+          "current",
+          "events"
+        ],
+        "type": "object"
+      },
+      "ProjectScopeIssue": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "title",
+          "reason"
+        ],
+        "type": "object"
       },
       "ProjectState": {
         "enum": [
@@ -80558,6 +80858,1928 @@
         },
         "tags": [
           "crate::projects"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{w}/teams/{t}/projects/{id}/scope-baselines": {
+      "post": {
+        "operationId": "agree",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "w",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "t",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required with browser cookies and browser-only public flows; must match an allowed origin. Authenticated native bearer requests do not require it.",
+            "in": "header",
+            "name": "Origin",
+            "required": false,
+            "schema": {
+              "format": "uri",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgreeProjectScope"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectScopeHistory"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "Strong quoted aggregate version; send as If-Match on later changes.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Location": {
+                "description": "Canonical resource path",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "bad_request",
+                  "detail": "The request path, query or JSON is invalid",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 400,
+                  "title": "Bad Request",
+                  "type": "/api/v1/problems/bad_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request path, query or JSON is invalid",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "unauthenticated",
+                  "detail": "Sign in to continue",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 401,
+                  "title": "Unauthorized",
+                  "type": "/api/v1/problems/unauthenticated"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Sign in to continue",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "forbidden",
+                  "detail": "You do not have permission for this action",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 403,
+                  "title": "Forbidden",
+                  "type": "/api/v1/problems/forbidden"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "You do not have permission for this action",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "not_found",
+                  "detail": "This item could not be found",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 404,
+                  "title": "Not Found",
+                  "type": "/api/v1/problems/not_found"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This item could not be found",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "method_not_allowed",
+                  "detail": "This HTTP method is not supported",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 405,
+                  "title": "Method Not Allowed",
+                  "type": "/api/v1/problems/method_not_allowed"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This HTTP method is not supported",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "408": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "request_timeout",
+                  "detail": "The request exceeded its time limit",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": true,
+                  "status": 408,
+                  "title": "Request Timeout",
+                  "type": "/api/v1/problems/request_timeout"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request exceeded its time limit",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "conflict",
+                  "detail": "The command conflicts with current state",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 409,
+                  "title": "Conflict",
+                  "type": "/api/v1/problems/conflict"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The command conflicts with current state",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "version_conflict",
+                  "detail": "This item changed since you opened it",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 412,
+                  "title": "Precondition Failed",
+                  "type": "/api/v1/problems/version_conflict"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This item changed since you opened it",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "payload_too_large",
+                  "detail": "The request body exceeds the allowed size",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 413,
+                  "title": "Payload Too Large",
+                  "type": "/api/v1/problems/payload_too_large"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request body exceeds the allowed size",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "unsupported_media_type",
+                  "detail": "Send application/json",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 415,
+                  "title": "Unsupported Media Type",
+                  "type": "/api/v1/problems/unsupported_media_type"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Send application/json",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "validation_failed",
+                  "detail": "Request fields or types are invalid",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 422,
+                  "title": "Unprocessable Entity",
+                  "type": "/api/v1/problems/validation_failed"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Request fields or types are invalid",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "precondition_required",
+                  "detail": "An If-Match version is required",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 428,
+                  "title": "Precondition Required",
+                  "type": "/api/v1/problems/precondition_required"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "An If-Match version is required",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "rate_limited",
+                  "detail": "Too many attempts. Try again later",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": true,
+                  "status": 429,
+                  "title": "Too Many Requests",
+                  "type": "/api/v1/problems/rate_limited"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Too many attempts. Try again later",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds before retrying; do not automatically replay an ambiguous write.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "internal_error",
+                  "detail": "An internal error occurred",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 500,
+                  "title": "Internal Server Error",
+                  "type": "/api/v1/problems/internal_error"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "An internal error occurred",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "dependency_unavailable",
+                  "detail": "Service temporarily unavailable",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": true,
+                  "status": 503,
+                  "title": "Service Unavailable",
+                  "type": "/api/v1/problems/dependency_unavailable"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Service temporarily unavailable",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [],
+            "csrfToken": []
+          },
+          {
+            "nativeBearer": []
+          }
+        ],
+        "tags": [
+          "crate::project_scope"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{w}/teams/{t}/projects/{id}/scope-changes": {
+      "post": {
+        "operationId": "change",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "w",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "t",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required with browser cookies and browser-only public flows; must match an allowed origin. Authenticated native bearer requests do not require it.",
+            "in": "header",
+            "name": "Origin",
+            "required": false,
+            "schema": {
+              "format": "uri",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeProjectScope"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectScopeHistory"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "bad_request",
+                  "detail": "The request path, query or JSON is invalid",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 400,
+                  "title": "Bad Request",
+                  "type": "/api/v1/problems/bad_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request path, query or JSON is invalid",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "unauthenticated",
+                  "detail": "Sign in to continue",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 401,
+                  "title": "Unauthorized",
+                  "type": "/api/v1/problems/unauthenticated"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Sign in to continue",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "forbidden",
+                  "detail": "You do not have permission for this action",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 403,
+                  "title": "Forbidden",
+                  "type": "/api/v1/problems/forbidden"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "You do not have permission for this action",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "not_found",
+                  "detail": "This item could not be found",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 404,
+                  "title": "Not Found",
+                  "type": "/api/v1/problems/not_found"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This item could not be found",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "method_not_allowed",
+                  "detail": "This HTTP method is not supported",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 405,
+                  "title": "Method Not Allowed",
+                  "type": "/api/v1/problems/method_not_allowed"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This HTTP method is not supported",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "408": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "request_timeout",
+                  "detail": "The request exceeded its time limit",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": true,
+                  "status": 408,
+                  "title": "Request Timeout",
+                  "type": "/api/v1/problems/request_timeout"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request exceeded its time limit",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "conflict",
+                  "detail": "The command conflicts with current state",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 409,
+                  "title": "Conflict",
+                  "type": "/api/v1/problems/conflict"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The command conflicts with current state",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "version_conflict",
+                  "detail": "This item changed since you opened it",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 412,
+                  "title": "Precondition Failed",
+                  "type": "/api/v1/problems/version_conflict"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This item changed since you opened it",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "payload_too_large",
+                  "detail": "The request body exceeds the allowed size",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 413,
+                  "title": "Payload Too Large",
+                  "type": "/api/v1/problems/payload_too_large"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request body exceeds the allowed size",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "unsupported_media_type",
+                  "detail": "Send application/json",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 415,
+                  "title": "Unsupported Media Type",
+                  "type": "/api/v1/problems/unsupported_media_type"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Send application/json",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "validation_failed",
+                  "detail": "Request fields or types are invalid",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 422,
+                  "title": "Unprocessable Entity",
+                  "type": "/api/v1/problems/validation_failed"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Request fields or types are invalid",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "precondition_required",
+                  "detail": "An If-Match version is required",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 428,
+                  "title": "Precondition Required",
+                  "type": "/api/v1/problems/precondition_required"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "An If-Match version is required",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "rate_limited",
+                  "detail": "Too many attempts. Try again later",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": true,
+                  "status": 429,
+                  "title": "Too Many Requests",
+                  "type": "/api/v1/problems/rate_limited"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Too many attempts. Try again later",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds before retrying; do not automatically replay an ambiguous write.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "internal_error",
+                  "detail": "An internal error occurred",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 500,
+                  "title": "Internal Server Error",
+                  "type": "/api/v1/problems/internal_error"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "An internal error occurred",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "dependency_unavailable",
+                  "detail": "Service temporarily unavailable",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": true,
+                  "status": 503,
+                  "title": "Service Unavailable",
+                  "type": "/api/v1/problems/dependency_unavailable"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Service temporarily unavailable",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [],
+            "csrfToken": []
+          },
+          {
+            "nativeBearer": []
+          }
+        ],
+        "tags": [
+          "crate::project_scope"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{w}/teams/{t}/projects/{id}/scope-history": {
+      "get": {
+        "operationId": "history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "w",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "t",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "baseline_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "items_cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "baseline_cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "maximum": 25,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectScopeHistory"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "bad_request",
+                  "detail": "The request path, query or JSON is invalid",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 400,
+                  "title": "Bad Request",
+                  "type": "/api/v1/problems/bad_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request path, query or JSON is invalid",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "unauthenticated",
+                  "detail": "Sign in to continue",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 401,
+                  "title": "Unauthorized",
+                  "type": "/api/v1/problems/unauthenticated"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Sign in to continue",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "forbidden",
+                  "detail": "You do not have permission for this action",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 403,
+                  "title": "Forbidden",
+                  "type": "/api/v1/problems/forbidden"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "You do not have permission for this action",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "not_found",
+                  "detail": "This item could not be found",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 404,
+                  "title": "Not Found",
+                  "type": "/api/v1/problems/not_found"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This item could not be found",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "method_not_allowed",
+                  "detail": "This HTTP method is not supported",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 405,
+                  "title": "Method Not Allowed",
+                  "type": "/api/v1/problems/method_not_allowed"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This HTTP method is not supported",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "408": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "request_timeout",
+                  "detail": "The request exceeded its time limit",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": true,
+                  "status": 408,
+                  "title": "Request Timeout",
+                  "type": "/api/v1/problems/request_timeout"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request exceeded its time limit",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "conflict",
+                  "detail": "The command conflicts with current state",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 409,
+                  "title": "Conflict",
+                  "type": "/api/v1/problems/conflict"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The command conflicts with current state",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "version_conflict",
+                  "detail": "This item changed since you opened it",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 412,
+                  "title": "Precondition Failed",
+                  "type": "/api/v1/problems/version_conflict"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "This item changed since you opened it",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "payload_too_large",
+                  "detail": "The request body exceeds the allowed size",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 413,
+                  "title": "Payload Too Large",
+                  "type": "/api/v1/problems/payload_too_large"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request body exceeds the allowed size",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "unsupported_media_type",
+                  "detail": "Send application/json",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 415,
+                  "title": "Unsupported Media Type",
+                  "type": "/api/v1/problems/unsupported_media_type"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Send application/json",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "validation_failed",
+                  "detail": "Request fields or types are invalid",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 422,
+                  "title": "Unprocessable Entity",
+                  "type": "/api/v1/problems/validation_failed"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Request fields or types are invalid",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "precondition_required",
+                  "detail": "An If-Match version is required",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 428,
+                  "title": "Precondition Required",
+                  "type": "/api/v1/problems/precondition_required"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "An If-Match version is required",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "rate_limited",
+                  "detail": "Too many attempts. Try again later",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": true,
+                  "status": 429,
+                  "title": "Too Many Requests",
+                  "type": "/api/v1/problems/rate_limited"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Too many attempts. Try again later",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Seconds before retrying; do not automatically replay an ambiguous write.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "internal_error",
+                  "detail": "An internal error occurred",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": false,
+                  "status": 500,
+                  "title": "Internal Server Error",
+                  "type": "/api/v1/problems/internal_error"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "An internal error occurred",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "code": "dependency_unavailable",
+                  "detail": "Service temporarily unavailable",
+                  "field_errors": [],
+                  "instance": "urn:uuid:00000000-0000-4000-8000-000000000001",
+                  "request_id": "00000000-0000-4000-8000-000000000001",
+                  "retryable": true,
+                  "status": 503,
+                  "title": "Service Unavailable",
+                  "type": "/api/v1/problems/dependency_unavailable"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Service temporarily unavailable",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "crate::project_scope"
         ]
       }
     },
