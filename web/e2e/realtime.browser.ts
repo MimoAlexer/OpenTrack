@@ -18,6 +18,7 @@ async function remoteTitle(saved: SavedWorkspace, issue: Issue, title: string): 
 test('replays remote issue changes after offline recovery while preserving an editable local draft', async ({ page, saved }) => {
   const issue = await saved.create(`Realtime recovery ${randomUUID()}`);
   const eventsEndpoint = new URL(`${saved.path}/events`, saved.origin).href;
+  let streamStarts = 0; page.on('request', request => { if (request.url() === eventsEndpoint && request.method() === 'GET') streamStarts++; });
   const connected = page.waitForResponse(response => response.url() === eventsEndpoint && response.request().method() === 'GET');
   await saved.open(page, issue);
   const stream = await connected;
@@ -31,6 +32,7 @@ test('replays remote issue changes after offline recovery while preserving an ed
   await title.fill(draft);
   await expect(save).toBeEnabled();
   const peer = await page.context().newPage();
+  let peerStreamStarts = 0; peer.on('request', request => { if (request.url() === eventsEndpoint && request.method() === 'GET') peerStreamStarts++; });
   try {
     const connectedPeer = peer.waitForResponse(response => response.url() === eventsEndpoint && response.status() === 200);
     await peer.goto(`/w/${saved.workspace}/issues/${issue.id}`); await connectedPeer;
@@ -43,11 +45,12 @@ test('replays remote issue changes after offline recovery while preserving an ed
     for (const client of [page, peer]) {
       await expect(client.getByRole('navigation', { name: 'Workspace navigation' }).getByText(teamName, { exact: true })).toBeVisible();
       await client.locator('.filter-menu summary').click();
-      await expect(client.getByLabel('Team', { exact: true }).locator(`option[value="${team.id}"]`)).toHaveText(teamName);
-      await expect(client.getByLabel('Status', { exact: true }).locator(`option[value="${issue.status_id}"]`)).toContainText(statusName);
+      await expect(client.locator('.filter-popover').getByLabel('Team', { exact: true }).locator(`option[value="${team.id}"]`)).toHaveText(teamName);
+      await expect(client.locator('.filter-popover').getByLabel('Status', { exact: true }).locator(`option[value="${issue.status_id}"]`)).toContainText(statusName);
       await client.locator('.filter-menu summary').click();
     }
     await expect(title).toHaveValue(draft); await expect(save).toBeEnabled();
+    expect(streamStarts).toBe(1); expect(peerStreamStarts).toBe(1);
   } finally { await peer.close(); }
   const first = await remoteTitle(saved, issue, `Remote connected title ${randomUUID()}`);
   await expect(conflict).toBeVisible();
