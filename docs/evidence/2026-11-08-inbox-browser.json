@@ -1,0 +1,64 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "real worker fan-out reaches the durable inbox and keyboard processing persists",
+      "status": "passed",
+      "duration_ms": 3892
+    },
+    {
+      "browser": "chromium",
+      "check": "local timezone snooze and personal inbox preferences survive reload without SMTP",
+      "status": "passed",
+      "duration_ms": 3995
+    },
+    {
+      "browser": "chromium",
+      "check": "revoked private-team access removes every saved source title and body from the inbox",
+      "status": "passed",
+      "duration_ms": 3222
+    },
+    {
+      "browser": "firefox",
+      "check": "real worker fan-out reaches the durable inbox and keyboard processing persists",
+      "status": "passed",
+      "duration_ms": 4780
+    },
+    {
+      "browser": "firefox",
+      "check": "local timezone snooze and personal inbox preferences survive reload without SMTP",
+      "status": "passed",
+      "duration_ms": 4649
+    },
+    {
+      "browser": "firefox",
+      "check": "revoked private-team access removes every saved source title and body from the inbox",
+      "status": "passed",
+      "duration_ms": 3780
+    },
+    {
+      "browser": "webkit",
+      "check": "real worker fan-out reaches the durable inbox and keyboard processing persists",
+      "status": "passed",
+      "duration_ms": 4670
+    },
+    {
+      "browser": "webkit",
+      "check": "local timezone snooze and personal inbox preferences survive reload without SMTP",
+      "status": "passed",
+      "duration_ms": 4760
+    },
+    {
+      "browser": "webkit",
+      "check": "revoked private-team access removes every saved source title and body from the inbox",
+      "status": "passed",
+      "duration_ms": 3889
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}
