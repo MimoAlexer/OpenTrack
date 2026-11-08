@@ -11,18 +11,27 @@ import { IssueOrderActions, IssueOrderProgress, orderMaintenance, useIssueOrderD
 import { issuesUrl, Link, navigate, navigateConfirmed, parseRoute } from '../router';
 import { categoryOrder, priorities, type Bootstrap, type Issue, type IssuePage, type Session, type Status } from '../types';
 import type { Workflow } from '../workflows/types';
+import type { components } from '../generated/api';
+import { FilterBuilder } from '../filters/FilterBuilder';
+import { fromFlat, parseStructuredHash, predicateCount, queryBody, queryFragment, structuredMarker, validateView, viewHash, viewParams, type StructuredView } from '../filters/model';
 
-export function IssueList({ workspaceId, data, session, params, selectedId, refresh, create, searchRef, headingRef, updated, workflowChanged, teamAccessLost, workspaceArchived = false, charactersEnabled = true, ordering, orderingHidden = [] }: {
+type StructuredIssuePage = components['schemas']['IssueQueryPage'];
+type QueryIssuePage = IssuePage & Partial<Pick<StructuredIssuePage, 'query_context'>>;
+
+export function IssueList({ workspaceId, data, session, params: flatParams, selectedId, refresh, create, searchRef, headingRef, updated, workflowChanged, teamAccessLost, workspaceArchived = false, charactersEnabled = true, ordering, orderingHidden = [] }: {
   ordering?: IssueOrderingController; orderingHidden?: string[];
   charactersEnabled?: boolean; workspaceArchived?: boolean; workspaceId: string; data: Bootstrap; session: Session; params: URLSearchParams; selectedId?: string;
   refresh: number; create: () => void; searchRef: React.RefObject<HTMLInputElement | null>; headingRef?: React.RefObject<HTMLHeadingElement | null>;
   updated?: (issue: Issue) => void; workflowChanged?: (workflow: Workflow) => void;
   teamAccessLost?: (teamId: string) => boolean;
 }) {
+  const structured = parseStructuredHash(location.hash);
+  const params = structured.kind === 'valid' ? viewParams(structured.view) : flatParams;
+  const structuredScope = queryFragment(location.hash);
   const sessionScope = useSessionScope(session);
   const historyScope = `${workspaceId}:${sessionScope}:${data.auth_epoch}`;
   const [history, setHistory] = useState<{ scope: string; statuses: Status[] }>({ scope: historyScope, statuses: [] });
-  const [result, setResult] = useState<{ scope: string; authority: string; page: IssuePage } | null>(null);
+  const [result, setResult] = useState<{ scope: string; authority: string; page: QueryIssuePage } | null>(null);
   const [loading, setLoading] = useState<{ scope: string; busy: boolean; error: unknown }>({ scope: '', busy: true, error: null });
   const [moreBusy, setMoreBusy] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -51,12 +60,9 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
   if (mine) filters.set('assignee_id', session.user.id);
   filters.set('limit', '50');
   const filterKey = filters.toString();
-  const listingScope = JSON.stringify([historyScope, filterKey, layout, params.get('display_version')]);
+  const listingScope = JSON.stringify([historyScope, filterKey, layout, params.get('display_version'), structuredScope]);
   const boardCursors = boardPages.scope === listingScope && (!manual || boardPages.refresh === refresh) ? boardPages.cursors : [null];
   const boardCursor = board ? boardCursors.at(-1) : null;
-  const queryFilters = new URLSearchParams(filterKey);
-  if (boardCursor) queryFilters.set('cursor', boardCursor);
-  const queryKey = queryFilters.toString();
   const resultScope = JSON.stringify([listingScope, boardCursor]);
   const currentFocusScope = useRef({ scope: resultScope, authority: historyScope });
   currentFocusScope.current = { scope: resultScope, authority: historyScope };
@@ -72,7 +78,15 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
   const hasMore = hasSnapshot && result.page.has_more;
   const busy = loading.scope !== resultScope || loading.busy;
   const historicalStatuses = history.scope === historyScope ? history.statuses : [];
-  const filterCount = ['status_id', 'priority'].filter(key => params.has(key)).length + Number(labelIds.length > 0);
+  const filterCount = structured.kind === 'valid' ? predicateCount(structured.view.filter) : ['status_id', 'priority'].filter(key => params.has(key)).length + Number(labelIds.length > 0);
+  function applyStructured(view: StructuredView) {
+    if (validateView(view)) return false;
+    return navigate(`/w/${encodeURIComponent(workspaceId)}/issues${viewHash(view)}`);
+  }
+  function clearAdvanced() {
+    const next = new URLSearchParams(params); next.delete(structuredMarker);
+    navigate(issuesUrl(workspaceId, next));
+  }
   function setFilter(key: string, value: string) {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value); else next.delete(key);
@@ -80,21 +94,24 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
     if (key === 'archived' && !value && data.teams.find(team => team.id === next.get('team_id'))?.archived_at) { next.delete('team_id'); next.delete('status_id'); }
     navigate(issuesUrl(workspaceId, next));
   }
-  function clearFilters() { const next = new URLSearchParams(params); ['q', 'status_id', 'priority', 'label_ids', 'label_mode'].forEach(key => next.delete(key)); navigate(issuesUrl(workspaceId, next)); }
+  function clearFilters() {
+    if (structured.kind === 'valid') { const next = { ...structured.view, filter: null }; delete next.q; applyStructured(next); return; }
+    const next = new URLSearchParams(params); ['q', 'status_id', 'priority', 'label_ids', 'label_mode'].forEach(key => next.delete(key)); navigate(issuesUrl(workspaceId, next));
+  }
   function setLayout(value: string) { const next = new URLSearchParams(params); next.set('layout', value); next.set('display_version', '1'); navigate(issuesUrl(workspaceId, next)); }
   function beginRead() {
     activeRead.current?.abort();
     const abort = new AbortController(); const load = ++sequence.current; const notify = teamAccessLost;
-    const url = `${location.pathname}${location.search}`; const route = parseRoute(url);
+    const url = `${location.pathname}${location.search}${location.hash}`; const route = parseRoute(url);
     activeRead.current = abort;
     const current = () => {
-      const next = parseRoute(`${location.pathname}${location.search}`);
+      const next = parseRoute(`${location.pathname}${location.search}${location.hash}`);
       return !abort.signal.aborted && load === sequence.current && currentFocusScope.current.scope === resultScope && currentFocusScope.current.authority === historyScope
-        && next.workspaceId === route.workspaceId && next.area === route.area && (next.search.get('layout') ?? 'list') === (route.search.get('layout') ?? 'list')
+        && next.workspaceId === route.workspaceId && next.area === route.area && queryFragment(next.hash) === queryFragment(route.hash) && (next.search.get('layout') ?? 'list') === (route.search.get('layout') ?? 'list')
         && (next.search.get('view') === 'mine') === (route.search.get('view') === 'mine')
         && ['team_id', 'status_id', 'priority', 'q', 'archived', 'label_ids', 'label_mode', 'sort', 'display_version'].every(key => next.search.get(key) === route.search.get(key));
     };
-    const currentIntent = () => current() && `${location.pathname}${location.search}` === url;
+    const currentIntent = () => current() && `${location.pathname}${location.search}${location.hash}` === url;
     const cleanup = () => { abort.abort(); if (activeRead.current === abort) activeRead.current = null; };
     return { abort, current, currentIntent, cleanup, notify };
   }
@@ -128,6 +145,16 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
       if (read.current() && deniedBoard.current === denied) setLoading({ scope: resultScope, busy: false, error: denial });
     });
   }
+  async function readPage(cursor?: string, signal?: AbortSignal): Promise<QueryIssuePage> {
+    if (structured.kind === 'valid') {
+      const page = await request<StructuredIssuePage>(`/workspaces/${workspaceId}/issues/query`, { method: 'POST', csrf: session.csrf_token, body: queryBody(structured.view, cursor), signal });
+      if (page.query_context?.timezone !== structured.view.timezone || !Number.isFinite(Date.parse(page.query_context?.as_of ?? ''))) throw new ApiError(0, 'invalid_response', 'The query date context could not be verified. Retry the query.');
+      return page;
+    }
+    if (structured.kind === 'invalid') throw new Error('Repair or clear these filter settings before querying issues.');
+    const query = new URLSearchParams(filterKey); if (cursor) query.set('cursor', cursor);
+    return request<IssuePage>(`/workspaces/${workspaceId}/issues?${query}`, { signal });
+  }
   async function openAllIssues() {
     const denial = deniedBoard.current;
     if (!denial || denial.authority !== historyScope || busy) return;
@@ -153,17 +180,17 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
   useEffect(() => { setQuery(params.get('q') ?? ''); }, [params.get('q')]);
   useEffect(() => {
     if (selectedId || query === (params.get('q') ?? '')) return;
-    const timer = setTimeout(() => setFilter('q', query.trim()), 280);
+    const timer = setTimeout(() => setFilter('q', query.trim()), structured.kind === 'valid' ? 150 : 280);
     return () => clearTimeout(timer);
   }, [query, params.toString(), selectedId]);
   useEffect(() => {
     const read = beginRead(); const { abort, cleanup } = read; const load = sequence.current;
     const denial = deniedBoard.current?.authority === historyScope ? deniedBoard.current : null;
-    if (!displayValid || !manualValid || board && !boardTeam || denial && !denial.retrying) { setResult(null); setLoading({ scope: resultScope, busy: false, error: denial?.error ?? null }); return cleanup; }
+    if (structured.kind === 'invalid' || !displayValid || !manualValid || board && !boardTeam || denial && !denial.retrying) { setResult(null); setLoading({ scope: resultScope, busy: false, error: denial?.error ?? null }); return cleanup; }
     setLoading({ scope: resultScope, busy: true, error: null }); setMoreBusy(false);
     let checkingTeam = false;
     async function loadPage() {
-      const page = await request<IssuePage>(`/workspaces/${workspaceId}/issues?${queryKey}`, { signal: abort.signal });
+      const page = await readPage(boardCursor ?? undefined, abort.signal);
       if (denial && !abort.signal.aborted) {
         checkingTeam = true;
         await readTeamAuthority(denial.team, read);
@@ -183,7 +210,7 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
       if (!read.current()) return;
       // Retain a previously authorized snapshot only for a transient failure in
       // this exact scope. Permission failures must immediately remove its rows.
-      if (manual) setResult(null);
+      if (manual || structured.kind === 'valid' && error instanceof ApiError && error.status === 422) setResult(null);
       if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
         if ((board || manual) && !checkingTeam) { denyBoard(error); return; }
         setResult(null);
@@ -204,14 +231,14 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
   }, [result, resultScope, historyScope, headingRef]);
   async function loadMore() {
     if (board || busy || moreBusy || !nextCursor) return;
-    const load = sequence.current; const next = new URLSearchParams(filterKey); next.set('cursor', nextCursor);
+    const load = sequence.current;
     setMoreBusy(true); setLoading({ scope: resultScope, busy: false, error: null });
     try {
-      const page = await request<IssuePage>(`/workspaces/${workspaceId}/issues?${next}`);
+      const page = await readPage(nextCursor, activeRead.current?.signal);
       if (load !== sequence.current) return;
       if (manual && page.order_version !== result?.page.order_version) { setResult(null); throw new Error('The manual order changed. Reload the first page before continuing.'); }
       setResult(previous => previous?.scope === resultScope ? { scope: resultScope, authority: historyScope, page: { ...page, data: [...previous.page.data, ...page.data.filter(issue => !previous.page.data.some(old => old.id === issue.id))] } } : previous);
-    } catch (error) { if (load === sequence.current) { if (manual || error instanceof ApiError && [401, 403, 404].includes(error.status)) setResult(null); setLoading({ scope: resultScope, busy: false, error }); } }
+    } catch (error) { if (load === sequence.current) { if (manual || error instanceof ApiError && [401, 403, 404, ...(structured.kind === 'valid' ? [422] : [])].includes(error.status)) setResult(null); setLoading({ scope: resultScope, busy: false, error }); } }
     finally { if (load === sequence.current) setMoreBusy(false); }
   }
   const statusMap = new Map([...historicalStatuses, ...data.statuses].map(status => [status.id, status]));
@@ -246,11 +273,14 @@ export function IssueList({ workspaceId, data, session, params, selectedId, refr
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)));
     event.preventDefault(); rows[next]?.focus();
   }
+  if (structured.kind === 'invalid') return <section className="issue-list empty-state" aria-label="Unavailable issue filters"><h2>These filters are unavailable.</h2><p role="alert">{structured.error}</p><p>No issue query will run until you repair or clear these settings.</p><FilterBuilder key={`${historyScope}:${structuredScope}`} workspaceId={workspaceId} data={data} session={session} initial={{ version: 1, layout: 'list', filter: null, sort: 'created', archived: false, limit: 50, timezone: 'UTC' }} active repair apply={applyStructured} clear={() => navigate(`/w/${encodeURIComponent(workspaceId)}/issues`)}/><button type="button" className="button" onClick={() => navigate(`/w/${encodeURIComponent(workspaceId)}/issues`)}>Clear filter settings</button></section>;
   if (!displayValid) return <section className="issue-list empty-state"><h2>These display settings are unavailable.</h2><p>Choose a supported layout to keep using the current filters.</p><button type="button" className="button" onClick={() => setLayout('list')}>Use list layout</button></section>;
   if (deniedBoard.current?.authority === historyScope) return <section className="issue-list empty-state" aria-busy={busy}><h2>Board unavailable.</h2>{busy ? <Loading label="Checking board access…" /> : <ErrorBanner error={deniedBoard.current.error} retry={retryPage} />}<button type="button" className="button" aria-disabled={busy} onClick={() => void openAllIssues()}>Open all issues</button></section>;
   return <section ref={listRef} className={`issue-list${board ? ' board-list' : ''}`} aria-label="Issue list" aria-busy={busy}>
     <div className="issue-display-controls"><label className="list-sort">Display<select aria-label="Issue layout" value={layout} onChange={event => setLayout(event.target.value)}><option value="list">List</option><option value="board">Board</option></select></label>{board && <label className="list-sort">Board team<select aria-label="Board team" value={teamId} onChange={event => setFilter('team_id', event.target.value)}><option value="">Choose a team</option>{data.teams.filter(team => archived || !team.archived_at || team.id === teamId).map(team => <option key={team.id} value={team.id}>{team.name}{team.archived_at ? ' · Archived' : ''}</option>)}</select></label>}</div>
-    <div className="list-toolbar"><label className="search-field"><Search aria-hidden="true" /><input ref={searchRef} type="search" aria-label="Search issues by title or key" placeholder="Search issues…" value={query} onChange={e => setQuery(e.target.value)} />{charactersEnabled && <kbd>/</kbd>}</label><details className="filter-menu"><summary className="button compact"><ListFilter aria-hidden="true" />Filters{filterCount + Number(archived) > 0 && <span className="count-badge">{filterCount + Number(archived)}</span>}</summary><div className="filter-popover">{!!filterCount && <button type="button" className="quiet" onClick={clearFilters}>Clear filters</button>}<label className="field">Show<select value={archived ? 'true' : ''} onChange={e => setFilter('archived', e.target.value)}><option value="">Active issues</option><option value="true">Archived issues</option></select></label><label className="field">Team<select value={teamId} onChange={e => setFilter('team_id', e.target.value)}><option value="">All teams</option>{data.teams.filter(team => archived || !team.archived_at).map(team => <option key={team.id} value={team.id}>{team.name}{team.archived_at ? ' · Archived' : ''}</option>)}</select></label><label className="field">Status<select value={params.get('status_id') ?? ''} onChange={e => setFilter('status_id', e.target.value)}><option value="">All statuses</option>{statuses.map(status => <option key={status.id} value={status.id}>{!teamId ? `${data.teams.find(t => t.id === status.team_id)?.key} · ` : ''}{status.name}</option>)}</select></label><label className="field">Priority<select value={params.get('priority') ?? ''} onChange={e => setFilter('priority', e.target.value)}><option value="">Any priority</option>{priorities.map((name, i) => <option value={i} key={i}>{name}</option>)}</select></label><LabelPicker filter workspaceId={workspaceId} teamId={teamId || undefined} session={session} value={labelIds} teams={data.teams} change={ids => setFilter('label_ids', ids.join(','))} />{!!labelIds.length && <label className="field">Match labels<select value={params.get('label_mode') ?? 'any'} onChange={event => setFilter('label_mode', event.target.value)}><option value="any">Any selected label</option><option value="all">All selected labels</option></select></label>}</div></details></div>
+    <div className="list-toolbar"><label className="search-field"><Search aria-hidden="true" /><input ref={searchRef} type="search" aria-label="Search issues by title or key" placeholder="Search issues…" value={query} onChange={e => setQuery(e.target.value)} />{charactersEnabled && <kbd>/</kbd>}</label>{structured.kind === 'absent' && <details className="filter-menu"><summary className="button compact"><ListFilter aria-hidden="true" />Filters{filterCount + Number(archived) > 0 && <span className="count-badge">{filterCount + Number(archived)}</span>}</summary><div className="filter-popover">{!!filterCount && <button type="button" className="quiet" onClick={clearFilters}>Clear filters</button>}<label className="field">Show<select value={archived ? 'true' : ''} onChange={e => setFilter('archived', e.target.value)}><option value="">Active issues</option><option value="true">Archived issues</option></select></label><label className="field">Team<select value={teamId} onChange={e => setFilter('team_id', e.target.value)}><option value="">All teams</option>{data.teams.filter(team => archived || !team.archived_at).map(team => <option key={team.id} value={team.id}>{team.name}{team.archived_at ? ' · Archived' : ''}</option>)}</select></label><label className="field">Status<select value={params.get('status_id') ?? ''} onChange={e => setFilter('status_id', e.target.value)}><option value="">All statuses</option>{statuses.map(status => <option key={status.id} value={status.id}>{!teamId ? `${data.teams.find(t => t.id === status.team_id)?.key} · ` : ''}{status.name}</option>)}</select></label><label className="field">Priority<select value={params.get('priority') ?? ''} onChange={e => setFilter('priority', e.target.value)}><option value="">Any priority</option>{priorities.map((name, i) => <option value={i} key={i}>{name}</option>)}</select></label><LabelPicker filter workspaceId={workspaceId} teamId={teamId || undefined} session={session} value={labelIds} teams={data.teams} change={ids => setFilter('label_ids', ids.join(','))} />{!!labelIds.length && <label className="field">Match labels<select value={params.get('label_mode') ?? 'any'} onChange={event => setFilter('label_mode', event.target.value)}><option value="any">Any selected label</option><option value="all">All selected labels</option></select></label>}</div></details>}</div>
+    <FilterBuilder key={`${historyScope}:${structuredScope || params.toString()}`} workspaceId={workspaceId} data={data} session={session} initial={structured.kind === 'valid' ? structured.view : fromFlat(params, session)} active={structured.kind === 'valid'} apply={applyStructured} clear={clearAdvanced}/>
+    {structured.kind === 'valid' && <p className="structured-query-note"><span>Advanced filters · Query timezone {structured.view.timezone}</span>{hasSnapshot && result.page.query_context && <time dateTime={result.page.query_context.as_of}>Dates evaluated {new Date(result.page.query_context.as_of).toLocaleString()}</time>}</p>}
     {manual && !manualValid && <div className="notice" role="alert">Manual ordering requires an explicitly selected, accessible active team and active issues. Choose a team in Filters.{archived && <button type="button" className="button compact" onClick={() => setFilter('archived', '')}>Show active issues</button>}</div>}
     {!!jobs.length && !controllerJobs.length && <IssueOrderProgress workspaceId={workspaceId} session={session} initial={jobs} changed={retryPage} teamDenied={(_team, error) => denyBoard(error)}/>}
     {archived && <div className="archive-view-note"><Archive aria-hidden="true" /><span>Archived issues</span><button type="button" className="quiet" onClick={() => setFilter('archived', '')}>Back to active issues</button></div>}

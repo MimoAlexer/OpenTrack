@@ -3,6 +3,7 @@ mod assignment_cleanup;
 mod attachments;
 mod cycles;
 mod issue_ordering;
+mod issue_query;
 mod milestones;
 mod planning_counts;
 mod preferences;

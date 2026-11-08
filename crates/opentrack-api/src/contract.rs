@@ -228,6 +228,7 @@ pub(crate) struct IssuePatch {
         super::capabilities,
         super::bootstrap,
         super::list_issues,
+        super::issue_query::query,
         super::get_issue,
         super::create_issue,
         super::update_issue,

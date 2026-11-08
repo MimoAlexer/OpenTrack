@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "filter": {
+    "kind": "all",
+    "children": [
+      { "kind": "predicate", "field": "priority", "op": "in", "values": [1, 2] },
+      { "kind": "predicate", "field": "due_date", "op": "before", "value": { "relative_days": 1 } }
+    ]
+  },
+  "sort": "created",
+  "timezone": "UTC",
+  "limit": 50,
+  "archived": false
+}

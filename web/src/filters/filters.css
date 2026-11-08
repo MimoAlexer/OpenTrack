@@ -1,0 +1,23 @@
+@layer components {
+.structured-filters { margin: .65rem 24px; }
+.structured-filters > summary { width: fit-content; }
+.structured-filter-panel { display: grid; gap: .75rem; padding: 1rem; margin-top: .5rem; border: 1px solid var(--line); border-radius: .6rem; background: var(--panel); }
+.structured-filter-panel h3, .structured-filter-panel p { margin: 0; }
+.structured-filter-panel header p, .filter-help { color: var(--secondary); font-size: .8rem; line-height: 1.5; }
+.structured-filter-scope, .structured-filter-display, .filter-condition-controls, .filter-date-value, .filter-value-scope { display: flex; flex-wrap: wrap; gap: .65rem; align-items: start; }
+.structured-filter-scope > .field, .structured-filter-display > .field, .filter-condition-controls > .field, .filter-date-value > .field, .filter-value-scope > .field { flex: 1 1 10rem; min-width: 0; }
+.filter-group, .filter-condition { min-width: 0; padding: .75rem; margin: .5rem 0; border: 1px solid var(--line); border-radius: .4rem; }
+.filter-group { border-inline-start-width: 3px; }
+.filter-group legend, .filter-condition legend { font-size: .75rem; color: var(--secondary); padding-inline: .25rem; }
+.filter-group-heading, .filter-group-actions, .structured-filter-panel footer { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.filter-group-heading > label { display: flex; gap: .5rem; align-items: center; flex: 1; }
+.filter-date-values { display: grid; gap: .5rem; }
+.filter-selected-values { display: flex; flex-wrap: wrap; gap: .25rem; }
+.filter-selected-values > span { display: inline-flex; align-items: center; gap: .25rem; border: 1px solid var(--line); border-radius: .3rem; padding: .1rem .25rem; font-size: .8rem; }
+.structured-filter-panel footer > span { margin-inline-end: auto; color: var(--secondary); font-size: .8rem; }
+.filter-validation { color: var(--red); }
+.structured-query-note { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: .5rem 24px; font-size: .8rem; color: var(--secondary); }
+}
+@layer responsive {
+@media(max-width: 540px) { .structured-filter-panel { padding: .65rem; } .filter-group, .filter-condition { padding: .5rem; } }
+}
