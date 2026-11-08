@@ -22,6 +22,39 @@ pub struct Harness {
 }
 
 impl Harness {
+    #[allow(dead_code)] // Realtime contracts construct independent API nodes.
+    pub fn app(&self) -> &App {
+        &self.app
+    }
+
+    #[allow(dead_code)] // A real table lock controls bootstrap's snapshot boundary.
+    pub fn owner_pool(&self) -> &PgPool {
+        &self.owner
+    }
+
+    #[allow(dead_code)]
+    pub async fn independent_app(&self) -> App {
+        App::connect(
+            scoped_url(test_url("OPENTRACK_TEST_DATABASE_URL"), &self.schema).as_str(),
+            &self.setup_token,
+            4,
+            2,
+        )
+        .await
+        .unwrap()
+    }
+
+    #[allow(dead_code)]
+    pub fn api_state(&self, app: App) -> ApiState {
+        ApiState {
+            app,
+            attachments: None,
+            origins: Arc::new(vec![ORIGIN.into()]),
+            secure_cookie: true,
+            static_dir: Arc::new(self.static_dir.clone()),
+        }
+    }
+
     #[allow(dead_code)]
     pub fn serving_static(&self, directory: PathBuf) -> axum::Router {
         router(ApiState {
@@ -254,6 +287,24 @@ impl Harness {
                 ),
                 format!(
                     "GRANT UPDATE(shortcut_mode,version,updated_at) ON {schema}.user_preferences TO \"{role}\""
+                ),
+            ] {
+                sqlx::query(AssertSqlSafe(statement))
+                    .execute(&owner_base)
+                    .await
+                    .unwrap();
+            }
+        }
+        let realtime: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
+            .bind(format!("{schema}.realtime_stream_leases"))
+            .fetch_one(&owner_base)
+            .await
+            .unwrap();
+        if realtime {
+            for statement in [
+                format!("REVOKE UPDATE ON {schema}.realtime_stream_leases FROM \"{role}\""),
+                format!(
+                    "GRANT UPDATE(expires_at) ON {schema}.realtime_stream_leases TO \"{role}\""
                 ),
             ] {
                 sqlx::query(AssertSqlSafe(statement))
