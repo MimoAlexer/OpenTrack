@@ -128,3 +128,41 @@ test('the complete maximum filter tree reaches the real body-based query without
   await expect(page.locator(`#row-${issues[0].id}`)).toBeVisible();
   expect(parsedHash(page.url())).toEqual(view);
 });
+
+test('directory denial does not restore seeded names after panel and query remounts', async ({ page, saved: owner }) => {
+  const { saved, team, issues } = await fixture(owner);
+  const workflow = await saved.http.get(`${saved.path}/teams/${team.id}/workflow`);
+  expect(workflow.status()).toBe(200);
+  const name = `Lifecycle status ${randomUUID().slice(0, 8)}`;
+  await saved.request(`/teams/${team.id}/statuses/${issues[0].status_id}`, 'PATCH', { name }, { 'If-Match': workflow.headers().etag });
+  const view: StructuredView = { version: 1, layout: 'list', filter: { kind: 'predicate', field: 'status', op: 'eq', value: issues[0].status_id },
+    team_id: team.id, timezone: 'UTC', sort: 'created', limit: 50, archived: false };
+  await page.goto(`${path(saved)}${viewHash(view)}`);
+  await expect(page.locator(`#row-${issues[0].id}`)).toBeVisible();
+  const summary = page.locator('summary').filter({ hasText: 'Advanced filters' });
+  await summary.click();
+  const builder = page.getByRole('form', { name: 'Advanced issue filters', exact: true });
+  const picker = () => builder.getByRole('button', { name: /^Condition 1 values / });
+  const optionsPath = `${saved.path}/teams/${team.id}/statuses`;
+  const optionsResponse = () => page.waitForResponse(response => response.request().method() === 'GET' && new URL(response.url()).pathname === optionsPath);
+  let response = optionsResponse(); await picker().click(); expect((await response).status()).toBe(200);
+  await expect(builder.getByRole('option', { name, exact: true })).toBeVisible();
+  await picker().click();
+  // Inject only the directory denial to exercise client cache lifetime. Real
+  // authorization/revocation is separately verified by the PostgreSQL contracts.
+  const deniedRoute = (url: URL) => url.pathname === optionsPath;
+  await page.route(deniedRoute, route => route.fulfill({ status: 403, contentType: 'application/problem+json', body: JSON.stringify({ code: 'forbidden', detail: 'Directory unavailable' }) }));
+  response = optionsResponse(); await picker().click(); expect((await response).status()).toBe(403);
+  await expect(builder).not.toContainText(name);
+  await summary.click(); await summary.click();
+  await expect(builder).not.toContainText(name);
+  await summary.click();
+  const queried = postedQuery(page, saved);
+  await page.getByRole('combobox', { name: 'Issue order', exact: true }).selectOption('priority');
+  expect((await queried).status()).toBe(200);
+  await summary.click();
+  await expect(builder).not.toContainText(name);
+  await page.unroute(deniedRoute);
+  response = optionsResponse(); await picker().click(); expect((await response).status()).toBe(200);
+  await expect(builder.getByRole('option', { name, exact: true })).toBeVisible();
+});
