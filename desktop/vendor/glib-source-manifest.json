@@ -126,5 +126,5 @@
     "tests/subclass_compiletest.rs": "06fd13974d96c0a21ce9a906010f82db1fdf1b17c192716510cc93ed2ef79547",
     "tests/value.rs": "c796ea2b30559e9c8ab6ebbb6c59c575d365a27b461c20f9ca0b1989dbe01d79"
   },
-  "approved_patch_sha256": "8eb6674027f126bdfac118d8644308d390c511e1cf88cf2857794c93a72a2e6f"
+  "approved_patch_sha256": "2c06060a0967d7c7dab864e0888fc2148e30629a75d532da4efd0b2786b24417"
 }

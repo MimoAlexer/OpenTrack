@@ -1,7 +1,7 @@
 --- a/src/variant_iter.rs
 +++ b/src/variant_iter.rs
 @@ -117,13 +117,13 @@
- 
+
      fn impl_get(&self, i: usize) -> &'a str {
          unsafe {
 -            let p: *mut libc::c_char = std::ptr::null_mut();
