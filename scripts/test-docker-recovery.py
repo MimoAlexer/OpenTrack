@@ -1111,6 +1111,36 @@ class ProxyMetadataHelperBoundaries(unittest.TestCase):
                 self.runner.measure_metadata(self.image, expected_volumes=retained)
         self.assertEqual(self.mutations(fake), [])
 
+    def assert_volume_lookup_with_neighbor(self, retained):
+        inspected, consumers = [], []
+        def command(arguments, **options):
+            self.assertEqual(options, {"timeout": 15})
+            if arguments[:3] == ["docker", "volume", "ls"]:
+                name = arguments[-1].removeprefix("name=")
+                return argparse.Namespace(stdout="\n".join([name + "_backup"] + ([name] if retained else [])))
+            if arguments[:3] == ["docker", "volume", "inspect"]:
+                name = arguments[-1]
+                inspected.append(name)
+                return argparse.Namespace(stdout=json.dumps([{"Name": name, "Driver": "local", "Options": None,
+                    "CreatedAt": "synthetic-created", "Labels": {"com.docker.compose.project": self.project,
+                        "com.docker.compose.volume": name.removeprefix(self.project + "_")}}]))
+            if arguments[:2] == ["docker", "ps"]:
+                self.assertIn("--all", arguments)
+                consumers.append(arguments[-1].removeprefix("volume="))
+                return argparse.Namespace(stdout="")
+            self.fail("Unexpected volume lookup operation")
+        result = https.proxy_volume_identities(command, self.project)
+        expected = [self.project + "_" + name for name in ("proxy_data", "proxy_config")] if retained else []
+        self.assertEqual(inspected, expected)
+        self.assertEqual(consumers, expected)
+        self.assertEqual(set(result), {"proxy_data", "proxy_config"} if retained else set())
+
+    def test_volume_lookup_ignores_suffixed_neighbor_when_exact_target_is_absent(self):
+        self.assert_volume_lookup_with_neighbor(False)
+
+    def test_volume_lookup_inspects_only_exact_target_among_suffixed_neighbors(self):
+        self.assert_volume_lookup_with_neighbor(True)
+
     def test_metadata_preexisting_helper_is_never_created_or_removed(self):
         for foreign in (False, True):
             fake = MetadataDocker(self.project, self.image)

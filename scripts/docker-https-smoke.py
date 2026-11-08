@@ -152,7 +152,9 @@ def proxy_volume_identities(command, project):
     for volume in ("proxy_data", "proxy_config"):
         name = project + "_" + volume
         names = command(["docker", "volume", "ls", "--quiet", "--filter", "name=" + name], timeout=15).stdout.split()
-        require(set(names) <= {name} and len(names) <= 1, "Proxy retained volume identity rejected")
+        # Docker name filters match substrings; only the exact target is ours.
+        names = [candidate for candidate in names if candidate == name]
+        require(len(names) <= 1, "Proxy retained volume identity rejected")
         if not names:
             continue
         items = json.loads(command(["docker", "volume", "inspect", name], timeout=15).stdout)
