@@ -26,9 +26,9 @@ fn timezone() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IssueQuery {
-    #[serde(default = "query_version")]
     pub version: u16,
-    #[serde(default)]
+    #[schema(required = true)]
+    #[serde(deserialize_with = "query_filter")]
     pub filter: Option<IssueFilterNode>,
     #[serde(default)]
     pub sort: IssueQuerySort,
@@ -41,6 +41,12 @@ pub struct IssueQuery {
     pub cursor: Option<String>,
     #[serde(default = "timezone")]
     pub timezone: String,
+}
+
+fn query_filter<'de, D: Deserializer<'de>>(
+    input: D,
+) -> std::result::Result<Option<IssueFilterNode>, D::Error> {
+    Option::<IssueFilterNode>::deserialize(input)
 }
 
 impl Default for IssueQuery {
@@ -369,6 +375,13 @@ mod tests {
         let encoded = serde_json::to_value(&query).unwrap();
         let restored: IssueQuery = serde_json::from_value(encoded).unwrap();
         restored.validate().unwrap();
+        assert!(serde_json::from_value::<IssueQuery>(json!({})).is_err());
+        assert!(serde_json::from_value::<IssueQuery>(json!({"version":1})).is_err());
+        assert!(serde_json::from_value::<IssueQuery>(json!({"filter":null})).is_err());
+        serde_json::from_value::<IssueQuery>(json!({"version":1,"filter":null}))
+            .unwrap()
+            .validate()
+            .unwrap();
     }
 
     #[test]
@@ -390,9 +403,8 @@ mod tests {
             json!({"kind":"predicate","field":"priority","op":"eq","value":1,"sql":"true"}),
             json!({"kind":"all","children":[{"kind":"predicate","field":"priority","op":"eq","value":1}],"any":[]}),
         ] {
-            match serde_json::from_value::<IssueFilterNode>(value.clone()) {
-                Ok(node) => assert!(node.validate().is_err(), "accepted invalid filter {value}"),
-                Err(_) => {}
+            if let Ok(node) = serde_json::from_value::<IssueFilterNode>(value.clone()) {
+                assert!(node.validate().is_err(), "accepted invalid filter {value}");
             }
         }
     }
