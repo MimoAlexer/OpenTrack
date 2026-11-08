@@ -138,6 +138,138 @@ async fn create(h: &Harness, c: &Client, url: &str, name: &str, key: &str) -> Re
     out.expect(StatusCode::CREATED);
     out
 }
+
+#[tokio::test]
+async fn authored_update_context_optional_preconditions_and_immutable_reads() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let run = tokio::spawn(async move { update_context_http(&copy).await }).await;
+    h.cleanup().await;
+    if let Err(error) = run {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+async fn update_context_http(h: &Harness) {
+    let (c, base, t, _) = setup(h).await;
+    let project = create(
+        h,
+        &c,
+        &format!("{base}/teams/{t}/projects"),
+        "HTTP context",
+        "http-context-project",
+    )
+    .await;
+    let p = project.headers["location"].to_str().unwrap();
+    let updates = format!("{p}/updates");
+    let old = request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &updates,
+        Some(json!({"body":"Body-only client"})),
+        &[("idempotency-key", "http-body-only-update")],
+    )
+    .await;
+    old.expect(StatusCode::CREATED);
+    assert!(old.body["context"].is_object());
+    assert!(old.body["context"]["notes"].is_null());
+    let metadata = get(h, &c, &format!("{p}/metadata")).await;
+    let changed = request(
+        &h.router,
+        Some(&c),
+        "PATCH",
+        &format!("{p}/metadata"),
+        Some(json!({"target_date":"2026-12-15"})),
+        &[("if-match", metadata.etag())],
+    )
+    .await;
+    changed.expect(StatusCode::OK);
+    let notes = json!({"risks":[{"id":"00000000-0000-4000-8000-000000000011","title":"Delivery risk","detail":"Review timing","status":"open"}],"decisions":[]});
+    let body = json!({"body":"Reviewed context","notes":notes});
+    request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &updates,
+        Some(body.clone()),
+        &[
+            ("idempotency-key", "http-stale-context"),
+            ("if-match", metadata.etag()),
+        ],
+    )
+    .await
+    .problem(StatusCode::PRECONDITION_FAILED, "version_conflict");
+    request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &updates,
+        Some(body.clone()),
+        &[
+            ("idempotency-key", "http-empty-validator"),
+            ("if-match", ""),
+        ],
+    )
+    .await
+    .problem(StatusCode::UNPROCESSABLE_ENTITY, "validation_failed");
+    let published = request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &updates,
+        Some(body.clone()),
+        &[
+            ("idempotency-key", "http-reviewed-context"),
+            ("if-match", changed.etag()),
+        ],
+    )
+    .await;
+    published.expect(StatusCode::CREATED);
+    assert_eq!(published.body["context"]["target_date"], "2026-12-15");
+    assert_eq!(published.body["previous"]["id"], old.body["id"]);
+    let current = get(h, &c, &format!("{p}/metadata")).await;
+    request(
+        &h.router,
+        Some(&c),
+        "PATCH",
+        &format!("{p}/metadata"),
+        Some(json!({"target_date":null})),
+        &[("if-match", current.etag())],
+    )
+    .await
+    .expect(StatusCode::OK);
+    let replay = request(
+        &h.router,
+        Some(&c),
+        "POST",
+        &updates,
+        Some(body),
+        &[
+            ("idempotency-key", "http-reviewed-context"),
+            ("if-match", changed.etag()),
+        ],
+    )
+    .await;
+    replay.expect(StatusCode::CREATED);
+    assert_eq!(replay.body, published.body);
+    let location = published.headers["location"].to_str().unwrap();
+    let read = get(h, &c, location).await;
+    assert_eq!(read.body, published.body);
+    assert_eq!(read.etag(), published.etag());
+    let page = get(h, &c, &format!("{updates}?limit=1")).await;
+    assert_eq!(page.body["data"][0], published.body);
+    assert_eq!(page.body["has_more"], true);
+    request(
+        &h.router,
+        Some(&c),
+        "PATCH",
+        location,
+        Some(json!({"body":"Rewrite"})),
+        &[("if-match", read.etag())],
+    )
+    .await
+    .expect(StatusCode::METHOD_NOT_ALLOWED);
+}
 async fn issue(h: &Harness, c: &Client, base: &str, t: &str, status: &str, name: &str) -> Reply {
     let out = request(
         &h.router,

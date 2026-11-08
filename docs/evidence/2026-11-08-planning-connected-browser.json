@@ -1,0 +1,66 @@
+{
+  "source_revision": "e014883e690e466f43c7895849392e2f3ca7c921",
+  "environment": "Local loopback API with isolated PostgreSQL 18.6 and generated application assets",
+  "command": "npm --prefix web run test:browser -- project-planning-connected.browser.ts project-update-context.browser.ts project-scope-history.browser.ts",
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "agreed project scope, explained changes and authored update context remain connected after later planning and reload",
+      "status": "passed",
+      "duration_ms": 6022
+    },
+    {
+      "browser": "chromium",
+      "check": "an authored baseline retains added and postponed work with reasons after reload",
+      "status": "passed",
+      "duration_ms": 1312
+    },
+    {
+      "browser": "chromium",
+      "check": "project update notes survive date conflicts and remain immutable in the overview after reload",
+      "status": "passed",
+      "duration_ms": 966
+    },
+    {
+      "browser": "firefox",
+      "check": "agreed project scope, explained changes and authored update context remain connected after later planning and reload",
+      "status": "passed",
+      "duration_ms": 7121
+    },
+    {
+      "browser": "firefox",
+      "check": "an authored baseline retains added and postponed work with reasons after reload",
+      "status": "passed",
+      "duration_ms": 2026
+    },
+    {
+      "browser": "firefox",
+      "check": "project update notes survive date conflicts and remain immutable in the overview after reload",
+      "status": "passed",
+      "duration_ms": 1467
+    },
+    {
+      "browser": "webkit",
+      "check": "agreed project scope, explained changes and authored update context remain connected after later planning and reload",
+      "status": "passed",
+      "duration_ms": 5699
+    },
+    {
+      "browser": "webkit",
+      "check": "an authored baseline retains added and postponed work with reasons after reload",
+      "status": "passed",
+      "duration_ms": 2586
+    },
+    {
+      "browser": "webkit",
+      "check": "project update notes survive date conflicts and remain immutable in the overview after reload",
+      "status": "passed",
+      "duration_ms": 2438
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ]
+}

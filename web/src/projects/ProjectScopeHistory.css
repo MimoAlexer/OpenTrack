@@ -1,0 +1,32 @@
+@layer components {
+  .project-scope-history { padding-top: 26px; max-width: 1040px; }
+  .project-scope-history h4 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+  .scope-visibility, .scope-baseline-selector, .scope-current, .scope-comparison, .scope-history-feed { margin-bottom: 24px; }
+  .scope-visibility, .scope-form > p { color: var(--muted); font-size: 12px; line-height: 1.7; }
+  .scope-baseline-selector { max-width: 520px; }
+  .scope-comparison { border: 1px solid var(--line); border-radius: 6px; padding: 18px; }
+  .scope-comparison > p { font-size: 12px; }
+  .scope-comparison-columns, .scope-forms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+  .scope-forms { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 30px; }
+  .scope-form { border: 1px solid var(--line); border-radius: 6px; padding: 18px; }
+  .scope-form .field { margin-bottom: 12px; }
+  .scope-form textarea { resize: vertical; min-height: 80px; }
+  .scope-agreement { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 14px; font-size: 12px; line-height: 1.6; }
+  .scope-agreement input { margin-top: 3px; }
+  .scope-reason { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.7; }
+  .scope-current summary { cursor: pointer; font-size: 12px; padding: 8px 0; }
+  .scope-issue-list h5 { font-size: 12px; margin: 14px 0 10px; }
+  .scope-issue-list ul { list-style: none; margin: 0; padding: 0; }
+  .scope-issue-list li { padding: 7px 0; font-size: 12px; overflow-wrap: anywhere; }
+  .scope-issue-list a span { color: var(--muted); }
+  .scope-issue-list p { color: var(--muted); margin: 4px 0; }
+  .scope-history-feed > ol { list-style: none; padding: 0; margin: 0 0 16px; }
+  .scope-history-feed > ol > li { border-top: 1px solid var(--line); padding: 16px 0; }
+  .scope-history-feed header { display: flex; gap: 16px; justify-content: space-between; color: var(--muted); font-size: 11px; }
+  .scope-history-feed header strong { color: var(--text); font-weight: 500; }
+  .scope-history-feed li > p { margin: 9px 0; font-size: 12px; overflow-wrap: anywhere; }
+  .scope-action { font-weight: 600; }
+  .scope-recovery { margin: 14px 0; }
+  .scope-recovery p { margin-top: 0; }
+  @media (max-width: 720px) { .scope-comparison-columns, .scope-forms { grid-template-columns: 1fr; } .scope-history-feed header { flex-wrap: wrap; gap: 5px; } .scope-comparison, .scope-form { padding: 14px; } }
+}

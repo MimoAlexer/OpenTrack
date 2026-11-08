@@ -149,7 +149,11 @@ async fn upgrade(h: &Harness, version: i64) {
             .fetch_one(&h.owner)
             .await
             .unwrap(),
-        29
+        opentrack_store::MIGRATOR
+            .iter()
+            .map(|migration| migration.version)
+            .max()
+            .unwrap()
     );
     let mut tx = h.context(actor.user.id, workspace).await;
     let after: Value = sqlx::query_scalar(

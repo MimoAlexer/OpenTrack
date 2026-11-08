@@ -31,9 +31,9 @@ The calculation time is displayed beside the result. Health does not change auto
 
 ## Write an update
 
-The **Updates** tab publishes an authored text update with the project's state, health and progress at that moment. These snapshots remain as recorded when later work changes the project. Updates are immutable in this first increment.
+The **Updates** tab publishes an authored text update with the project's state, health, progress and dates at that moment. Optionally choose **Record reviewed risks and decisions** to add short notes with their own status. Empty reviewed lists explicitly record no notes; leaving the option off keeps this context unspecified. These snapshots remain as recorded when later work changes the project and cannot be edited after publication.
 
-Each displayed update compares those recorded fields with the next update shown in the feed. Load more updates to compare across a page boundary. Dates, risks and decisions are not included in these comparisons yet. [Focused verification](evidence/2026-10-28-frontend-scope-and-updates.md) records the checks and remaining limits.
+Each update compares with its immediately preceding snapshot, including across a page boundary. Date changes and added, changed or removed risk/decision notes are shown explicitly. Historical dates and notes that were never captured remain unknown. The overview brings the latest update and its open risks/needed decisions together with the brief, current properties, scope and milestone dates. If the project changes before publication, the draft is retained for explicit review of current context before trying again.
 
 ## Complete or archive
 
@@ -48,3 +48,5 @@ Project lifecycle, issue membership, progress and updates connect to the [milest
 Migration `0022_projects.sql` adds the project tables and constraints. Apply it before starting the matching API and worker. Earlier migrations remain immutable. Rollback requires a matching database backup and application binary; no destructive down-migration is provided.
 
 Migration `0026_project_documents.sql` copies existing briefs exactly into independent documents and retains the old columns as immutable snapshots. Use matching application/static assets; old writers are incompatible. A pre-upgrade backup is required for rollback. Retaining snapshots does not prove backup restoration or authorize their removal.
+
+Migration `0030_project_update_context.sql` adds captured dates and reviewed notes without guessing historical values. Apply matching API/frontend/native changes together. Body-only clients remain supported and leave notes unspecified. Rollback requires the matching pre-upgrade database backup and binaries; no destructive down-migration is supplied.
