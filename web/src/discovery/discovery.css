@@ -1,0 +1,14 @@
+@layer components {
+.discovery { margin: 0 20px; border-block: 1px solid var(--line); }
+.discovery summary { cursor: pointer; padding: 12px 0; color: var(--secondary); }
+.discovery-content { display: grid; gap: 16px; padding-block: 12px; }
+.discovery-save,.discovery-search { display:flex; flex-wrap:wrap; gap:12px; align-items:end; }
+.discovery .field { flex:1 1 12rem; min-width:0; }
+.discovery-directories { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr)); gap:16px; }
+.discovery ul { list-style:none; padding:0; margin:0; }
+.discovery-directories li { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding-block:8px; }
+.discovery-directories li>span { color:var(--muted); font-size:12px; }
+.discovery-results li { padding-block:12px; border-top:1px solid var(--line); overflow-wrap:anywhere; }
+.discovery-results li p { white-space:pre-wrap; color:var(--secondary); }
+.discovery-results.pending { opacity:.6; }
+}

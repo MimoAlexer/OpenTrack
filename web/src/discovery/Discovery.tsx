@@ -1,0 +1,142 @@
+import { useEffect, useRef, useState } from 'react';
+import { ApiError, request } from '../api';
+import { ErrorBanner, Loading } from '../components';
+import { Link } from '../router';
+import type { Session, Team } from '../types';
+import type { components } from '../generated/api';
+import { queryBody, queryFragment, type StructuredView } from '../filters/model';
+import './discovery.css';
+
+type Saved = components['schemas']['SavedDiscovery'];
+type Definition = components['schemas']['DiscoveryDefinition'];
+type SearchPage = components['schemas']['SearchPage'];
+type Directory = { data: Saved[]; has_more: boolean; next_cursor?: string | null };
+type Kind = 'view' | 'search';
+const resource = (kind: Kind) => kind === 'search' ? 'saved-searches' : 'views';
+const columns: Definition['columns'] = ['key', 'title', 'status', 'priority', 'assignee'];
+function definition(view: StructuredView): Definition { return { query: queryBody(view), layout: view.layout, group_by: view.sort === 'priority' ? 'priority' : 'status', columns }; }
+function asView(saved: Definition): StructuredView {
+  const { cursor: _cursor, ...query } = saved.query;
+  return { ...query, version: 1, filter: query.filter ?? null, archived: query.archived ?? false, limit: query.limit ?? 50, timezone: query.timezone ?? 'UTC', sort: query.sort ?? 'created', team_id: query.team_id ?? undefined, q: query.q ?? undefined, layout: saved.layout };
+}
+interface Props { workspaceId: string; scope: string; session: Session; view: StructuredView; teams: Team[]; apply: (view: StructuredView) => boolean }
+export function Discovery(props: Props) {
+  // Keying by authority closes all drafts, names, results and pending requests.
+  return <ScopedDiscovery key={props.scope} {...props}/>;
+}
+function ScopedDiscovery({ workspaceId, scope, session, view, teams, apply }: Props) {
+  const base = `/workspaces/${encodeURIComponent(workspaceId)}`;
+  const [activated,setActivated]=useState(false);
+  const [views, setViews] = useState<Directory | null>(null);
+  const [searches, setSearches] = useState<Directory | null>(null);
+  const [selected, setSelected] = useState<Saved | null>(null);
+  const [name, setName] = useState('');
+  const [audience, setAudience] = useState('personal');
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  const [reload, setReload] = useState(0);
+  const [term, setTerm] = useState('');
+  const [kind, setKind] = useState<'issue' | 'project' | 'all'>('issue');
+  const [search, setSearch] = useState<SearchPage | null>(null);
+  const [searchError, setSearchError] = useState<unknown>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchRetry, setSearchRetry] = useState(0);
+  const mounted = useRef(true);
+  const writes = useRef(new AbortController());
+  const searchRead = useRef<AbortController | null>(null);
+  const activeSaved = useRef<{ id: string; fingerprint: string } | null>(null);
+  const pending = useRef<{ path: string; options: Parameters<typeof request>[1] } | null>(null);
+  const authority = `${scope}:${workspaceId}`;
+  const snapshot = JSON.stringify(definition(view));
+  function effectiveDefinition(saveKind:Kind,inherited?:Definition|null):Definition {
+    const value=definition(view);
+    if(inherited){value.columns=inherited.columns;value.group_by=inherited.group_by;}
+    if(saveKind==='search')value.query={...value.query,q:term,sort:'created',archived:false};
+    return value;
+  }
+  const unsaved=selected && activeSaved.current?.id===selected.id && activeSaved.current.fingerprint!==JSON.stringify(effectiveDefinition(selected.kind,selected.definition));
+  useEffect(() => { mounted.current=true; if(writes.current.signal.aborted)writes.current=new AbortController(); return () => { mounted.current = false; writes.current.abort(); searchRead.current?.abort(); }; }, []);
+  function denial(reason: unknown) {
+    if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) { setViews(null); setSearches(null); setSelected(null); setSearch(null); setName(''); setTerm(''); activeSaved.current = null; }
+  }
+  useEffect(() => {
+    if (!activated) return;
+    const abort = new AbortController();
+    setError(null);
+    Promise.all([request<Directory>(`${base}/views`, { signal: abort.signal }), request<Directory>(`${base}/saved-searches`, { signal: abort.signal })]).then(([v, s]) => { if (!abort.signal.aborted) { setViews(v); setSearches(s); } }).catch(reason => { if (!abort.signal.aborted) { denial(reason); setError(reason); } });
+    return () => abort.abort();
+  }, [authority, base, reload, activated]);
+  function replace(item: Saved) {
+    const update = (page: Directory | null): Directory => ({ data: page?.data.some(d => d.id === item.id) ? page.data.map(d => d.id === item.id ? item : d) : [...(page?.data ?? []), item], has_more: page?.has_more ?? false, next_cursor: page?.next_cursor });
+    (item.kind === 'view' ? setViews : setSearches)(update);
+    if (selected?.id === item.id) setSelected(item);
+  }
+  async function write(path: string, method: string, body?: unknown, etag?: string) {
+    if (busy) return;
+    const options = { method, body, csrf: session.csrf_token, signal: writes.current.signal, headers: { 'Idempotency-Key': crypto.randomUUID(), ...(etag ? { 'If-Match': etag } : {}) } };
+    pending.current = { path, options }; await dispatchWrite();
+  }
+  async function dispatchWrite() {
+    if (!pending.current) return;
+    setBusy(true); setError(null);
+    const operation = pending.current;
+    try {
+      const item = await request<Saved | undefined>(operation.path, operation.options);
+      if (!mounted.current) return;
+      if (item) {
+        replace(item);
+        const savedBody=operation.options?.body as {definition?:Definition}|undefined;
+        if(savedBody?.definition){setSelected(item);activeSaved.current={id:item.id,fingerprint:JSON.stringify(savedBody.definition)};}
+      }
+      else { const id = selected?.id; setViews(p => p && { ...p, data: p.data.filter(d => d.id !== id) }); setSearches(p => p && { ...p, data: p.data.filter(d => d.id !== id) }); setSelected(null); activeSaved.current = null; }
+      pending.current = null;
+    } catch (reason) { if (mounted.current && !writes.current.signal.aborted) { denial(reason); setError(reason); if (reason instanceof ApiError && reason.status > 0) pending.current = null; } }
+    finally { if (mounted.current) setBusy(false); }
+  }
+  function save(saveKind: Kind, updating = false) {
+    const current=effectiveDefinition(saveKind,updating?selected?.definition:null);
+    const visibility = audience === 'personal' || audience === 'workspace' ? audience : 'team';
+    const body = { name, kind: saveKind, visibility: updating ? selected!.visibility : saveKind === 'search' ? 'personal' : visibility, team_id: updating ? selected!.team_id : saveKind === 'view' && visibility === 'team' ? audience : null, definition: current };
+    void write(`${base}/${resource(saveKind)}${updating ? `/${selected!.id}` : ''}`, updating ? 'PATCH' : 'POST', body, updating ? selected!.etag : undefined);
+  }
+  function open(item: Saved) {
+    if (!item.definition) { setSelected(item); setName(item.name); setError(new Error(item.repair_required ?? 'Repair this saved definition before running it.')); return; }
+    const next = asView(item.definition);
+    if (apply(next)) { activeSaved.current = { id: item.id, fingerprint: JSON.stringify({ ...item.definition, query: queryBody(next) }) }; setSelected(item); setName(item.name); if (item.kind === 'search') { setTerm(next.q ?? ''); setKind('issue'); } }
+  }
+  async function refreshSelected() {
+    if (!selected) return;
+    try { const item = await request<Saved>(`${base}/${resource(selected.kind)}/${selected.id}`, { signal: writes.current.signal }); if (mounted.current) { replace(item); setError(null); } } catch (reason) { if (mounted.current) { denial(reason); setError(reason); } }
+  }
+  async function more(saveKind: Kind) {
+    const page = saveKind === 'view' ? views : searches;
+    if (!page?.next_cursor) return;
+    try { const next = await request<Directory>(`${base}/${resource(saveKind)}?cursor=${encodeURIComponent(page.next_cursor)}`, { signal: writes.current.signal }); if (mounted.current) (saveKind === 'view' ? setViews : setSearches)({ ...next, data: [...page.data, ...next.data] }); } catch (reason) { if (mounted.current) { denial(reason); setError(reason); } }
+  }
+  const searchBody = () => ({ query: { ...queryBody(view), q: term, sort: 'created', archived: false, ...(kind !== 'issue' ? { filter: null, team_id: null } : {}) }, types: kind === 'all' ? ['issue', 'project'] : [kind] });
+  useEffect(() => {
+    if (!activated) return;
+    const abort = new AbortController(); searchRead.current?.abort(); searchRead.current = abort;
+    if (!term.trim()) { setSearch(null); setSearchError(null); setSearching(false); return () => abort.abort(); }
+    setSearching(true); setSearchError(null);
+    const timer = setTimeout(() => { void request<SearchPage>(`${base}/search/query`, { method: 'POST', csrf: session.csrf_token, body: searchBody(), signal: abort.signal }).then(page => { if (!abort.signal.aborted) setSearch(page); }).catch(reason => { if (!abort.signal.aborted) { setSearch(null); denial(reason); setSearchError(reason); } }).finally(() => { if (!abort.signal.aborted) setSearching(false); }); }, 150);
+    return () => { clearTimeout(timer); abort.abort(); };
+  }, [authority, base, snapshot, term, kind, session.csrf_token, searchRetry, activated]);
+  async function moreSearch() {
+    if (!search?.next_cursor || searching) return;
+    const abort = searchRead.current; if (!abort) return;
+    setSearching(true);
+    try { const next = await request<SearchPage>(`${base}/search/query`, { method: 'POST', csrf: session.csrf_token, body: { ...searchBody(), query: { ...searchBody().query, cursor: search.next_cursor } }, signal: abort.signal }); if (!abort.signal.aborted) setSearch({ ...next, data: [...search.data, ...next.data] }); } catch (reason) { if (!abort.signal.aborted) { setSearch(null); denial(reason); setSearchError(reason); } } finally { if (!abort.signal.aborted) setSearching(false); }
+  }
+  const directory = (page: Directory | null, label: string, saveKind: Kind) => <section aria-label={label}><h3>{label}</h3>{page ? page.data.length ? <ul>{[...page.data].sort((a, b) => Number(b.favorite) - Number(a.favorite)).map(item => <li key={item.id}><button type="button" className="quiet" onClick={() => open(item)}>{item.name}</button><span>{item.visibility}{item.repair_required ? ' · Repair required' : ''}</span><button type="button" className="quiet" disabled={busy} aria-label={`${item.favorite ? 'Unfavorite' : 'Favorite'} ${item.name}`} onClick={() => void write(`${base}/${resource(item.kind)}/${item.id}/favorite`, 'PUT', { favorite: !item.favorite })}>{item.favorite ? '★' : '☆'}</button></li>)}</ul> : <p>No {label.toLowerCase()} yet.</p> : !error && <Loading label={`Loading ${label.toLowerCase()}…`}/>} {page?.has_more && <button type="button" className="button compact" onClick={() => void more(saveKind)}>Load more {label.toLowerCase()}</button>}</section>;
+  return <details className="discovery" onToggle={event=>{if(event.currentTarget.open)setActivated(true);}}><summary>Saved views and full-text search</summary>{activated && <div className="discovery-content">
+    <div className="discovery-save"><label className="field">Definition name<input value={name} onChange={e => setName(e.target.value)}/></label><label className="field">View audience<select value={audience} onChange={e => setAudience(e.target.value)}><option value="personal">Only me</option><option value="workspace">Workspace</option>{teams.filter(t => !t.archived_at).map(t => <option key={t.id} value={t.id}>Team · {t.name}</option>)}</select></label><button type="button" className="button compact" disabled={busy || !name.trim()} onClick={() => save('view')}>Save new view</button></div>
+    {selected && <div className="notice"><span>{selected.name} · Version {selected.version}{unsaved ? ' · Unsaved overrides' : ''}{!selected.can_edit ? ' · Read only' : ''}</span>{selected.can_edit && <><button type="button" className="button compact" disabled={busy || !name.trim() || selected.kind === 'search' && !term.trim()} onClick={() => save(selected.kind, true)}>Save changes</button><button type="button" className="quiet" disabled={busy} onClick={() => void write(`${base}/${resource(selected.kind)}/${selected.id}`, 'DELETE', undefined, selected.etag)}>Delete saved definition</button></>}<button type="button" className="quiet" onClick={() => void refreshSelected()}>Refresh saved version</button></div>}
+    <ErrorBanner error={error} retry={() => pending.current ? void dispatchWrite() : setReload(v => v + 1)}/>{busy && <p role="status">Saving definition…</p>}
+    <div className="discovery-directories">{directory(views, 'Saved views', 'view')}{directory(searches, 'Saved searches', 'search')}</div>
+    <section aria-label="Full-text search"><h3>Search issues and projects</h3><div className="discovery-search"><label className="field">Search text<input aria-label="Search issues and projects" type="search" value={term} onChange={e => setTerm(e.target.value)}/></label><label className="field">Result type<select value={kind} onChange={e => setKind(e.target.value as typeof kind)}><option value="issue">Issues with current filters</option><option value="project">Projects</option><option value="all">Issues and projects</option></select></label><button type="button" className="button compact" disabled={busy || !name.trim() || !term.trim() || kind !== 'issue'} onClick={() => save('search')}>Save search</button></div>
+      <p>Exact keys first, then weighted title and body matches. Saved searches are private.</p>{searching && <p role="status">Searching…</p>}<ErrorBanner error={searchError} retry={() => setSearchRetry(v => v + 1)}/>
+      {search && <div className={searching ? 'discovery-results pending' : 'discovery-results'} aria-busy={searching}>{search.notice && <p className="notice">{search.notice}</p>}{!search.data.length && <p>No matching work. Try another word or a current issue key.</p>}<ul>{search.data.map(hit => <li key={`${hit.kind}:${hit.id}`}><Link href={hit.kind === 'issue' ? `/w/${workspaceId}/issues/${hit.id}${queryFragment(location.hash)}` : `/w/${workspaceId}/projects/${hit.id}?team_id=${hit.team_id}`}>{hit.key ? `${hit.key} · ` : ''}{hit.title}</Link><p>{hit.snippet}</p></li>)}</ul>{search.has_more && <button type="button" className="button compact" disabled={searching} onClick={() => void moreSearch()}>More search results</button>}</div>}
+    </section>
+  </div>}</details>;
+}
