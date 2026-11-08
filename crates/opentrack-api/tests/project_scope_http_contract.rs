@@ -196,7 +196,7 @@ async fn exercise(h: &Harness) {
         Some(&c),
         "POST",
         &format!("{project_path}/scope-baselines"),
-        Some(body),
+        Some(body.clone()),
         &[("if-match", token), ("idempotency-key", "http-scope-agree")],
     )
     .await;
@@ -219,7 +219,7 @@ async fn exercise(h: &Harness) {
         Some(&c),
         "POST",
         &format!("{project_path}/scope-changes"),
-        Some(change),
+        Some(change.clone()),
         &[
             ("if-match", agreed.body["scope_etag"].as_str().unwrap()),
             ("idempotency-key", "http-scope-postpone"),
@@ -255,17 +255,80 @@ async fn exercise(h: &Harness) {
     )
     .await
     .expect(StatusCode::CREATED);
-    let mut tx = h
-        .lock_team(
-            setup.body["workspaces"][0]["id"]
-                .as_str()
-                .unwrap()
-                .parse()
-                .unwrap(),
-            team.parse().unwrap(),
-            setup.body["user"]["id"].as_str().unwrap().parse().unwrap(),
+    let workspace = setup.body["workspaces"][0]["id"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    let actor = setup.body["user"]["id"].as_str().unwrap().parse().unwrap();
+    let project_id = project.body["id"].as_str().unwrap();
+    let mut timeouts = Vec::new();
+    for (command, key, route, request_body, validator, success) in [
+        (
+            "scope-baselines",
+            "http-scope-agree",
+            "project-scope-agree",
+            &body,
+            token,
+            StatusCode::CREATED,
+        ),
+        (
+            "scope-changes",
+            "http-scope-postpone",
+            "project-scope-change",
+            &change,
+            agreed.body["scope_etag"].as_str().unwrap(),
+            StatusCode::OK,
+        ),
+    ] {
+        let path = format!("{project_path}/{command}");
+        let headers = [("if-match", validator), ("idempotency-key", key)];
+        let mut holder = h.workspace_tx(workspace, actor).await;
+        sqlx::query("SELECT key_hash FROM idempotency_records WHERE workspace_id=$1 AND principal_id=$2 AND route=$3 FOR UPDATE")
+            .bind(workspace).bind(actor).bind(format!("{route}:{team}:{project_id}"))
+            .fetch_one(&mut *holder).await.unwrap();
+        let blocked = request(
+            &h.router,
+            Some(&c),
+            "POST",
+            &path,
+            Some(request_body.clone()),
+            &headers,
         )
         .await;
+        timeouts.push((
+            blocked.status,
+            blocked.body["code"].clone(),
+            blocked.body["retryable"].clone(),
+        ));
+        holder.rollback().await.unwrap();
+        let recovered = request(
+            &h.router,
+            Some(&c),
+            "POST",
+            &path,
+            Some(request_body.clone()),
+            &headers,
+        )
+        .await;
+        recovered.expect(success);
+        assert_eq!(
+            recovered.body, changed.body,
+            "Replay must preserve baseline and event identities, counts and revision"
+        );
+    }
+    assert_eq!(
+        timeouts,
+        vec![
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                json!("dependency_unavailable"),
+                json!(true)
+            );
+            2
+        ]
+    );
+    let mut tx = h.workspace_tx(workspace, actor).await;
     sqlx::query("UPDATE idempotency_records SET expires_at=now()-interval '1 day'")
         .execute(&mut *tx)
         .await

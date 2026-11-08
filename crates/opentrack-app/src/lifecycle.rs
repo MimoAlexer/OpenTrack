@@ -104,11 +104,25 @@ pub(crate) async fn retry_with_expiry<T: DeserializeOwned>(
     key: &str,
     hash: &str,
 ) -> Result<Option<T>> {
-    sqlx::query("INSERT INTO idempotency_records(workspace_id,principal_id,route,key_hash,request_hash) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING").bind(w).bind(u).bind(route).bind(key).bind(hash).execute(&mut **tx).await.map_err(db_error)?;
-    let r=sqlx::query("SELECT request_hash,response_body,expires_at>now() AS valid FROM idempotency_records WHERE workspace_id=$1 AND principal_id=$2 AND route=$3 AND key_hash=$4 FOR UPDATE").bind(w).bind(u).bind(route).bind(key).fetch_one(&mut **tx).await.map_err(db_error)?;
-    retry_body(r, hash)
+    let receipt = lock_retry_record(tx, w, u, route, key, hash).await?;
+    retry_body(receipt, hash)
 }
-fn retry_body<T: DeserializeOwned>(r: sqlx::postgres::PgRow, hash: &str) -> Result<Option<T>> {
+
+pub(crate) async fn lock_retry_record(
+    tx: &mut store::Tx,
+    w: Uuid,
+    u: Uuid,
+    route: &str,
+    key: &str,
+    hash: &str,
+) -> Result<sqlx::postgres::PgRow> {
+    sqlx::query("INSERT INTO idempotency_records(workspace_id,principal_id,route,key_hash,request_hash) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING").bind(w).bind(u).bind(route).bind(key).bind(hash).execute(&mut **tx).await.map_err(db_error)?;
+    sqlx::query("SELECT request_hash,response_body,expires_at>now() AS valid FROM idempotency_records WHERE workspace_id=$1 AND principal_id=$2 AND route=$3 AND key_hash=$4 FOR UPDATE").bind(w).bind(u).bind(route).bind(key).fetch_one(&mut **tx).await.map_err(db_error)
+}
+pub(crate) fn retry_body<T: DeserializeOwned>(
+    r: sqlx::postgres::PgRow,
+    hash: &str,
+) -> Result<Option<T>> {
     if r.try_get::<String, _>("request_hash").map_err(db_error)? != hash {
         return Err(Error::Conflict(
             "This idempotency key was used for a different request".into(),
