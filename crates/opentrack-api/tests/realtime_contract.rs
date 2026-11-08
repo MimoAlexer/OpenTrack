@@ -1397,3 +1397,122 @@ async fn bootstrap_revocation(h: &Harness) {
     .await
     .expect(StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn actual_listener_disconnect_and_reconnect_preserve_durable_http_delivery() {
+    let h = Harness::new().await;
+    let runner = h.clone();
+    let result = tokio::spawn(async move { listener_reconnect(&runner).await }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+async fn listener_reconnect(h: &Harness) {
+    use opentrack_api::{RealtimeNode, router_with_realtime_node};
+
+    let f = setup(h).await;
+    let writer = h.independent_app().await;
+    let writer_router = opentrack_api::router(h.api_state(writer.clone()));
+    let node = Arc::new(RealtimeNode::new(h.app().clone()));
+    let reader_router = router_with_realtime_node(h.api_state(h.app().clone()), node.clone());
+    let snapshot = bootstrap(&reader_router, &f.owner, &f.base).await;
+    let cursor = snapshot["realtime_cursor"].as_str().unwrap();
+    let server = Server::start(reader_router.clone()).await;
+    let mut stream = TcpSse::open(&server, &f.owner, &f.base, cursor).await;
+    tokio::time::timeout(DEADLINE, async {
+        loop {
+            let stats = node.stats();
+            if stats.listener_connected && stats.listener_connections == 1 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("The dedicated PostgreSQL listener must connect before fault injection");
+
+    // A no-op interruption must fail the disconnected assertion. The writer is
+    // a separate App/pool and uses the production mutation route during the gap.
+    node.interrupt_listener();
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while node.stats().listener_connected {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("Interrupting the live PostgreSQL listener must actually disconnect it");
+    let during_gap = issue(
+        &writer_router,
+        &f.owner,
+        &f.base,
+        f.team,
+        "Committed while listener disconnected",
+    )
+    .await;
+    assert!(
+        !node.stats().listener_connected,
+        "The controlled gap must include the durable mutation commit"
+    );
+    tokio::time::timeout(DEADLINE, async {
+        loop {
+            let stats = node.stats();
+            if stats.listener_connected
+                && stats.listener_connections >= 2
+                && stats.listener_reconnects >= 1
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("The same node must reconnect its dedicated PostgreSQL listener");
+    let gap_event = stream.expect_event("invalidation").await;
+    invalidation(&gap_event, f.workspace, id(&during_gap.body["id"]));
+
+    let after_reconnect = issue(
+        &writer_router,
+        &f.owner,
+        &f.base,
+        f.team,
+        "Committed after listener reconnect",
+    )
+    .await;
+    let reconnected_event = stream.expect_event("invalidation").await;
+    invalidation(
+        &reconnected_event,
+        f.workspace,
+        id(&after_reconnect.body["id"]),
+    );
+    assert_ne!(
+        gap_event.data["event_id"],
+        reconnected_event.data["event_id"]
+    );
+    let replay = page(&writer_router, &f.owner, &f.base, cursor, 100).await;
+    assert_eq!(replay["events"].as_array().unwrap().len(), 2);
+    assert_eq!(replay["events"][0]["event_id"], gap_event.data["event_id"]);
+    assert_eq!(
+        replay["events"][1]["event_id"],
+        reconnected_event.data["event_id"]
+    );
+    assert_eq!(replay["has_more"], false);
+    let reconnect = page(
+        &reader_router,
+        &f.owner,
+        &f.base,
+        gap_event.id.as_deref().unwrap(),
+        100,
+    )
+    .await;
+    assert_eq!(reconnect["events"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        reconnect["events"][0]["event_id"],
+        reconnected_event.data["event_id"]
+    );
+    assert_eq!(reconnect["has_more"], false);
+    node.shutdown();
+    drop((stream, server));
+    writer.pool.close().await;
+}
