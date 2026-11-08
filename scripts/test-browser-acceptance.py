@@ -35,6 +35,40 @@ def manifest():
         for index, browser in enumerate(fixtures.BROWSERS)}}
 
 
+def discovery(cases=89):
+    return {"config": {"workers": 1, "fullyParallel": False, "forbidOnly": True,
+        "projects": [{"name": browser, "timeout": 60000, "retries": 0, "repeatEach": 1} for browser in fixtures.BROWSERS]},
+        "errors": [], "suites": [{"specs": [{"id": browser + str(index), "tests": [{"projectName": browser,
+            "timeout": 60000, "expectedStatus": "passed"}]} for browser in fixtures.BROWSERS for index in range(cases)]}]}
+
+
+class SuitePlanning(unittest.TestCase):
+    def test_current_and_expanded_suites_have_count_derived_finite_budgets(self):
+        self.assertEqual(module.suite_plan(json.dumps(discovery())), (267, 1388))
+        self.assertEqual(module.suite_plan(json.dumps(discovery(100))), (300, 1520))
+        self.assertEqual(module.suite_plan(json.dumps(discovery(123))), (369, 1796))
+
+    def test_plan_refuses_skips_errors_changed_guards_or_capacity_before_runtime(self):
+        changes = [lambda p: p.update(errors=[{"message": "synthetic-private"}]),
+            lambda p: p["config"].update(workers=2), lambda p: p["config"].update(fullyParallel=True),
+            lambda p: p["config"].update(forbidOnly=False), lambda p: p["config"]["projects"][0].update(retries=1),
+            lambda p: p["config"]["projects"][0].update(timeout=120000),
+            lambda p: p["config"]["projects"][0].update(repeatEach=2),
+            lambda p: p["suites"][0]["specs"][0]["tests"][0].update(expectedStatus="skipped"),
+            lambda p: p["suites"][0]["specs"].pop(),
+            lambda p: p["suites"][0]["specs"].append(p["suites"][0]["specs"][0])]
+        for change in changes:
+            plan = discovery()
+            change(plan)
+            with self.subTest(change=change), self.assertRaises(RuntimeError):
+                module.suite_plan(json.dumps(plan))
+        for invalid in (discovery(0), discovery(124), [], {"config": {}}, "private-marker"):
+            with self.subTest(invalid=type(invalid).__name__), self.assertRaises(RuntimeError):
+                module.suite_plan(json.dumps(invalid))
+        with self.assertRaises(RuntimeError):
+            module.suite_plan("x" * (4 * 1024 * 1024 + 1))
+
+
 class PreparationHarness:
     """API/Compose double: progress can change only through the worker command."""
     def __init__(self):
@@ -232,6 +266,7 @@ class Boundaries(unittest.TestCase):
         with patch.dict(os.environ, self.env, clear=True):
             runner = module.BrowserAcceptance(self.project, "http://localhost:18081")
         runner.preflight = Mock(return_value=self.config)
+        runner.plan = Mock(return_value=(267, 1388))
         runner.validate_live_resources = Mock()
         runner.validate_cleanup_resources = Mock(return_value=None)
         runner.create_claim = Mock()
@@ -870,7 +905,7 @@ class Boundaries(unittest.TestCase):
                     path = Path(env["OPENTRACK_BROWSER_ORDER_FIXTURES_FILE"])
                     observed.append(path)
                     self.assertEqual(json.loads(path.read_bytes()), manifest())
-                    self.assertEqual(timeout, 900)
+                    self.assertEqual(timeout, 1368)
                     self.assertNotIn("COMPOSE_PROJECT_NAME", env)
                     if isinstance(outcome, Exception):
                         raise outcome
@@ -889,6 +924,26 @@ class Boundaries(unittest.TestCase):
                 self.assertEqual(len(observed), 1)
                 self.assertFalse(observed[0].exists())
                 runner.validate_cleanup_resources.assert_called_once()
+
+    def test_discovery_is_credential_free_bounded_and_does_not_start_services(self):
+        runner = self.runner()
+        runner.environment["OPENTRACK_BROWSER_PASSWORD"] = "synthetic-private"
+        with patch.object(module.subprocess, "run", return_value=SimpleNamespace(returncode=0, stdout=json.dumps(discovery()))) as node:
+            self.assertEqual(module.BrowserAcceptance.plan(runner), (267, 1388))
+        self.assertEqual(node.call_args.args[0], ["node", "node_modules/@playwright/test/cli.js", "test", "--list", "--reporter=json"])
+        self.assertEqual(node.call_args.kwargs["timeout"], 30)
+        self.assertNotIn("synthetic-private", node.call_args.kwargs["env"].values())
+        runner.dc.assert_not_called()
+        runner.create_claim.assert_not_called()
+
+    def test_overcapacity_discovery_cannot_claim_or_create_runtime_resources(self):
+        runner = self.runner()
+        runner.plan.side_effect = RuntimeError("Browser suite exceeds its finite capacity")
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
+        with self.assertRaisesRegex(RuntimeError, "finite capacity"):
+            runner.run()
+        runner.dc.assert_not_called()
+        runner.create_claim.assert_not_called()
 
     def test_incomplete_preparation_cannot_launch_node_and_still_cleans_owned_project(self):
         runner = self.runner()
@@ -967,7 +1022,30 @@ class Boundaries(unittest.TestCase):
                 patch.object(module.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as node:
             runner.run()
         node.assert_called_once()
-        self.assertEqual(node.call_args.kwargs["timeout"], 763)
+        self.assertEqual(node.call_args.kwargs["timeout"], 1231)
+        self.admission.create.assert_called_once()
+        self.assertEqual(self.admission.create.call_args.args[1], 2628)
+        runner.validate_cleanup_resources.assert_called_once()
+
+    def test_progressing_267_case_run_can_finish_beyond_the_old_900_second_cutoff(self):
+        runner = self.runner()
+        runner.command = Mock(side_effect=[json.dumps({"Os": "linux", "Arch": "amd64", "Version": "28.0"}), "", "", "", "", "", ""])
+        runner.dc.side_effect = lambda *args, **kwargs: "127.0.0.1:18081" if args[0] == "port" else "a" * 64
+        clock = [1000]
+        def preparation(*args, **kwargs):
+            clock[0] += 137
+            return manifest()
+        def node(*args, timeout, **kwargs):
+            if timeout < 900:
+                raise subprocess.TimeoutExpired("node", timeout)
+            clock[0] += 900
+            return SimpleNamespace(returncode=0)
+        with patch.object(module.time, "monotonic", side_effect=lambda: clock[0]), \
+                patch.object(module, "prepare", side_effect=preparation), \
+                patch.object(module.subprocess, "run", side_effect=node):
+            runner.run()
+        self.assertEqual(clock[0], 2037)
+        self.admission.create.assert_called_once()
         runner.validate_cleanup_resources.assert_called_once()
 
     def test_exhausted_suite_budget_never_starts_node_and_still_cleans_up(self):
@@ -1171,6 +1249,19 @@ class AdmissionCoordination(unittest.TestCase):
         self.budget.worker(1)
         self.assertEqual(sum(item[1] for item in self.data()["history"]), 5)
 
+    def test_planned_shared_deadline_can_cover_267_cases_without_changing_admission_rates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "admission.json"
+            budget = fixtures.AdmissionBudget.create(path, 2388)
+            lease = budget.begin(20, -1, 60000)
+            budget.finish(lease, -1)
+            with self.assertRaisesRegex(RuntimeError, "cannot fit"):
+                budget.begin(1, -1, 1000)
+            self.assertEqual(json.loads(path.read_bytes())["deadline_ns"], 2388_000_000_000)
+            self.clock = 2388_000_000_000
+            with self.assertRaisesRegex(RuntimeError, "deadline"):
+                budget.begin(1, -1, 60000)
+
     def test_integer_boundary_never_rounds_an_early_wake_into_a_permit(self):
         lease = self.budget.begin(20, -1, 60_000)
         self.budget.finish(lease, -1)
@@ -1246,7 +1337,7 @@ class AdmissionCoordination(unittest.TestCase):
         valid = self.path.read_bytes()
         variants = [b"[]", b"{" * 8193, valid.replace(b'"version": 1', b'"version": 1, "version": 1')]
         for key, value in (("version", True), ("secret", "synthetic-private-marker"),
-                           ("last_ns", self.clock + 1), ("deadline_ns", self.clock + 901_000_000_000),
+                           ("last_ns", self.clock + 1), ("deadline_ns", self.clock + 1801_000_000_000),
                            ("generation", -2), ("history", [[self.clock, 21]]),
                            ("pending", {"lease": 0, "count": 1})):
             item = json.loads(valid)

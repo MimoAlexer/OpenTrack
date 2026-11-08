@@ -16,6 +16,7 @@ from uuid import UUID, uuid4
 
 BROWSERS = ("chromium", "firefox", "webkit")
 PREPARATION_SECONDS = 300
+MAX_SUITE_SECONDS = 1800
 ADMISSION_WINDOW_NS = 60_000_000_000
 
 
@@ -38,7 +39,7 @@ class AdmissionBudget:
         now = time.monotonic_ns()
         state = {"version": 1, "started_ns": now, "deadline_ns": int(deadline * 1_000_000_000), "last_ns": now,
                  "generation": -1, "serial": 0, "history": [], "pending": None}
-        require(now < state["deadline_ns"] <= now + 900_000_000_000,
+        require(now < state["deadline_ns"] <= now + MAX_SUITE_SECONDS * 1_000_000_000,
                 "Browser admission requires the remaining suite deadline")
         for target, payload in ((budget.path.with_suffix(".lock"), b""),
                                 (budget.path, json.dumps(state).encode())):
@@ -99,7 +100,7 @@ class AdmissionBudget:
             "version", "started_ns", "deadline_ns", "last_ns", "generation", "serial", "history", "pending"}
             and type(value["version"]) is int and value["version"] == 1
             and integer(value["started_ns"], 0, now) and integer(value["last_ns"], value["started_ns"], now)
-            and integer(value["deadline_ns"], value["started_ns"] + 1, value["started_ns"] + 900_000_000_000)
+            and integer(value["deadline_ns"], value["started_ns"] + 1, value["started_ns"] + MAX_SUITE_SECONDS * 1_000_000_000)
             and integer(value["generation"], -1, 1_000_000) and integer(value["serial"], 0, 1_000_000)
             and isinstance(value["history"], list) and len(value["history"]) <= 20,
             "Browser admission state is invalid or its clock moved backward")
