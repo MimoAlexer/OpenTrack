@@ -45,7 +45,7 @@ fn targets(node: &IssueFilterNode, selected: &mut BTreeMap<IssueQueryField, BTre
     }
 }
 
-async fn validate_targets(
+pub(crate) async fn validate_targets(
     tx: &mut store::Tx,
     actor: &Actor,
     workspace: Uuid,

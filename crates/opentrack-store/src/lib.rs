@@ -1,3 +1,5 @@
+mod discovery;
+pub use discovery::*;
 mod planning_counts;
 pub use planning_counts::*;
 mod issue_query;

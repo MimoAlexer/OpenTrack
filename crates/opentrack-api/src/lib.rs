@@ -1,6 +1,7 @@
 mod account;
 mod attachments;
 mod cycles;
+mod discovery;
 mod milestones;
 mod preferences;
 mod project_scope;
@@ -68,6 +69,7 @@ pub fn router_with_trusted_proxies(
         .route("/auth/session", get(session))
         .route("/auth/logout", post(logout))
         .merge(account::routes())
+        .merge(discovery::routes())
         .merge(native::routes())
         .route("/capabilities", get(capabilities))
         .route("/workspaces/{w}/bootstrap", get(bootstrap))

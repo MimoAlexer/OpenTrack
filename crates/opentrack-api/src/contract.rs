@@ -158,6 +158,16 @@ pub(crate) struct IssuePatch {
         description = "Implemented OpenTrack endpoints. Features absent from this contract are not advertised as available. Browser-cookie writes require allowed Origin and CSRF; native bearer sessions have a separate audience and do not use browser CSRF. Data returned by a conflict is authorized for the current caller."
     ),
     paths(
+        crate::discovery::list,
+        crate::discovery::create,
+        crate::discovery::detail,
+        crate::discovery::update,
+        crate::discovery::delete,
+        crate::discovery::favorite,
+        crate::discovery::execute,
+        crate::discovery::search_query,
+        crate::discovery::search_get,
+        crate::discovery::suggestions,
         crate::preferences::get_preferences,
         crate::preferences::update_preferences,
         crate::mentions::candidates,
@@ -334,6 +344,34 @@ pub fn openapi() -> Value {
     });
     doc["security"] = json!([{"cookieAuth":[]},{"nativeBearer":[]}]);
     doc["components"]["schemas"]["IssuePatch"]["additionalProperties"] = json!(false);
+    // Views and private saved searches share typed handlers, with separate
+    // canonical resource paths and endpoint-enforced kinds.
+    let aliases = doc["paths"]
+        .as_object()
+        .expect("OpenAPI paths")
+        .iter()
+        .filter(|(path, _)| path.contains("/views"))
+        .map(|(path, item)| {
+            let mut item = item.clone();
+            for (method, op) in item.as_object_mut().expect("Path object") {
+                op["operationId"] = json!(format!(
+                    "saved_searches_{}_{}",
+                    method,
+                    path.rsplit('/')
+                        .next()
+                        .unwrap_or("list")
+                        .replace(['{', '}'], "")
+                ));
+            }
+            (path.replace("/views", "/saved-searches"), item)
+        })
+        .collect::<Vec<_>>();
+    for (path, item) in aliases {
+        doc["paths"]
+            .as_object_mut()
+            .expect("OpenAPI paths")
+            .insert(path, item);
+    }
     for (path, item) in doc["paths"].as_object_mut().expect("OpenAPI paths") {
         for (method, operation) in item.as_object_mut().expect("Path object") {
             if !["get", "post", "patch", "put", "delete"].contains(&method.as_str()) {
