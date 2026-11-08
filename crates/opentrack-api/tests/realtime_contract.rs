@@ -1869,3 +1869,100 @@ async fn next_notification_union(stream: &mut TcpSse, kind: &str) -> SseEvent {
     }
     panic!("Bounded stream did not deliver the expected notification");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn hidden_only_replay_has_no_count_dependent_continuations_and_mixed_history_converges() {
+    let h = Harness::new().await;
+    let runner = h.clone();
+    let result = tokio::spawn(async move {
+        let h = &runner;
+        let f = setup(h).await;
+        let admin = invite(&h.router, &f, "hidden-replay-admin@example.test", "admin").await;
+        let private = request(&h.router, Some(&admin), "POST", &format!("{}/teams", f.base), Some(json!({"name":"Private replay team","key":"PRT","private":true})), &[]).await;
+        private.expect(StatusCode::CREATED);
+        let mut hidden = issue(&h.router, &admin, &f.base, id(&private.body["id"]), "Private replay source").await;
+        for count in [2, 130] {
+            let snapshot = bootstrap(&h.router, &f.owner, &f.base).await;
+            for index in 0..count { hidden = update(&h.router, &admin, &f.base, &hidden, &format!("Private change {count}/{index}")).await; }
+            let result = page(&h.router, &f.owner, &f.base, snapshot["realtime_cursor"].as_str().unwrap(), 1).await;
+            assert_eq!(result["events"], json!([]));
+            assert_eq!(result["has_more"], false, "Private-only history must complete in one public page regardless of its hidden row count");
+        }
+        let mut visible = issue(&h.router, &f.owner, &f.base, f.team, "Visible replay source").await;
+        let snapshot = bootstrap(&h.router, &f.owner, &f.base).await;
+        for turn in 0..2 {
+            visible = update(&h.router, &f.owner, &f.base, &visible, &format!("Visible change {turn}")).await;
+            for index in 0..17 { hidden = update(&h.router, &admin, &f.base, &hidden, &format!("Private mixed change {turn}/{index}")).await; }
+        }
+        let first = page(&h.router, &f.owner, &f.base, snapshot["realtime_cursor"].as_str().unwrap(), 1).await;
+        assert_eq!(first["events"].as_array().unwrap().len(), 1); assert_eq!(first["has_more"], true);
+        let second = page(&h.router, &f.owner, &f.base, first["cursor"].as_str().unwrap(), 1).await;
+        assert_eq!(second["events"].as_array().unwrap().len(), 1); assert_eq!(second["has_more"], false);
+        assert_ne!(first["events"][0]["event_id"], second["events"][0]["event_id"]);
+        assert_eq!(second["events"][0]["entity_version"], visible.body["version"]);
+        // The existing hard replay window bounds every scan. Beyond that fixed
+        // budget the client receives one content-free reset, never an empty-page chain.
+        let stale = snapshot["realtime_cursor"].as_str().unwrap();
+        let mut tx = h.workspace_tx(f.workspace, f.owner.actor).await;
+        sqlx::query("UPDATE workspace_stream_heads SET last_seq=last_seq+10001 WHERE workspace_id=$1").bind(f.workspace).execute(&mut *tx).await.unwrap();
+        tx.commit().await.unwrap();
+        let rejected = request(&h.router, Some(&f.owner), "GET", &page_path(&f.base, stale, 1), None, &[]).await;
+        rejected.expect(StatusCode::CONFLICT); assert_eq!(rejected.body["code"], "reset_required");
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn stalled_sse_watchdog_frees_queued_payload_and_admission_with_old_bodies_alive() {
+    use opentrack_api::{RealtimeNode, router_with_realtime_node};
+    let h = Harness::new().await;
+    let runner = h.clone();
+    let result = tokio::spawn(async move {
+        let h = &runner; let f = setup(h).await;
+        let mut original = issue(&h.router, &f.owner, &f.base, f.team, "Watchdog source").await;
+        let node = Arc::new(RealtimeNode::new(h.app().clone()));
+        let router = router_with_realtime_node(h.api_state(h.app().clone()), node.clone());
+        let snapshot = bootstrap(&router, &f.owner, &f.base).await;
+        let mut old = Vec::new();
+        for _ in 0..3 {
+            let response = open_unpolled(&router, &f.owner, &f.base, snapshot["realtime_cursor"].as_str().unwrap()).await;
+            assert_eq!(response.status(), StatusCode::OK); old.push(response);
+        }
+        for index in 0..270 { original = update(&router, &f.owner, &f.base, &original, &format!("Watchdog change {index}")).await; }
+        tokio::time::timeout(DEADLINE, async {
+            loop {
+                let stats = node.stats();
+                if stats.overflowed_streams == 3 { break; }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        }).await.expect("All three unpolled streams must hit their bounded watchdog");
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                let stats = node.stats();
+                if stats.active_streams == 0 && stats.queued_events == 0 && stats.queued_bytes == 0 { break; }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        }).await.expect("Watchdog termination itself must free queue and local admission while bodies stay alive");
+        assert_eq!(old.len(), 3);
+        let fresh = bootstrap(&router, &f.owner, &f.base).await;
+        let mut replacements = Vec::new();
+        for _ in 0..3 {
+            let response = open_unpolled(&router, &f.owner, &f.base, fresh["realtime_cursor"].as_str().unwrap()).await;
+            assert_eq!(response.status(), StatusCode::OK, "Expired old bodies cannot pin same-node or durable session slots"); replacements.push(response);
+        }
+        assert_eq!(node.stats().active_streams, 3); assert_eq!(node.stats().queued_events, 0); assert_eq!(node.stats().queued_bytes, 0);
+        for response in old {
+            let bytes = to_bytes(response.into_body(), 256).await.unwrap();
+            let terminal = std::str::from_utf8(&bytes).unwrap();
+            assert!(terminal.contains("event: reset_required")); assert!(!terminal.contains("id:"));
+        }
+        drop(replacements); node.shutdown();
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}

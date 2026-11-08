@@ -369,15 +369,46 @@ struct QueuedFrame {
     charge: QueueCharge,
 }
 
+// The producer can terminate an unpolled body without retaining its queue or
+// local admission. poll_recv holds this mutex only for a synchronous poll; no
+// DB/network await owns it, so the watchdog can always discard queued charges.
+struct Delivery {
+    inner: Mutex<DeliveryState>,
+}
+struct DeliveryState {
+    receiver: Option<mpsc::Receiver<QueuedFrame>>,
+    guard: Option<Arc<LocalGuard>>,
+}
+impl Delivery {
+    fn close(&self) {
+        let mut state = self.inner.lock().unwrap_or_else(|error| error.into_inner());
+        state.receiver.take();
+        state.guard.take();
+    }
+    async fn recv(&self) -> Option<QueuedFrame> {
+        std::future::poll_fn(|context| {
+            let mut state = self.inner.lock().unwrap_or_else(|error| error.into_inner());
+            match state.receiver.as_mut() {
+                Some(receiver) => receiver.poll_recv(context),
+                None => std::task::Poll::Ready(None),
+            }
+        })
+        .await
+    }
+}
 struct BodyState {
     app: App,
     actor: Actor,
     workspace: Uuid,
-    receiver: mpsc::Receiver<QueuedFrame>,
+    delivery: Arc<Delivery>,
     terminal: watch::Receiver<Option<&'static str>>,
     control: Arc<Control>,
-    _guard: Arc<LocalGuard>,
     done: bool,
+}
+impl Drop for BodyState {
+    fn drop(&mut self) {
+        self.delivery.close();
+    }
 }
 
 async fn enqueue(
@@ -519,7 +550,13 @@ pub(crate) async fn events(
     let wake = node.wake.subscribe();
     let producer_actor = actor.clone();
     let producer_control = control.clone();
-    let producer_guard = guard.clone();
+    let delivery = Arc::new(Delivery {
+        inner: Mutex::new(DeliveryState {
+            receiver: Some(receiver),
+            guard: Some(guard),
+        }),
+    });
+    let producer_delivery = delivery.clone();
     tokio::spawn(async move {
         // The monitor is polled independently of a blocked producer or client.
         // Both futures stay inside this one bounded task per admitted stream.
@@ -532,6 +569,9 @@ pub(crate) async fn events(
         if let Err(error) = result {
             producer_control.reset(reset_reason(&error));
         }
+        // Release resident payloads and local admission before any cleanup I/O,
+        // even if an external owner retains the response body without polling.
+        producer_delivery.close();
         // This cleanup belongs to the producer, never an unbounded Drop spawn.
         // A failed cleanup is recovered by the installation lease's expiry.
         let _ = tokio::time::timeout(
@@ -539,16 +579,14 @@ pub(crate) async fn events(
             app.realtime_release(&producer_actor, workspace, lease),
         )
         .await;
-        drop(producer_guard);
     });
     let state = BodyState {
         app: node.app.clone(),
         actor,
         workspace,
-        receiver,
+        delivery,
         terminal: control.terminal.subscribe(),
         control,
-        _guard: guard,
         done: false,
     };
     let body = stream::unfold(state, |mut state| async move {
@@ -557,12 +595,13 @@ pub(crate) async fn events(
         }
         loop {
             if let Some(reason) = state.control.reason() {
+                state.delivery.close();
                 state.done = true;
                 return Some((Ok::<_, Infallible>(reset_event(reason)), state));
             }
             let frame = tokio::select! {
                 _ = state.terminal.changed() => continue,
-                frame = state.receiver.recv() => frame,
+                frame = state.delivery.recv() => frame,
             };
             let Some(QueuedFrame {
                 cursor,

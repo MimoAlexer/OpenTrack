@@ -405,50 +405,67 @@ impl App {
         if cursor.sequence > head || head - cursor.sequence > 10_000 {
             return Err(Error::RealtimeReset(Reset::ResetRequired));
         }
-        let rows = store::stream_page(&mut tx, workspace, cursor.sequence, limit)
-            .await
-            .map_err(db_error)?;
         let mut sequence = cursor.sequence;
         let mut frames = Vec::new();
-        for row in rows {
-            if row.seq != sequence + 1 {
+        let mut has_more = false;
+        // Page the authorized projection, not raw workspace activity. Scan only
+        // the frozen replay window (at most 10,000 rows), in bounded SQL chunks,
+        // through one additional visible event. Hidden tails produce no public
+        // continuation chain and never consume a client-visible page slot.
+        while sequence < head && !has_more {
+            let remaining =
+                u32::try_from((head - sequence).min(256)).map_err(|_| Error::Internal)?;
+            let rows = store::stream_page(&mut tx, workspace, sequence, remaining)
+                .await
+                .map_err(db_error)?;
+            if rows.is_empty() {
                 return Err(Error::RealtimeReset(Reset::ResetRequired));
             }
-            sequence = row.seq;
-            match store::stream_source(&mut tx, workspace, actor.user.id, &row)
-                .await
-                .map_err(db_error)?
-            {
-                store::StreamSource::Hidden => {}
-                store::StreamSource::ScopeReset => {
-                    return Err(Error::RealtimeReset(Reset::ScopeChanged));
+            for row in rows {
+                if row.seq != sequence + 1 {
+                    return Err(Error::RealtimeReset(Reset::ResetRequired));
                 }
-                store::StreamSource::Visible(entity_type) => frames.push(RealtimeFrame {
-                    cursor: self.realtime_cursor(actor, workspace, epoch, row.seq)?,
-                    event: RealtimeInvalidation {
-                        event_id: row.event_id,
-                        schema_version: 1,
-                        event_type: row.event_type,
-                        workspace_id: workspace,
-                        entity_type: entity_type.into(),
-                        entity_id: row.entity_id,
-                        entity_version: row.entity_version.to_string(),
-                        actor_id: None,
-                        occurred_at: row.occurred_at,
-                        mutation_id: row.mutation_id,
-                        changed_fields: Vec::new(),
-                    },
-                }),
+                match store::stream_source(&mut tx, workspace, actor.user.id, &row)
+                    .await
+                    .map_err(db_error)?
+                {
+                    store::StreamSource::Hidden => {}
+                    store::StreamSource::ScopeReset => {
+                        return Err(Error::RealtimeReset(Reset::ScopeChanged));
+                    }
+                    store::StreamSource::Visible(entity_type) => {
+                        if frames.len() == limit as usize {
+                            // Do not acknowledge the next visible event. Its
+                            // current authority is rechecked by the next page.
+                            has_more = true;
+                            break;
+                        }
+                        frames.push(RealtimeFrame {
+                            cursor: self.realtime_cursor(actor, workspace, epoch, row.seq)?,
+                            event: RealtimeInvalidation {
+                                event_id: row.event_id,
+                                schema_version: 1,
+                                event_type: row.event_type,
+                                workspace_id: workspace,
+                                entity_type: entity_type.into(),
+                                entity_id: row.entity_id,
+                                entity_version: row.entity_version.to_string(),
+                                actor_id: None,
+                                occurred_at: row.occurred_at,
+                                mutation_id: row.mutation_id,
+                                changed_fields: Vec::new(),
+                            },
+                        });
+                    }
+                }
+                sequence = row.seq;
             }
-        }
-        if sequence == cursor.sequence && head > sequence {
-            return Err(Error::RealtimeReset(Reset::ResetRequired));
         }
         tx.commit().await.map_err(db_error)?;
         Ok(RealtimeBatch {
             frames,
             cursor: self.realtime_cursor(actor, workspace, epoch, sequence)?,
-            has_more: sequence < head,
+            has_more,
             epoch,
             advanced: sequence != cursor.sequence,
         })
