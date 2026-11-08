@@ -205,12 +205,15 @@ impl App {
             None
         };
         let unread_count = inbox_count(&mut tx, w, actor.user.id, now).await?;
+        let next_snoozed_at = sqlx::query_scalar("SELECT min(snoozed_until) FROM notifications WHERE workspace_id=$1 AND user_id=$2 AND archived_at IS NULL AND snoozed_until>$3")
+            .bind(w).bind(actor.user.id).bind(now).fetch_one(&mut *tx).await.map_err(db_error)?;
         tx.commit().await.map_err(db_error)?;
         Ok(NotificationPage {
             items,
             next_cursor,
             snapshot,
             unread_count,
+            next_snoozed_at,
         })
     }
 

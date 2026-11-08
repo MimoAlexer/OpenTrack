@@ -93,6 +93,9 @@ pub struct NotificationPage {
     /// Signed, recipient-scoped upper bound for mark-read. Treat as opaque.
     pub snapshot: String,
     pub unread_count: i64,
+    /// Next nonarchived snooze expiry, including read items outside this filter.
+    #[schema(required = true)]
+    pub next_snoozed_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

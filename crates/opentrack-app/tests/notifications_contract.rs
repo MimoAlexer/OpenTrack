@@ -40,6 +40,20 @@ async fn seed(
     ids
 }
 
+async fn invalidation_count(h: &Harness, owner: &Actor, w: Uuid, recipient: &Actor) -> i64 {
+    let mut tx = h.context(owner.user.id, w).await;
+    let count = sqlx::query_scalar(
+        "SELECT count(*) FROM notification_invalidations WHERE workspace_id=$1 AND user_id=$2",
+    )
+    .bind(w)
+    .bind(recipient.user.id)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    count
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn real_postgres_notifications_recipient_snapshot_race_and_snooze() {
     let h = Harness::new().await;
@@ -145,10 +159,34 @@ async fn snapshot_and_snooze(h: &Harness) {
     let late: Uuid = sqlx::query_scalar("INSERT INTO notifications(workspace_id,user_id,inbox_seq,event_id,event_seq,entity_kind,entity_id,reason,origin_team_id,actor_id) SELECT $1,$2,$3,e.event_id,e.seq,'issue',$4,'assignment',$5,$6 FROM workspace_events e WHERE e.workspace_id=$1 AND e.entity_id=$4 AND e.event_type='issue.created' ORDER BY e.seq LIMIT 1 RETURNING id")
         .bind(w).bind(recipient.user.id).bind(delivered).bind(source.id).bind(t).bind(owner.user.id).fetch_one(&mut *arrival).await.unwrap();
     arrival.commit().await.unwrap();
+    let continuation = h
+        .app
+        .notifications(
+            &recipient,
+            w,
+            NotificationQuery {
+                filter: Some(NotificationFilter::Unread),
+                limit: Some(2),
+                cursor: page.next_cursor.clone(),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(continuation.snapshot, page.snapshot);
+    assert_eq!(
+        continuation
+            .items
+            .iter()
+            .map(|item| item.seq.as_str())
+            .collect::<Vec<_>>(),
+        vec!["99", "98"]
+    );
+    assert!(continuation.items.iter().all(|item| item.id != late));
     gate.commit().await.unwrap();
     let first = pending.await.unwrap().unwrap();
     assert_eq!(first.updated_count, 100);
     assert!(first.has_more);
+    assert_eq!(invalidation_count(h, &owner, w, &recipient).await, 1);
     let second = h
         .app
         .mark_notifications_read(
@@ -163,6 +201,7 @@ async fn snapshot_and_snooze(h: &Harness) {
     assert_eq!(second.updated_count, 1);
     assert!(!second.has_more);
     assert_eq!(second.unread_count, 1);
+    assert_eq!(invalidation_count(h, &owner, w, &recipient).await, 2);
     let replay = h
         .app
         .mark_notifications_read(
@@ -176,6 +215,7 @@ async fn snapshot_and_snooze(h: &Harness) {
         .unwrap();
     assert_eq!(replay.updated_count, 0);
     assert_eq!(replay.unread_count, 1);
+    assert_eq!(invalidation_count(h, &owner, w, &recipient).await, 2);
     let continued = h
         .app
         .notifications(
@@ -204,6 +244,38 @@ async fn snapshot_and_snooze(h: &Harness) {
         .await
         .unwrap();
     assert_eq!(unchanged.version, item.version);
+    assert_eq!(invalidation_count(h, &owner, w, &recipient).await, 2);
+    fault(h, "notification_invalidations", "INSERT").await;
+    assert!(
+        h.app
+            .update_notification(
+                &recipient,
+                w,
+                late,
+                &item.etag,
+                action(NotificationAction::Read)
+            )
+            .await
+            .is_err()
+    );
+    clear(h, "notification_invalidations").await;
+    let rolled_back = h
+        .app
+        .notifications(&recipient, w, query(NotificationFilter::Unread))
+        .await
+        .unwrap();
+    assert_eq!(rolled_back.items[0].version, item.version);
+    assert!(rolled_back.items[0].read_at.is_none());
+    assert_eq!(invalidation_count(h, &owner, w, &recipient).await, 2);
+    // Publication may remain behind saturated stream admission; processing the
+    // personal inbox still commits its durable private invalidation intent.
+    let mut saturation = h.context(owner.user.id, w).await;
+    sqlx::query("UPDATE workspace_stream_heads SET max_pending_events=1 WHERE workspace_id=$1")
+        .bind(w)
+        .execute(&mut *saturation)
+        .await
+        .unwrap();
+    saturation.commit().await.unwrap();
     let before_source =
         serde_json::to_value(h.app.get_issue(&owner, w, source.id).await.unwrap()).unwrap();
     let until = Utc::now() + Duration::milliseconds(700);
@@ -254,6 +326,7 @@ async fn snapshot_and_snooze(h: &Harness) {
         .await
         .unwrap();
     assert_eq!(repeated.version, item.version);
+    assert_eq!(invalidation_count(h, &owner, w, &recipient).await, 3);
     tokio::time::sleep(std::time::Duration::from_millis(750)).await;
     let returned = h
         .app
@@ -664,4 +737,32 @@ async fn project_and_comment(h: &Harness) {
             .await,
         Err(Error::NotFound)
     ));
+}
+
+#[tokio::test]
+async fn real_postgres_notification_next_snooze_deadline_includes_read_and_excludes_archive() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let result = tokio::spawn(async move {
+        let (owner,w,t) = setup(&copy).await;
+        let recipient = person(&copy,&owner,w,"viewer").await;
+        let source = issue(&copy,&owner,w,t,json!({})).await;
+        seed(&copy,&owner,&recipient,w,&source,t,2).await;
+        let due = chrono::DateTime::from_timestamp_micros((Utc::now()+Duration::milliseconds(700)).timestamp_micros()).unwrap();
+        let mut tx = copy.context(owner.user.id,w).await;
+        sqlx::query("UPDATE notifications SET read_at=clock_timestamp(),snoozed_until=CASE WHEN inbox_seq=2 THEN $3+interval '1 hour' ELSE $3 END,archived_at=CASE WHEN inbox_seq=2 THEN clock_timestamp() END,version=version+1 WHERE workspace_id=$1 AND user_id=$2")
+            .bind(w).bind(recipient.user.id).bind(due).execute(&mut *tx).await.unwrap();
+        tx.commit().await.unwrap();
+        let upcoming = copy.app.notifications(&recipient,w,query(NotificationFilter::Unread)).await.unwrap();
+        assert!(upcoming.items.is_empty());
+        assert_eq!(serde_json::to_value(upcoming).unwrap().get("next_snoozed_at"),Some(&json!(due)));
+        tokio::time::sleep(std::time::Duration::from_millis(750)).await;
+        let returned = copy.app.notifications(&recipient,w,query(NotificationFilter::All)).await.unwrap();
+        assert_eq!(returned.items.len(),1);
+        assert_eq!(serde_json::to_value(returned).unwrap().get("next_snoozed_at"),Some(&serde_json::Value::Null));
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
 }

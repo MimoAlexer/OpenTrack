@@ -195,6 +195,7 @@ async fn exercise(h: &Harness) {
     assert_eq!(page.body["items"][0]["version"], "1");
     assert_eq!(page.body["next_cursor"], Value::Null);
     assert_eq!(page.body["unread_count"], 1);
+    assert_eq!(page.body.get("next_snoozed_at"), Some(&Value::Null));
     assert!(!page.headers.contains_key("etag"));
     assert_eq!(page.body["items"][0]["source"]["available"], false);
     assert!(page.body["items"][0]["source"].get("title").is_none());
@@ -419,6 +420,12 @@ fn notification_openapi_preserves_private_commands_and_decimal_counters() {
     assert_eq!(
         schemas["NotificationFilter"]["enum"],
         json!(["unread", "all", "archived", "snoozed"])
+    );
+    assert!(
+        schemas["NotificationPage"]["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("next_snoozed_at"))
     );
     let paths = &doc["paths"];
     for (path, method) in [
