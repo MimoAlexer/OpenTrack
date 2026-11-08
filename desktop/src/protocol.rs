@@ -118,6 +118,11 @@ impl ApiRequest {
         {
             return Err(NativeError::invalid());
         }
+        if issue_query_request(self.method, &self.path)
+            && self.query.as_deref().is_some_and(|query| !query.is_empty())
+        {
+            return Err(NativeError::invalid());
+        }
         let mut headers = BTreeMap::new();
         let mut names = BTreeSet::new();
         for (name, value) in self.headers {
@@ -147,6 +152,7 @@ impl ApiRequest {
             || self.path.ends_with("/issues")
             || self.path.split('/').any(|segment| segment == "templates")
             || project_narrative_request(self.method, &self.path)
+            || issue_query_request(self.method, &self.path)
         {
             1024 * 1024
         } else if project_update_request(self.method, &self.path) {
@@ -193,6 +199,12 @@ fn project_narrative_request(method: Method, path: &str) -> bool {
         _ => false,
     }
 }
+fn issue_query_request(method: Method, path: &str) -> bool {
+    matches!(
+        path.split('/').collect::<Vec<_>>().as_slice(),
+        ["", "api", "v1", "workspaces", _, "issues", "query"]
+    ) && method == Method::Post
+}
 fn project_update_request(method: Method, path: &str) -> bool {
     method == Method::Post
         && matches!(
@@ -229,6 +241,7 @@ fn workspace_route(method: Method, path: &[&str]) -> bool {
     match path {
         [] => matches!(method, Get | Patch),
         ["access" | "bootstrap"] => method == Get,
+        ["issues", "query"] => method == Post,
         ["invitations" | "issues" | "labels" | "teams"] => matches!(method, Get | Post),
         ["members" | "mention-candidates" | "issue-reference-candidates"] => method == Get,
         ["attachments"] => matches!(method, Get | Post),
@@ -268,6 +281,93 @@ fn workspace_route(method: Method, path: &[&str]) -> bool {
         ["issues", issue, "move" | "restore" | "position"] => id(issue) && method == Post,
         ["teams", team, rest @ ..] if id(team) => team_route(method, rest),
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod structured_issue_query_tests {
+    use super::*;
+
+    fn request(method: Method, suffix: &str) -> ApiRequest {
+        ApiRequest {
+            expected_generation: "7".into(),
+            method,
+            path: format!("/api/v1/workspaces/00000000-0000-0000-0000-000000000001/{suffix}"),
+            query: None,
+            headers: BTreeMap::new(),
+            body: Some(
+                serde_json::from_str(include_str!(
+                    "../../crates/opentrack-domain/tests/fixtures/issue-query-v1.json"
+                ))
+                .unwrap(),
+            ),
+        }
+    }
+
+    #[test]
+    fn structured_issue_query_is_an_exact_body_only_post_route() {
+        assert!(request(Method::Post, "issues/query").check().is_ok());
+        for method in [Method::Get, Method::Put, Method::Patch, Method::Delete] {
+            assert!(request(method, "issues/query").check().is_err());
+        }
+        for suffix in [
+            "search/query",
+            "issues/query/",
+            "issues/query/extra",
+            "issues/%71uery",
+            "issues/QUERY",
+        ] {
+            assert!(request(Method::Post, suffix).check().is_err());
+        }
+        for query in ["q=restricted", "cursor=opaque", "unknown=value", "q="] {
+            let mut value = request(Method::Post, "issues/query");
+            value.query = Some(query.into());
+            assert!(value.check().is_err());
+        }
+        let mut noncanonical = request(Method::Post, "issues/query");
+        noncanonical.path = noncanonical
+            .path
+            .replace("00000000-0000-0000-0000-000000000001", "not-a-uuid");
+        assert!(noncanonical.check().is_err());
+    }
+
+    #[test]
+    fn maximum_valid_structured_shape_fits_without_reducing_any_budget() {
+        let values = (1..=100)
+            .map(|value| Uuid::from_u128(value).to_string())
+            .collect::<Vec<_>>();
+        let children = (0..50)
+            .map(|_| {
+                serde_json::json!({
+                    "kind":"any","children":[{"kind":"all","children":[{
+                        "kind":"predicate","field":"team","op":"in","values":values,
+                    }]}],
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut value = request(Method::Post, "issues/query");
+        value.body.as_mut().unwrap()["filter"] =
+            serde_json::json!({"kind":"all","children":children});
+        let checked = value.check().unwrap();
+        assert!(checked.body.unwrap().len() > 65536);
+    }
+
+    #[test]
+    fn query_body_budget_is_exact_and_keeps_ordinary_route_limits() {
+        for (method, suffix, limit) in [
+            (Method::Post, "issues/query", 1024 * 1024),
+            (Method::Patch, "preferences", 65536),
+        ] {
+            let overhead = serde_json::to_vec(&serde_json::json!({"value":""}))
+                .unwrap()
+                .len();
+            let mut value = request(method, suffix);
+            value.body = Some(serde_json::json!({"value":"x".repeat(limit-overhead)}));
+            assert_eq!(value.check().unwrap().body.unwrap().len(), limit);
+            let mut value = request(method, suffix);
+            value.body = Some(serde_json::json!({"value":"x".repeat(limit-overhead+1)}));
+            assert!(value.check().is_err());
+        }
     }
 }
 fn team_route(method: Method, path: &[&str]) -> bool {
