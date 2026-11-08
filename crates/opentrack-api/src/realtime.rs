@@ -42,6 +42,9 @@ pub struct RealtimeStats {
     /// High-water marks for one client, not sums across unrelated clients.
     pub max_queued_events: usize,
     pub max_queued_bytes: usize,
+    pub listener_connected: bool,
+    pub listener_connections: usize,
+    pub listener_reconnects: usize,
 }
 
 #[derive(Default)]
@@ -52,6 +55,9 @@ struct Metrics {
     overflowed: AtomicUsize,
     max_events: AtomicUsize,
     max_bytes: AtomicUsize,
+    listener_connected: AtomicBool,
+    listener_connections: AtomicUsize,
+    listener_reconnects: AtomicUsize,
 }
 
 #[derive(Default)]
@@ -106,8 +112,14 @@ impl RealtimeNode {
             overflowed_streams: m.overflowed.load(Ordering::Relaxed),
             max_queued_events: m.max_events.load(Ordering::Relaxed),
             max_queued_bytes: m.max_bytes.load(Ordering::Relaxed),
+            listener_connected: m.listener_connected.load(Ordering::Acquire),
+            listener_connections: m.listener_connections.load(Ordering::Relaxed),
+            listener_reconnects: m.listener_reconnects.load(Ordering::Relaxed),
         }
     }
+
+    #[doc(hidden)]
+    pub fn interrupt_listener(&self) {}
 
     /// Stop the listener and close streams with a recoverable reset. No cleanup
     /// task is spawned from Drop; producers release their own durable leases.
@@ -150,6 +162,7 @@ impl RealtimeNode {
         let app = self.app.clone();
         let wake = self.wake.clone();
         let mut shutdown = self.shutdown.subscribe();
+        let metrics = self.metrics.clone();
         tokio::spawn(async move {
             loop {
                 let listener = tokio::select! {
@@ -157,6 +170,7 @@ impl RealtimeNode {
                     result = app.listen_realtime() => result,
                 };
                 if let Ok(mut listener) = listener {
+                    let _connected = ListenerConnection::new(metrics.clone());
                     loop {
                         let received = tokio::select! {
                             _ = stopped(&mut shutdown) => return,
@@ -177,6 +191,24 @@ impl RealtimeNode {
                 }
             }
         });
+    }
+}
+
+struct ListenerConnection(Arc<Metrics>);
+
+impl ListenerConnection {
+    fn new(metrics: Arc<Metrics>) -> Self {
+        if metrics.listener_connections.fetch_add(1, Ordering::Relaxed) > 0 {
+            metrics.listener_reconnects.fetch_add(1, Ordering::Relaxed);
+        }
+        metrics.listener_connected.store(true, Ordering::Release);
+        Self(metrics)
+    }
+}
+
+impl Drop for ListenerConnection {
+    fn drop(&mut self) {
+        self.0.listener_connected.store(false, Ordering::Release);
     }
 }
 
