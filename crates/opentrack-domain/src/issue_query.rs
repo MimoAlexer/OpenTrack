@@ -67,7 +67,10 @@ impl IssueQuery {
             ));
         }
         if !(1..=100).contains(&self.limit)
-            || self.q.as_ref().is_some_and(|q| q.chars().count() > 256)
+            || self
+                .q
+                .as_ref()
+                .is_some_and(|q| q.chars().count() > 256 || q.contains('\0'))
             || self
                 .cursor
                 .as_ref()
@@ -335,7 +338,9 @@ fn validate_value(field: IssueQueryField, value: &IssueQueryValue) -> Result<()>
                     && (value.len() == 10
                         && NaiveDate::parse_from_str(value, "%Y-%m-%d").is_ok()
                         || field != IssueQueryField::DueDate
-                            && DateTime::parse_from_rfc3339(value).is_ok()) =>
+                            && DateTime::parse_from_rfc3339(value).is_ok_and(|time| {
+                                time.timestamp_subsec_nanos().is_multiple_of(1000)
+                            })) =>
             {
                 Ok(())
             }
@@ -376,6 +381,7 @@ mod tests {
             json!({"kind":"predicate","field":"priority","op":"is_null","value":true}),
             json!({"kind":"predicate","field":"due_date","op":"eq","value":"2026-13-01"}),
             json!({"kind":"predicate","field":"due_date","op":"eq","value":"2026-01-01T12:00:00Z"}),
+            json!({"kind":"predicate","field":"created_at","op":"eq","value":"2026-01-01T12:00:00.000000001Z"}),
             json!({"kind":"predicate","field":"assignee","op":"eq","value":null}),
             json!({"kind":"predicate","field":"priority","op":"in","values":[]}),
             json!({"kind":"predicate","field":"priority","op":"eq","value":1,"values":[]}),
@@ -403,6 +409,10 @@ mod tests {
                 .collect(),
         };
         maximum.validate().unwrap();
+        let too_many_predicates = IssueFilterNode::All {
+            children: (0..51).map(|_| predicate()).collect(),
+        };
+        assert!(too_many_predicates.validate().is_err());
         let extra = IssueFilterNode::All {
             children: vec![maximum.clone(), predicate()],
         };

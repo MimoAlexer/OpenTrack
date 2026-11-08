@@ -94,7 +94,7 @@ async fn between(
         .bind(after.map(|row|row.rank.as_str())).bind(before.map(|row|row.rank.as_str())).fetch_one(&mut **tx).await.map_err(db_error)
 }
 
-async fn order_version(tx: &mut store::Tx, w: Uuid, t: Uuid) -> Result<String> {
+pub(crate) async fn order_version(tx: &mut store::Tx, w: Uuid, t: Uuid) -> Result<String> {
     let (order, workflow): (i64, i64) = sqlx::query_as(
         "SELECT ordering_version,workflow_version FROM teams WHERE workspace_id=$1 AND id=$2",
     )

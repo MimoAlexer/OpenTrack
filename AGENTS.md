@@ -10,7 +10,7 @@ The user explicitly activated the goal to implement the complete OpenTrack produ
 
 Read docs/IMPLEMENTATION_PLAN.md and docs/REQUIREMENTS_STATUS.md for scope and evidence. A requirement becomes complete only after implementation and acceptance evidence are recorded. Historical Phase 0 verification remains historical; an HTML preview, successful build or planning document is not proof of application behavior.
 
-The user requested protection on `main` and explicitly authorized merging verified pull requests. The current account plan does not support the requested branch protection; enforce all four configured checks and resolved review conversations manually at the exact reviewed head. Agent 5 alone merges under the integration lock using the neutral-identity helper. Continue focused commits and feature-branch pushes without repeated approval requests; never weaken checks or claim unavailable protection exists.
+The user requested protection on `main` and explicitly authorized merging verified pull requests. Since 8 November 2026, `main` enforces all four configured GitHub Actions checks, current-base status and resolved review conversations, including for administrators; force pushes and deletion are disabled. The coordinating agent owns integration and verifies the exact reviewed head before advancing `main`, preserving non-personal commit identity. Continue focused commits and feature-branch pushes without repeated approval requests; never weaken protection or substitute a different commit for the verified head.
 
 ## Privacy and execution boundaries
 

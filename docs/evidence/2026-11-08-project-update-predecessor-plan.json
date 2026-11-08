@@ -1,0 +1,27 @@
+{
+  "fixture_rows": 5000,
+  "rolled_back": true,
+  "scans": [
+    {
+      "Node Type": "Index Scan",
+      "Index Name": "project_updates_feed",
+      "Subplan Name": null,
+      "Actual Rows": 26.0,
+      "Actual Loops": 1
+    },
+    {
+      "Node Type": "Index Scan",
+      "Index Name": "users_pkey",
+      "Subplan Name": null,
+      "Actual Rows": 1.0,
+      "Actual Loops": 1
+    },
+    {
+      "Node Type": "Index Scan",
+      "Index Name": "project_updates_feed",
+      "Subplan Name": null,
+      "Actual Rows": 1.0,
+      "Actual Loops": 26
+    }
+  ]
+}
