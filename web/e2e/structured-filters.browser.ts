@@ -36,7 +36,7 @@ test('structured filters preserve saved results, local-day intent, detail naviga
   await builder.getByRole('combobox', { name: 'Condition 1.2 field', exact: true }).selectOption('due_date');
   await builder.getByRole('combobox', { name: 'Condition 1.2 operator', exact: true }).selectOption('before');
   await builder.getByRole('combobox', { name: 'Condition 1.2 date 1 meaning', exact: true }).selectOption('date');
-  await builder.getByRole('textbox', { name: 'Query timezone', exact: true }).fill('Europe/Zurich');
+  await builder.getByRole('combobox', { name: 'Query timezone', exact: true }).fill('Europe/Zurich');
   await builder.locator('input[aria-label="Condition 1.2 date 1 value"]').fill('2026-03-29');
   const posted = postedQuery(page, saved);
   await builder.getByRole('button', { name: 'Apply filters', exact: true }).click();
