@@ -137,14 +137,9 @@ pub(crate) async fn delete(
     Path((w, id)): Path<(Uuid, Uuid)>,
     h: HeaderMap,
 ) -> Result<StatusCode, ApiError> {
-    match s.app.discovery(&a, w, id).await {
-        Ok(item) if item.kind != route_kind(&uri) => return Err(Error::NotFound.into()),
-        Ok(_) | Err(Error::NotFound) => {}
-        Err(error) => return Err(error.into()),
-    }
     csrf(&s, &h, &a)?;
     s.app
-        .delete_discovery(&a, w, id, tag(&h)?, key(&h)?)
+        .delete_discovery(&a, w, id, route_kind(&uri), tag(&h)?, key(&h)?)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }

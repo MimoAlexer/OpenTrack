@@ -36,12 +36,17 @@ async fn authorized_definition(
     item: &mut SavedDiscovery,
 ) -> Result<()> {
     if let Some(definition) = &item.definition {
-        match issue_query::validate_targets(tx, a, w, &definition.query).await {
+        let validation = async {
+            issue_query::query_clock(tx, &definition.query.timezone).await?;
+            issue_query::validate_targets(tx, a, w, &definition.query).await
+        }
+        .await;
+        match validation {
             Ok(()) => {}
             Err(Error::Invalid(_)) => {
                 item.definition = None;
                 item.repair_required = Some(
-                    "A saved filter value is unavailable; ask an editor to repair this definition"
+                    "Saved filters or their query timezone are unavailable; ask an editor to repair this definition"
                         .into(),
                 );
             }
@@ -255,6 +260,7 @@ impl App {
             etag: String::new(),
         };
         write_scope(&mut tx, a, w, &provisional).await?;
+        issue_query::query_clock(&mut tx, &request.definition.query.timezone).await?;
         issue_query::validate_targets(&mut tx, a, w, &request.definition.query).await?;
         // Lock even the first insert so concurrent creates cannot pass the cap together.
         sqlx::query(
@@ -313,6 +319,7 @@ impl App {
         }
         if replay.is_none() {
             lifecycle::version(etag, &old.etag, &old)?;
+            issue_query::query_clock(&mut tx, &request.definition.query.timezone).await?;
             issue_query::validate_targets(&mut tx, a, w, &request.definition.query).await?;
             graph::one(sqlx::query("UPDATE saved_discoveries SET name=$3,definition=$4,version=version+1,updated_at=clock_timestamp() WHERE workspace_id=$1 AND id=$2").bind(w).bind(id).bind(request.name).bind(serde_json::to_value(request.definition).map_err(|_|Error::Internal)?).execute(&mut *tx).await.map_err(db_error)?.rows_affected())?;
             lifecycle::save_retry(&mut tx, w, a.user.id, &route, &kh, &id).await?;
@@ -328,11 +335,12 @@ impl App {
         a: &Actor,
         w: Uuid,
         id: Uuid,
+        kind: DiscoveryKind,
         etag: &str,
         key: &str,
     ) -> Result<()> {
-        let (kh, rh) = lifecycle::request_hash(key, &json!([id, etag]))?;
-        let route = format!("discovery-delete:{id}");
+        let (kh, rh) = lifecycle::request_hash(key, &json!([kind, id, etag]))?;
+        let route = format!("discovery-delete:{}:{id}", kind.as_str());
         let mut tx = self.scoped(a, w, false).await?;
         let replay = lifecycle::retry::<bool>(&mut tx, w, a.user.id, &route, &kh, &rh).await?;
         lock_personal(&mut tx, w, a.user.id).await?;
@@ -346,6 +354,9 @@ impl App {
             .await
             .map_err(db_error)?;
             let item = read(&mut tx, a, w, id).await?;
+            if item.kind != kind {
+                return Err(Error::NotFound);
+            }
             write_scope(&mut tx, a, w, &item).await?;
             lifecycle::version(etag, &item.etag, &item)?;
             graph::one(
@@ -480,17 +491,7 @@ impl App {
             .map_err(db_error)?;
         issue_query::validate_targets(tx, a, w, &request.query).await?;
         let epoch = store::auth_epoch(tx, w).await.map_err(db_error)?;
-        let (as_of, valid_zone): (chrono::DateTime<chrono::Utc>, bool) = sqlx::query_as(
-            "SELECT statement_timestamp(),EXISTS(SELECT 1 FROM pg_timezone_names WHERE name=$1)",
-        )
-        .bind(&request.query.timezone)
-        .fetch_one(&mut **tx)
-        .await
-        .map_err(db_error)?;
-        if !valid_zone || !(request.query.timezone == "UTC" || request.query.timezone.contains('/'))
-        {
-            return Err(Error::Invalid("Choose a valid IANA query timezone".into()));
-        }
+        let as_of = issue_query::query_clock(tx, &request.query.timezone).await?;
         let cursor = request.query.cursor.take();
         let binding = format!(
             "{w}:{}:{epoch}:{}",

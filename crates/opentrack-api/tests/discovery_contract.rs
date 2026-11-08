@@ -330,4 +330,57 @@ async fn exercise(h: &Harness) {
         .await
         .expect(StatusCode::NO_CONTENT);
     }
+    request(
+        r,
+        Some(&a),
+        "DELETE",
+        &format!("{base}/views/{id}"),
+        None,
+        &[
+            ("if-match", renamed.etag()),
+            ("idempotency-key", "http-delete-1"),
+        ],
+    )
+    .await
+    .problem(StatusCode::NOT_FOUND, "not_found");
+    let view_body = json!({"name":"Canonical view","kind":"view","visibility":"personal","definition":renamed.body["definition"]});
+    let view = request(
+        r,
+        Some(&a),
+        "POST",
+        &format!("{base}/views"),
+        Some(view_body),
+        &[("idempotency-key", "http-delete-view-create")],
+    )
+    .await;
+    view.expect(StatusCode::CREATED);
+    let view_id = view.body["id"].as_str().unwrap();
+    for _ in 0..2 {
+        request(
+            r,
+            Some(&a),
+            "DELETE",
+            &format!("{base}/views/{view_id}"),
+            None,
+            &[
+                ("if-match", view.etag()),
+                ("idempotency-key", "http-delete-view-1"),
+            ],
+        )
+        .await
+        .expect(StatusCode::NO_CONTENT);
+    }
+    request(
+        r,
+        Some(&a),
+        "DELETE",
+        &format!("{base}/saved-searches/{view_id}"),
+        None,
+        &[
+            ("if-match", view.etag()),
+            ("idempotency-key", "http-delete-view-1"),
+        ],
+    )
+    .await
+    .problem(StatusCode::NOT_FOUND, "not_found");
 }

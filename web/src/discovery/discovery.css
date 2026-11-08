@@ -12,3 +12,7 @@
 .discovery-results li p { white-space:pre-wrap; color:var(--secondary); }
 .discovery-results.pending { opacity:.6; }
 }
+@layer components {
+  .discovery-content > *, .discovery .notice { min-width: 0; }
+  .discovery pre { max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+}

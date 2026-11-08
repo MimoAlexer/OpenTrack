@@ -102,6 +102,22 @@ pub(crate) async fn validate_targets(
     Ok(())
 }
 
+pub(crate) async fn query_clock(tx: &mut store::Tx, timezone: &str) -> Result<DateTime<Utc>> {
+    let (as_of, valid_zone): (DateTime<Utc>, bool) = sqlx::query_as(
+        "SELECT statement_timestamp(),EXISTS(SELECT 1 FROM pg_timezone_names WHERE name=$1)",
+    )
+    .bind(timezone)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(db_error)?;
+    if !valid_zone || !(timezone == "UTC" || timezone.contains('/')) {
+        return Err(Error::Invalid(
+            "Choose a valid IANA query timezone, such as UTC or Europe/Zurich".into(),
+        ));
+    }
+    Ok(as_of)
+}
+
 impl App {
     pub async fn query_issues(
         &self,
@@ -135,18 +151,7 @@ impl App {
         }
         let epoch = store::auth_epoch(tx, workspace).await.map_err(db_error)?;
         validate_targets(tx, actor, workspace, &query).await?;
-        let (as_of, valid_zone): (DateTime<Utc>, bool) = sqlx::query_as(
-            "SELECT statement_timestamp(),EXISTS(SELECT 1 FROM pg_timezone_names WHERE name=$1)",
-        )
-        .bind(&query.timezone)
-        .fetch_one(&mut **tx)
-        .await
-        .map_err(db_error)?;
-        if !valid_zone || !(query.timezone == "UTC" || query.timezone.contains('/')) {
-            return Err(Error::Invalid(
-                "Choose a valid IANA query timezone, such as UTC or Europe/Zurich".into(),
-            ));
-        }
+        let as_of = query_clock(tx, &query.timezone).await?;
         let manual = query.sort == IssueQuerySort::Manual;
         let order_version = if manual {
             let team = query.team_id.ok_or(Error::Internal)?;

@@ -104,7 +104,14 @@ async fn exercise(h: &Harness) {
     ));
     assert!(matches!(
         h.app
-            .delete_discovery(&b, w, created.id, &created.etag, "delete-other-1")
+            .delete_discovery(
+                &b,
+                w,
+                created.id,
+                DiscoveryKind::Search,
+                &created.etag,
+                "delete-other-1"
+            )
             .await,
         Err(Error::NotFound)
     ));
@@ -170,11 +177,25 @@ async fn exercise(h: &Harness) {
     assert!(repaired.repair_required.is_none());
     assert!(repaired.favorite);
     h.app
-        .delete_discovery(&a, w, created.id, &repaired.etag, "delete-search-1")
+        .delete_discovery(
+            &a,
+            w,
+            created.id,
+            DiscoveryKind::Search,
+            &repaired.etag,
+            "delete-search-1",
+        )
         .await
         .unwrap();
     h.app
-        .delete_discovery(&a, w, created.id, &repaired.etag, "delete-search-1")
+        .delete_discovery(
+            &a,
+            w,
+            created.id,
+            DiscoveryKind::Search,
+            &repaired.etag,
+            "delete-search-1",
+        )
         .await
         .unwrap();
     assert!(
@@ -556,10 +577,10 @@ async fn shared_view_events_keep_current_authority_after_deletion_and_roll_back_
         assert!(!store::discovery_event_visible(&mut tx,w,b.user.id,"view.created",saved.id).await.unwrap());tx.rollback().await.unwrap();
         grant(h,&a,w,private,b.user.id).await;
         fault(h,"workspace_events","INSERT").await;
-        assert!(h.app.delete_discovery(&a,w,saved.id,&saved.etag,"shared-event-delete").await.is_err());
+        assert!(h.app.delete_discovery(&a,w,saved.id,DiscoveryKind::View,&saved.etag,"shared-event-delete").await.is_err());
         clear(h,"workspace_events").await;
         assert!(h.app.discovery(&a,w,saved.id).await.is_ok());
-        h.app.delete_discovery(&a,w,saved.id,&saved.etag,"shared-event-delete").await.unwrap();
+        h.app.delete_discovery(&a,w,saved.id,DiscoveryKind::View,&saved.etag,"shared-event-delete").await.unwrap();
         assert!(matches!(h.app.discovery(&a,w,saved.id).await,Err(Error::NotFound)));
         let mut tx=store::begin(&h.app.pool).await.unwrap();store::context(&mut tx,b.user.id,Some(w)).await.unwrap();
         assert!(store::discovery_event_visible(&mut tx,w,b.user.id,"view.deleted",saved.id).await.unwrap());
@@ -567,6 +588,58 @@ async fn shared_view_events_keep_current_authority_after_deletion_and_roll_back_
         let mut tx=h.context(a.user.id,w).await;sqlx::query("DELETE FROM team_members WHERE workspace_id=$1 AND team_id=$2 AND user_id=$3").bind(w).bind(private).bind(b.user.id).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
         let mut tx=store::begin(&h.app.pool).await.unwrap();store::context(&mut tx,b.user.id,Some(w)).await.unwrap();
         assert!(!store::discovery_event_visible(&mut tx,w,b.user.id,"view.deleted",saved.id).await.unwrap());tx.rollback().await.unwrap();
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn review_definitions_require_executable_timezones_and_legacy_state_is_repairable() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let result=tokio::spawn(async move {
+        let h=&copy;let(a,w,_)=setup(h).await;
+        for zone in ["Unknown/Zone","PST"] {
+            let mut d=definition("Invalid zone");d.definition.query.timezone=zone.into();
+            assert!(matches!(h.app.create_discovery(&a,w,&format!("invalid-zone-{zone}"),d).await,Err(Error::Invalid(_))),"saved non-executable timezone {zone}");
+        }
+        let mut d=definition("合法 café");d.definition.query.timezone="Europe/Zurich".into();
+        let current=h.app.create_discovery(&a,w,"valid-zone-create",d.clone()).await.unwrap();
+        h.app.execute_discovery(&a,w,current.id,None).await.unwrap();
+        d.definition.query.timezone="Unknown/Zone".into();
+        assert!(matches!(h.app.update_discovery(&a,w,current.id,&current.etag,"invalid-zone-update",d.clone()).await,Err(Error::Invalid(_))));
+        assert_eq!(h.app.discovery(&a,w,current.id).await.unwrap().etag,current.etag);
+        let mut tx=h.context(a.user.id,w).await;
+        sqlx::query("UPDATE saved_discoveries SET definition=jsonb_set(definition,'{query,timezone}','\"Unknown/Zone\"'),version=version+1 WHERE workspace_id=$1 AND id=$2").bind(w).bind(current.id).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+        let stale=h.app.discovery(&a,w,current.id).await.unwrap();assert!(stale.definition.is_none());assert!(stale.repair_required.is_some());
+        assert!(h.app.discoveries(&a,w,DiscoveryListQuery::default()).await.unwrap().data[0].definition.is_none());
+        assert!(matches!(h.app.execute_discovery(&a,w,current.id,None).await,Err(Error::Invalid(_))));
+        d.definition.query.timezone="America/New_York".into();
+        let repaired=h.app.update_discovery(&a,w,current.id,&stale.etag,"valid-zone-repair",d).await.unwrap();assert!(repaired.repair_required.is_none());
+        h.app.execute_discovery(&a,w,current.id,None).await.unwrap();
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn review_project_and_terms_match_across_current_title_and_body_with_acl() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let result=tokio::spawn(async move {
+        let h=&copy;let(a,w,t)=setup(h).await;let b=person(h,&a,w,"member").await;
+        let p=h.app.create_project(&a,w,t,"split-project-create",req(json!({"name":"quasar title","narrative":DocumentWrite::from_plain_text("nebula current body")}))).await.unwrap();
+        let private=team(h,&a,w,true).await;
+        h.app.create_project(&a,w,private,"split-private-project",req(json!({"name":"quasar hidden","narrative":DocumentWrite::from_plain_text("nebula private body")}))).await.unwrap();
+        let query=|q:&str|req::<SearchRequest>(json!({"query":{"version":1,"filter":null,"q":q},"types":["project"]}));
+        for q in ["quasar","nebula","quasar nebula"] {let rows=h.app.search(&b,w,query(q)).await.unwrap().data;assert_eq!(rows.len(),1,"{q}");assert_eq!(rows[0].id,p.id);}
+        h.app.update_project(&a,w,t,p.id,&p.etag,req(json!({"narrative":DocumentWrite::from_plain_text("replacement body")}))).await.unwrap();
+        assert!(h.app.search(&b,w,query("quasar nebula")).await.unwrap().data.is_empty());
+        assert_eq!(h.app.search(&b,w,query("quasar replacement")).await.unwrap().data[0].id,p.id);
     }).await;
     h.cleanup().await;
     if let Err(error) = result {

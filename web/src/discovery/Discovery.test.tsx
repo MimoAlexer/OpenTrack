@@ -14,10 +14,10 @@ const saved = { id: 'saved', name: 'Private saved work', kind: 'view', visibilit
 it('saves and reopens current filters and never retains private names across authority changes', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const mocked=vi.mocked(request);mocked.mockImplementation(async (path, options) => {
-    if (options?.method==='POST') return saved as never;
+    if (options?.method==='POST'||path.endsWith('/views/saved')) return saved as never;
     return {data:path.includes('/views')?[saved]:[],has_more:false,next_cursor:null} as never;
   });
-  const host=document.createElement('div');document.body.append(host);const root=createRoot(host);const apply=vi.fn();
+  const host=document.createElement('div');document.body.append(host);const root=createRoot(host);const apply=vi.fn(()=>true);
   try {
     await act(async()=>root.render(<Discovery workspaceId="workspace" scope="principal:1" session={session} view={view} teams={[]} apply={apply}/>));
     await openPanel(host);
@@ -49,7 +49,7 @@ it('renders snippets as text and aborts superseded search requests', async()=>{
 it('explicit save clears overrides while preserving saved display columns and grouping', async()=>{
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
   const mocked=vi.mocked(request);const custom={...saved,definition:{...saved.definition,group_by:'assignee',columns:['title','project']}};
-  mocked.mockImplementation(async(path,options)=>options?.method==='PATCH'?{...custom,definition:(options.body as {definition:unknown}).definition,version:'2',etag:'"v2"'} as never:{data:path.includes('/views')?[custom]:[],has_more:false,next_cursor:null} as never);
+  mocked.mockImplementation(async(path,options)=>path.endsWith('/views/saved')&&options?.method!=='PATCH'?custom as never:options?.method==='PATCH'?{...custom,definition:(options.body as {definition:unknown}).definition,version:'2',etag:'"v2"'} as never:{data:path.includes('/views')?[custom]:[],has_more:false,next_cursor:null} as never);
   const host=document.createElement('div');document.body.append(host);const root=createRoot(host);
   try {
     await act(async()=>root.render(<Discovery workspaceId="workspace" scope="principal:1" session={session} view={view} teams={[]} apply={()=>true}/>));await openPanel(host);
