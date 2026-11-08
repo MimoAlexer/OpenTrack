@@ -351,10 +351,7 @@ fn validate_value(field: IssueQueryField, value: &IssueQueryValue) -> Result<()>
                 if value.len() <= 64
                     && (value.len() == 10
                         && NaiveDate::parse_from_str(value, "%Y-%m-%d").is_ok()
-                        || field != IssueQueryField::DueDate
-                            && DateTime::parse_from_rfc3339(value).is_ok_and(|time| {
-                                time.timestamp_subsec_nanos().is_multiple_of(1000)
-                            })) =>
+                        || field != IssueQueryField::DueDate && exact_timestamp(value)) =>
             {
                 Ok(())
             }
@@ -362,6 +359,25 @@ fn validate_value(field: IssueQueryField, value: &IssueQueryValue) -> Result<()>
         };
     }
     Err(invalid_predicate())
+}
+
+fn exact_timestamp(value: &str) -> bool {
+    let Ok(time) = DateTime::parse_from_rfc3339(value) else {
+        return false;
+    };
+    // Chrono can retain leap seconds and silently consume fraction digits after
+    // its nanosecond precision. PostgreSQL timestamps cannot retain those
+    // distinctions. Inspect the original fraction before binding any instant.
+    if time.timestamp_subsec_nanos() >= 1_000_000_000 {
+        return false;
+    }
+    value.split_once('.').is_none_or(|(_, fraction)| {
+        fraction
+            .bytes()
+            .take_while(u8::is_ascii_digit)
+            .skip(6)
+            .all(|digit| digit == b'0')
+    })
 }
 
 #[cfg(test)]
@@ -498,5 +514,35 @@ mod tests {
             .validate()
             .is_err()
         );
+    }
+
+    #[test]
+    fn timestamp_operands_never_discard_significant_fraction_or_leap_seconds() {
+        for text in [
+            "2026-01-01T12:00:00.0000000001Z",
+            "2026-01-01T12:00:00.1234560001Z",
+            "2016-12-31T23:59:60Z",
+            "2017-01-01T00:59:60+01:00",
+        ] {
+            let node: IssueFilterNode = serde_json::from_value(json!({
+                "kind":"predicate","field":"created_at","op":"eq","value":text,
+            }))
+            .unwrap();
+            assert!(node.validate().is_err(), "lossy timestamp accepted: {text}");
+        }
+        for text in [
+            "2026-01-01T12:00:00.123456Z",
+            "2026-01-01T12:00:00.123456000000Z",
+            "2026-01-01T12:00:00.000000000000Z",
+            "2026-01-01T13:00:00.123456+01:00",
+            "2026-01-01T12:00:00.123456-00:00",
+            "2026-01-01T23:59:00+23:59",
+        ] {
+            let node: IssueFilterNode = serde_json::from_value(json!({
+                "kind":"predicate","field":"created_at","op":"eq","value":text,
+            }))
+            .unwrap();
+            node.validate().unwrap();
+        }
     }
 }
