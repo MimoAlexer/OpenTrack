@@ -1,5 +1,7 @@
 //! HTTP streams cross the blob boundary only between short authorized DB phases.
+mod admission;
 use crate::{ApiError, ApiState, Auth, csrf, payload};
+use admission::{TransferAdmission, TransferPermit};
 use axum::{
     Json, Router,
     body::{Body, Bytes},
@@ -17,10 +19,10 @@ use opentrack_domain::{
     Actor, Attachment, AttachmentLimits, AttachmentQuery, AttachmentState, CommentDelete,
     CreateAttachment, Error, Page,
 };
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 use tokio::{
     io::{AsyncRead, AsyncReadExt},
-    sync::{OwnedSemaphorePermit, Semaphore, mpsc},
+    sync::mpsc,
 };
 use tokio_util::io::StreamReader;
 use uuid::Uuid;
@@ -28,21 +30,18 @@ use uuid::Uuid;
 pub struct AttachmentService {
     pub store: LocalBlobStore,
     pub limits: AttachmentLimits,
-    slots: Arc<Semaphore>,
+    admission: TransferAdmission,
 }
 impl AttachmentService {
     pub fn new(store: LocalBlobStore, limits: AttachmentLimits) -> Self {
         Self {
             store,
             limits,
-            slots: Arc::new(Semaphore::new(8)),
+            admission: TransferAdmission::default(),
         }
     }
-    fn slot(&self) -> Result<OwnedSemaphorePermit, ApiError> {
-        self.slots
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| Error::RateLimited.into())
+    fn slot(&self, actor: &Actor, workspace: Uuid) -> Result<TransferPermit, ApiError> {
+        self.admission.slot(actor.user.id, workspace)
     }
 }
 fn service(s: &ApiState) -> Result<&AttachmentService, ApiError> {
@@ -147,7 +146,7 @@ pub(crate) async fn upload(
 ) -> Result<Response, ApiError> {
     csrf(&s, &headers, &a)?;
     let service = service(&s)?;
-    let _slot = service.slot()?;
+    let _slot = service.slot(&a, w)?;
     let length = headers
         .get(header::CONTENT_LENGTH)
         .and_then(|v| v.to_str().ok())
@@ -233,7 +232,7 @@ pub(crate) async fn finalize(
 ) -> Result<Response, ApiError> {
     csrf(&s, &headers, &a)?;
     let service = service(&s)?;
-    let _slot = service.slot()?;
+    let _slot = service.slot(&a, w)?;
     let current = s.app.attachment(&a, w, id).await?;
     if current.state == AttachmentState::Ready {
         return response(current, StatusCode::OK);
@@ -267,7 +266,7 @@ pub(crate) async fn download(
     Path((w, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Response, ApiError> {
     let service = service(&s)?;
-    let slot = service.slot()?;
+    let slot = service.slot(&a, w)?;
     let value = s.app.attachment_download(&a, w, id).await?;
     let expected = ExpectedBlob::from_hex(
         value.storage_key.parse().map_err(|_| Error::Internal)?,
@@ -305,7 +304,7 @@ pub(crate) async fn download(
 // deadline belongs to the producer, so an unpolled response cannot retain the
 // verified file lock or transfer permit indefinitely. The channel holds 128KiB,
 // plus one 64KiB chunk in the producer.
-fn bounded_download_body<R>(mut reader: R, permit: OwnedSemaphorePermit, deadline: Duration) -> Body
+fn bounded_download_body<R>(mut reader: R, permit: TransferPermit, deadline: Duration) -> Body
 where
     R: AsyncRead + Unpin + Send + 'static,
 {
@@ -400,31 +399,45 @@ mod tests {
     use super::*;
     #[tokio::test]
     async fn unpolled_download_releases_admission_at_deadline() {
-        let slots = Arc::new(Semaphore::new(1));
-        let permit = slots.clone().try_acquire_owned().unwrap();
+        let admission = TransferAdmission::default();
+        let user = Uuid::new_v4();
+        let workspace = Uuid::new_v4();
+        let permit = admission.slot(user, workspace).unwrap();
+        let second = admission.slot(user, workspace).unwrap();
         let body = bounded_download_body(
             std::io::Cursor::new(vec![42_u8; 512 * 1024]),
             permit,
             Duration::from_millis(20),
         );
-        assert_eq!(slots.available_permits(), 0);
-        let released = tokio::time::timeout(Duration::from_secs(1), slots.acquire()).await;
+        assert!(admission.slot(user, workspace).is_err());
+        let released = tokio::time::timeout(Duration::from_secs(1), async {
+            while admission.slot(user, workspace).is_err() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await;
         assert!(released.is_ok(), "unpolled body kept its transfer permit");
+        drop(second);
+        assert_eq!(admission.available(), 8);
         if let Ok(bytes) = axum::body::to_bytes(body, 512 * 1024).await {
             assert!(bytes.len() < 512 * 1024);
         }
     }
     #[tokio::test]
     async fn disconnected_download_releases_admission_without_waiting_for_deadline() {
-        let slots = Arc::new(Semaphore::new(1));
-        let permit = slots.clone().try_acquire_owned().unwrap();
+        let admission = TransferAdmission::default();
+        let permit = admission.slot(Uuid::new_v4(), Uuid::new_v4()).unwrap();
         let (reader, _writer) = tokio::io::duplex(1);
         let body = bounded_download_body(reader, permit, Duration::from_secs(180));
         drop(body);
         assert!(
-            tokio::time::timeout(Duration::from_secs(1), slots.acquire())
-                .await
-                .is_ok()
+            tokio::time::timeout(Duration::from_secs(1), async {
+                while admission.available() != 8 {
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .is_ok()
         );
     }
     #[test]

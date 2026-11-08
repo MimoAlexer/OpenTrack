@@ -9,7 +9,7 @@ use serde::Deserialize;
 use std::{
     collections::BTreeMap,
     env, fs,
-    net::SocketAddr,
+    net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
 };
 use toml::Value;
@@ -23,6 +23,7 @@ local_container = false
 listen = "127.0.0.1:8080"
 public_url = ""
 allowed_origins = []
+trusted_proxy_ips = []
 static_dir = "web/dist"
 [database]
 api_max_connections = 20
@@ -69,6 +70,7 @@ pub struct Server {
     pub listen: SocketAddr,
     pub public_url: String,
     pub allowed_origins: Vec<String>,
+    pub trusted_proxy_ips: Vec<IpAddr>,
     pub static_dir: PathBuf,
 }
 #[derive(Deserialize)]
@@ -281,6 +283,11 @@ impl Settings {
         origins.sort();
         origins.dedup();
         origins
+    }
+    pub fn secure_cookie(&self) -> Result<bool> {
+        Url::parse(&self.server.public_url)
+            .map(|url| url.scheme() == "https")
+            .map_err(|_| "Cannot determine cookie security from server.public_url".into())
     }
     pub fn database_url(&self, migrate: bool) -> Result<String> {
         let key = if migrate {
@@ -640,6 +647,23 @@ fn validate_values(root: &Value, sources: &BTreeMap<String, Source>, target: Act
                     spec.min.unwrap_or(i64::MIN),
                     spec.max.unwrap_or(i64::MAX)
                 ),
+            ));
+        }
+    }
+    if let Some(addresses) = get(root, "server.trusted_proxy_ips").and_then(Value::as_array) {
+        if addresses.len() > 64
+            || addresses.iter().any(|value| {
+                value
+                    .as_str()
+                    .and_then(|value| value.parse::<IpAddr>().ok())
+                    .map(|address| address.to_canonical())
+                    .is_none_or(|address| address.is_unspecified() || address.is_multicast())
+            })
+        {
+            return Err(error(
+                "server.trusted_proxy_ips",
+                source_for(sources, "server.trusted_proxy_ips"),
+                "expected at most 64 exact unicast IP addresses; hostnames, subnets and wildcard trust are unsupported",
             ));
         }
     }

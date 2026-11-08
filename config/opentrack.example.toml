@@ -9,6 +9,9 @@ environment = "development"
 listen = "127.0.0.1:8080"
 public_url = "http://127.0.0.1:8080"
 allowed_origins = ["http://127.0.0.1:5173", "http://localhost:5173"]
+# Trust only explicitly configured reverse-proxy socket addresses. The proxy
+# must replace X-OpenTrack-Client-IP with its direct client's IP address.
+trusted_proxy_ips = []
 static_dir = "web/dist"
 
 [database]

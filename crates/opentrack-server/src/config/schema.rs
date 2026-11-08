@@ -157,6 +157,11 @@ pub(super) const FIELDS: &[Field] = &[
         "Additional exact origins. The public origin is always included. Arrays replace rather than concatenate."
     ),
     f!(
+        "server.trusted_proxy_ips",
+        Strings,
+        "At most 64 exact proxy socket IPs allowed to supply one X-OpenTrack-Client-IP header. Empty by default. Proxies must replace inbound headers with their direct client's address. No hostnames, CIDRs or wildcard trust."
+    ),
+    f!(
         "server.static_dir",
         String,
         "Built frontend directory; production serving requires an absolute path. Development default is web/dist; migrations do not use it."

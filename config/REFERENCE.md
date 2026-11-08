@@ -25,6 +25,7 @@ Only these settings are implemented. Every explicitly selected TOML file require
 | `server.listen` | string | `"127.0.0.1:8080"` | — | no | Listener IP and port; default 127.0.0.1:8080. |
 | `server.public_url` | string | unset | — | no | Explicit HTTPS origin; loopback HTTP only in development/test. No credentials, path, query, or fragment. |
 | `server.allowed_origins` | string array | `[]` | — | no | Additional exact origins. The public origin is always included. Arrays replace rather than concatenate. |
+| `server.trusted_proxy_ips` | string array | `[]` | — | no | At most 64 exact proxy socket IPs allowed to supply one X-OpenTrack-Client-IP header. Empty by default. Proxies must replace inbound headers with their direct client's address. No hostnames, CIDRs or wildcard trust. |
 | `server.static_dir` | string | `"web/dist"` | — | no | Built frontend directory; production serving requires an absolute path. Development default is web/dist; migrations do not use it. |
 | `database.api_max_connections` | integer | `20` | 2–100 | no | Maximum connections in the API database pool. |
 | `database.url` | string | unset | — | yes; redacted | Runtime PostgreSQL URL supplied by environment only. Exclusive with database.url_file. |

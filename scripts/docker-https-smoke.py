@@ -162,6 +162,53 @@ class Qualification:
             return True
         return False
 
+    def authentication_admission(self, app, proxy):
+        network_name = self.project + "_proxy_ingress"
+        proxy_network = proxy["NetworkSettings"]["Networks"].get(network_name)
+        require(proxy_network is not None, "HTTPS proxy has no dedicated ingress network")
+        proxy_address = proxy_network["IPAddress"]
+        environment = dict(value.split("=", 1) for value in app["Config"]["Env"])
+        require(json.loads(environment.get("OPENTRACK__SERVER__TRUSTED_PROXY_IPS", "[]")) == [proxy_address],
+                "The API proxy trust does not match the proxy's actual socket address")
+        clients = []
+        try:
+            for suffix in ("first", "second"):
+                result = self.command([
+                    "docker", "run", "--detach", "--name", self.project + "-admission-" + suffix,
+                    "--network", network_name, "--read-only", "--cap-drop", "ALL",
+                    "--security-opt", "no-new-privileges:true", "--tmpfs", "/tmp:size=1m,mode=1777",
+                    "--entrypoint", "/bin/sleep", app["Image"], "180",
+                ])
+                client = result.stdout.strip()
+                require(bool(re.fullmatch(r"[0-9a-f]{12,64}", client)), "Invalid disposable admission client identity")
+                clients.append(client)
+                self.command(["docker", "cp", str(self.certificate), client + ":/tmp/root.crt"])
+            inspected = json.loads(self.command(["docker", "inspect", *clients]).stdout)
+            addresses = [item["NetworkSettings"]["Networks"][network_name]["IPAddress"] for item in inspected]
+            require(len(set(addresses)) == 2 and proxy_address not in addresses,
+                    "Admission qualification requires two distinct proxy-visible clients")
+
+            def attempt(client, forged_address):
+                return self.command([
+                    "docker", "exec", client, "curl", "--silent", "--show-error", "--max-time", "10",
+                    "--noproxy", "*", "--cacert", "/tmp/root.crt",
+                    "--resolve", "localhost:8443:" + proxy_address,
+                    "--output", "/dev/null", "--write-out", "%{http_code}",
+                    "--header", "Origin: " + ORIGIN, "--header", "Content-Type: application/json",
+                    "--header", "X-OpenTrack-Client-IP: " + forged_address,
+                    "--data", "{}", "https://localhost:8443/api/v1/auth/login",
+                ], timeout=15).stdout.strip()
+
+            observed = [attempt(clients[0], "198.51.100." + str(index + 1)) for index in range(22)]
+            require(observed[:20] == ["422"] * 20 and observed[20:] == ["429"] * 2,
+                    "One proxy client did not retain one bounded allowance while forging client headers")
+            require(attempt(clients[1], "198.51.100.1") == "422",
+                    "One exhausted proxy client denied a different client's authentication admission")
+        finally:
+            for client in clients:
+                self.command(["docker", "rm", "--force", client], allowed=(0, 1))
+        self.record("two proxy-visible clients have separate authentication allowances and forged identity headers cannot bypass admission")
+
     def run(self):
         # Check existing identities before up could create a fresh installation.
         for service in ("app", "database", "worker"):
@@ -232,6 +279,7 @@ class Qualification:
         require(json.loads(status).get("setup_required") is False,
                 "HTTPS redeployment lost the existing first-owner database state")
         self.record("verified HTTPS app HTML, JavaScript, CSS and retained completed owner setup")
+        self.authentication_admission(app, proxy)
 
         started = time.monotonic()
         self.dc("stop", "--timeout", "35", "proxy", timeout=50)

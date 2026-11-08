@@ -82,6 +82,8 @@ docker compose -f compose.yaml -f compose.https.yaml --profile https up --build 
 
 Use the same `-f compose.yaml -f compose.https.yaml --profile https` options for subsequent `ps`, `logs`, `stop` and `down` commands for this deployment. The override removes the direct HTTP app port rather than publishing both paths. Caddy listens on unprivileged port 8443 inside its container; the explicit host mapping above publishes port 443. Certificate issuance still depends on the hostname and challenge traffic reaching the proxy. [Caddy's automatic HTTPS requirements](https://caddyserver.com/docs/automatic-https).
 
+The HTTPS proxy has an explicit address on a separate ingress network. The API trusts that exact socket address for the single client-IP header that Caddy replaces on every request. Defaults are `OPENTRACK_PROXY_SUBNET=172.31.253.0/24`, `OPENTRACK_PROXY_DYNAMIC_RANGE=172.31.253.128/25` and `OPENTRACK_PROXY_ADDRESS=172.31.253.2`. The dynamic range is inside the subnet and excludes the proxy, so the app cannot receive its reserved address. Change all three together when another project or host route overlaps. The legacy `deploy/compose.yaml` uses the same variables for its proxy network. Plain HTTP keeps its existing dynamic network and trusts no proxy. A load balancer or NAT before Caddy needs a separate reviewed trust configuration; the header identifies Caddy's direct client.
+
 For optional local HTTPS, the [example environment](../deploy/https.env.example) keeps the endpoint at `https://localhost:8443` on loopback:
 
 ```sh
