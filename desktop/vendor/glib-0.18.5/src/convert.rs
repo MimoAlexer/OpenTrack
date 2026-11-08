@@ -338,12 +338,13 @@ pub fn locale_to_utf8(opsysstring: &[u8]) -> Result<(crate::GString, usize), Cvt
 #[doc(alias = "g_utf8_to_ucs4_fast")]
 #[doc(alias = "utf8_to_ucs4")]
 pub fn utf8_to_utf32(str: impl AsRef<str>) -> Slice<char> {
+    let str = str.as_ref();
     unsafe {
         let mut items_written = 0;
 
         let str_as_utf32 = ffi::g_utf8_to_ucs4_fast(
-            str.as_ref().as_ptr().cast::<c_char>(),
-            str.as_ref().len() as _,
+            str.as_ptr().cast::<c_char>(),
+            str.len() as _,
             &mut items_written,
         );
 
@@ -356,14 +357,15 @@ pub fn utf8_to_utf32(str: impl AsRef<str>) -> Slice<char> {
 #[doc(alias = "g_ucs4_to_utf8")]
 #[doc(alias = "ucs4_to_utf8")]
 pub fn utf32_to_utf8(str: impl AsRef<[char]>) -> GString {
+    let str = str.as_ref();
     let mut items_read = 0;
     let mut items_written = 0;
     let mut error = ptr::null_mut();
 
     unsafe {
         let str_as_utf8 = ffi::g_ucs4_to_utf8(
-            str.as_ref().as_ptr().cast::<u32>(),
-            str.as_ref().len() as _,
+            str.as_ptr().cast::<u32>(),
+            str.len() as _,
             &mut items_read,
             &mut items_written,
             &mut error,
@@ -381,8 +383,9 @@ pub fn utf32_to_utf8(str: impl AsRef<[char]>) -> GString {
 #[doc(alias = "g_utf8_casefold")]
 #[doc(alias = "utf8_casefold")]
 pub fn casefold(str: impl AsRef<str>) -> GString {
+    let str = str.as_ref();
     unsafe {
-        let str = ffi::g_utf8_casefold(str.as_ref().as_ptr().cast(), str.as_ref().len() as isize);
+        let str = ffi::g_utf8_casefold(str.as_ptr().cast(), str.len() as isize);
 
         from_glib_full(str)
     }
@@ -391,10 +394,11 @@ pub fn casefold(str: impl AsRef<str>) -> GString {
 #[doc(alias = "g_utf8_normalize")]
 #[doc(alias = "utf8_normalize")]
 pub fn normalize(str: impl AsRef<str>, mode: NormalizeMode) -> GString {
+    let str = str.as_ref();
     unsafe {
         let str = ffi::g_utf8_normalize(
-            str.as_ref().as_ptr().cast(),
-            str.as_ref().len() as isize,
+            str.as_ptr().cast(),
+            str.len() as isize,
             mode.into_glib(),
         );
 
