@@ -103,3 +103,34 @@ it.each([403, 404])('conceals remembered selected names after an explicit %s dir
   await click(container.querySelector('button[aria-haspopup="listbox"]')!);
   expect(container.textContent).not.toContain('Revoked project name');
 });
+
+it.each([['status', 403], ['status', 404], ['assignee', 403], ['assignee', 404]] as const)(
+  'does not restore denied %s bootstrap names after panel or query remount (%s)', async (field, status) => {
+    const selected = field === 'status' ? data.statuses[0] : data.members[0];
+    const name = field === 'status' ? data.statuses[0].name : data.members[0].display_name;
+    let denied = true;
+    const fetch = vi.fn(async () => denied
+      ? json({ detail: 'Directory unavailable', code: 'not_found' }, status)
+      : json({ data: [field === 'status' ? { id: selected.id, name } : { id: selected.id, display_name: name }], has_more: false, next_cursor: null }));
+    vi.stubGlobal('fetch', fetch);
+    const initial: StructuredView = { ...empty(), filter: { kind: 'predicate', field, op: 'eq', value: selected.id } };
+    const apply = await render(initial);
+    await click(container.querySelector('button[aria-haspopup="listbox"]')!);
+    expect(container.textContent).not.toContain(name);
+    await click(container.querySelector('summary')!);
+    await click(container.querySelector('summary')!);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(container.textContent).not.toContain(name);
+    await act(async () => root.render(<FilterBuilder key="next-query" workspaceId={workspaceId} data={data} session={session}
+      initial={{ ...initial, sort: 'priority' }} active apply={apply} clear={() => {}}/>));
+    await click(container.querySelector('summary')!);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(container.textContent).not.toContain(name);
+    denied = false;
+    await click(container.querySelector('button[aria-haspopup="listbox"]')!);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain(name);
+    await click(container.querySelector('button[aria-haspopup="listbox"]')!);
+    expect(container.textContent).toContain(name);
+  },
+);
