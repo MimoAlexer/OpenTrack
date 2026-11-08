@@ -66,11 +66,16 @@ impl Harness {
         self
     }
 
-    pub async fn lock_team(&self, workspace: Uuid, team: Uuid, actor: Uuid) -> opentrack_store::Tx {
+    pub async fn workspace_tx(&self, workspace: Uuid, actor: Uuid) -> store::Tx {
         let mut tx = store::begin(&self.owner).await.unwrap();
         opentrack_store::context(&mut tx, actor, Some(workspace))
             .await
             .unwrap();
+        tx
+    }
+
+    pub async fn lock_team(&self, workspace: Uuid, team: Uuid, actor: Uuid) -> store::Tx {
+        let mut tx = self.workspace_tx(workspace, actor).await;
         sqlx::query("SELECT id FROM teams WHERE workspace_id=$1 AND id=$2 FOR UPDATE")
             .bind(workspace)
             .bind(team)

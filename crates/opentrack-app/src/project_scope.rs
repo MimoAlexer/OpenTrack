@@ -229,15 +229,14 @@ impl App {
         let route = format!("project-scope-agree:{t}:{id}");
         let mut tx = self.scoped(a, w, false).await?;
         visible_scope_target(&mut tx, a, w, t, id).await?;
-        let replay =
-            lifecycle::retry_with_expiry::<Uuid>(&mut tx, w, a.user.id, &route, &kh, &rh).await;
+        let receipt = lifecycle::lock_retry_record(&mut tx, w, a.user.id, &route, &kh, &rh).await?;
         projects::scope(&mut tx, a, w, t, true).await?;
         projects::lock(&mut tx, w, t, id).await?;
         let p = projects::project(&mut tx, a, w, t, id).await?;
         if !p.can_manage && p.lead_id != Some(a.user.id) {
             return Err(Error::Forbidden);
         }
-        let replay = replay?;
+        let replay = lifecycle::retry_body::<Uuid>(receipt, &rh)?;
         if p.archived_at.is_some() {
             return Err(Error::Conflict(
                 "Restore this project before agreeing its scope".into(),
@@ -306,14 +305,13 @@ impl App {
         let mut tx = self.scoped(a, w, false).await?;
         visible_scope_target(&mut tx, a, w, t, id).await?;
         scope_issue(&mut tx, w, t, &req).await?;
-        let replay =
-            lifecycle::retry_with_expiry::<Uuid>(&mut tx, w, a.user.id, &route, &kh, &rh).await;
+        let receipt = lifecycle::lock_retry_record(&mut tx, w, a.user.id, &route, &kh, &rh).await?;
         projects::scope(&mut tx, a, w, t, true).await?;
         projects::lock(&mut tx, w, t, id).await?;
         let p = projects::project(&mut tx, a, w, t, id).await?;
         // A move can finish while the command waits on the receipt or team lock.
         scope_issue(&mut tx, w, t, &req).await?;
-        let replay = replay?;
+        let replay = lifecycle::retry_body::<Uuid>(receipt, &rh)?;
         if p.archived_at.is_some() {
             return Err(Error::Conflict(
                 "Restore this project before changing its scope".into(),
