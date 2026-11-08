@@ -32,15 +32,24 @@ it('parses split CRLF frames and comments, bounds unfinished lines, and rejects 
   expect(() => new SseParser(emitted).push('id: bad\0cursor\n')).toThrow('cursor');
 });
 
-it('deduplicates event IDs and stale versions without using timestamps as order', () => {
+it('deduplicates replay IDs while accepting distinct events with lower source versions', () => {
   const dedup = new EventDeduplicator();
   expect(dedup.accept(canonicalEvent(event('2'), 'workspace'))).toBe(true);
   expect(dedup.accept(canonicalEvent(event('3'), 'workspace'))).toBe(false);
-  expect(dedup.accept(canonicalEvent(event('1', '00000000-0000-0000-0000-000000000012'), 'workspace'))).toBe(false);
+  expect(dedup.accept(canonicalEvent(event('1', '00000000-0000-0000-0000-000000000012'), 'workspace'))).toBe(true);
   expect(dedup.accept(canonicalEvent(event('3', '00000000-0000-0000-0000-000000000013'), 'workspace'))).toBe(true);
   expect(() => canonicalEvent(event('03'), 'workspace')).toThrow();
   expect(() => canonicalEvent(event('9223372036854775808'), 'workspace')).toThrow();
   expect(() => canonicalEvent(event('1'), 'other')).toThrow();
+});
+
+it('invalidates project metadata and scope changes whose aggregate counters are independent', () => {
+  const dedup = new EventDeduplicator();
+  const metadata = canonicalEvent({ ...event('100'), entity_type: 'project', type: 'project.updated' }, 'workspace');
+  const scope = canonicalEvent({ ...event('2', '00000000-0000-0000-0000-000000000012'), entity_type: 'project', type: 'project.scope_changed' }, 'workspace');
+  expect(dedup.accept(metadata)).toBe(true);
+  expect(dedup.accept(scope)).toBe(true);
+  expect(dedup.accept(scope)).toBe(false);
 });
 
 it('coalesces invalidations and reconnects with the latest hidden checkpoint cursor', async () => {

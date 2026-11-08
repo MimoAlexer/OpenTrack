@@ -22,19 +22,13 @@ export function canonicalEvent(value: unknown, workspaceId: string): CanonicalEv
   return event;
 }
 
-/** At-least-once replay is bounded in memory; versions decide freshness, never time. */
+/** Deduplicate replay IDs only: source aggregates may have independent version counters. */
 export class EventDeduplicator {
   private ids = new Map<string, true>();
-  private versions = new Map<string, bigint>();
   accept(event: CanonicalEvent): boolean {
     if (this.ids.has(event.event_id)) return false;
     this.ids.set(event.event_id, true);
     if (this.ids.size > 1024) this.ids.delete(this.ids.keys().next().value!);
-    const key = `${event.entity_type}:${event.entity_id}`; const version = BigInt(event.entity_version);
-    const previous = this.versions.get(key);
-    if (previous !== undefined && previous >= version) return false;
-    this.versions.delete(key); this.versions.set(key, version);
-    if (this.versions.size > 1024) this.versions.delete(this.versions.keys().next().value!);
     return true;
   }
 }
