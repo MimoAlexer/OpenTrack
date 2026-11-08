@@ -128,3 +128,16 @@ it('Open holds editable metadata until the current saved definition is ready',as
   await input(x.host,'Definition name','Retained rename');await click(x.host,'Save changes');expect(patches[0]).toMatchObject({name:'Retained rename'});
  }finally{await x.close();}
 });
+it('a directory snapshot begun before a successful save cannot erase the committed row',async()=>{
+ const initial=deferred<unknown>();let reads=0;const created={...record('created'),name:'New saved row'};
+ vi.mocked(request).mockImplementation(async(path,options)=>{
+  if(options?.method==='POST')return created as never;
+  if(path.endsWith('/views')){reads++;return reads===1?initial.promise as never:directory([created]) as never;}
+  return directory([]) as never;
+ });
+ const x=await mount();try{
+  await input(x.host,'Definition name','New saved row');await click(x.host,'Save new view');
+  const row=()=>[...x.host.querySelectorAll('[aria-label="Saved views"] button')].some(b=>b.textContent==='New saved row');expect(row()).toBe(true);
+  await act(async()=>initial.resolve(directory([])));expect(row()).toBe(true);expect(x.host.textContent).toContain('No saved searches yet.');expect(reads).toBe(2);
+ }finally{await x.close();}
+});

@@ -54,6 +54,7 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply}:Props) {
   const [searchRetry,setSearchRetry]=useState(0);
   const mounted=useRef(true);
   const generation=useRef(0);
+  const directoryRevision=useRef(0);
   const authorityController=useRef(new AbortController());
   const selectionSequence=useRef(0);
   const selectionRead=useRef<AbortController|null>(null);
@@ -94,9 +95,9 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply}:Props) {
   const updateBlocked=needsRepair || !!reconciliation || awaitingAppliedView || opening;
   useEffect(()=>{
     if(!activated)return;
-    const abort=new AbortController(),operation=lease(abort);setError(null);
+    const abort=new AbortController(),operation=lease(abort),revision=directoryRevision.current;setError(null);
     Promise.all([request<Directory>(`${base}/views`,{signal:operation.signal}),request<Directory>(`${base}/saved-searches`,{signal:operation.signal})])
-      .then(([v,s])=>{if(operation.current()){setViews(v);setSearches(s);}})
+      .then(([v,s])=>{if(!operation.current())return;if(revision!==directoryRevision.current){setReload(value=>value+1);return;}setViews(v);setSearches(s);})
       .catch(reason=>{if(operation.current() && !denial(reason,operation))setError(reason);});
     return()=>abort.abort();
   },[authority,base,reload,activated]);
@@ -116,6 +117,8 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply}:Props) {
     try {
       const item=await request<Saved|undefined>(operation.path,operation.options);
       if(!operation.lease.current())return;
+      // A pre-commit directory snapshot must never replace a committed row.
+      directoryRevision.current++;
       const sameSelection=operation.selection===selectionSequence.current;
       if(item){
         replace(item);
@@ -166,8 +169,8 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply}:Props) {
   function confirmRepair(){if(selected && repair?.acknowledged && repair.id===selected.id && repair.etag===selected.etag)save(selected.kind,true,repair.definition);}
   async function more(saveKind:Kind) {
     const page=saveKind==='view'?views:searches;if(!page?.next_cursor)return;
-    const operation=lease();
-    try{const next=await request<Directory>(`${base}/${resource(saveKind)}?cursor=${encodeURIComponent(page.next_cursor)}`,{signal:operation.signal});if(operation.current())(saveKind==='view'?setViews:setSearches)({...next,data:[...page.data,...next.data]});}
+    const operation=lease(),revision=directoryRevision.current;
+    try{const next=await request<Directory>(`${base}/${resource(saveKind)}?cursor=${encodeURIComponent(page.next_cursor)}`,{signal:operation.signal});if(operation.current()){if(revision!==directoryRevision.current){setReload(value=>value+1);return;}(saveKind==='view'?setViews:setSearches)({...next,data:[...page.data,...next.data]});}}
     catch(reason){if(operation.current()&&!denial(reason,operation))setError(reason);}
   }
   const searchBody=()=>({query:{...queryBody(view),q:term,sort:'created',archived:false,...(kind!=='issue'?{filter:null,team_id:null}:{})},types:kind==='all'?['issue','project']:[kind]});
