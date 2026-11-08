@@ -1,12 +1,13 @@
 import type { Session } from '../types';
+import type { components } from '../generated/api';
 
 export const fields = ['status', 'priority', 'assignee', 'project', 'cycle', 'label', 'team', 'created_at', 'updated_at', 'due_date'] as const;
-export type FilterField = typeof fields[number];
-export type FilterOperator = 'eq' | 'in' | 'not_in' | 'before' | 'after' | 'is_null';
-export type FilterValue = string | number | boolean | { relative_days: number };
-export interface Predicate { kind: 'predicate'; field: FilterField; op: FilterOperator; value?: FilterValue; values?: FilterValue[] }
-export interface FilterGroup { kind: 'all' | 'any'; children: FilterNode[] }
-export type FilterNode = Predicate | FilterGroup;
+export type FilterField = components['schemas']['IssueQueryField'];
+export type FilterOperator = components['schemas']['IssueQueryOperator'];
+export type FilterValue = components['schemas']['IssueQueryValue'];
+export type FilterNode = components['schemas']['IssueFilterNode'];
+export type Predicate = Extract<FilterNode, { kind: 'predicate' }>;
+export type FilterGroup = Exclude<FilterNode, Predicate>;
 export interface IssueQuery {
   version: 1; filter: FilterNode | null; sort: 'created' | 'priority' | 'manual';
   team_id?: string; q?: string; archived: boolean; limit: number; timezone: string; cursor?: string;
@@ -120,7 +121,7 @@ export function viewHash(view: StructuredView) {
 }
 export function queryBody(view: StructuredView, cursor?: string): IssueQuery {
   const { layout: _, ...query } = view;
-  return cursor ? { ...query, cursor } : query;
+  return (cursor ? { ...query, cursor } : query) satisfies components['schemas']['IssueQuery'];
 }
 export function viewParams(view: StructuredView) {
   const params = new URLSearchParams({ [structuredMarker]: '1', layout: view.layout, display_version: '1' });

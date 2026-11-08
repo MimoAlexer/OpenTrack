@@ -11,10 +11,12 @@ import { IssueOrderActions, IssueOrderProgress, orderMaintenance, useIssueOrderD
 import { issuesUrl, Link, navigate, navigateConfirmed, parseRoute } from '../router';
 import { categoryOrder, priorities, type Bootstrap, type Issue, type IssuePage, type Session, type Status } from '../types';
 import type { Workflow } from '../workflows/types';
+import type { components } from '../generated/api';
 import { FilterBuilder } from '../filters/FilterBuilder';
 import { fromFlat, parseStructuredHash, predicateCount, queryBody, queryFragment, structuredMarker, validateView, viewHash, viewParams, type StructuredView } from '../filters/model';
 
-type QueryIssuePage = IssuePage & { query_context?: { timezone: string; as_of: string } };
+type StructuredIssuePage = components['schemas']['IssueQueryPage'];
+type QueryIssuePage = IssuePage & Partial<Pick<StructuredIssuePage, 'query_context'>>;
 
 export function IssueList({ workspaceId, data, session, params: flatParams, selectedId, refresh, create, searchRef, headingRef, updated, workflowChanged, teamAccessLost, workspaceArchived = false, charactersEnabled = true, ordering, orderingHidden = [] }: {
   ordering?: IssueOrderingController; orderingHidden?: string[];
@@ -145,7 +147,7 @@ export function IssueList({ workspaceId, data, session, params: flatParams, sele
   }
   async function readPage(cursor?: string, signal?: AbortSignal): Promise<QueryIssuePage> {
     if (structured.kind === 'valid') {
-      const page = await request<QueryIssuePage>(`/workspaces/${workspaceId}/issues/query`, { method: 'POST', csrf: session.csrf_token, body: queryBody(structured.view, cursor), signal });
+      const page = await request<StructuredIssuePage>(`/workspaces/${workspaceId}/issues/query`, { method: 'POST', csrf: session.csrf_token, body: queryBody(structured.view, cursor), signal });
       if (page.query_context?.timezone !== structured.view.timezone || !Number.isFinite(Date.parse(page.query_context?.as_of ?? ''))) throw new ApiError(0, 'invalid_response', 'The query date context could not be verified. Retry the query.');
       return page;
     }

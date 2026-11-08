@@ -62,7 +62,7 @@ function PredicateEditor({ node, path, data, session, workspaceId, team, change,
     {node.op === 'is_null' ? <label className="field">Empty value<select aria-label={`Condition ${path} empty value`} value={node.value === false ? 'false' : 'true'} onChange={event => setValues([event.target.value === 'true'])}><option value="true">Must be empty</option><option value="false">Must have a value</option></select></label> : isDateField(node.field) ? <DateValues field={node.field} path={path} values={values} multiple={multiple} change={setValues}/> : <ValuePicker key={node.field} field={node.field} path={path} values={values} multiple={multiple} data={data} session={session} workspaceId={workspaceId} team={team} change={setValues}/>}
     {node.op === 'not_in' && ['assignee', 'project', 'cycle', 'due_date'].includes(node.field) && <p className="filter-help">Empty values are excluded. Add an “Is empty” condition in an Any group to include them.</p>}
     {node.op === 'not_in' && node.field === 'label' && <p className="filter-help">Matches issues with none of these labels, including issues without labels.</p>}
-    {isDateField(node.field) && <p className="filter-help">A local date matches the whole calendar date. Before matches an earlier local date; After matches a later local date.</p>}
+    {isDateField(node.field) && <p className="filter-help">A local date matches the whole calendar date. Before matches an earlier local date; After matches a later local date.{node.field !== 'due_date' && ' Exact instants compare their timestamps.'}</p>}
   </fieldset>;
 }
 

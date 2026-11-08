@@ -90,6 +90,17 @@ describe('structured query URL state', () => {
     expect(validateFilter({ kind: 'predicate', field: 'due_date', op: 'before', value: { relative_days: -36500 } })).toBeNull();
   });
 
+  it.each([
+    ['America/Havana', '2026-11-01'],
+    ['America/Goose_Bay', '1988-10-30'],
+    ['Pacific/Apia', '2011-12-30'],
+  ])('preserves a calendar date independently of midnight uniqueness in %s', (timezone, date) => {
+    const state = { ...view(), timezone, filter: { kind: 'predicate', field: 'created_at', op: 'eq', value: date } as FilterNode };
+    expect(validateView(state)).toBeNull();
+    expect(queryBody(state).filter).toEqual({ kind: 'predicate', field: 'created_at', op: 'eq', value: date });
+    expect(parseStructuredHash(viewHash(state))).toEqual({ kind: 'valid', view: state });
+  });
+
   it('rejects invalid timezone, display and manual scope without rewriting them', () => {
     for (const changes of [{ timezone: 'MadeUp/Nowhere' }, { timezone: 'utc' }, { layout: 'timeline' }, { sort: 'raw SQL' }, { sort: 'manual' }, { sort: 'manual', team_id: id(1), archived: true }, { tenant_timezone: 'UTC' }]) expect(validateView({ ...view(), ...changes })).not.toBeNull();
     expect(validateView({ ...view(), filter: null })).toBeNull();
