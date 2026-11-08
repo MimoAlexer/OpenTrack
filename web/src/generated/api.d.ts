@@ -622,7 +622,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Read-only structured issue query. No idempotency receipt is created. Query timezone defaults to UTC; relative dates and continuation cursors retain the server-recorded query clock. */
+        /** @description Read-only structured issue query. Send query fields only in the JSON body; URL query parameters are rejected. No idempotency receipt is created. Query timezone defaults to UTC; relative dates and continuation cursors retain the server-recorded query clock. */
         post: operations["query"];
         delete?: never;
         options?: never;
