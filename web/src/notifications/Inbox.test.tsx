@@ -12,7 +12,7 @@ import { defaultSnooze, localSnoozeInstant, type NotificationItem, type Notifica
 const session: Session = { audience: 'web', user: { id: 'recipient', display_name: 'Example Member', email: 'member@example.test' }, csrf_token: 'session-a', workspaces: [{ id: 'workspace', name: 'Example Workspace', slug: 'example', role: 'member' }] };
 const stamp = '2026-11-08T09:00:00Z';
 function item(id = 'one', seq = '2', overrides: Partial<NotificationItem> = {}): NotificationItem { return { id, seq, reason: 'mention', created_at: stamp, read_at: null, archived_at: null, snoozed_until: null, version: '1', etag: `"notification:${id}:1"`, source: { kind: 'issue', id: `issue-${id}`, team_id: 'team', available: true, key: `ENG-${seq}`, title: `Safe row ${id}`, actor_display_name: 'Example Author' }, ...overrides }; }
-function page(items: NotificationItem[] = [item()], overrides: Partial<NotificationPage> = {}): NotificationPage { return { items, next_cursor: null, snapshot: 'signed-snapshot-original', unread_count: items.filter(item => !item.read_at).length, ...overrides }; }
+function page(items: NotificationItem[] = [item()], overrides: Partial<NotificationPage> = {}): NotificationPage { return { items, next_cursor: null, next_snoozed_at: null, snapshot: 'signed-snapshot-original', unread_count: items.filter(item => !item.read_at).length, ...overrides }; }
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 function source(url: string): Response {
   if (url.endsWith('/document')) return json({ id: 'document', plain_text: 'Current authorized source body' });

@@ -1,23 +1,10 @@
-// Kept local until the notification OpenAPI contract is generated alongside the API.
-export type InboxFilter = 'unread' | 'all' | 'archived' | 'snoozed';
-export type NotificationAction = 'read' | 'unread' | 'archive' | 'unarchive' | 'snooze' | 'unsnooze';
-export interface NotificationItem {
-  id: string; seq: string; reason: 'assignment' | 'mention' | 'subscribed_comment';
-  created_at: string; read_at?: string | null; archived_at?: string | null; snoozed_until?: string | null;
-  version: string; etag: string;
-  source: {
-    kind: 'issue' | 'project'; id: string; available: boolean; team_id?: string | null;
-    document_id?: string | null; comment_id?: string | null;
-    key?: string | null; title?: string | null; actor_display_name?: string | null;
-  };
-}
-export interface NotificationPage {
-  items: NotificationItem[]; next_cursor: string | null; snapshot: string; unread_count: number;
-  next_snoozed_at?: string | null;
-}
-export interface NotificationPreferences {
-  assignments: boolean; mentions: boolean; subscribed_comments: boolean; version: string; etag: string;
-}
+import type { components } from '../generated/api';
+
+export type InboxFilter = components['schemas']['NotificationFilter'];
+export type NotificationAction = components['schemas']['NotificationAction'];
+export type NotificationItem = components['schemas']['NotificationItem'];
+export type NotificationPage = components['schemas']['NotificationPage'];
+export type NotificationPreferences = components['schemas']['NotificationPreferences'];
 export const filters: Record<InboxFilter, string> = { unread: 'Unread', all: 'All', archived: 'Archived', snoozed: 'Snoozed' };
 export const reasons: Record<NotificationItem['reason'], string> = { assignment: 'Assigned to you', mention: 'Mentioned you', subscribed_comment: 'New comment' };
 export const notificationPath = (workspace: string, id?: string) => `/workspaces/${encodeURIComponent(workspace)}/notifications${id ? `/${encodeURIComponent(id)}` : ''}`;
