@@ -1,0 +1,76 @@
+{
+  "scope": "M06-T03 / issue 34 durable realtime delivery",
+  "date": "2026-11-08",
+  "source_sha": "aee8d9ab390e15b85732945d9cbc01f6b1849e90",
+  "m05_base_sha": "fd4aa2da1363af2328b74cdc0a3e6af5eef7df1c",
+  "environment": {
+    "platform": "Linux x86_64",
+    "rust": "1.98.1",
+    "node": "22.22.1",
+    "postgresql": "18.6",
+    "roles": "separate restricted runtime, migration, operator and worker identities",
+    "database_and_build_state": "private disk-backed fixtures"
+  },
+  "focused_checks": [
+    {"command": "cargo test --locked -p opentrack-app --lib realtime::tests", "passed": 3, "failed": 0},
+    {"command": "cargo test --locked -p opentrack-api --test realtime_contract -- --test-threads=2", "passed": 7, "failed": 0},
+    {"command": "cargo test --locked -p opentrack-store --lib realtime::tests", "passed": 3, "failed": 0},
+    {"command": "desktop/scripts/check.sh --core", "outcome": "passed", "native_gui_included": false},
+    {"command": "scripts/generate-contracts.sh --check", "outcome": "passed"},
+    {"command": "npm --prefix web test", "passed": 955, "files_passed": 87, "failed": 0},
+    {"command": "npm --prefix web run typecheck", "outcome": "passed", "targets": ["web", "e2e"]},
+    {"command": "npm --prefix web run build", "outcome": "passed", "existing_large_chunk_warning": true}
+  ],
+  "postgresql_http_coverage": [
+    "two independent API nodes, reversed commits, rollback and reconnect",
+    "data and head from one bootstrap snapshot during a concurrent commit",
+    "session revocation while bootstrap waits on an unchanged account row",
+    "hidden-only checkpoints and public-to-private move resets without source identifiers",
+    "malformed, tampered, wrong-workspace, wrong-session and wrong-audience cursors",
+    "already-open stream role and session revocation",
+    "polling recovery while notifications are unavailable",
+    "three-session-stream cap across nodes and workspaces, body-drop release and queue overflow",
+    "real listener backend self-termination, reconnect and durable delivery during the gap",
+    "native PKCE handoff, bearer bootstrap/page replay and native session revocation"
+  ],
+  "listener_fault_control": {
+    "no_op_fault_stub": "same test failed at the actual-disconnection assertion",
+    "fixed_self_connection_fault": "same test passed; PostgreSQL recorded the fixed self-termination command",
+    "arbitrary_pid_input": false
+  },
+  "local_browser_proof": {
+    "kind": "explicit local owned two-process proof",
+    "canonical_ci_suite": false,
+    "origins": ["http://127.0.0.1:18082", "http://127.0.0.1:18083"],
+    "api_processes": 2,
+    "results": [
+      {"engine": "chromium", "cross_node_invalidation": "passed", "offline_write_pause": "passed", "reconnect_preserves_draft": "passed", "unhandled_browser_errors": 0},
+      {"engine": "firefox", "cross_node_invalidation": "passed", "offline_write_pause": "passed", "reconnect_preserves_draft": "passed", "unhandled_browser_errors": 0},
+      {"engine": "webkit", "cross_node_invalidation": "passed", "offline_write_pause": "passed", "reconnect_preserves_draft": "passed", "unhandled_browser_errors": 0}
+    ],
+    "canonical_case": "web/e2e/realtime.browser.ts",
+    "canonical_case_status": "three-engine discovery and typecheck passed; live canonical CI execution remains with coordinator",
+    "owned_api_cleanup": "both processes stopped; canonical port 18081 unchanged"
+  },
+  "wide_check_history": {
+    "command": "scripts/check.sh",
+    "outcome": "stopped at an old compiled two-test store binary asserting notification.created was unregistered",
+    "completed_before_failure": ["formatting", "strict workspace Clippy", "preceding Rust targets including seven realtime groups and thirteen worker-daemon tests"],
+    "current_source_control": "aee8d9a replaces that negative with an unregistered future kind and adds an explicit recipient-policy registration control; three current controls pass",
+    "remaining_steps": "current store targets, workspace doc tests, generated contracts, frontend tests, typecheck and build all passed separately",
+    "fresh_whole_command_pass_claimed": false
+  },
+  "provisioning": {
+    "repeat_setup": "passed after preserving the existing fifteen-table no-access policy",
+    "actual_app_connect": true,
+    "actual_worker_connect": true,
+    "legitimate_workflow_grants": true,
+    "lease_expiry_only_update_privilege": "verified after reprovisioning"
+  },
+  "limits": [
+    "notification recipient/SSE behavior on migration 0034 requires the composed M06/M07 union gate",
+    "the 256-event bound is reached before the byte bound for normal metadata; the byte guard also has an oversized-frame unit control",
+    "commit-to-delivery p95, large-dataset performance and same-workspace replay-query coalescing were not qualified",
+    "full native rendered GUI, installation, physical input and assistive-technology qualification are outside this increment"
+  ]
+}
