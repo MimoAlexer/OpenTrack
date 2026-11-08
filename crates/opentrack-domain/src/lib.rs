@@ -45,6 +45,8 @@ pub enum Error {
     UnsupportedDocumentSchema,
     #[error("This page cursor expired. Reload the list to continue")]
     CursorExpired,
+    #[error("Realtime synchronization must restart")]
+    RealtimeReset(RealtimeResetReason),
     #[error("This recovery code is invalid or no longer available")]
     InvalidRecovery,
     #[error("This native sign-in request is invalid or no longer available")]
@@ -383,11 +385,52 @@ fn deserialize_label_filter<'de, D: serde::Deserializer<'de>>(
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct Bootstrap {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub realtime_cursor: Option<String>,
     pub auth_epoch: String,
     pub teams: Vec<Team>,
     pub statuses: Vec<Status>,
     pub members: Vec<User>,
     pub issues: Vec<Issue>,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RealtimeResetReason {
+    CursorExpired,
+    AccessChanged,
+    ResetRequired,
+    ScopeChanged,
+}
+impl RealtimeResetReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::CursorExpired => "cursor_expired",
+            Self::AccessChanged => "access_changed",
+            Self::ResetRequired => "reset_required",
+            Self::ScopeChanged => "scope_changed",
+        }
+    }
+}
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct RealtimeInvalidation {
+    pub event_id: Uuid,
+    pub schema_version: u32,
+    #[serde(rename = "type")]
+    pub event_type: String,
+    pub workspace_id: Uuid,
+    pub entity_type: String,
+    pub entity_id: Uuid,
+    pub entity_version: String,
+    pub actor_id: Option<Uuid>,
+    pub occurred_at: DateTime<Utc>,
+    pub mutation_id: Uuid,
+    pub changed_fields: Vec<String>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct RealtimePage {
+    pub events: Vec<RealtimeInvalidation>,
+    pub cursor: String,
+    pub has_more: bool,
 }
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct Page<T> {

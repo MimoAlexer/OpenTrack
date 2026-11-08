@@ -73,7 +73,7 @@ export function IssueComments({ workspaceId, issueId, teamId, session, readOnly,
         setCursor(result.has_more ? result.next_cursor : null); setDenied(false); setProjectionScope(scope); }
     }).catch(error => { if (!abort.signal.aborted) { setError(error); if (isAccessError(error)) { setComments([]); setDenied(true); } } }).finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => { abort.abort(); olderFlight.current?.abort(); };
-  }, [path, scope, retry, linkedId]);
+  }, [path, scope, retry, linkedId, refreshVersion]);
   useEffect(() => { if (!linkedId) focusedLink.current = null; if (linkedId && focusedLink.current !== linkedId && !loading && !denied && comments.some(comment => comment.id === linkedId)) { focusedLink.current = linkedId; const target = document.getElementById(`comment-${linkedId}`); target?.scrollIntoView?.({ block: 'center' }); target?.focus({ preventScroll: true }); } }, [linkedId, loading, denied]);
   async function older() {
     if (!cursor || moreBusy || loading) return;

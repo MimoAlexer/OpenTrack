@@ -1,7 +1,9 @@
 mod planning_counts;
+mod realtime;
 pub use planning_counts::*;
 mod issue_query;
 pub use issue_query::list_issue_query;
+pub use realtime::*;
 mod cycles;
 pub use cycles::*;
 mod ordering;
@@ -160,6 +162,13 @@ pub async fn find_actor_for_audience(
 }
 pub async fn active_session(tx: &mut Tx, actor: &Actor) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.user_id=$2 AND s.audience=$3 AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND s.last_seen_at>clock_timestamp()-interval '12 hours' AND u.disabled_at IS NULL)").bind(&actor.token_hash).bind(actor.user.id).bind(actor.audience.as_str()).fetch_one(&mut **tx).await
+}
+/// Lock the matching session in a repeatable-read snapshot. A concurrent revoke
+/// cannot remain invisible after waiting for an unchanged account guard: a
+/// changed session row causes serialization failure instead of stale approval.
+pub async fn active_session_snapshot(tx: &mut Tx, actor: &Actor) -> Result<bool, sqlx::Error> {
+    Ok(sqlx::query_scalar::<_, String>("SELECT s.token_hash FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.user_id=$2 AND s.audience=$3 AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND s.last_seen_at>clock_timestamp()-interval '12 hours' AND u.disabled_at IS NULL FOR SHARE OF s")
+        .bind(&actor.token_hash).bind(actor.user.id).bind(actor.audience.as_str()).fetch_optional(&mut **tx).await?.is_some())
 }
 pub async fn workspace_role(
     tx: &mut Tx,

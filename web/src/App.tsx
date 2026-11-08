@@ -33,6 +33,8 @@ import { CreateWorkspace } from './settings/WorkspaceSettings';
 import { JoinWorkspace } from './settings/JoinWorkspace';
 import { Reauthenticate, useScopedRequest } from './settings/shared';
 import { useWorkspaceAccess } from './useWorkspaceAccess';
+import { cursorValue } from './realtime/contract';
+import { RealtimeBanner, useWorkspaceRealtime } from './realtime/useWorkspaceRealtime';
 import type { Bootstrap, Issue, Session, Workspace } from './types';
 import type { Workflow } from './workflows/types';
 
@@ -140,7 +142,7 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
   const sessionGeneration = currentSessionGeneration();
   const request = useScopedRequest();
   const location = useLocation(); const route = parseRoute(location);
-  const [data, setData] = useState<Bootstrap | null>(null);
+  const [data, setData] = useState<(Bootstrap & { realtime_cursor?: string | null }) | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [retry, setRetry] = useState(0);
   const [refresh, setRefresh] = useState(0);
@@ -167,9 +169,15 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
   const [lastKnownEpoch, setLastKnownEpoch] = useState<string | null>(null);
   const [workspaceArchived, setWorkspaceArchived] = useState(false);
   const [orderingHidden, setOrderingHidden] = useState<string[]>([]);
+  const [replayRecovery, setReplayRecovery] = useState(0);
+  const [realtimeRevision, setRealtimeRevision] = useState(0);
+  const realtime = useWorkspaceRealtime({ workspaceId: workspace.id, sessionKey: `${sessionScope}:${sessionGeneration}:${realtimeRevision}`, cursor: data?.realtime_cursor, enabled: !!data && !accessBlocked, native: !!desktop, request,
+    invalidate: () => setRefresh(value => value + 1),
+    reset: reason => { if (reason === 'access_changed' || reason === 'scope_changed') void refreshAuthority(false); else setReplayRecovery(value => value + 1); },
+  });
   const paletteScope = accessBlocked ? '' : `${sessionScope}:${workspace.id}:${accessRevision}:${lastKnownEpoch}`;
   const recentIssues = useRecentIssues(paletteScope, accessBlocked ? undefined : route.issueId);
-  const readOnly = workspace.role === 'viewer' || workspaceArchived;
+  const readOnly = workspace.role === 'viewer' || workspaceArchived || realtime.readOnly;
   const ordering = useIssueOrdering({
     workspaceId: workspace.id, session, authority: `${sessionScope}:${sessionGeneration}:${accessRevision}:${data?.auth_epoch ?? ''}`, ready: !!data && !accessBlocked, readOnly,
     updated: update,
@@ -186,8 +194,9 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
   const team = data?.teams.find(team => team.id === route.search.get('team_id'));
   const mine = route.search.get('view') === 'mine';
   const inbox = route.area === 'inbox'; const cycles = route.area === 'cycles'; const projects = route.area === 'projects'; const settings = route.area === 'settings'; const trash = route.area === 'trash'; const issueArea = route.area === 'issues';
+  const canonicalRealtimeMounted = !!data && !accessBlocked && cursorValue(data.realtime_cursor);
   const notificationScope = `${accessRevision}:${data?.auth_epoch ?? ''}`;
-  const unreadNotifications = useUnreadNotifications(workspace.id, session, notificationScope, !!data && !accessBlocked, refresh);
+  const unreadNotifications = useUnreadNotifications(workspace.id, session, notificationScope, !!data && !accessBlocked, refresh, canonicalRealtimeMounted);
   const title = inbox ? 'Inbox' : cycles ? 'Cycles' : projects ? 'Projects' : settings ? 'Settings' : trash ? 'Trash' : team ? team.name : mine ? 'My work' : 'All issues';
   function authorityCurrent(generation: number) {
     return authorityScope.current.active && authorityScope.current.key === sessionScope && currentSessionGeneration() === sessionGeneration && generation === bootstrapGeneration.current;
@@ -212,6 +221,24 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
     return true;
   }
   useWorkspaceAccess(workspace.id, sessionScope, lastKnownEpoch, refreshAuthority);
+  useEffect(() => {
+    if (!replayRecovery || accessBlocked) return;
+    const abort = new AbortController(); const generation = bootstrapGeneration.current; let timer: ReturnType<typeof setTimeout>;
+    async function recoverReplay() {
+      try {
+        const [snapshot, access] = await Promise.all([request<Bootstrap & { realtime_cursor?: string | null }>(`/workspaces/${workspace.id}/bootstrap`, { signal: abort.signal }), request<{ auth_epoch: string; role: string; archived: boolean }>(`/workspaces/${workspace.id}/access`, { signal: abort.signal })]);
+        if (abort.signal.aborted || !authorityCurrent(generation)) return;
+        if (snapshot.auth_epoch !== lastKnownEpoch || access.auth_epoch !== lastKnownEpoch || access.role !== workspace.role) { void refreshAuthority(false, generation); return; }
+        // Replay recovery updates projections without remounting any editor.
+        setData(snapshot); setWorkspaceArchived(access.archived); setRefresh(value => value + 1); setReplayRecovery(0); setRealtimeRevision(value => value + 1);
+      } catch (error) {
+        if (abort.signal.aborted || !authorityCurrent(generation)) return;
+        if (error instanceof ApiError && [401, 403, 404].includes(error.status)) { void refreshAuthority(false, generation); return; }
+        timer = setTimeout(() => { void recoverReplay(); }, 15_000);
+      }
+    }
+    void recoverReplay(); return () => { abort.abort(); clearTimeout(timer); };
+  }, [replayRecovery, accessBlocked, workspace.id, sessionScope, sessionGeneration]);
   useEffect(() => {
     if (!route.workspaceId || !route.valid) navigate(issuesUrl(workspace.id), true);
   }, [route.workspaceId, route.valid, workspace.id]);
@@ -300,10 +327,11 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
     {mobileOpen && <NavigationDrawer close={() => setMobileOpen(false)}>{sidebar}</NavigationDrawer>}
     <div className="workspace-content"><header className="topbar"><button className="icon-button mobile-only" aria-label="Open navigation" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><Menu aria-hidden="true" /></button><div className="breadcrumbs"><span>{workspace.name}</span><span className="breadcrumb-divider">/</span><h1 ref={headingRef} tabIndex={-1}>{title}</h1></div><div className="topbar-actions">{!settings && <><button className="icon-button" aria-label={inbox ? 'Refresh inbox' : cycles ? 'Refresh cycles' : projects ? 'Refresh projects' : trash ? 'Refresh Trash' : 'Refresh issues'} onClick={() => setRefresh(n => n + 1)}><RefreshCw aria-hidden="true" /></button>{issueArea && !readOnly && <button className="button primary compact" onClick={() => setCreating(true)} disabled={!activeTeams.length}><Plus aria-hidden="true" />New issue{shortcutPreference.charactersEnabled && <kbd>C</kbd>}</button>}</>}</div></header>
       <main id="main-content" className={`main-content${route.issueId || route.issueKey ? ' with-detail' : ''}`}>
+        {!accessBlocked && <RealtimeBanner status={realtime.status} retry={() => { if (replayRecovery) setReplayRecovery(value => value + 1); else realtime.retry(); }} />}
         {workspaceArchived && !settings && <div className="notice">This workspace is archived. Restore it in <Link href={settingsUrl(workspace.id)}>workspace settings</Link> before making changes.</div>}
         {notice && <div className="workspace-notice" role="status">{notice}<button className="icon-button" aria-label="Dismiss message" onClick={() => setNotice('')}><X aria-hidden="true" /></button></div>}
         <ErrorBanner error={error} retry={() => { if (accessBlocked) void refreshAuthority(false); else setRetry(n => n + 1); }} />
-        {inaccessibleWorkspace ? <div className="empty-state"><h2>Workspace unavailable.</h2><p>This workspace may have been removed, or you may no longer have access.</p><Link className="button" href={issuesUrl(workspace.id)}>Open {workspace.name}</Link></div> : accessBlocked ? <Loading label="Refreshing workspace access…" /> : settings ? <SettingsScreen workspaceArchived={workspaceArchived} key={accessRevision} workspace={workspace} session={session} section={route.settingsSection} changed={settingsChanged} workflowChanged={workflowChanged} authenticated={authenticated} /> : !data ? !error && <Loading /> : inbox ? <Inbox workspaceId={workspace.id} session={session} accessScope={notificationScope} params={route.search} notificationId={route.notificationId} refresh={refresh} charactersEnabled={shortcutPreference.charactersEnabled}/> : cycles ? <Cycles key={accessRevision} workspaceId={workspace.id} session={session} data={data} cycleId={route.cycleId} params={route.search} refresh={refresh} readOnly={readOnly}/> : projects ? <Projects key={accessRevision} workspaceId={workspace.id} session={session} data={data} projectId={route.projectId} params={route.search} refresh={refresh} readOnly={readOnly}/> : trash ? <Trash workspaceId={workspace.id} data={data} session={session} params={route.search} selectedId={route.deletedIssueId} refresh={refresh} restored={issue => { update(issue); setNotice(`${issue.key} restored. Its connections remain detached.`); }} workflowChanged={workflowChanged} /> : !data.teams.length ? <div className="empty-state"><h2>No teams are available.</h2><p>Ask a workspace owner to add you to a team.</p></div> : <div className="issue-workspace"><IssueList ordering={ordering} orderingHidden={orderingHidden} charactersEnabled={shortcutPreference.charactersEnabled} workspaceArchived={workspaceArchived} key={workspace.id} workspaceId={workspace.id} data={data} session={session} params={route.search} selectedId={route.issueId} refresh={refresh} create={() => setCreating(true)} searchRef={searchRef} headingRef={headingRef} updated={update} workflowChanged={workflowChanged} teamAccessLost={teamAccessLost} />{route.issueKey && <IssueKeyResolver key={`${workspace.id}:${route.issueKey}`} workspaceId={workspace.id} issueKey={route.issueKey} search={route.search} />}{route.issueId && <IssueEditor workspaceArchived={workspaceArchived} key={`${workspace.id}:${route.issueId}`} workspaceId={workspace.id} issueId={route.issueId} data={data} session={session} close={() => navigate(issuesUrl(workspace.id, route.search))} updated={update} deleted={deleted} workflowChanged={workflowChanged} />}</div>}
+        {inaccessibleWorkspace ? <div className="empty-state"><h2>Workspace unavailable.</h2><p>This workspace may have been removed, or you may no longer have access.</p><Link className="button" href={issuesUrl(workspace.id)}>Open {workspace.name}</Link></div> : accessBlocked ? <Loading label="Refreshing workspace access…" /> : settings ? <SettingsScreen workspaceArchived={workspaceArchived} key={accessRevision} workspace={workspace} session={session} section={route.settingsSection} changed={settingsChanged} workflowChanged={workflowChanged} authenticated={authenticated} /> : !data ? !error && <Loading /> : inbox ? <Inbox externallyRefreshed={canonicalRealtimeMounted} workspaceId={workspace.id} session={session} accessScope={notificationScope} params={route.search} notificationId={route.notificationId} refresh={refresh} charactersEnabled={shortcutPreference.charactersEnabled}/> : cycles ? <Cycles key={accessRevision} workspaceId={workspace.id} session={session} data={data} cycleId={route.cycleId} params={route.search} refresh={refresh} readOnly={readOnly}/> : projects ? <Projects key={accessRevision} workspaceId={workspace.id} session={session} data={data} projectId={route.projectId} params={route.search} refresh={refresh} readOnly={readOnly}/> : trash ? <Trash workspaceId={workspace.id} data={data} session={session} params={route.search} selectedId={route.deletedIssueId} refresh={refresh} restored={issue => { update(issue); setNotice(`${issue.key} restored. Its connections remain detached.`); }} workflowChanged={workflowChanged} /> : !data.teams.length ? <div className="empty-state"><h2>No teams are available.</h2><p>Ask a workspace owner to add you to a team.</p></div> : <div className="issue-workspace"><IssueList ordering={ordering} orderingHidden={orderingHidden} charactersEnabled={shortcutPreference.charactersEnabled} workspaceArchived={workspaceArchived} key={workspace.id} workspaceId={workspace.id} data={data} session={session} params={route.search} selectedId={route.issueId} refresh={refresh} create={() => setCreating(true)} searchRef={searchRef} headingRef={headingRef} updated={update} workflowChanged={workflowChanged} teamAccessLost={teamAccessLost} />{route.issueKey && <IssueKeyResolver key={`${workspace.id}:${route.issueKey}`} workspaceId={workspace.id} issueKey={route.issueKey} search={route.search} />}{route.issueId && <IssueEditor refresh={refresh} connectionReadOnly={realtime.readOnly} workspaceArchived={workspaceArchived} key={`${workspace.id}:${route.issueId}`} workspaceId={workspace.id} issueId={route.issueId} data={data} session={session} close={() => navigate(issuesUrl(workspace.id, route.search))} updated={update} deleted={deleted} workflowChanged={workflowChanged} />}</div>}
       </main>
     </div>
     {creating && data && <CreateIssue workspaceId={workspace.id} data={data} session={session} initialTeam={team?.id} close={() => setCreating(false)} created={created} workflowChanged={workflowChanged} />}
