@@ -39,14 +39,14 @@ function timestamp(value: string) {
   if (!time || Number(time[1]) > 23 || Number(time[2]) > 59 || Number(time[3]) > 59) return false;
   const fraction = value.match(/\.(\d+)/)?.[1];
   if (fraction && fraction.length > 6 && !/^0+$/.test(fraction.slice(6))) return false;
-  return /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:[Zz]|[+-]\d{2}:\d{2})$/.test(value)
+  return /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/.test(value)
     && localDate(value.slice(0, 10)) && Number.isFinite(Date.parse(value));
 }
 function validValue(field: FilterField, value: unknown) {
   if (identifiers.includes(field)) return uuid(value);
   if (field === 'priority') return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 4;
   if (object(value)) return exact(value, ['relative_days']) && Number.isInteger(value.relative_days) && Math.abs(value.relative_days as number) <= 36500;
-  return typeof value === 'string' && value.length <= 128 && (localDate(value) || field !== 'due_date' && timestamp(value));
+  return typeof value === 'string' && value.length <= 64 && (localDate(value) || field !== 'due_date' && timestamp(value));
 }
 
 export function validateFilter(filter: unknown): string | null {
@@ -83,7 +83,7 @@ export function validateView(value: unknown): string | null {
   if (typeof value.archived !== 'boolean' || !Number.isInteger(value.limit) || (value.limit as number) < 1 || (value.limit as number) > 100) return 'These filter limits are invalid.';
   if (value.layout === 'board' && (value.limit as number) > 50) return 'Boards support at most 50 issues per page.';
   if (value.team_id !== undefined && !uuid(value.team_id)) return 'Choose an available team.';
-  if (value.q !== undefined && (typeof value.q !== 'string' || Array.from(value.q).length > 256)) return 'Issue search supports at most 256 characters.';
+  if (value.q !== undefined && (typeof value.q !== 'string' || Array.from(value.q).length > 256 || value.q.includes('\0'))) return 'Issue search supports at most 256 characters without null characters.';
   if (typeof value.timezone !== 'string' || value.timezone.length > 100 || !/^(UTC|[A-Za-z_+-]+(?:\/[A-Za-z0-9_+-]+)+)$/.test(value.timezone)) return 'Choose an IANA query timezone, such as Europe/Zurich or UTC.';
   try { new Intl.DateTimeFormat('en', { timeZone: value.timezone }); } catch { return 'This query timezone is unavailable.'; }
   if (value.sort === 'manual' && (!value.team_id || value.archived)) return 'Manual ordering requires an explicit active team and active issues.';

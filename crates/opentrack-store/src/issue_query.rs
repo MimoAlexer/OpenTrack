@@ -59,8 +59,8 @@ fn build_issue_query(
     }
     if let Some((_, context)) = structured {
         // Bind the fixed clock once, including at the largest supported AST.
-        // Local next-day midnight is calculated separately rather than adding
-        // 24 hours to a UTC instant across daylight-saving transitions.
+        // Relative operands share its local calendar date; membership never
+        // assumes that a local date is one interval between UTC midnights.
         query
             .push(" CROSS JOIN (SELECT ")
             .push_bind(context.as_of)
@@ -292,27 +292,15 @@ fn push_predicate(
             })
             .push_bind(priorities)
             .push(")");
+    } else if matches!(operator, Operator::In | Operator::NotIn) {
+        push_date_set(query, field, operator, operands)?;
     } else {
-        if operator == Operator::NotIn {
-            query.push("NOT ");
-        }
-        query.push("(");
-        for (index, operand) in operands.iter().enumerate() {
-            if index != 0 {
-                query.push(" OR ");
-            }
-            push_date_comparison(
-                query,
-                field,
-                if matches!(operator, Operator::In | Operator::NotIn) {
-                    Operator::Eq
-                } else {
-                    operator
-                },
-                operand,
-            )?;
-        }
-        query.push(")");
+        push_date_comparison(
+            query,
+            field,
+            operator,
+            operands.first().ok_or_else(invalid)?,
+        )?;
     }
     Ok(())
 }
@@ -380,27 +368,87 @@ fn push_date_comparison(
             .push_bind(instant.with_timezone(&Utc));
         return Ok(());
     }
-    if field == Field::DueDate {
-        query.push("i.due_date").push(comparison(operator)?);
-        return push_calendar_date(query, operand, false);
+    push_local_date_column(query, field)?;
+    query.push(comparison(operator)?);
+    push_calendar_date(query, operand)
+}
+
+fn push_date_set(
+    query: &mut QueryBuilder<Postgres>,
+    field: Field,
+    operator: Operator,
+    operands: &[Operand],
+) -> Result<(), sqlx::Error> {
+    let mut instants = Vec::new();
+    let mut dates = Vec::new();
+    let mut relative_days = Vec::new();
+    for operand in operands {
+        match operand {
+            Operand::Text(text) => {
+                if field != Field::DueDate
+                    && let Ok(instant) = DateTime::parse_from_rfc3339(text)
+                {
+                    instants.push(instant.with_timezone(&Utc));
+                } else {
+                    dates.push(NaiveDate::parse_from_str(text, "%Y-%m-%d").map_err(|_| invalid())?);
+                }
+            }
+            Operand::Relative(relative) => relative_days.push(relative.relative_days),
+            _ => return Err(invalid()),
+        }
     }
-    match operator {
-        Operator::Eq => {
-            query.push("(").push(column(field)?).push(">=");
-            push_local_midnight(query, operand, false)?;
-            query.push(" AND ").push(column(field)?).push("<");
-            push_local_midnight(query, operand, true)?;
-            query.push(")");
+    if instants.is_empty() && dates.is_empty() && relative_days.is_empty() {
+        return Err(invalid());
+    }
+    if operator == Operator::NotIn {
+        query.push("NOT ");
+    }
+    query.push("(");
+    let has_instants = !instants.is_empty();
+    if has_instants {
+        query
+            .push(column(field)?)
+            .push("=ANY(")
+            .push_bind(instants)
+            .push(")");
+    }
+    if !dates.is_empty() || !relative_days.is_empty() {
+        if has_instants {
+            query.push(" OR ");
         }
-        Operator::Before => {
-            query.push(column(field)?).push("<");
-            push_local_midnight(query, operand, false)?;
+        push_local_date_column(query, field)?;
+        query.push("=ANY(");
+        if !dates.is_empty() {
+            query.push_bind(dates).push("::date[]");
+            if !relative_days.is_empty() {
+                query.push("||");
+            }
         }
-        Operator::After => {
-            query.push(column(field)?).push(">=");
-            push_local_midnight(query, operand, true)?;
+        if !relative_days.is_empty() {
+            query.push("ARRAY(SELECT (query_clock.as_of AT TIME ZONE query_clock.timezone)::date+query_day.day_offset FROM unnest(")
+                .push_bind(relative_days)
+                .push("::integer[]) query_day(day_offset))");
         }
-        _ => return Err(invalid()),
+        query.push(")");
+    }
+    query.push(")");
+    Ok(())
+}
+
+fn push_local_date_column(
+    query: &mut QueryBuilder<Postgres>,
+    field: Field,
+) -> Result<(), sqlx::Error> {
+    if field == Field::DueDate {
+        query.push("i.due_date");
+    } else {
+        // A local date need not be one UTC interval. Midnight can repeat,
+        // a rollback can briefly return to the preceding date, and a date can
+        // be skipped entirely. Compare the actual calendar date of each instant.
+        query
+            .push("(")
+            .push(column(field)?)
+            .push(" AT TIME ZONE query_clock.timezone)::date");
     }
     Ok(())
 }
@@ -414,21 +462,9 @@ fn comparison(operator: Operator) -> Result<&'static str, sqlx::Error> {
     }
 }
 
-fn push_local_midnight(
-    query: &mut QueryBuilder<Postgres>,
-    operand: &Operand,
-    next_day: bool,
-) -> Result<(), sqlx::Error> {
-    query.push("(");
-    push_calendar_date(query, operand, next_day)?;
-    query.push("::timestamp AT TIME ZONE query_clock.timezone)");
-    Ok(())
-}
-
 fn push_calendar_date(
     query: &mut QueryBuilder<Postgres>,
     operand: &Operand,
-    next_day: bool,
 ) -> Result<(), sqlx::Error> {
     query.push("(");
     match operand {
@@ -442,9 +478,6 @@ fn push_calendar_date(
                 .push_bind(relative.relative_days);
         }
         _ => return Err(invalid()),
-    }
-    if next_day {
-        query.push("+1");
     }
     query.push(")");
     Ok(())
@@ -591,6 +624,10 @@ mod tests {
             Some((&predicate, &context())),
         )
         .unwrap();
+        assert!(
+            query.sql().as_str().len() < 64 * 1024,
+            "Supported date sets should not expand into thousands of scalar comparisons"
+        );
         let arguments = query.build().take_arguments().unwrap().unwrap().len();
         assert!(
             arguments < 65_535,
@@ -598,21 +635,187 @@ mod tests {
         );
     }
 
-    #[test]
-    fn date_only_timestamp_bounds_use_distinct_local_midnights() {
-        let predicate =
-            node(json!({"kind":"predicate","field":"created_at","op":"eq","value":"2026-03-29"}));
-        let sql = build_issue_query(
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            &IssueFilter::default(),
-            None,
-            Some((&predicate, &context())),
+    const HAVANA: &[(&str, &str)] = &[
+        ("before", "2026-11-01T03:59:59Z"),
+        ("early", "2026-11-01T04:30:00Z"),
+        ("late", "2026-11-01T05:30:00Z"),
+        ("next", "2026-11-02T05:00:00Z"),
+    ];
+    const GOOSE_BAY: &[(&str, &str)] = &[
+        ("before", "1988-10-30T01:59:59Z"),
+        ("first-minute", "1988-10-30T02:00:30Z"),
+        ("previous-date-hole", "1988-10-30T03:30:00Z"),
+        ("later", "1988-10-30T04:00:30Z"),
+        ("next", "1988-10-31T04:00:00Z"),
+    ];
+    const APIA: &[(&str, &str)] = &[
+        ("before", "2011-12-30T09:30:00Z"),
+        ("after", "2011-12-30T10:30:00Z"),
+        ("next", "2011-12-31T10:30:00Z"),
+    ];
+
+    async fn calendar_pool() -> sqlx::PgPool {
+        use std::str::FromStr;
+        let url = std::env::var("OPENTRACK_TEST_DATABASE_URL")
+            .expect("Calendar query contracts require the isolated PostgreSQL test URL");
+        let options = sqlx::postgres::PgConnectOptions::from_str(&url)
+            .expect("Parse the isolated PostgreSQL test connection");
+        assert!(
+            options
+                .get_database()
+                .is_some_and(|name| name.ends_with("_test")),
+            "Calendar query contracts require an isolated *_test database"
+        );
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await
+            .expect("Connect to isolated PostgreSQL");
+        sqlx::query("SET statement_timeout='3s'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool
+    }
+
+    async fn calendar_labels(
+        pool: &sqlx::PgPool,
+        zone: &str,
+        rows: &[(&str, &str)],
+        clock: &str,
+        predicate: Value,
+    ) -> Vec<String> {
+        let predicate = node(predicate);
+        predicate.validate().unwrap();
+        let mut query = QueryBuilder::<Postgres>::new("SELECT i.label FROM (VALUES ");
+        for (index, (label, instant)) in rows.iter().enumerate() {
+            if index > 0 {
+                query.push(",");
+            }
+            let instant = DateTime::parse_from_rfc3339(instant)
+                .unwrap()
+                .with_timezone(&Utc);
+            query
+                .push("(")
+                .push_bind((*label).to_owned())
+                .push(",")
+                .push_bind(instant)
+                .push(",")
+                .push_bind(instant)
+                .push(")");
+        }
+        query
+            .push(") i(label,created_at,updated_at) CROSS JOIN (SELECT ")
+            .push_bind(
+                DateTime::parse_from_rfc3339(clock)
+                    .unwrap()
+                    .with_timezone(&Utc),
+            )
+            .push("::timestamptz AS as_of,")
+            .push_bind(zone.to_owned())
+            .push("::text AS timezone) query_clock WHERE ");
+        push_node(&mut query, &predicate).unwrap();
+        query.push(" ORDER BY i.label");
+        query
+            .build_query_scalar::<String>()
+            .fetch_all(pool)
+            .await
+            .unwrap()
+    }
+
+    #[sqlx::test]
+    async fn local_calendar_havana_includes_both_midnight_folds() {
+        let pool = calendar_pool().await;
+        for field in ["created_at", "updated_at"] {
+            for (op, expected) in [
+                ("eq", vec!["early", "late"]),
+                ("before", vec!["before"]),
+                ("after", vec!["next"]),
+            ] {
+                let actual = calendar_labels(
+                    &pool,
+                    "America/Havana",
+                    HAVANA,
+                    "2026-11-01T18:00:00Z",
+                    json!({"kind":"predicate","field":field,"op":op,"value":"2026-11-01"}),
+                )
+                .await;
+                assert_eq!(actual, expected, "Havana {field} {op} local date");
+            }
+        }
+        let relative = calendar_labels(
+            &pool,
+            "America/Havana",
+            HAVANA,
+            "2026-11-01T18:00:00Z",
+            json!({"kind":"predicate","field":"created_at","op":"eq","value":{"relative_days":0}}),
         )
-        .unwrap()
-        .into_string();
-        assert_eq!(sql.matches("AT TIME ZONE query_clock.timezone").count(), 2);
-        assert!(sql.contains("::date+1"));
-        assert!(!sql.contains("interval '24 hours'"));
+        .await;
+        assert_eq!(relative, ["early", "late"]);
+        pool.close().await;
+    }
+
+    #[sqlx::test]
+    async fn local_calendar_goose_bay_keeps_the_first_minute_and_previous_date_hole_separate() {
+        let pool = calendar_pool().await;
+        for (date, op, expected) in [
+            ("1988-10-30", "eq", vec!["first-minute", "later"]),
+            ("1988-10-30", "before", vec!["before", "previous-date-hole"]),
+            ("1988-10-30", "after", vec!["next"]),
+            ("1988-10-29", "eq", vec!["before", "previous-date-hole"]),
+        ] {
+            let actual = calendar_labels(
+                &pool,
+                "America/Goose_Bay",
+                GOOSE_BAY,
+                "1988-10-30T18:00:00Z",
+                json!({"kind":"predicate","field":"created_at","op":op,"value":date}),
+            )
+            .await;
+            assert_eq!(actual, expected, "Goose Bay {op} {date}");
+        }
+        pool.close().await;
+    }
+
+    #[sqlx::test]
+    async fn local_calendar_apia_skipped_day_stays_empty_without_broadening() {
+        let pool = calendar_pool().await;
+        for (op, expected) in [
+            ("eq", vec![]),
+            ("before", vec!["before"]),
+            ("after", vec!["after", "next"]),
+        ] {
+            let actual = calendar_labels(
+                &pool,
+                "Pacific/Apia",
+                APIA,
+                "2011-12-29T18:00:00Z",
+                json!({"kind":"predicate","field":"created_at","op":op,"value":"2011-12-30"}),
+            )
+            .await;
+            assert_eq!(actual, expected, "Apia {op} skipped local date");
+        }
+        pool.close().await;
+    }
+
+    #[sqlx::test]
+    async fn local_calendar_sets_combine_exact_instants_with_complete_local_dates() {
+        let pool = calendar_pool().await;
+        for (op, expected) in [
+            ("in", vec!["early", "late", "next"]),
+            ("not_in", vec!["before"]),
+        ] {
+            let actual = calendar_labels(
+                &pool,
+                "America/Havana",
+                HAVANA,
+                "2026-11-01T18:00:00Z",
+                json!({"kind":"predicate","field":"created_at","op":op,
+                    "values":["2026-11-01", "2026-11-02T05:00:00Z", {"relative_days":0}]}),
+            )
+            .await;
+            assert_eq!(actual, expected, "Havana mixed date/instant {op}");
+        }
+        pool.close().await;
     }
 }
