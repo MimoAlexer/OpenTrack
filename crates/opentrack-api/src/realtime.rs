@@ -74,6 +74,7 @@ pub struct RealtimeNode {
     listener_started: AtomicBool,
     wake: broadcast::Sender<()>,
     shutdown: watch::Sender<bool>,
+    interrupt: watch::Sender<u64>,
     admission: Mutex<LocalAdmission>,
     metrics: Arc<Metrics>,
 }
@@ -92,12 +93,14 @@ impl RealtimeNode {
     fn configured(app: App, listen: bool) -> Self {
         let (wake, _) = broadcast::channel(64);
         let (shutdown, _) = watch::channel(false);
+        let (interrupt, _) = watch::channel(0);
         Self {
             app,
             listen,
             listener_started: AtomicBool::new(false),
             wake,
             shutdown,
+            interrupt,
             admission: Mutex::new(LocalAdmission::default()),
             metrics: Arc::new(Metrics::default()),
         }
@@ -119,7 +122,15 @@ impl RealtimeNode {
     }
 
     #[doc(hidden)]
-    pub fn interrupt_listener(&self) {}
+    pub fn interrupt_listener(&self) {
+        if !self.listen || *self.shutdown.borrow() {
+            return;
+        }
+        // A watch counter coalesces bursts into one bounded pending command;
+        // it never queues arbitrary connection identifiers or spawns a task.
+        self.interrupt
+            .send_modify(|value| *value = value.wrapping_add(1));
+    }
 
     /// Stop the listener and close streams with a recoverable reset. No cleanup
     /// task is spawned from Drop; producers release their own durable leases.
@@ -162,6 +173,7 @@ impl RealtimeNode {
         let app = self.app.clone();
         let wake = self.wake.clone();
         let mut shutdown = self.shutdown.subscribe();
+        let mut interrupt = self.interrupt.subscribe();
         let metrics = self.metrics.clone();
         tokio::spawn(async move {
             loop {
@@ -174,6 +186,19 @@ impl RealtimeNode {
                     loop {
                         let received = tokio::select! {
                             _ = stopped(&mut shutdown) => return,
+                            changed = interrupt.changed() => {
+                                if changed.is_err() {
+                                    return;
+                                }
+                                // Only the existing listener task can perform
+                                // the fixed self-interruption. Afterwards the
+                                // ordinary drop/retry path owns reconnection.
+                                tokio::select! {
+                                    _ = stopped(&mut shutdown) => return,
+                                    _ = listener.interrupt() => {},
+                                }
+                                break;
+                            }
                             result = listener.recv() => result,
                         };
                         if received.is_err() {

@@ -7,6 +7,7 @@ use chacha20poly1305::{
 use chrono::Utc;
 use opentrack_domain::{RealtimeInvalidation, RealtimePage, RealtimeResetReason as Reset};
 use serde::{Deserialize, Serialize};
+use sqlx::Acquire;
 
 const CURSOR_TTL: i64 = 7 * 24 * 60 * 60;
 pub struct RealtimeFrame {
@@ -171,6 +172,21 @@ impl RealtimeListener {
     pub async fn recv(&mut self) -> Result<()> {
         self.0
             .recv()
+            .await
+            .map(|_| ())
+            .map_err(|_| Error::Unavailable)
+    }
+
+    /// Fault injection targets only this listener's acquired connection. It
+    /// accepts no process identifier and grants no cross-session authority.
+    #[doc(hidden)]
+    pub async fn interrupt(&mut self) -> Result<()> {
+        let connection = (&mut self.0)
+            .acquire()
+            .await
+            .map_err(|_| Error::Unavailable)?;
+        sqlx::query("SELECT pg_terminate_backend(pg_backend_pid())")
+            .execute(connection)
             .await
             .map(|_| ())
             .map_err(|_| Error::Unavailable)
