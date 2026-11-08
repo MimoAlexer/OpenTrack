@@ -84,7 +84,7 @@ export function useInbox(workspaceId: string, session: Session, accessScope: str
     rollback: (item: NotificationItem, readAtStart: number) => {
       // A completed later list is authoritative even when the personal version
       // stayed equal or the item moved outside the loaded/filter window.
-      if (completedRead.current !== readAtStart) return;
+      if (completedRead.current !== readAtStart) { setRetry(value => value + 1); return; }
       replaceItems(items => {
         const existing = items.find(value => value.id === item.id);
         if (existing && BigInt(existing.version) > BigInt(item.version)) return items;

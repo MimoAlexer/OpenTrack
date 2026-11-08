@@ -334,4 +334,13 @@ describe('late mutation authority reconciliation', () => {
     await act(async () => finish(json({ ...original, read_at: stamp, version: '2' })));
     expect(row('one').textContent).toContain('Newly authorized title'); expect(row('one').className).toContain('inbox-unread');
   });
+  it('reauthorizes personal state after a failed action races an unrelated in-flight next page', async () => {
+    let nextReads = 0; let finishPage!: (response: Response) => void; let finishMutation!: (response: Response) => void;
+    mockFetch((url, options) => options.method === 'PATCH' ? new Promise(resolve => { finishMutation = resolve; }) : url.includes('cursor=') ? ++nextReads === 1 ? new Promise(resolve => { finishPage = resolve; }) : json(page([])) : url.includes('/notifications?') ? json(page([item()], { next_cursor: 'next-page' })) : source(url));
+    await render(screen({ params: new URLSearchParams({ filter: 'all' }) })); await click('Load more notifications'); await click('Mark read');
+    await act(async () => finishPage(json(page([]))));
+    await act(async () => finishMutation(json({ detail: 'Try later' }, 503)));
+    expect(row('one').className).toContain('inbox-unread'); expect(button('Mark read')).toBeDefined();
+  });
+
 });
