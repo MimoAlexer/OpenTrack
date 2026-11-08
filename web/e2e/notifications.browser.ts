@@ -143,3 +143,37 @@ test('revoked private-team access removes every saved source title and body from
     expect(scrubbed.source.available).toBe(false); expect(scrubbed.source.title ?? null).toBeNull(); expect(scrubbed.source.key ?? null).toBeNull();
   } finally { await member.http.dispose(); }
 });
+
+test('canonical recipient stream refreshes inbox, unread badge and source preview before revocation clears private data', async ({ page, saved, playwright }) => {
+  const team = await privateTeam(saved); const member = await recipient(playwright.request, saved, team.id);
+  try {
+    const stream = page.waitForResponse(response => response.url() === `${saved.origin}${saved.path}/events` && response.request().method() === 'GET');
+    await openRecipient(page, member.http, saved.workspace);
+    const connected = await stream;
+    expect(connected.status()).toBe(200); expect(await connected.headerValue('content-type')).toContain('text/event-stream');
+    await expect(page.locator('.inbox-badge')).toHaveCount(0);
+    // The stream is already connected and the App integration disables separate
+    // inbox polling. These are actual API writes and ordinary worker delivery.
+    const issue = await assignedIssue(saved, team.id, member.session.user.id);
+    await expect(page.locator('.inbox-list')).toContainText(issue.title);
+    await expect(page.locator('.inbox-badge')).toHaveText('1');
+    const notification = (await inboxItems(member)).items.find(item => item.source.id === issue.id)!;
+    expect(notification).toBeDefined();
+    await row(page, notification).click();
+    await expect(page.locator('.inbox-source')).toContainText('Current private inbox source body');
+    await member.request(`/notifications/${notification.id}`, 'PATCH', { action: 'read' }, { 'If-Match': notification.etag });
+    await expect(row(page, notification)).toHaveCount(0); await expect(page.locator('.inbox-badge')).toHaveCount(0);
+    await page.getByRole('navigation', { name: 'Inbox filters' }).getByRole('button', { name: 'All', exact: true }).click();
+    await expect(row(page, notification)).toBeVisible(); await row(page, notification).click();
+    await expect(page.locator('.inbox-source')).toContainText(issue.title);
+    const membership = await saved.request<TeamMember>(`/teams/${team.id}/members/${member.session.user.id}`);
+    const removed = await saved.http.delete(`${saved.path}/teams/${team.id}/members/${member.session.user.id}`, { headers: {
+      Origin: saved.origin, 'X-CSRF-Token': saved.session.csrf_token, 'If-Match': `"team-member:${team.id}:${member.session.user.id}:${membership.version}"`,
+    } });
+    expect(removed.status()).toBe(204);
+    await expect(page.locator('.inbox-source-unavailable')).toBeVisible();
+    for (const text of [issue.title, issue.key, 'Current private inbox source body']) await expect(page.locator('.inbox-screen')).not.toContainText(text);
+    expect((await member.http.get(`${saved.path}/issues/${issue.id}`)).status()).toBe(404);
+    test.info().annotations.push({ type: 'notification-proof', description: JSON.stringify({ canonical_recipient_stream: true, worker_delivery_updates_list_and_badge: true, remote_read_updates_list_and_badge: true, private_source_revocation_without_reload: true }) });
+  } finally { await member.http.dispose(); }
+});

@@ -33,6 +33,47 @@ impl Harness {
     }
 
     #[allow(dead_code)]
+    pub async fn worker_url(&self) -> String {
+        let worker = test_url("OPENTRACK_TEST_WORKER_DATABASE_URL");
+        let owner = test_url("OPENTRACK_TEST_MIGRATION_DATABASE_URL");
+        let runtime = test_url("OPENTRACK_TEST_DATABASE_URL");
+        assert_eq!(
+            (worker.host_str(), worker.port(), worker.path()),
+            (owner.host_str(), owner.port(), owner.path())
+        );
+        assert_ne!(worker.username(), owner.username());
+        assert_ne!(worker.username(), runtime.username());
+        let script = include_str!("../../../../deploy/grant-worker.sql")
+            .lines()
+            .filter(|line| !line.starts_with('\\'))
+            .collect::<Vec<_>>()
+            .join("\n")
+            .replace(
+                ":'worker_role'",
+                &format!("'{}'", worker.username().replace('\'', "''")),
+            )
+            .replace(":'worker_schema'", &format!("'{}'", self.schema));
+        let script = script
+            .trim()
+            .strip_prefix("BEGIN;")
+            .expect("Worker grant script must begin a transaction")
+            .strip_suffix("COMMIT;")
+            .expect("Worker grant script must commit its transaction");
+        let mut tx = store::begin(&self.owner).await.unwrap();
+        // Isolated schemas still update the same database CONNECT grant catalog row.
+        sqlx::query("SELECT pg_advisory_xact_lock(1869636978,1)")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::raw_sql(AssertSqlSafe(script))
+            .execute(&mut *tx)
+            .await
+            .expect("Grant reviewed worker capabilities");
+        tx.commit().await.unwrap();
+        scoped_url(worker, &self.schema).to_string()
+    }
+
+    #[allow(dead_code)]
     pub async fn independent_app(&self) -> App {
         App::connect(
             scoped_url(test_url("OPENTRACK_TEST_DATABASE_URL"), &self.schema).as_str(),

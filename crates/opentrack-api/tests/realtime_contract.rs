@@ -1668,3 +1668,204 @@ async fn listener_reconnect(h: &Harness) {
     drop((stream, server));
     writer.pool.close().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn actual_issue_effect_reaches_recipient_only_sse_and_reauthorizes_inbox_after_revocation() {
+    let h = Harness::new().await;
+    let runner = h.clone();
+    let result = tokio::spawn(async move { notification_union(&runner).await }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+async fn notification_union(h: &Harness) {
+    use opentrack_app::worker::{Worker, WorkerOptions};
+    let f = setup(h).await;
+    let private = request(
+        &h.router,
+        Some(&f.owner),
+        "POST",
+        &format!("{}/teams", f.base),
+        Some(json!({"name":"Private notification source","key":"PNS","private":true})),
+        &[],
+    )
+    .await;
+    private.expect(StatusCode::CREATED);
+    let team = id(&private.body["id"]);
+    let invitation = request(
+        &h.router,
+        Some(&f.owner),
+        "POST",
+        &format!("{}/invitations", f.base),
+        Some(json!({"email":"union-recipient@example.test","role":"member","team_ids":[team]})),
+        &[],
+    )
+    .await;
+    invitation.expect(StatusCode::CREATED);
+    let accepted = request(&h.router, None, "POST", "/api/v1/invitations/accept", Some(json!({"token":invitation.body["token"],"display_name":"Example Recipient","password":PASSWORD})), &[]).await;
+    accepted.expect(StatusCode::OK);
+    let recipient = accepted.client();
+    let outsider = invite(&h.router, &f, "union-observer@example.test", "member").await;
+    let worker = Worker::connect(
+        &h.worker_url().await,
+        WorkerOptions {
+            max_connections: 2,
+            ..WorkerOptions::default()
+        },
+    )
+    .await
+    .unwrap();
+    drain_notification_union(&worker, f.workspace).await;
+    let recipient_snapshot = bootstrap(&h.router, &recipient, &f.base).await;
+    let outsider_snapshot = bootstrap(&h.router, &outsider, &f.base).await;
+    let owner_snapshot = bootstrap(&h.router, &f.owner, &f.base).await;
+    let server = Server::start(h.router.clone()).await;
+    let mut stream = TcpSse::open(
+        &server,
+        &recipient,
+        &f.base,
+        recipient_snapshot["realtime_cursor"].as_str().unwrap(),
+    )
+    .await;
+    let source = request(&h.router, Some(&f.owner), "POST", &format!("{}/issues", f.base), Some(json!({"team_id":team,"title":"Private union source title","assignee_id":recipient.actor})), &[]).await;
+    source.expect(StatusCode::CREATED);
+    drain_notification_union(&worker, f.workspace).await;
+    let created = next_notification_union(&mut stream, "notification.created").await;
+    assert_eq!(created.data["entity_type"], "notification");
+    assert_eq!(created.data["actor_id"], Value::Null);
+    let notification = id(&created.data["entity_id"]);
+    let metadata = created.data.to_string();
+    for secret in [
+        recipient.actor.to_string(),
+        f.owner.actor.to_string(),
+        team.to_string(),
+        "Private union source title".into(),
+    ] {
+        assert!(!metadata.contains(&secret));
+    }
+    for forbidden in [
+        "seq",
+        "team_id",
+        "user_id",
+        "recipient_id",
+        "title",
+        "unread_count",
+        "payload",
+    ] {
+        assert!(created.data.get(forbidden).is_none());
+    }
+    let inbox_path = format!("{}/notifications?filter=unread&limit=1", f.base);
+    let inbox = request(&h.router, Some(&recipient), "GET", &inbox_path, None, &[]).await;
+    inbox.expect(StatusCode::OK);
+    assert_eq!(inbox.body["unread_count"], 1);
+    assert_eq!(inbox.body["items"][0]["id"], notification.to_string());
+    assert_eq!(inbox.body["items"][0]["source"]["id"], source.body["id"]);
+    for (observer, snapshot) in [(&outsider, &outsider_snapshot), (&f.owner, &owner_snapshot)] {
+        let replay = page(
+            &h.router,
+            observer,
+            &f.base,
+            snapshot["realtime_cursor"].as_str().unwrap(),
+            100,
+        )
+        .await;
+        assert!(
+            !replay["events"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|event| event["type"].as_str().unwrap().starts_with("notification."))
+        );
+        assert!(!replay.to_string().contains(&notification.to_string()));
+        assert!(!replay.to_string().contains(&recipient.actor.to_string()));
+    }
+    let changed = request(
+        &h.router,
+        Some(&recipient),
+        "PATCH",
+        &format!("{}/notifications/{notification}", f.base),
+        Some(json!({"action":"read"})),
+        &[("if-match", inbox.body["items"][0]["etag"].as_str().unwrap())],
+    )
+    .await;
+    changed.expect(StatusCode::OK);
+    drain_notification_union(&worker, f.workspace).await;
+    let updated = next_notification_union(&mut stream, "notification.updated").await;
+    assert_eq!(updated.data["entity_id"], notification.to_string());
+    assert_ne!(created.data["event_id"], updated.data["event_id"]);
+    assert_eq!(updated.data["actor_id"], Value::Null);
+    let unread = request(&h.router, Some(&recipient), "GET", &inbox_path, None, &[]).await;
+    unread.expect(StatusCode::OK);
+    assert_eq!(unread.body["unread_count"], 0);
+    assert_eq!(unread.body["items"], json!([]));
+    let path = format!("{}/teams/{team}/members/{}", f.base, recipient.actor);
+    let membership = request(&h.router, Some(&f.owner), "GET", &path, None, &[]).await;
+    membership.expect(StatusCode::OK);
+    request(
+        &h.router,
+        Some(&f.owner),
+        "DELETE",
+        &path,
+        None,
+        &[("if-match", membership.headers["etag"].to_str().unwrap())],
+    )
+    .await
+    .expect(StatusCode::NO_CONTENT);
+    reset_and_close(&mut stream).await;
+    let concealed = request(
+        &h.router,
+        Some(&recipient),
+        "GET",
+        &format!("{}/notifications?filter=all", f.base),
+        None,
+        &[],
+    )
+    .await;
+    concealed.expect(StatusCode::OK);
+    assert_eq!(concealed.body["items"][0]["source"]["available"], false);
+    for secret in [
+        "Private union source title",
+        source.body["key"].as_str().unwrap(),
+    ] {
+        assert!(!concealed.body.to_string().contains(secret));
+    }
+    request(
+        &h.router,
+        Some(&recipient),
+        "GET",
+        &format!("{}/issues/{}", f.base, source.body["id"].as_str().unwrap()),
+        None,
+        &[],
+    )
+    .await
+    .expect(StatusCode::NOT_FOUND);
+    worker.pool.close().await;
+}
+
+async fn drain_notification_union(worker: &opentrack_app::worker::Worker, workspace: Uuid) {
+    for _ in 0..40 {
+        let tick = worker.apply_notification_events(workspace).await.unwrap();
+        assert!(!tick.dead_lettered);
+        let flushed = worker.flush_notification_events(workspace).await.unwrap();
+        if tick.processed == 0 && tick.captured == 0 && !tick.backfilled && flushed == 0 {
+            return;
+        }
+    }
+    panic!("Bounded notification worker drain did not complete");
+}
+
+async fn next_notification_union(stream: &mut TcpSse, kind: &str) -> SseEvent {
+    for _ in 0..16 {
+        let event = stream
+            .next()
+            .await
+            .expect("Recipient stream closed before notification delivery");
+        if event.name == "invalidation" && event.data["type"] == kind {
+            return event;
+        }
+        assert!(event.name == "checkpoint" || event.name == "invalidation");
+    }
+    panic!("Bounded stream did not deliver the expected notification");
+}
