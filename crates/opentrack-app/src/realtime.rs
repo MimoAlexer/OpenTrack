@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::Acquire;
 
 const CURSOR_TTL: i64 = 7 * 24 * 60 * 60;
+const CURSOR_PLAINTEXT_BYTES: usize = 512;
 pub struct RealtimeFrame {
     pub cursor: String,
     pub event: RealtimeInvalidation,
@@ -51,6 +52,14 @@ mod tests {
             .realtime_cursor_at(&actor, workspace, 17, 4321, now)
             .unwrap();
         assert_ne!(first, second);
+        let larger_position = app
+            .realtime_cursor_at(&actor, workspace, i64::MAX, i64::MAX, now)
+            .unwrap();
+        assert_eq!(
+            first.len(),
+            larger_position.len(),
+            "Hidden stream positions must not change token length"
+        );
         assert!(!first.contains(&workspace.to_string()));
         assert!(!first.contains(&actor.user.id.to_string()));
         let other_node = app.clone();
@@ -279,7 +288,7 @@ impl App {
         sequence: i64,
         now: i64,
     ) -> Result<String> {
-        let payload = serde_json::to_vec(&Cursor {
+        let mut payload = serde_json::to_vec(&Cursor {
             version: 1,
             workspace,
             user: actor.user.id,
@@ -289,6 +298,12 @@ impl App {
             expires_at: now + CURSOR_TTL,
         })
         .map_err(|_| Error::Internal)?;
+        if payload.len() > CURSOR_PLAINTEXT_BYTES {
+            return Err(Error::Internal);
+        }
+        // Fixed-size authenticated plaintext hides sequence/epoch digit lengths.
+        // JSON whitespace remains inside the ciphertext and is discarded on read.
+        payload.resize(CURSOR_PLAINTEXT_BYTES, b' ');
         let mut nonce = [0u8; 24];
         OsRng.fill_bytes(&mut nonce);
         let ciphertext = self
@@ -319,7 +334,7 @@ impl App {
         let bytes = URL_SAFE_NO_PAD
             .decode(cursor.strip_prefix("rt1.").ok_or_else(invalid)?)
             .map_err(|_| invalid())?;
-        if bytes.len() < 24 + 16 || bytes.len() > 2048 {
+        if bytes.len() != 24 + CURSOR_PLAINTEXT_BYTES + 16 {
             return Err(invalid());
         }
         let payload = self

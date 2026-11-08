@@ -1,4 +1,4 @@
-// Local until the realtime schema is included in the generated API contract.
+// Validated version-1 metadata. The server owns source authorization.
 export type CanonicalEvent = {
   event_id: string; schema_version: 1; type: string; workspace_id: string;
   entity_type: string; entity_id: string; entity_version: string; actor_id: null;

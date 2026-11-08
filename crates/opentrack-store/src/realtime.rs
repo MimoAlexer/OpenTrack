@@ -79,6 +79,7 @@ enum SourceKind {
     Attachment,
     Invitation,
     Preferences,
+    Notification,
     Access,
 }
 
@@ -148,6 +149,7 @@ fn registration(kind: &str) -> Option<(SourceKind, &'static str)> {
         | "attachment.deleted" => (Attachment, "attachment"),
         "invitation.created" | "invitation.revoked" => (Invitation, "invitation"),
         "user.preferences_changed" => (Preferences, "user_preferences"),
+        "notification.created" | "notification.updated" => (Notification, "notification"),
         "access.changed" => (Access, "workspace"),
         _ => return None,
     })
@@ -189,6 +191,14 @@ pub async fn stream_source(
     }
     use SourceKind::*;
     let readable = match source {
+        Notification => {
+            // M07 is optional for this earlier migration. Never fall through to
+            // another schema or treat a recipient-private event as workspace-wide.
+            let installed: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_class WHERE relnamespace=current_schema()::regnamespace AND relname='notifications' AND relkind IN('r','p'))")
+                .fetch_one(&mut **tx).await?;
+            installed && row.team_id.is_none() && sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM notifications WHERE workspace_id=$1 AND user_id=$2 AND id=$3)")
+                .bind(workspace).bind(user).bind(row.entity_id).fetch_one(&mut **tx).await?
+        }
         Access => {
             return Ok(if row.team_id.is_none() && row.entity_id == workspace {
                 StreamSource::ScopeReset
@@ -409,6 +419,17 @@ mod tests {
     use super::{SourceKind, registration};
 
     #[test]
+    fn notification_invalidations_require_the_explicit_recipient_policy() {
+        for kind in ["notification.created", "notification.updated"] {
+            assert_eq!(
+                registration(kind),
+                Some((SourceKind::Notification, "notification"))
+            );
+        }
+        assert_eq!(registration("notification.recipient_changed"), None);
+    }
+
+    #[test]
     fn aggregate_and_operation_events_keep_the_writers_actual_entity_type() {
         assert_eq!(
             registration("milestone.assignment_changed"),
@@ -441,7 +462,7 @@ mod tests {
             "invitation.accepted",
             "user.preferences_changed.extra",
             "access.changed.extra",
-            "notification.created",
+            "notification.private_preview",
         ] {
             assert_eq!(registration(kind), None, "{kind}");
         }
