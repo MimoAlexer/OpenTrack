@@ -27,7 +27,7 @@
 
 Keep issues, projects, discussion, files, and workflows together on your own server. The core runs without an AI account or a paid cloud service. Browser and desktop use the same accounts, permissions, and PostgreSQL data.
 
-**Development checkpoint: schema 24, 22 October 2026.** Project milestones and team cycles now connect to the shared client, with reviewed close/carry-forward reports and accessible chart tables. The [started-batch record](docs/evidence/2026-10-22-started-batch.md) links implementation and verification; the full product is unfinished. The [requirements ledger](docs/REQUIREMENTS_STATUS.md) separates implemented behavior from remaining acceptance work.
+**Source checkpoint: schema 34, 8 November 2026.** Structured issue filters, bounded realtime replay and the durable in-app inbox now compose with project planning. The [combined qualification record](docs/evidence/2026-11-08-discovery-inbox-integration.md) distinguishes executed checks from outstanding acceptance; the [requirements ledger](docs/REQUIREMENTS_STATUS.md) retains the full product's remaining gates.
 
 ## What works today
 
@@ -37,19 +37,23 @@ Keep issues, projects, discussion, files, and workflows together on your own ser
 - **Writing and discussion.** Structured descriptions, checklists and code; autosave with explicit conflict review; reviewed JSON/Markdown draft transfer, comments, attributable activity facts, attachments and current-access mentions/references. Personal subscriptions support automatic following or an explicit opt-out.
 - **Reusable team workflows.** Versioned issue templates, opt-in team/date title patterns, preview and merge/replace choices, custom statuses and defaults, and durable status-replacement jobs.
 - **Controlled access.** Private teams, invitations, account-session management, operator recovery and scoped authorization. A separate worker handles bounded background work and assignment cleanup.
+- **Structured filters and live refresh.** List and board share bounded structured queries and local calendar-date filters. Authorized replay refreshes current data; disconnection pauses issue writes while preserving unsaved drafts.
+- **In-app inbox.** Assignment, mention and followed-comment delivery through the restricted worker. Read, archive and snooze notifications, retain personal preferences, and reauthorize private source labels and previews. Processing the inbox does not change its source issue.
 - **Browser and desktop.** Compact properties, command palette, persistent character-shortcut preferences, guarded navigation sequences and light/dark themes. The Linux client embeds the same UI and uses browser sign-in plus the OS credential vault.
 
-Subscriptions and mention intents are stored, but **inbox and email delivery are not implemented**. The desktop is an online client, not an offline workspace replica. Windows, macOS and signed updates remain pending.
+The in-app inbox works independently of email. **SMTP delivery, email channels and digests remain unimplemented.** The desktop is an online client, not an offline workspace replica. Windows, macOS and signed updates remain pending.
 
 ## What comes next
 
-The remaining roadmap includes native interaction and attachment/recovery qualification, boards, timelines and reporting parity; saved views, broader search, realtime and the inbox follow. Project briefs currently share the project metadata version; independent brief history, mentions, issue references and attachments remain unfinished. Complete-product execution resumed on 22 October through five assigned lanes, with one integration owner and acceptance evidence required for every completion claim.
+The remaining roadmap includes native interaction and attachment/recovery qualification, boards, timelines and reporting parity; saved views and broader search remain separate discovery work. Realtime and the in-app inbox are implemented slices with explicit remaining qualification gates. Project briefs currently share the project metadata version; independent brief history, mentions, issue references and attachments remain unfinished. Complete-product execution resumed on 22 October through five assigned lanes, with one integration owner and acceptance evidence required for every completion claim.
 
 The broader roadmap includes **initiatives, roadmap scenarios and capacity, retrospectives, decisions, feedback, releases, incidents and reports**, alongside integrations and optional AI/isolated agents. These are planned capabilities, not current screens.
 
 [Browse the project board](https://github.com/users/MimoAlexer/projects/3) · [GitHub project guide](docs/GITHUB_PROJECT.md) · [Read the roadmap](docs/ROADMAP.md) · [See the concrete TODO list](docs/PROJECT_HANDOFF_2026-10-18.md#next-concrete-work)
 
 ## Run locally
+
+A fresh laptop checkout can follow the Docker steps below. Local `work/` directories, development databases and generated credentials are not needed for a fresh installation; durable installation data belongs in the documented volumes and backups.
 
 Install [Docker Desktop](https://docs.docker.com/desktop/) on Windows/macOS, or [Docker Engine with the Compose plugin](https://docs.docker.com/compose/install/) on Linux. Use Linux containers, Engine 28 or newer and Compose 2.24.4 or newer. From this repository's root:
 
