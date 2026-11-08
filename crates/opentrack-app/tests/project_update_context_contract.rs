@@ -1,6 +1,7 @@
 //! Authored project context remains immutable, honest about legacy data, and bounded on the wire.
 #[allow(dead_code)]
 mod support;
+use opentrack_app::worker::{Worker, WorkerOptions};
 use opentrack_domain::*;
 use opentrack_store as store;
 use serde_json::{Value, json};
@@ -15,6 +16,84 @@ fn req<T: serde::de::DeserializeOwned>(value: Value) -> T {
 fn digest(value: &[u8]) -> String {
     format!("{:x}", Sha256::digest(value))
 }
+
+#[tokio::test]
+async fn project_note_validation_preserves_api_inserts_without_worker_callable_authority() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let run = tokio::spawn(async move { validation_capabilities(&copy).await }).await;
+    h.cleanup().await;
+    if let Err(error) = run {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+async fn validation_capabilities(h: &Harness) {
+    let (a, w, t, p) = setup(h).await;
+    // This must exercise the unchanged complete worker admission check, not a
+    // hand-maintained subset of its capability predicates.
+    let worker_url = h.worker_url().await;
+    let worker = Worker::connect(
+        &worker_url,
+        WorkerOptions {
+            max_connections: 2,
+            ..WorkerOptions::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert!(
+        !sqlx::query_scalar::<_, bool>(
+            "SELECT has_function_privilege(current_user,'project_update_notes_guard()','EXECUTE')"
+        )
+        .fetch_one(&worker.pool)
+        .await
+        .unwrap()
+    );
+    assert!(
+        !sqlx::query_scalar::<_, bool>(
+            "SELECT has_function_privilege(current_user,'project_update_notes_guard()','EXECUTE')"
+        )
+        .fetch_one(&h.app.pool)
+        .await
+        .unwrap()
+    );
+    let private:bool=sqlx::query_scalar("SELECT NOT p.prosecdef AND p.prorettype='trigger'::regtype AND p.proconfig=ARRAY[format('search_path=pg_catalog, %I, pg_temp',current_schema())] AND NOT EXISTS(SELECT 1 FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a WHERE a.grantee=0 AND a.privilege_type='EXECUTE') FROM pg_proc p WHERE p.oid='project_update_notes_guard()'::regprocedure").fetch_one(&h.owner).await.unwrap();
+    assert!(private);
+    for key in ["private-validator-first", "private-validator-second"] {
+        let update = h
+            .app
+            .create_project_update(
+                &a,
+                w,
+                t,
+                p.id,
+                key,
+                req(json!({"body":"Reviewed with private validation","notes":notes()})),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            update.context.unwrap().notes.unwrap().risks[0].title,
+            "Delivery risk"
+        );
+        // Reapplying the deployment grant script must not make this helper
+        // callable or make a restricted worker fail its admission check.
+        let url = h.worker_url().await;
+        let repeated = Worker::connect(
+            &url,
+            WorkerOptions {
+                max_connections: 2,
+                ..WorkerOptions::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert!(!sqlx::query_scalar::<_,bool>("SELECT has_function_privilege(current_user,'project_update_notes_guard()','EXECUTE')").fetch_one(&repeated.pool).await.unwrap());
+        repeated.pool.close().await;
+    }
+    worker.pool.close().await;
+}
+
 async fn setup(h: &Harness) -> (Actor, Uuid, Uuid, Project) {
     let (session, token) = h.app.setup(req(json!({"setup_token":h.setup_token,"email":"owner@update-context.example.test","display_name":"Example Owner","password":PASSWORD,"workspace_name":"Update context","team_name":"Engineering","team_key":"ENG"}))).await.unwrap();
     let owner = h.app.authenticate(&token).await.unwrap();
