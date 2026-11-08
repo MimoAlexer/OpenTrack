@@ -1,0 +1,120 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1227
+    },
+    {
+      "browser": "chromium",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 600
+    },
+    {
+      "browser": "chromium",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 691
+    },
+    {
+      "browser": "chromium",
+      "check": "narrow keyboard save preserves draft after a remote version conflict",
+      "status": "passed",
+      "duration_ms": 1140
+    },
+    {
+      "browser": "chromium",
+      "check": "Open revalidates remote narrowing and deletion while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 938
+    },
+    {
+      "browser": "chromium",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 2285
+    },
+    {
+      "browser": "firefox",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 2028
+    },
+    {
+      "browser": "firefox",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 725
+    },
+    {
+      "browser": "firefox",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 1011
+    },
+    {
+      "browser": "firefox",
+      "check": "narrow keyboard save preserves draft after a remote version conflict",
+      "status": "passed",
+      "duration_ms": 1626
+    },
+    {
+      "browser": "firefox",
+      "check": "Open revalidates remote narrowing and deletion while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 1180
+    },
+    {
+      "browser": "firefox",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 2591
+    },
+    {
+      "browser": "webkit",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1773
+    },
+    {
+      "browser": "webkit",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 1035
+    },
+    {
+      "browser": "webkit",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 1164
+    },
+    {
+      "browser": "webkit",
+      "check": "narrow keyboard save preserves draft after a remote version conflict",
+      "status": "passed",
+      "duration_ms": 1657
+    },
+    {
+      "browser": "webkit",
+      "check": "Open revalidates remote narrowing and deletion while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 1504
+    },
+    {
+      "browser": "webkit",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 2751
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published.",
+  "source": "de3807866f26ffa225ff9d01b2ee3ec06be4e23a",
+  "tree": "950d1936eb73528efae2692fee5fab07df4b8d12"
+}

@@ -1,0 +1,129 @@
+{
+  "status": "failed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "failed",
+      "duration_ms": 10614,
+      "failure": "saved-discovery.browser.ts:22"
+    },
+    {
+      "browser": "chromium",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 621
+    },
+    {
+      "browser": "chromium",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 661
+    },
+    {
+      "browser": "chromium",
+      "check": "narrow keyboard save preserves draft after a remote version conflict",
+      "status": "failed",
+      "duration_ms": 10203,
+      "failure": "saved-discovery.browser.ts:67"
+    },
+    {
+      "browser": "chromium",
+      "check": "Open revalidates remote narrowing and deletion while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 867
+    },
+    {
+      "browser": "chromium",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "failed",
+      "duration_ms": 95,
+      "failure": "saved-discovery.browser.ts:114"
+    },
+    {
+      "browser": "firefox",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "failed",
+      "duration_ms": 11288,
+      "failure": "saved-discovery.browser.ts:22"
+    },
+    {
+      "browser": "firefox",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 1149
+    },
+    {
+      "browser": "firefox",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 866
+    },
+    {
+      "browser": "firefox",
+      "check": "narrow keyboard save preserves draft after a remote version conflict",
+      "status": "failed",
+      "duration_ms": 10383,
+      "failure": "saved-discovery.browser.ts:67"
+    },
+    {
+      "browser": "firefox",
+      "check": "Open revalidates remote narrowing and deletion while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 1595
+    },
+    {
+      "browser": "firefox",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "failed",
+      "duration_ms": 194,
+      "failure": "saved-discovery.browser.ts:114"
+    },
+    {
+      "browser": "webkit",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "failed",
+      "duration_ms": 11111,
+      "failure": "saved-discovery.browser.ts:22"
+    },
+    {
+      "browser": "webkit",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 1112
+    },
+    {
+      "browser": "webkit",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 1113
+    },
+    {
+      "browser": "webkit",
+      "check": "narrow keyboard save preserves draft after a remote version conflict",
+      "status": "failed",
+      "duration_ms": 10663,
+      "failure": "saved-discovery.browser.ts:67"
+    },
+    {
+      "browser": "webkit",
+      "check": "Open revalidates remote narrowing and deletion while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 1355
+    },
+    {
+      "browser": "webkit",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "failed",
+      "duration_ms": 289,
+      "failure": "saved-discovery.browser.ts:114"
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published.",
+  "source": "e8f07f48b2e60f7a0c1c744ca133a18e8e1de83d",
+  "result_scope": "First corrective browser run;9/18passed; readiness and fixture corrections followed."
+}
