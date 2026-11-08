@@ -28,6 +28,7 @@ CREATE TABLE project_scope_events (
  FOREIGN KEY(workspace_id,team_id,project_id) REFERENCES project_scope_heads(workspace_id,team_id,project_id)
 );
 CREATE INDEX project_scope_events_issue ON project_scope_events(workspace_id,project_id,issue_id,ordinal DESC);
+CREATE INDEX project_scope_events_reverse ON project_scope_events(workspace_id,issue_id,project_id);
 CREATE TABLE project_scope_baselines (
  id uuid PRIMARY KEY,workspace_id uuid NOT NULL,team_id uuid NOT NULL,project_id uuid NOT NULL,
  ordinal bigint NOT NULL CHECK(ordinal>0), label text NOT NULL CHECK(length(label) BETWEEN 1 AND 160 AND label=btrim(label)),
@@ -41,6 +42,7 @@ CREATE TABLE project_scope_baseline_items (
  PRIMARY KEY(workspace_id,baseline_id,issue_id),
  FOREIGN KEY(workspace_id,baseline_id) REFERENCES project_scope_baselines(workspace_id,id)
 );
+CREATE INDEX project_scope_baseline_items_reverse ON project_scope_baseline_items(workspace_id,issue_id,baseline_id);
 -- No FK to issues: removal/purge must not erase the historical fact. Read
 -- projections must join current non-deleted issues and recheck current access.
 DO $$ DECLARE t text; BEGIN
@@ -86,10 +88,14 @@ CREATE TRIGGER project_scope_membership AFTER INSERT OR DELETE ON project_issues
 CREATE FUNCTION project_scope_issue_visibility() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE target record; affected bigint; BEGIN
  IF (OLD.version,OLD.team_id,OLD.deleted_at) IS DISTINCT FROM (NEW.version,NEW.team_id,NEW.deleted_at) THEN
-  FOR target IN SELECT h.project_id FROM project_scope_heads h WHERE h.workspace_id=NEW.workspace_id AND (
-   EXISTS(SELECT 1 FROM project_issues pi WHERE pi.workspace_id=h.workspace_id AND pi.project_id=h.project_id AND pi.issue_id=NEW.id)
-   OR EXISTS(SELECT 1 FROM project_scope_events e WHERE e.workspace_id=h.workspace_id AND e.project_id=h.project_id AND e.issue_id=NEW.id)
-   OR EXISTS(SELECT 1 FROM project_scope_baseline_items bi JOIN project_scope_baselines b ON b.workspace_id=bi.workspace_id AND b.id=bi.baseline_id WHERE b.workspace_id=h.workspace_id AND b.project_id=h.project_id AND bi.issue_id=NEW.id)) ORDER BY h.project_id LOOP
+  FOR target IN SELECT project_id FROM (
+   SELECT pi.project_id FROM project_issues pi WHERE pi.workspace_id=NEW.workspace_id AND pi.issue_id=NEW.id
+   UNION
+   SELECT e.project_id FROM project_scope_events e WHERE e.workspace_id=NEW.workspace_id AND e.issue_id=NEW.id
+   UNION
+   SELECT b.project_id FROM project_scope_baseline_items bi JOIN project_scope_baselines b ON b.workspace_id=bi.workspace_id AND b.id=bi.baseline_id
+    WHERE bi.workspace_id=NEW.workspace_id AND bi.issue_id=NEW.id
+  ) affected ORDER BY project_id LOOP
     UPDATE project_scope_heads SET revision=revision+1 WHERE workspace_id=NEW.workspace_id AND project_id=target.project_id;
     GET DIAGNOSTICS affected=ROW_COUNT;IF affected<>1 THEN RAISE EXCEPTION 'Required scope invalidation missing';END IF;
   END LOOP;
