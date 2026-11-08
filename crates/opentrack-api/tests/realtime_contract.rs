@@ -250,6 +250,68 @@ async fn invite(router: &Router, f: &Fixture, email: &str, role: &str) -> Client
     accepted.client()
 }
 
+async fn native_bearer(router: &Router, browser: &Client) -> (String, Uuid) {
+    const VERIFIER: &str = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+    let challenge = opentrack_domain::native_code_challenge(VERIFIER).unwrap();
+    let state = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+    let start = request(
+        router,
+        None,
+        "POST",
+        "/api/v1/auth/native/requests",
+        Some(json!({
+            "code_challenge":challenge,"state":state,"device_name":"Realtime native contract",
+            "callback_uri":"http://127.0.0.1:38419/opentrack/native-callback"
+        })),
+        &[],
+    )
+    .await;
+    // Handoff responses contain secrets. Status failures deliberately omit
+    // response bodies so generated credentials cannot enter test output.
+    assert_eq!(start.status, StatusCode::CREATED);
+    assert!(!start.headers.contains_key("set-cookie"));
+    let approval_path = format!(
+        "/api/v1/auth/native/requests/{}",
+        start.body["id"].as_str().unwrap()
+    );
+    let consent = request(router, Some(browser), "GET", &approval_path, None, &[]).await;
+    assert_eq!(consent.status, StatusCode::OK);
+    assert_eq!(consent.body["device_name"], "Realtime native contract");
+    let approved = request(
+        router,
+        Some(browser),
+        "POST",
+        &format!("{approval_path}/approve"),
+        Some(json!({"confirmation_code":start.body["confirmation_code"]})),
+        &[],
+    )
+    .await;
+    assert_eq!(approved.status, StatusCode::OK);
+    let callback = url::Url::parse(approved.body["callback_uri"].as_str().unwrap()).unwrap();
+    let code = callback
+        .query_pairs()
+        .find(|(key, _)| key == "code")
+        .unwrap()
+        .1
+        .into_owned();
+    let grant = request(
+        router,
+        None,
+        "POST",
+        "/api/v1/auth/native/exchange",
+        Some(json!({"request_id":start.body["id"],"code":code,"code_verifier":VERIFIER})),
+        &[],
+    )
+    .await;
+    assert_eq!(grant.status, StatusCode::OK);
+    assert!(!grant.headers.contains_key("set-cookie"));
+    assert_eq!(grant.body["token_type"], "Bearer");
+    assert_eq!(grant.body["session"]["audience"], "desktop");
+    let token = grant.body["access_token"].as_str().unwrap();
+    assert!(opentrack_domain::native_hex_secret(token));
+    (format!("Bearer {token}"), id(&grant.body["session_id"]))
+}
+
 struct Server {
     address: SocketAddr,
     task: tokio::task::JoinHandle<()>,
@@ -871,7 +933,97 @@ async fn hidden_replay(h: &Harness) {
     )
     .await
     .expect(StatusCode::UNPROCESSABLE_ENTITY);
+    native_replay(h, &f).await;
     drop((stream, server));
+}
+
+async fn native_replay(h: &Harness, f: &Fixture) {
+    let (bearer, session) = native_bearer(&h.router, &f.owner).await;
+    let authorization = [("authorization", bearer.as_str())];
+    let native_bootstrap = request(
+        &h.router,
+        None,
+        "GET",
+        &format!("{}/bootstrap", f.base),
+        None,
+        &authorization,
+    )
+    .await;
+    native_bootstrap.expect(StatusCode::OK);
+    let native_cursor = native_bootstrap.body["realtime_cursor"].as_str().unwrap();
+    opaque(native_cursor);
+    let web_bootstrap = bootstrap(&h.router, &f.owner, &f.base).await;
+    let web_cursor = web_bootstrap["realtime_cursor"].as_str().unwrap();
+    let created = issue(&h.router, &f.owner, &f.base, f.team, "Native replay source").await;
+    let native_page = request(
+        &h.router,
+        None,
+        "GET",
+        &page_path(&f.base, native_cursor, 100),
+        None,
+        &authorization,
+    )
+    .await;
+    native_page.expect(StatusCode::OK);
+    assert!(!native_page.headers.contains_key("set-cookie"));
+    assert_eq!(native_page.body["events"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        native_page.body["events"][0]["entity_id"],
+        created.body["id"]
+    );
+    assert_eq!(native_page.body["events"][0]["type"], "issue.created");
+    assert_eq!(native_page.body["has_more"], false);
+    opaque(native_page.body["cursor"].as_str().unwrap());
+    request(
+        &h.router,
+        None,
+        "GET",
+        &page_path(&f.base, web_cursor, 100),
+        None,
+        &authorization,
+    )
+    .await
+    .expect(StatusCode::CONFLICT);
+    request(
+        &h.router,
+        Some(&f.owner),
+        "GET",
+        &page_path(&f.base, native_cursor, 100),
+        None,
+        &[],
+    )
+    .await
+    .expect(StatusCode::CONFLICT);
+    request(
+        &h.router,
+        Some(&f.owner),
+        "POST",
+        &format!("/api/v1/auth/sessions/{session}/revoke"),
+        None,
+        &[],
+    )
+    .await
+    .expect(StatusCode::NO_CONTENT);
+    request(
+        &h.router,
+        None,
+        "GET",
+        &page_path(&f.base, native_cursor, 100),
+        None,
+        &authorization,
+    )
+    .await
+    .expect(StatusCode::UNAUTHORIZED);
+    request(
+        &h.router,
+        None,
+        "GET",
+        &format!("{}/bootstrap", f.base),
+        None,
+        &authorization,
+    )
+    .await
+    .expect(StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
