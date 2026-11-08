@@ -650,22 +650,21 @@ fn validate_values(root: &Value, sources: &BTreeMap<String, Source>, target: Act
             ));
         }
     }
-    if let Some(addresses) = get(root, "server.trusted_proxy_ips").and_then(Value::as_array) {
-        if addresses.len() > 64
+    if let Some(addresses) = get(root, "server.trusted_proxy_ips").and_then(Value::as_array)
+        && (addresses.len() > 64
             || addresses.iter().any(|value| {
                 value
                     .as_str()
                     .and_then(|value| value.parse::<IpAddr>().ok())
                     .map(|address| address.to_canonical())
                     .is_none_or(|address| address.is_unspecified() || address.is_multicast())
-            })
-        {
-            return Err(error(
-                "server.trusted_proxy_ips",
-                source_for(sources, "server.trusted_proxy_ips"),
-                "expected at most 64 exact unicast IP addresses; hostnames, subnets and wildcard trust are unsupported",
-            ));
-        }
+            }))
+    {
+        return Err(error(
+            "server.trusted_proxy_ips",
+            source_for(sources, "server.trusted_proxy_ips"),
+            "expected at most 64 exact unicast IP addresses; hostnames, subnets and wildcard trust are unsupported",
+        ));
     }
     let mode = get(root, "server.environment")
         .and_then(Value::as_str)
