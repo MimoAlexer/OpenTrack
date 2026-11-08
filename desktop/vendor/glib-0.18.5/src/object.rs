@@ -3490,21 +3490,22 @@ impl<T: ObjectType> PartialOrd for WeakRef<T> {
 /// different threads even for object types that don't implement `Send`.
 ///
 /// Trying to upgrade the weak reference from another thread than the one
-/// where it was created on will panic but dropping or cloning can be done
-/// safely from any thread.
+/// where it was created on will panic. Cloning also requires the creating
+/// thread because cloning temporarily acquires a strong reference. Dropping
+/// a weak reference can be done safely from any thread.
 #[derive(Debug)]
-pub struct SendWeakRef<T: ObjectType>(WeakRef<T>, Option<usize>);
+pub struct SendWeakRef<T: ObjectType>(WeakRef<T>, usize);
 
 impl<T: ObjectType> SendWeakRef<T> {
     #[inline]
     pub fn new() -> SendWeakRef<T> {
-        SendWeakRef(WeakRef::new(), None)
+        SendWeakRef(WeakRef::new(), thread_id())
     }
 
     #[inline]
     pub fn into_weak_ref(self) -> WeakRef<T> {
         assert!(
-            self.1.is_none() || self.1 == Some(thread_id()),
+            self.1 == thread_id(),
             "SendWeakRef dereferenced on a different thread",
         );
 
@@ -3518,7 +3519,7 @@ impl<T: ObjectType> ops::Deref for SendWeakRef<T> {
     #[inline]
     fn deref(&self) -> &WeakRef<T> {
         assert!(
-            self.1.is_none() || self.1 == Some(thread_id()),
+            self.1 == thread_id(),
             "SendWeakRef dereferenced on a different thread"
         );
 
@@ -3530,6 +3531,10 @@ impl<T: ObjectType> ops::Deref for SendWeakRef<T> {
 impl<T: ObjectType> Clone for SendWeakRef<T> {
     #[inline]
     fn clone(&self) -> Self {
+        assert!(
+            self.1 == thread_id(),
+            "SendWeakRef cloned on a different thread"
+        );
         Self(self.0.clone(), self.1)
     }
 }
@@ -3544,7 +3549,7 @@ impl<T: ObjectType> Default for SendWeakRef<T> {
 impl<T: ObjectType> From<WeakRef<T>> for SendWeakRef<T> {
     #[inline]
     fn from(v: WeakRef<T>) -> SendWeakRef<T> {
-        SendWeakRef(v, Some(thread_id()))
+        SendWeakRef(v, thread_id())
     }
 }
 
