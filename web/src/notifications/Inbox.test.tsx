@@ -190,22 +190,29 @@ describe('snapshot and pagination behavior', () => {
     expect(container.querySelectorAll('[data-notification-id]')).toHaveLength(2); expect(row('one').getAttribute('aria-pressed')).toBe('true');
     expect(fetch.mock.calls.some(([url]) => url.includes('limit=50') && url.includes('cursor=signed-cursor'))).toBe(true);
   });
-  it('reconciles selection and keyboard focus when a refreshed first page drops the selected later page', async () => {
+  it('revalidates the bounded loaded window without retargeting a later-page keyboard action', async () => {
     const firstPage = Array.from({ length: 50 }, (_, index) => item(`entry-${index}`, String(100 - index)));
     const later = item('later-page', '1'); let read = false;
     const fetch = mockFetch((url, options) => {
-      if (options.method === 'PATCH') { read = true; return json({ ...firstPage[0], read_at: stamp, version: '2' }); }
-      if (url.includes('/notifications?')) return json(url.includes('cursor=') ? page([later]) : page(read ? firstPage.slice(1) : firstPage, { next_cursor: 'next-page' }));
+      if (options.method === 'PATCH') { read = true; return json({ ...later, read_at: stamp, version: '2' }); }
+      if (url.includes('/notifications?')) return json(url.includes('cursor=') ? page(read ? [] : [later]) : page(firstPage, { next_cursor: 'next-page' }));
       return source(url);
     });
     await render(); await click('Load more notifications'); await act(async () => { row(later.id).focus(); row(later.id).click(); });
-    expect(row(later.id).getAttribute('aria-pressed')).toBe('true');
     await act(async () => invalidateNotifications('workspace'));
-    expect(row(later.id)).toBeUndefined(); expect(row(firstPage[0].id).tabIndex).toBe(0); expect(document.activeElement).toBe(row(firstPage[0].id));
-    expect(container.querySelector('article a')?.getAttribute('href')).toBe(`/w/workspace/issues/${firstPage[0].source.id}`);
+    expect(row(later.id)?.getAttribute('aria-pressed')).toBe('true'); expect(document.activeElement).toBe(row(later.id));
     await key('r');
-    const write = fetch.mock.calls.find(([, options]) => options.method === 'PATCH')!;
-    expect(write[0]).toBe(`/api/v1/workspaces/workspace/notifications/${firstPage[0].id}`); expect(row(firstPage[0].id)).toBeUndefined();
+    expect(fetch.mock.calls.find(([, options]) => options.method === 'PATCH')?.[0]).toBe(`/api/v1/workspaces/workspace/notifications/${later.id}`);
+  });
+  it('clears the actionable target and focuses a neutral heading when a refreshed later-page row is truly absent', async () => {
+    const later = item('later-page', '1'); let removed = false;
+    const fetch = mockFetch(url => url.includes('/notifications?') ? json(url.includes('cursor=') ? page(removed ? [] : [later]) : page([item()], { next_cursor: 'next-page' })) : source(url));
+    await render(); await click('Load more notifications'); await act(async () => { row(later.id).focus(); row(later.id).click(); });
+    removed = true; await act(async () => invalidateNotifications('workspace'));
+    expect(row(later.id)).toBeUndefined(); expect(row('one').getAttribute('aria-pressed')).toBe('false');
+    expect(document.activeElement).toBe(container.querySelector('.inbox-list h2'));
+    await key('r'); await key('e');
+    expect(fetch.mock.calls.some(([, options]) => options.method === 'PATCH')).toBe(false);
   });
   it('reconciles a missing selection without taking focus from a control outside the inbox', async () => {
     const later = item('later-page', '1');
@@ -214,7 +221,7 @@ describe('snapshot and pagination behavior', () => {
     const outside = document.createElement('input'); document.body.append(outside);
     try {
       outside.focus(); await act(async () => invalidateNotifications('workspace'));
-      expect(row('one').tabIndex).toBe(0); expect(document.activeElement).toBe(outside);
+      expect(row('one').tabIndex).toBe(-1); expect(document.activeElement).toBe(outside);
     } finally { outside.remove(); }
   });
 });
@@ -293,5 +300,38 @@ describe('time and recipient scope', () => {
     await render(<Badge/>); expect(container.textContent).toBe('2'); count = 3; await act(async () => invalidateNotifications('workspace')); expect(container.textContent).toBe('3');
     pending = true; await render(<Badge activeSession={{ ...session, csrf_token: 'new-session' }}/>); expect(container.textContent).toBe('unknown');
     await act(async () => finish(json(page([], { unread_count: 1 })))); expect(container.textContent).toBe('1');
+  });
+});
+
+describe('late mutation authority reconciliation', () => {
+  it.each(['failure', 'success'])('keeps source denials after a delayed mutation %s and permits a later authorized read', async outcome => {
+    const original = item(); let unavailable = false; let restored = false; let finish!: (response: Response) => void; let reads = 0;
+    mockFetch((url, options) => {
+      if (options.method === 'PATCH') return new Promise(resolve => { finish = resolve; });
+      if (url.includes('/notifications?')) {
+        reads++;
+        if (reads > 2 && !restored) return new Promise(() => {});
+        return json(page([unavailable && !restored ? { ...original, source: { kind: 'issue', id: original.source.id, available: false } } : original]));
+      }
+      return source(url);
+    });
+    await render(screen({ params: new URLSearchParams({ filter: 'all' }) })); row('one').focus(); await click('Mark read');
+    unavailable = true; await act(async () => invalidateNotifications('workspace'));
+    expect(container.textContent).not.toContain('Safe row one');
+    await act(async () => finish(outcome === 'failure' ? json({ detail: 'Try later' }, 503) : json({ ...original, read_at: stamp, version: '2' })));
+    for (const secret of ['Safe row one', 'ENG-2', 'Example Author', 'Current authorized source body']) expect(container.textContent).not.toContain(secret);
+    expect(row('one')?.textContent).toContain('Source unavailable'); expect(container.querySelector('.inbox-source-unavailable')).not.toBeNull();
+    expect(document.activeElement).toBe(row('one'));
+    restored = true; await act(async () => invalidateNotifications('workspace'));
+    expect(container.textContent).toContain('Safe row one'); expect(container.textContent).toContain('Current authorized source body');
+  });
+  it('does not replace a newer authoritative item with an older successful mutation response', async () => {
+    const original = item(); const fresh = item('one', '2', { version: '3', source: { ...original.source, title: 'Newly authorized title' } });
+    let reads = 0; let finish!: (response: Response) => void;
+    mockFetch((url, options) => options.method === 'PATCH' ? new Promise(resolve => { finish = resolve; }) : url.includes('/notifications?') ? ++reads === 1 ? json(page([original])) : reads === 2 ? json(page([fresh])) : new Promise(() => {}) : source(url));
+    await render(screen({ params: new URLSearchParams({ filter: 'all' }) })); await click('Mark read');
+    await act(async () => invalidateNotifications('workspace')); expect(row('one').textContent).toContain('Newly authorized title');
+    await act(async () => finish(json({ ...original, read_at: stamp, version: '2' })));
+    expect(row('one').textContent).toContain('Newly authorized title'); expect(row('one').className).toContain('inbox-unread');
   });
 });

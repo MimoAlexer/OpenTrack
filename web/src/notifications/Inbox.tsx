@@ -32,19 +32,19 @@ function InboxScreen({ workspaceId, session, accessScope, params, notificationId
   const requestedFilter = params.get('filter'); const filter: InboxFilter = requestedFilter && Object.hasOwn(filters, requestedFilter) ? requestedFilter as InboxFilter : 'unread';
   const inbox = useInbox(workspaceId, session, accessScope, filter, refresh, externallyRefreshed);
   const items = inbox.value?.items ?? []; const itemsRef = useRef(items); itemsRef.current = items;
-  const [selection, setSelection] = useState<string | null>(notificationId ?? null); const [mobilePreview, setMobilePreview] = useState(!!notificationId);
+  const [selection, setSelection] = useState<string | null | undefined>(notificationId); const [mobilePreview, setMobilePreview] = useState(!!notificationId);
   const [busy, setBusy] = useState(false); const [actionError, setActionError] = useState<unknown>(null); const [pending, setPending] = useState<Pending | null>(null);
   const [notice, setNotice] = useState(''); const [preferences, setPreferences] = useState(false); const [snoozing, setSnoozing] = useState(false); const [snooze, setSnooze] = useState(defaultSnooze);
   const list = useRef<HTMLDivElement>(null); const heading = useRef<HTMLHeadingElement>(null); const focusedAfterRender = useRef<string | null | undefined>(undefined);
   const detail = useRef<HTMLDivElement>(null); const back = useRef<HTMLButtonElement>(null);
   const inboxOwnedFocus = useRef(false);
-  const selected = items.find(item => item.id === selection) ?? items[0];
+  const selected = selection === undefined ? items[0] : items.find(item => item.id === selection);
   const selectedId = selected?.id;
   useEffect(() => { if (notificationId) { setSelection(notificationId); setMobilePreview(true); } }, [notificationId]);
-  useEffect(() => { setSelection(notificationId ?? null); setMobilePreview(!!notificationId); setActionError(null); setPending(null); setSnoozing(false); setBusy(false); }, [filter]);
+  useEffect(() => { setSelection(notificationId); setMobilePreview(!!notificationId); setActionError(null); setPending(null); setSnoozing(false); setBusy(false); }, [filter]);
   useEffect(() => {
     if (!inbox.value || !selection || items.some(item => item.id === selection)) return;
-    const next = items[0]?.id ?? null;
+    const next = null;
     setSelection(next); setSnoozing(false);
     if (inboxOwnedFocus.current && (document.activeElement === document.body || list.current?.contains(document.activeElement))) focusedAfterRender.current = next;
   }, [items, selection, inbox.value]);
@@ -62,7 +62,7 @@ function InboxScreen({ workspaceId, session, accessScope, params, notificationId
   function openPreview(id: string) { select(id); setMobilePreview(true); if (narrow) focusedAfterRender.current = id; }
   function closePreview() { setMobilePreview(false); focusedAfterRender.current = selectedId ?? null; }
   function move(direction: number) {
-    const index = Math.max(0, items.findIndex(item => item.id === selectedId)); const next = items[Math.min(items.length - 1, Math.max(0, index + direction))];
+    const index = selectedId ? items.findIndex(item => item.id === selectedId) : direction > 0 ? -1 : items.length; const next = items[Math.min(items.length - 1, Math.max(0, index + direction))];
     if (next) select(next.id, true);
   }
   function keyboard(event: KeyboardEvent) {
@@ -75,6 +75,7 @@ function InboxScreen({ workspaceId, session, accessScope, params, notificationId
   async function perform(operation: Pending) {
     if (busy) return;
     setBusy(true); setActionError(null); setPending(operation); setNotice(''); setSnoozing(false);
+    const readAtStart = inbox.reconciliationToken();
     const before = itemsRef.current; const previousSelection = selectedId ?? null;
     if ('item' in operation) {
       const stamp = new Date().toISOString(); const item = operation.item;
@@ -92,11 +93,7 @@ function InboxScreen({ workspaceId, session, accessScope, params, notificationId
     } catch (error) {
       if (!inbox.current() || isAborted(error)) return;
       if ('item' in operation) {
-        inbox.replaceItems(items => {
-          const existing = items.find(item => item.id === operation.item.id);
-          if (existing && BigInt(existing.version) > BigInt(operation.item.version)) return items;
-          return [...items.filter(item => item.id !== operation.item.id), operation.item].sort((a, b) => BigInt(a.seq) > BigInt(b.seq) ? -1 : BigInt(a.seq) < BigInt(b.seq) ? 1 : 0);
-        });
+        inbox.rollback(operation.item, readAtStart);
         setSelection(previousSelection); focusedAfterRender.current = previousSelection;
       }
       setActionError(error);
