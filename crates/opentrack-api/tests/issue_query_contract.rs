@@ -918,6 +918,164 @@ async fn date_semantics(h: Harness) {
     );
 }
 
+#[tokio::test]
+async fn repeated_local_midnight_does_not_drop_or_misclassify_earlier_fold_instants() {
+    contract(midnight_fold).await;
+}
+
+async fn midnight_fold(h: Harness) {
+    let f = Fixture::new(&h).await;
+    let early = dated(
+        &h,
+        &f,
+        "Havana early midnight",
+        "2026-11-01T04:30:00Z",
+        "2026-11-01",
+    )
+    .await;
+    let late = dated(
+        &h,
+        &f,
+        "Havana repeated midnight",
+        "2026-11-01T05:30:00Z",
+        "2026-11-01",
+    )
+    .await;
+    let both = [early.id, late.id].into_iter().collect::<BTreeSet<_>>();
+    for field in ["created_at", "updated_at"] {
+        let mut observed = Vec::new();
+        for (op, day) in [
+            ("eq", "2026-11-01"),
+            ("before", "2026-11-01"),
+            ("after", "2026-10-31"),
+        ] {
+            let mut body = query(predicate(field, op, json!(day)));
+            body["timezone"] = json!("America/Havana");
+            observed.push(
+                ids(&f.query(&body).await)
+                    .into_iter()
+                    .collect::<BTreeSet<_>>(),
+            );
+        }
+        assert_eq!(
+            observed,
+            vec![both.clone(), BTreeSet::new(), both.clone()],
+            "{field}: local-day eq, before November 1, and after October 31 must classify both midnight occurrences"
+        );
+    }
+}
+
+#[tokio::test]
+async fn timestamp_operands_preserve_original_precision_and_reject_leap_seconds() {
+    contract(timestamp_precision).await;
+}
+
+async fn timestamp_precision(h: Harness) {
+    let f = Fixture::new(&h).await;
+    let exact = dated(
+        &h,
+        &f,
+        "Exact microsecond",
+        "2026-11-01T05:02:03.123456Z",
+        "2026-11-01",
+    )
+    .await;
+    let zero = dated(
+        &h,
+        &f,
+        "Exact whole second",
+        "2026-11-01T05:02:03Z",
+        "2026-11-01",
+    )
+    .await;
+    for value in [
+        "2026-11-01T05:02:03.123456Z",
+        "2026-11-01T05:02:03.123456000000Z",
+        "2026-11-01T01:02:03.123456000000-04:00",
+    ] {
+        contains_exactly(
+            &f.query(&query(predicate("created_at", "eq", json!(value))))
+                .await,
+            &[exact.id],
+        );
+    }
+    contains_exactly(
+        &f.query(&query(predicate(
+            "updated_at",
+            "eq",
+            json!("2026-11-01T05:02:03.000000000000Z"),
+        )))
+        .await,
+        &[zero.id],
+    );
+    let mut rejections = Vec::new();
+    for value in [
+        "2026-11-01T05:02:03.0000000001Z",
+        "2026-11-01T05:02:03.1234560001Z",
+        "2016-12-31T23:59:60Z",
+    ] {
+        let body = query(predicate("created_at", "eq", json!(value)));
+        rejections.push((
+            value,
+            send(
+                &f.router,
+                Some(&f.client),
+                "POST",
+                &f.query_path(),
+                Some(&body),
+                true,
+            )
+            .await,
+        ));
+    }
+    let outcomes = rejections
+        .iter()
+        .map(|(value, reply)| (*value, reply.status.as_u16()))
+        .collect::<Vec<_>>();
+    assert!(
+        outcomes.iter().all(|(_, status)| *status == 422),
+        "Original timestamp operands must reject without truncation or leap-second reinterpretation: {outcomes:?}"
+    );
+    for (_, reply) in rejections {
+        reply.invalid();
+    }
+}
+
+#[tokio::test]
+async fn body_only_queries_reject_url_parameters_instead_of_ignoring_filter_intent() {
+    contract(body_only_transport).await;
+}
+
+async fn body_only_transport(h: Harness) {
+    let f = Fixture::new(&h).await;
+    let source = issue(&h, &f, f.team, "Explicit unfiltered source", json!({})).await;
+    let body = query(Value::Null);
+    contains_exactly(&f.query(&body).await, &[source.id]);
+    let empty_query = send(
+        &f.router,
+        Some(&f.client),
+        "POST",
+        &format!("{}?", f.query_path()),
+        Some(&body),
+        true,
+    )
+    .await;
+    empty_query.expect(StatusCode::OK);
+    contains_exactly(&empty_query.body, &[source.id]);
+    for suffix in ["?q=restricted", "?cursor=ignored", "?filter=%7B%7D"] {
+        send(
+            &f.router,
+            Some(&f.client),
+            "POST",
+            &format!("{}{suffix}", f.query_path()),
+            Some(&body),
+            true,
+        )
+        .await
+        .invalid();
+    }
+}
+
 async fn observe_blocker(h: &Harness, holder: i32) {
     tokio::time::timeout(Duration::from_secs(2), async {
         loop {
