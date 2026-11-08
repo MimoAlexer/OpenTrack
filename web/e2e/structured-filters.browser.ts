@@ -4,12 +4,15 @@ import { test, expect, paragraph, SavedWorkspace } from './fixtures';
 import type { Bootstrap, Issue } from '../src/types';
 import type { TeamDetail } from '../src/settings/types';
 import type { IssueComment } from '../src/documents/types';
+import type { components } from '../src/generated/api';
 import { parseStructuredHash, viewHash, type FilterNode, type StructuredView } from '../src/filters/model';
 
 async function fixture(owner: SavedWorkspace) {
-  const team = await owner.request<TeamDetail>('/teams', 'POST', {
+  const teamInput = {
     name: `Filter acceptance ${randomUUID()}`, key: `Q${randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase()}`,
-  }, { 'Idempotency-Key': randomUUID() });
+    private: false,
+  } satisfies components['schemas']['CreateTeam'];
+  const team = await owner.request<TeamDetail>('/teams', 'POST', teamInput, { 'Idempotency-Key': randomUUID() });
   const bootstrap = await owner.request<Bootstrap>('/bootstrap');
   const saved = new SavedWorkspace(owner.http, owner.session, { ...bootstrap, teams: [team] }, owner.origin, owner.workspace);
   const issues: Issue[] = [];
