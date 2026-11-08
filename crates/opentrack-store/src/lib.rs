@@ -1,5 +1,7 @@
 mod planning_counts;
 pub use planning_counts::*;
+mod issue_query;
+pub use issue_query::list_issue_query;
 mod cycles;
 pub use cycles::*;
 mod ordering;
@@ -303,71 +305,7 @@ pub async fn list_issues(
     f: &IssueFilter,
     cursor: Option<IssueListCursor>,
 ) -> Result<Vec<Issue>, sqlx::Error> {
-    let (after, manual) = match cursor {
-        Some(IssueListCursor::Standard(p, d, id)) if f.sort.as_deref() != Some("manual") => {
-            (Some((p, d, id)), None)
-        }
-        Some(IssueListCursor::Manual(c, p, s, r, id)) if f.sort.as_deref() == Some("manual") => {
-            (None, Some((c, p, s, r, id)))
-        }
-        None => (None, None),
-        _ => {
-            return Err(sqlx::Error::Protocol(
-                "Issue cursor kind does not match its ordering".into(),
-            ));
-        }
-    };
-    let q = f.q.as_ref().map(|q| {
-        format!(
-            "%{}%",
-            q.replace('\\', "\\\\")
-                .replace('%', "\\%")
-                .replace('_', "\\_")
-        )
-    });
-    let mut query = sqlx::QueryBuilder::<Postgres>::new(ISSUE_SELECT);
-    if f.sort.as_deref() == Some("manual") {
-        query.push(" JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id ");
-    }
-    query.push(" WHERE i.workspace_id=$1 ").push(VISIBLE).push(" AND i.deleted_at IS NULL AND ($3::uuid IS NULL OR i.team_id=$3) AND ($4::uuid IS NULL OR i.status_id=$4) AND ($5::uuid IS NULL OR i.assignee_id=$5) AND ($6::smallint IS NULL OR i.priority=$6) AND ($7::text IS NULL OR i.title ILIKE $7 OR t.key||'-'||i.number ILIKE $7) AND ((i.archived_at IS NOT NULL) OR (t.archived_at IS NOT NULL))=$8 AND (cardinality($12::uuid[])=0 OR ($13='any' AND EXISTS(SELECT 1 FROM issue_labels il WHERE il.workspace_id=i.workspace_id AND il.issue_id=i.id AND il.label_id=ANY($12))) OR ($13='all' AND (SELECT count(*) FROM issue_labels il WHERE il.workspace_id=i.workspace_id AND il.issue_id=i.id AND il.label_id=ANY($12))=cardinality($12)))");
-    if f.sort.as_deref() == Some("manual") {
-        let category = "CASE s.category WHEN 'triage' THEN 0 WHEN 'backlog' THEN 1 WHEN 'unstarted' THEN 2 WHEN 'started' THEN 3 WHEN 'completed' THEN 4 ELSE 5 END";
-        query
-            .push(" AND ($16::integer IS NULL OR (")
-            .push(category)
-            .push(",s.position,s.id,i.rank,i.id)>($16,$17,$18,$19::numeric,$20)) ORDER BY ")
-            .push(category)
-            .push(",s.position,s.id,i.rank,i.id LIMIT $11");
-    } else {
-        query.push(" AND ($9::timestamptz IS NULL OR ($14='created' AND (i.created_at,i.id)<($9,$10)) OR ($14='priority' AND (CASE WHEN i.priority=0 THEN 5 ELSE i.priority END>$15 OR (CASE WHEN i.priority=0 THEN 5 ELSE i.priority END=$15 AND (i.created_at,i.id)<($9,$10))))) ORDER BY CASE WHEN $14='priority' THEN CASE WHEN i.priority=0 THEN 5 ELSE i.priority END ELSE 0 END,i.created_at DESC,i.id DESC LIMIT $11");
-    }
-    let mut built = query
-        .build_query_scalar::<Value>()
-        .bind(w)
-        .bind(user)
-        .bind(f.team_id)
-        .bind(f.status_id)
-        .bind(f.assignee_id)
-        .bind(f.priority)
-        .bind(q)
-        .bind(f.archived)
-        .bind(after.map(|a| a.1))
-        .bind(after.map(|a| a.2))
-        .bind(f.limit.unwrap_or(50) + 1)
-        .bind(&f.label_ids)
-        .bind(f.label_mode.as_deref().unwrap_or("any"))
-        .bind(f.sort.as_deref().unwrap_or("created"))
-        .bind(after.map(|a| a.0));
-    if f.sort.as_deref() == Some("manual") {
-        built = built
-            .bind(manual.as_ref().map(|v| v.0))
-            .bind(manual.as_ref().map(|v| v.1))
-            .bind(manual.as_ref().map(|v| v.2))
-            .bind(manual.as_ref().map(|v| v.3.as_str()))
-            .bind(manual.as_ref().map(|v| v.4));
-    }
-    let rows = built.fetch_all(&mut **tx).await?;
-    rows.into_iter().map(issue_from).collect()
+    list_issue_query(tx, w, user, f, cursor, None).await
 }
 pub struct Event<'a> {
     pub workspace: Uuid,
