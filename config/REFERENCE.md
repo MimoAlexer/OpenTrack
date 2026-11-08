@@ -10,6 +10,7 @@ Only these settings are implemented. Every explicitly selected TOML file require
 | `storage.local_root` | string | unset | — | no | Explicit absolute existing service-owned mode-0700 directory, outside webroot and Git checkouts. Required for API and worker. |
 | `storage.max_upload_bytes` | integer | `26214400` | 1048576–104857600 | no | Maximum bytes per attachment. |
 | `storage.workspace_quota_bytes` | integer | `5368709120` | 1–9223372036854775807 | no | Workspace quota including pending, quarantine and not-yet-collected deleted bytes. |
+| `storage.workspace_key_quota` | integer | `100000` | 1–9223372036854775807 | no | Maximum lifetime attachment storage keys per workspace, including deleted reservations and retained retirement markers. |
 | `storage.quarantine_ttl` | integer | `86400` | 60–604800 | no | Unlinked upload lifetime in seconds; expired bytes become eligible for fenced worker cleanup. |
 | `storage.antivirus_required` | boolean | `false` | — | no | Require a configured ClamAV scanner before any attachment becomes ready; no scanner reports not_scanned when optional. |
 | `storage.scanner_socket` | string | unset | — | no | Absolute ClamAV Unix socket; configured scanner failures retain quarantine for retry. |

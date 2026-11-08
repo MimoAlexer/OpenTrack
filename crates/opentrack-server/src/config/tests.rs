@@ -41,6 +41,32 @@ fn environment() -> BTreeMap<String, String> {
         ),
     ])
 }
+#[test]
+fn lifetime_attachment_key_quota_is_explicit_and_positive() {
+    let mut values = environment();
+    assert_eq!(
+        Settings::from_sources(&Cli::default(), &values)
+            .unwrap()
+            .storage
+            .workspace_key_quota,
+        100000
+    );
+    values.insert("OPENTRACK__STORAGE__WORKSPACE_KEY_QUOTA".into(), "1".into());
+    assert_eq!(
+        Settings::from_sources(&Cli::default(), &values)
+            .unwrap()
+            .storage
+            .workspace_key_quota,
+        1
+    );
+    for value in ["0", "-1"] {
+        values.insert(
+            "OPENTRACK__STORAGE__WORKSPACE_KEY_QUOTA".into(),
+            value.into(),
+        );
+        assert!(invalid(&Cli::default(), &values).contains("storage.workspace_key_quota"));
+    }
+}
 #[tokio::test]
 async fn local_storage_accepts_existing_relative_development_webroot() {
     let temp = Temp::new();

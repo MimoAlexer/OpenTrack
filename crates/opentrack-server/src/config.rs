@@ -34,6 +34,7 @@ recovery_ttl_minutes = 30
 backend = "local"
 max_upload_bytes = 26214400
 workspace_quota_bytes = 5368709120
+workspace_key_quota = 100000
 quarantine_ttl = 86400
 antivirus_required = false
 [worker]
@@ -104,6 +105,7 @@ pub struct Storage {
     pub local_root: Option<PathBuf>,
     pub max_upload_bytes: i64,
     pub workspace_quota_bytes: i64,
+    pub workspace_key_quota: i64,
     pub quarantine_ttl: u32,
     pub antivirus_required: bool,
     pub scanner_socket: Option<PathBuf>,

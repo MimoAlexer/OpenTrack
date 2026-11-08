@@ -147,6 +147,13 @@
           "description": "Absolute ClamAV Unix socket; configured scanner failures retain quarantine for retry.",
           "type": "string"
         },
+        "workspace_key_quota": {
+          "default": 100000,
+          "description": "Maximum lifetime attachment storage keys per workspace, including deleted reservations and retained retirement markers.",
+          "maximum": 9223372036854775807,
+          "minimum": 1,
+          "type": "integer"
+        },
         "workspace_quota_bytes": {
           "default": 5368709120,
           "description": "Workspace quota including pending, quarantine and not-yet-collected deleted bytes.",

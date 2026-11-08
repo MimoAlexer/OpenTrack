@@ -43,6 +43,7 @@ backend = "local"
 local_root = "/var/lib/opentrack/blobs"
 max_upload_bytes = 26214400
 workspace_quota_bytes = 5368709120
+workspace_key_quota = 100000
 quarantine_ttl = 86400
 antivirus_required = false
 # scanner_socket = "/run/clamav/clamd.ctl"

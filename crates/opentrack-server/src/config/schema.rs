@@ -68,6 +68,13 @@ pub(super) const FIELDS: &[Field] = &[
         9223372036854775807
     ),
     f!(
+        "storage.workspace_key_quota",
+        Integer,
+        "Maximum lifetime attachment storage keys per workspace, including deleted reservations and retained retirement markers.",
+        1,
+        9223372036854775807
+    ),
+    f!(
         "storage.quarantine_ttl",
         Integer,
         "Unlinked upload lifetime in seconds; expired bytes become eligible for fenced worker cleanup.",
