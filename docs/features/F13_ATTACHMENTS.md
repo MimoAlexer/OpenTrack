@@ -12,6 +12,8 @@ Approved expansion obligations: X40. Their acceptance behavior and delivery mapp
 
 Upload up to 25 MiB per file within workspace quota; pending/quarantine/ready/rejected lifecycle, checksum, MIME detection and optional required antivirus. Immutable bytes after readiness; replacement creates a new object. Images may have safe raster previews; active formats download only.
 
+Reservations also consume a lifetime storage-key allowance (`storage.workspace_key_quota`, default 100,000 per workspace). Deleted, rejected and never-uploaded reservations remain counted because cleanup retains their key retirement records. Cleanup releases payload-byte quota only. On key exhaustion an operator must review capacity before raising the configured allowance; deleting more files cannot recover it. Existing reservations and idempotent retries remain usable. The limit counts existing history without a migration; restart every API process with the matching configuration and binary when upgrading.
+
 ## 3. Interaction patterns
 
 Drag/drop or file picker has equivalent controls, progress, cancel and retry. Preview shows filename/type/size and scan status. Attachments become linkable only after ready; failure explains retry or rejection.

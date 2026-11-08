@@ -9,6 +9,9 @@ environment = "development"
 listen = "127.0.0.1:8080"
 public_url = "http://127.0.0.1:8080"
 allowed_origins = ["http://127.0.0.1:5173", "http://localhost:5173"]
+# Trust only explicitly configured reverse-proxy socket addresses. The proxy
+# must replace X-OpenTrack-Client-IP with its direct client's IP address.
+trusted_proxy_ips = []
 static_dir = "web/dist"
 
 [database]
@@ -43,6 +46,7 @@ backend = "local"
 local_root = "/var/lib/opentrack/blobs"
 max_upload_bytes = 26214400
 workspace_quota_bytes = 5368709120
+workspace_key_quota = 100000
 quarantine_ttl = 86400
 antivirus_required = false
 # scanner_socket = "/run/clamav/clamd.ctl"

@@ -622,6 +622,9 @@ impl Variant {
 
     // rustdoc-stripper-ignore-next
     /// Constructs a new serialized-mode GVariant instance.
+    ///
+    /// Copies the serialized data into storage owned by the returned variant.
+    /// Use [`Self::from_bytes`] to share an existing [`Bytes`] allocation.
     #[doc(alias = "g_variant_new_from_data")]
     pub fn from_data<T: StaticVariantType, A: AsRef<[u8]>>(data: A) -> Self {
         Variant::from_data_with_type(data, &T::static_variant_type())
@@ -680,28 +683,13 @@ impl Variant {
 
     // rustdoc-stripper-ignore-next
     /// Constructs a new serialized-mode GVariant instance with a given type.
+    ///
+    /// Copies the serialized data into storage owned by the returned variant.
+    /// Use [`Self::from_bytes_with_type`] to share an existing [`Bytes`] allocation.
     #[doc(alias = "g_variant_new_from_data")]
     pub fn from_data_with_type<A: AsRef<[u8]>>(data: A, type_: &VariantTy) -> Self {
-        unsafe {
-            let data = Box::new(data);
-            let (data_ptr, len) = {
-                let data = (*data).as_ref();
-                (data.as_ptr(), data.len())
-            };
-
-            unsafe extern "C" fn free_data<A: AsRef<[u8]>>(ptr: ffi::gpointer) {
-                let _ = Box::from_raw(ptr as *mut A);
-            }
-
-            from_glib_none(ffi::g_variant_new_from_data(
-                type_.as_ptr() as *const _,
-                data_ptr as ffi::gconstpointer,
-                len,
-                false.into_glib(),
-                Some(free_data::<A>),
-                Box::into_raw(data) as ffi::gpointer,
-            ))
-        }
+        let bytes = Bytes::from(data.as_ref());
+        Self::from_bytes_with_type(&bytes, type_)
     }
 
     // rustdoc-stripper-ignore-next
@@ -718,24 +706,8 @@ impl Variant {
     /// on bytes which are not guaranteed to have come from serialising another
     /// Variant.  The caller is responsible for ensuring bad data is not passed in.
     pub unsafe fn from_data_with_type_trusted<A: AsRef<[u8]>>(data: A, type_: &VariantTy) -> Self {
-        let data = Box::new(data);
-        let (data_ptr, len) = {
-            let data = (*data).as_ref();
-            (data.as_ptr(), data.len())
-        };
-
-        unsafe extern "C" fn free_data<A: AsRef<[u8]>>(ptr: ffi::gpointer) {
-            let _ = Box::from_raw(ptr as *mut A);
-        }
-
-        from_glib_none(ffi::g_variant_new_from_data(
-            type_.as_ptr() as *const _,
-            data_ptr as ffi::gconstpointer,
-            len,
-            true.into_glib(),
-            Some(free_data::<A>),
-            Box::into_raw(data) as ffi::gpointer,
-        ))
+        let bytes = Bytes::from(data.as_ref());
+        Self::from_bytes_with_type_trusted(&bytes, type_)
     }
 
     // rustdoc-stripper-ignore-next
@@ -1952,30 +1924,9 @@ impl<A: AsRef<[T]>, T: FixedSizeVariantType> ToVariant for FixedSizeVariantArray
 }
 
 impl<A: AsRef<[T]>, T: FixedSizeVariantType> From<FixedSizeVariantArray<A, T>> for Variant {
-    #[doc(alias = "g_variant_new_from_data")]
+    #[doc(alias = "g_variant_new_fixed_array")]
     fn from(a: FixedSizeVariantArray<A, T>) -> Self {
-        unsafe {
-            let data = Box::new(a.0);
-            let (data_ptr, len) = {
-                let data = (*data).as_ref();
-                (data.as_ptr(), mem::size_of_val(data))
-            };
-
-            unsafe extern "C" fn free_data<A: AsRef<[T]>, T: FixedSizeVariantType>(
-                ptr: ffi::gpointer,
-            ) {
-                let _ = Box::from_raw(ptr as *mut A);
-            }
-
-            from_glib_none(ffi::g_variant_new_from_data(
-                T::static_variant_type().to_glib_none().0,
-                data_ptr as ffi::gconstpointer,
-                len,
-                false.into_glib(),
-                Some(free_data::<A, T>),
-                Box::into_raw(data) as ffi::gpointer,
-            ))
-        }
+        Variant::array_from_fixed_array(a.0.as_ref())
     }
 }
 

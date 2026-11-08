@@ -1274,7 +1274,7 @@ impl GString {
                 s.into_bytes()
             }
             Inner::Foreign { ptr, len } => {
-                let bytes = unsafe { slice::from_raw_parts(ptr.as_ptr() as *const u8, *len - 1) };
+                let bytes = unsafe { slice::from_raw_parts(ptr.as_ptr() as *const u8, *len) };
                 bytes.to_owned()
             }
             Inner::Inline { len, data } => {
@@ -1290,7 +1290,7 @@ impl GString {
         match &mut self.0 {
             Inner::Native(s) => str::into_boxed_bytes(mem::replace(s, "".into())).into(),
             Inner::Foreign { ptr, len } => {
-                let bytes = unsafe { slice::from_raw_parts(ptr.as_ptr() as *const u8, *len) };
+                let bytes = unsafe { slice::from_raw_parts(ptr.as_ptr() as *const u8, *len + 1) };
                 bytes.to_owned()
             }
             Inner::Inline { len, data } => {
@@ -2278,18 +2278,8 @@ impl ToValue for Vec<GString> {
 
 impl From<Vec<GString>> for Value {
     #[inline]
-    fn from(mut v: Vec<GString>) -> Self {
-        unsafe {
-            let mut value = Value::for_value_type::<Vec<GString>>();
-            let container =
-                ToGlibContainerFromSlice::<*mut *mut c_char>::to_glib_container_from_slice(&v);
-            gobject_ffi::g_value_take_boxed(
-                value.to_glib_none_mut().0,
-                container.0 as *const c_void,
-            );
-            v.set_len(0);
-            value
-        }
+    fn from(v: Vec<GString>) -> Self {
+        crate::StrV::from(v).into()
     }
 }
 

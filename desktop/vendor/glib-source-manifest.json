@@ -125,5 +125,6 @@
     "tests/subclass_compiletest/06-no-auto-send-sync-with-non-send-sync-ffi-parent.stderr": "808ac199325749e28e4c5ea6a459463d87c375443dc73c143a8fc1032575895f",
     "tests/subclass_compiletest.rs": "06fd13974d96c0a21ce9a906010f82db1fdf1b17c192716510cc93ed2ef79547",
     "tests/value.rs": "c796ea2b30559e9c8ab6ebbb6c59c575d365a27b461c20f9ca0b1989dbe01d79"
-  }
+  },
+  "approved_patch_sha256": "e1d8addb6e37d86e9539c9f4fa4a1602db87af4513072cf6658c0f7e42e0f946"
 }

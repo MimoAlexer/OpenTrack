@@ -74,6 +74,8 @@ pub fn valid_attachment_mime(value: &str) -> bool {
 pub struct AttachmentLimits {
     pub max_upload_bytes: i64,
     pub workspace_quota_bytes: i64,
+    /// Lifetime reservations, including the retirement records kept after GC.
+    pub workspace_key_quota: i64,
     pub unlinked_ttl_seconds: u32,
     pub upload_lease_seconds: u32,
     pub antivirus_required: bool,
@@ -83,6 +85,7 @@ impl Default for AttachmentLimits {
         Self {
             max_upload_bytes: 25 * 1024 * 1024,
             workspace_quota_bytes: 5 * 1024 * 1024 * 1024,
+            workspace_key_quota: 100_000,
             unlinked_ttl_seconds: 24 * 60 * 60,
             upload_lease_seconds: 300,
             antivirus_required: false,
@@ -93,6 +96,7 @@ impl AttachmentLimits {
     pub fn validate(&self) -> Result<()> {
         if !(1..=100 * 1024 * 1024).contains(&self.max_upload_bytes)
             || self.workspace_quota_bytes <= 0
+            || self.workspace_key_quota <= 0
             || !(60..=7 * 24 * 60 * 60).contains(&self.unlinked_ttl_seconds)
             || !(5..=900).contains(&self.upload_lease_seconds)
         {

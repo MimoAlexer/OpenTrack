@@ -875,6 +875,9 @@ impl<T: TransparentType + 'static> IntoGlibPtr<*mut T::GlibType> for Slice<T> {
 
 impl<T: TransparentPtrType> From<super::PtrSlice<T>> for Slice<T> {
     fn from(value: super::PtrSlice<T>) -> Self {
+        if value.is_empty() {
+            return Self::new();
+        }
         let len = value.len();
         let capacity = value.capacity();
         unsafe {

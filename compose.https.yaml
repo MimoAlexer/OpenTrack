@@ -6,7 +6,9 @@ services:
       OPENTRACK_ENVIRONMENT: production
       OPENTRACK__SERVER__LOCAL_CONTAINER: 'false'
       OPENTRACK_PUBLIC_URL: ${OPENTRACK_PUBLIC_URL:?Set the externally used HTTPS origin}
+      OPENTRACK__SERVER__TRUSTED_PROXY_IPS: '["${OPENTRACK_PROXY_ADDRESS:-172.31.253.2}"]'
     ports: !reset []
+    networks: [database, web, proxy_ingress]
 
   proxy:
     profiles: [https]
@@ -28,11 +30,20 @@ services:
     volumes:
       - proxy_data:/data
       - proxy_config:/config
-    networks: [web]
+    networks:
+      proxy_ingress:
+        ipv4_address: ${OPENTRACK_PROXY_ADDRESS:-172.31.253.2}
     depends_on:
       app:
         condition: service_healthy
     stop_grace_period: 35s
+
+networks:
+  proxy_ingress:
+    ipam:
+      config:
+        - subnet: ${OPENTRACK_PROXY_SUBNET:-172.31.253.0/24}
+          ip_range: ${OPENTRACK_PROXY_DYNAMIC_RANGE:-172.31.253.128/25}
 
 volumes:
   proxy_data:

@@ -29,11 +29,12 @@ wrapper! {
             let allocated_len = (*src).allocated_len;
             let inner = ffi::GString {
                 str: ffi::g_malloc(allocated_len) as *mut _,
-                len: 0,
+                len: (*src).len,
                 allocated_len,
             };
             // +1 to also copy the NUL-terminator
             ptr::copy_nonoverlapping((*src).str, inner.str, (*src).len + 1);
+            ffi::g_free((*dest).str as *mut _);
             *dest = inner;
         },
         clear => |ptr| {

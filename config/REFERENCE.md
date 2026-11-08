@@ -10,6 +10,7 @@ Only these settings are implemented. Every explicitly selected TOML file require
 | `storage.local_root` | string | unset | — | no | Explicit absolute existing service-owned mode-0700 directory, outside webroot and Git checkouts. Required for API and worker. |
 | `storage.max_upload_bytes` | integer | `26214400` | 1048576–104857600 | no | Maximum bytes per attachment. |
 | `storage.workspace_quota_bytes` | integer | `5368709120` | 1–9223372036854775807 | no | Workspace quota including pending, quarantine and not-yet-collected deleted bytes. |
+| `storage.workspace_key_quota` | integer | `100000` | 1–9223372036854775807 | no | Maximum lifetime attachment storage keys per workspace, including deleted reservations and retained retirement markers. |
 | `storage.quarantine_ttl` | integer | `86400` | 60–604800 | no | Unlinked upload lifetime in seconds; expired bytes become eligible for fenced worker cleanup. |
 | `storage.antivirus_required` | boolean | `false` | — | no | Require a configured ClamAV scanner before any attachment becomes ready; no scanner reports not_scanned when optional. |
 | `storage.scanner_socket` | string | unset | — | no | Absolute ClamAV Unix socket; configured scanner failures retain quarantine for retry. |
@@ -24,6 +25,7 @@ Only these settings are implemented. Every explicitly selected TOML file require
 | `server.listen` | string | `"127.0.0.1:8080"` | — | no | Listener IP and port; default 127.0.0.1:8080. |
 | `server.public_url` | string | unset | — | no | Explicit HTTPS origin; loopback HTTP only in development/test. No credentials, path, query, or fragment. |
 | `server.allowed_origins` | string array | `[]` | — | no | Additional exact origins. The public origin is always included. Arrays replace rather than concatenate. |
+| `server.trusted_proxy_ips` | string array | `[]` | — | no | At most 64 exact proxy socket IPs allowed to supply one X-OpenTrack-Client-IP header. Empty by default. Proxies must replace inbound headers with their direct client's address. No hostnames, CIDRs or wildcard trust. |
 | `server.static_dir` | string | `"web/dist"` | — | no | Built frontend directory; production serving requires an absolute path. Development default is web/dist; migrations do not use it. |
 | `database.api_max_connections` | integer | `20` | 2–100 | no | Maximum connections in the API database pool. |
 | `database.url` | string | unset | — | yes; redacted | Runtime PostgreSQL URL supplied by environment only. Exclusive with database.url_file. |

@@ -1,0 +1,996 @@
+--- a/src/boxed_inline.rs
++++ b/src/boxed_inline.rs
+@@ -317,9 +317,12 @@
+
+             fn to_glib_full_from_slice(t: &[Self]) -> *mut $ffi_name {
+                 let v_ptr = unsafe {
+-                    let v_ptr = $crate::ffi::g_malloc(std::mem::size_of::<$ffi_name>()) as *mut $ffi_name;
++                    let size = std::mem::size_of::<$ffi_name>().checked_mul(t.len()).unwrap();
++                    let v_ptr = $crate::ffi::g_malloc(size) as *mut $ffi_name;
+
+                     for (i, s) in t.iter().enumerate() {
++                        let init = |$init_arg: *mut $ffi_name| $init_expr;
++                        init(v_ptr.add(i));
+                         let copy_into = |$copy_into_arg_dest: *mut $ffi_name, $copy_into_arg_src: *const $ffi_name| $copy_into_expr;
+                         copy_into(v_ptr.add(i), &s.inner as *const $ffi_name);
+                     }
+--- a/src/collections/list.rs
++++ b/src/collections/list.rs
+@@ -61,15 +61,12 @@
+     pub unsafe fn from_glib_container(list: *mut ffi::GList) -> List<T> {
+         // Need to copy all items as we only own the container
+         if mem::needs_drop::<T>() {
+-            unsafe extern "C" fn copy_item<T: TransparentPtrType>(
+-                ptr: ffi::gpointer,
+-                _user_data: ffi::gpointer,
+-            ) {
+-                let item = (*(&ptr as *const ffi::gpointer as *const T)).clone();
+-                ptr::write(ptr as *mut T, item);
++            let mut node = list;
++            while !node.is_null() {
++                let item = (&*(&(*node).data as *const ffi::gpointer as *const T)).clone();
++                ptr::write(&mut (*node).data as *mut ffi::gpointer as *mut T, item);
++                node = (*node).next;
+             }
+-
+-            ffi::g_list_foreach(list, Some(copy_item::<T>), ptr::null_mut());
+         }
+
+         List {
+@@ -355,11 +352,15 @@
+             unsafe {
+                 let mut ptr = head.as_ptr();
+                 while !ptr.is_null() {
+-                    let item = &*((*ptr).data as *const ffi::gpointer as *const T);
++                    let item = &*(&(*ptr).data as *const ffi::gpointer as *const T);
+                     let next = (*ptr).next;
+                     if !f(item) {
+-                        ptr::drop_in_place(&mut (*ptr).data as *mut ffi::gpointer as *mut T);
+-                        self.ptr = ptr::NonNull::new(ffi::g_list_delete_link(head.as_ptr(), ptr));
++                        let item = ptr::read(&(*ptr).data as *const ffi::gpointer as *const T);
++                        self.ptr = ptr::NonNull::new(ffi::g_list_delete_link(
++                            self.ptr.unwrap().as_ptr(),
++                            ptr,
++                        ));
++                        drop(item);
+                     }
+                     ptr = next;
+                 }
+@@ -568,12 +569,7 @@
+
+     #[inline]
+     fn to_glib_container(&'a self) -> Stash<'a, *mut ffi::GList, Self> {
+-        unsafe {
+-            let ptr = ffi::g_malloc(mem::size_of::<T>().checked_mul(self.len() + 1).unwrap())
+-                as *mut ffi::GList;
+-            ptr::copy_nonoverlapping(self.as_ptr(), ptr, self.len() + 1);
+-            Stash(ptr, PhantomData)
+-        }
++        unsafe { Stash(ffi::g_list_copy(mut_override(self.as_ptr())), PhantomData) }
+     }
+
+     #[inline]
+--- a/src/collections/ptr_slice.rs
++++ b/src/collections/ptr_slice.rs
+@@ -777,12 +777,11 @@
+             for item in other {
+                 ptr::write(self.ptr.as_ptr().add(self.len) as *mut T, item.clone());
+                 self.len += 1;
+-            }
+-
+-            ptr::write(
+-                self.ptr.as_ptr().add(self.len),
+-                Ptr::from(ptr::null_mut::<<T as GlibPtrDefault>::GlibType>()),
+-            );
++                ptr::write(
++                    self.ptr.as_ptr().add(self.len),
++                    Ptr::from(ptr::null_mut::<<T as GlibPtrDefault>::GlibType>()),
++                );
++            }
+         }
+     }
+
+@@ -1046,6 +1045,9 @@
+
+ impl<T: TransparentPtrType> From<super::Slice<T>> for PtrSlice<T> {
+     fn from(value: super::Slice<T>) -> Self {
++        if value.is_empty() {
++            return Self::new();
++        }
+         let len = value.len();
+         let capacity = value.capacity();
+         unsafe {
+--- a/src/collections/slice.rs
++++ b/src/collections/slice.rs
+@@ -875,6 +875,9 @@
+
+ impl<T: TransparentPtrType> From<super::PtrSlice<T>> for Slice<T> {
+     fn from(value: super::PtrSlice<T>) -> Self {
++        if value.is_empty() {
++            return Self::new();
++        }
+         let len = value.len();
+         let capacity = value.capacity();
+         unsafe {
+--- a/src/collections/slist.rs
++++ b/src/collections/slist.rs
+@@ -61,15 +61,12 @@
+     pub unsafe fn from_glib_container(list: *mut ffi::GSList) -> SList<T> {
+         // Need to copy all items as we only own the container
+         if mem::needs_drop::<T>() {
+-            unsafe extern "C" fn copy_item<T: TransparentPtrType>(
+-                ptr: ffi::gpointer,
+-                _user_data: ffi::gpointer,
+-            ) {
+-                let item = (*(&ptr as *const ffi::gpointer as *const T)).clone();
+-                ptr::write(ptr as *mut T, item);
++            let mut node = list;
++            while !node.is_null() {
++                let item = (&*(&(*node).data as *const ffi::gpointer as *const T)).clone();
++                ptr::write(&mut (*node).data as *mut ffi::gpointer as *mut T, item);
++                node = (*node).next;
+             }
+-
+-            ffi::g_slist_foreach(list, Some(copy_item::<T>), ptr::null_mut());
+         }
+
+         SList {
+@@ -350,11 +347,15 @@
+             unsafe {
+                 let mut ptr = head.as_ptr();
+                 while !ptr.is_null() {
+-                    let item = &*((*ptr).data as *const ffi::gpointer as *const T);
++                    let item = &*(&(*ptr).data as *const ffi::gpointer as *const T);
+                     let next = (*ptr).next;
+                     if !f(item) {
+-                        ptr::drop_in_place(&mut (*ptr).data as *mut ffi::gpointer as *mut T);
+-                        self.ptr = ptr::NonNull::new(ffi::g_slist_delete_link(head.as_ptr(), ptr));
++                        let item = ptr::read(&(*ptr).data as *const ffi::gpointer as *const T);
++                        self.ptr = ptr::NonNull::new(ffi::g_slist_delete_link(
++                            self.ptr.unwrap().as_ptr(),
++                            ptr,
++                        ));
++                        drop(item);
+                     }
+                     ptr = next;
+                 }
+@@ -562,12 +563,7 @@
+
+     #[inline]
+     fn to_glib_container(&'a self) -> Stash<'a, *mut ffi::GSList, Self> {
+-        unsafe {
+-            let ptr = ffi::g_malloc(mem::size_of::<T>().checked_mul(self.len() + 1).unwrap())
+-                as *mut ffi::GSList;
+-            ptr::copy_nonoverlapping(self.as_ptr(), ptr, self.len() + 1);
+-            Stash(ptr, PhantomData)
+-        }
++        unsafe { Stash(ffi::g_slist_copy(mut_override(self.as_ptr())), PhantomData) }
+     }
+
+     #[inline]
+--- a/src/collections/strv.rs
++++ b/src/collections/strv.rs
+@@ -700,6 +700,7 @@
+             ) as *mut *mut c_char;
+             self.ptr = ptr::NonNull::new_unchecked(new_ptr);
+             self.capacity = new_capacity;
++            *self.ptr.as_ptr().add(self.len) = ptr::null_mut();
+         }
+     }
+
+@@ -726,6 +727,9 @@
+             }
+
+             self.len = 0;
++            if self.capacity != 0 {
++                *self.ptr.as_ptr() = ptr::null_mut();
++            }
+         }
+     }
+
+@@ -742,9 +746,8 @@
+             for item in other {
+                 *self.ptr.as_ptr().add(self.len) = GString::from(item.as_ref()).into_glib_ptr();
+                 self.len += 1;
+-            }
+-
+-            *self.ptr.as_ptr().add(self.len) = ptr::null_mut();
++                *self.ptr.as_ptr().add(self.len) = ptr::null_mut();
++            }
+         }
+     }
+
+--- a/src/convert.rs
++++ b/src/convert.rs
+@@ -338,12 +338,13 @@
+ #[doc(alias = "g_utf8_to_ucs4_fast")]
+ #[doc(alias = "utf8_to_ucs4")]
+ pub fn utf8_to_utf32(str: impl AsRef<str>) -> Slice<char> {
++    let str = str.as_ref();
+     unsafe {
+         let mut items_written = 0;
+
+         let str_as_utf32 = ffi::g_utf8_to_ucs4_fast(
+-            str.as_ref().as_ptr().cast::<c_char>(),
+-            str.as_ref().len() as _,
++            str.as_ptr().cast::<c_char>(),
++            str.len() as _,
+             &mut items_written,
+         );
+
+@@ -356,14 +357,15 @@
+ #[doc(alias = "g_ucs4_to_utf8")]
+ #[doc(alias = "ucs4_to_utf8")]
+ pub fn utf32_to_utf8(str: impl AsRef<[char]>) -> GString {
++    let str = str.as_ref();
+     let mut items_read = 0;
+     let mut items_written = 0;
+     let mut error = ptr::null_mut();
+
+     unsafe {
+         let str_as_utf8 = ffi::g_ucs4_to_utf8(
+-            str.as_ref().as_ptr().cast::<u32>(),
+-            str.as_ref().len() as _,
++            str.as_ptr().cast::<u32>(),
++            str.len() as _,
+             &mut items_read,
+             &mut items_written,
+             &mut error,
+@@ -381,8 +383,9 @@
+ #[doc(alias = "g_utf8_casefold")]
+ #[doc(alias = "utf8_casefold")]
+ pub fn casefold(str: impl AsRef<str>) -> GString {
++    let str = str.as_ref();
+     unsafe {
+-        let str = ffi::g_utf8_casefold(str.as_ref().as_ptr().cast(), str.as_ref().len() as isize);
++        let str = ffi::g_utf8_casefold(str.as_ptr().cast(), str.len() as isize);
+
+         from_glib_full(str)
+     }
+@@ -391,10 +394,11 @@
+ #[doc(alias = "g_utf8_normalize")]
+ #[doc(alias = "utf8_normalize")]
+ pub fn normalize(str: impl AsRef<str>, mode: NormalizeMode) -> GString {
++    let str = str.as_ref();
+     unsafe {
+         let str = ffi::g_utf8_normalize(
+-            str.as_ref().as_ptr().cast(),
+-            str.as_ref().len() as isize,
++            str.as_ptr().cast(),
++            str.len() as isize,
+             mode.into_glib(),
+         );
+
+--- a/src/gobject/binding.rs
++++ b/src/gobject/binding.rs
+@@ -89,8 +89,8 @@
+         source
+             .bind_property("name", &target, "name")
+             .sync_create()
+-            .transform_to(|_binding, value: &str| Some(format!("{value} World")))
+-            .transform_from(|_binding, value: &str| Some(format!("{value} World")))
++            .transform_to(|_binding, value: String| Some(format!("{value} World")))
++            .transform_from(|_binding, value: String| Some(format!("{value} World")))
+             .build();
+
+         source.set_name("Hello");
+@@ -106,7 +106,7 @@
+             .bind_property("name", &target, "name")
+             .sync_create()
+             .transform_to(|_binding, value: String| Some(format!("{value} World")))
+-            .transform_from(|_binding, value: &str| Some(format!("{value} World")))
++            .transform_from(|_binding, value: String| Some(format!("{value} World")))
+             .build();
+
+         source.set_name("Hello");
+@@ -122,8 +122,8 @@
+             .bind_property("name", &target, "name")
+             .sync_create()
+             .bidirectional()
+-            .transform_to(|_binding, value: &str| Some(format!("{value} World")))
+-            .transform_from(|_binding, value: &str| Some(format!("{value} World")))
++            .transform_to(|_binding, value: String| Some(format!("{value} World")))
++            .transform_from(|_binding, value: String| Some(format!("{value} World")))
+             .build();
+
+         target.set_name("Hello");
+@@ -188,7 +188,7 @@
+         source
+             .bind_property("name", &target, "enabled")
+             .sync_create()
+-            .transform_to(|_binding, value: &str| Some(value == "Hello"))
++            .transform_to(|_binding, value: String| Some(value == "Hello"))
+             .transform_from(|_binding, value: bool| Some(if value { "Hello" } else { "World" }))
+             .build();
+
+@@ -208,7 +208,7 @@
+             .bind_property("name", &target, "enabled")
+             .sync_create()
+             .bidirectional()
+-            .transform_to(|_binding, value: &str| Some(value == "Hello"))
++            .transform_to(|_binding, value: String| Some(value == "Hello"))
+             .transform_from(|_binding, value: bool| Some(if value { "Hello" } else { "World" }))
+             .build();
+
+--- a/src/gstring.rs
++++ b/src/gstring.rs
+@@ -1274,7 +1274,7 @@
+                 s.into_bytes()
+             }
+             Inner::Foreign { ptr, len } => {
+-                let bytes = unsafe { slice::from_raw_parts(ptr.as_ptr() as *const u8, *len - 1) };
++                let bytes = unsafe { slice::from_raw_parts(ptr.as_ptr() as *const u8, *len) };
+                 bytes.to_owned()
+             }
+             Inner::Inline { len, data } => {
+@@ -1290,7 +1290,7 @@
+         match &mut self.0 {
+             Inner::Native(s) => str::into_boxed_bytes(mem::replace(s, "".into())).into(),
+             Inner::Foreign { ptr, len } => {
+-                let bytes = unsafe { slice::from_raw_parts(ptr.as_ptr() as *const u8, *len) };
++                let bytes = unsafe { slice::from_raw_parts(ptr.as_ptr() as *const u8, *len + 1) };
+                 bytes.to_owned()
+             }
+             Inner::Inline { len, data } => {
+@@ -2278,18 +2278,8 @@
+
+ impl From<Vec<GString>> for Value {
+     #[inline]
+-    fn from(mut v: Vec<GString>) -> Self {
+-        unsafe {
+-            let mut value = Value::for_value_type::<Vec<GString>>();
+-            let container =
+-                ToGlibContainerFromSlice::<*mut *mut c_char>::to_glib_container_from_slice(&v);
+-            gobject_ffi::g_value_take_boxed(
+-                value.to_glib_none_mut().0,
+-                container.0 as *const c_void,
+-            );
+-            v.set_len(0);
+-            value
+-        }
++    fn from(v: Vec<GString>) -> Self {
++        crate::StrV::from(v).into()
+     }
+ }
+
+--- a/src/gstring_builder.rs
++++ b/src/gstring_builder.rs
+@@ -29,11 +29,12 @@
+             let allocated_len = (*src).allocated_len;
+             let inner = ffi::GString {
+                 str: ffi::g_malloc(allocated_len) as *mut _,
+-                len: 0,
++                len: (*src).len,
+                 allocated_len,
+             };
+             // +1 to also copy the NUL-terminator
+             ptr::copy_nonoverlapping((*src).str, inner.str, (*src).len + 1);
++            ffi::g_free((*dest).str as *mut _);
+             *dest = inner;
+         },
+         clear => |ptr| {
+--- a/src/log.rs
++++ b/src/log.rs
+@@ -358,7 +358,18 @@
+ impl<'a> LogField<'a> {
+     // rustdoc-stripper-ignore-next
+     /// Creates a field from a borrowed key and value.
+-    pub fn new(key: &'a GStr, value: &[u8]) -> Self {
++    ///
++    /// Both borrows must remain valid while the field is used.
++    ///
++    /// ```compile_fail
++    /// use glib::{gstr, LogField};
++    /// let field = {
++    ///     let value = vec![b'x'];
++    ///     LogField::new(gstr!("MESSAGE"), &value)
++    /// };
++    /// assert_eq!(field.value_bytes(), Some(&b"x"[..]));
++    /// ```
++    pub fn new(key: &'a GStr, value: &'a [u8]) -> Self {
+         let (value, length) = if value.is_empty() {
+             // Use an empty C string to represent empty data, since length: 0 is reserved for user
+             // data fields.
+--- a/src/main_context_channel.rs
++++ b/src/main_context_channel.rs
+@@ -201,7 +201,9 @@
+     source: ffi::GSource,
+     source_funcs: Box<ffi::GSourceFuncs>,
+     channel: Channel<T>,
+-    callback: ThreadGuard<F>,
++    // Keep a channel owner with the thread-bound callback. The native source may
++    // be finalized on another thread, but queued non-Send items must not be.
++    callback: ThreadGuard<(F, Channel<T>)>,
+ }
+
+ unsafe extern "C" fn dispatch<T, F: FnMut(T) -> ControlFlow + 'static>(
+@@ -218,7 +220,7 @@
+
+     // Get a reference to the callback. This will panic if we're called from a different
+     // thread than where the source was attached to the main context.
+-    let callback = source.callback.get_mut();
++    let callback = &mut source.callback.get_mut().0;
+
+     // Now iterate over all items that we currently have in the channel until it is
+     // empty again. If all senders are disconnected at some point we remove the GSource
+@@ -251,7 +253,9 @@
+     }
+ }
+
+-unsafe extern "C" fn finalize<T, F: FnMut(T) -> ControlFlow + 'static>(source: *mut ffi::GSource) {
++unsafe extern "C" fn finalize<T: 'static, F: FnMut(T) -> ControlFlow + 'static>(
++    source: *mut ffi::GSource,
++) {
+     let source = &mut *(source as *mut ChannelSource<T, F>);
+
+     // Drop all memory we own by taking it out of the Options
+@@ -286,13 +290,18 @@
+     if source.callback.is_owner() {
+         ptr::drop_in_place(&mut source.callback);
+     } else {
+-        let callback = ptr::read(&source.callback);
++        // invoke() can run immediately on an unowned context, or its queued
++        // closure can be destroyed without running. In either case retain the
++        // payload if the original thread cannot perform its destruction.
++        let callback = mem::ManuallyDrop::new(ptr::read(&source.callback));
+         let context =
+             ffi::g_source_get_context(source as *mut ChannelSource<T, F> as *mut ffi::GSource);
+         if !context.is_null() {
+             let context = MainContext::from_glib_none(context);
+             context.invoke(move || {
+-                drop(callback);
++                if callback.is_owner() {
++                    drop(mem::ManuallyDrop::into_inner(callback));
++                }
+             });
+         }
+     }
+@@ -448,6 +457,7 @@
+     /// available on the channel.
+     ///
+     /// Passing `None` for the context will attach it to the thread default main context.
++    /// Items cannot borrow non-static data, because the source can outlive all channel handles.
+     ///
+     /// # Panics
+     ///
+@@ -457,7 +467,10 @@
+         mut self,
+         context: Option<&MainContext>,
+         func: F,
+-    ) -> SourceId {
++    ) -> SourceId
++    where
++        T: 'static,
++    {
+         unsafe {
+             let channel = self.0.take().expect("Receiver without channel");
+
+@@ -505,8 +518,11 @@
+             // Store all our data inside our part of the GSource
+             {
+                 let source = &mut *source;
++                ptr::write(
++                    ptr::addr_of_mut!(source.callback),
++                    ThreadGuard::new((func, channel.clone())),
++                );
+                 ptr::write(ptr::addr_of_mut!(source.channel), channel);
+-                ptr::write(ptr::addr_of_mut!(source.callback), ThreadGuard::new(func));
+                 ptr::write(ptr::addr_of_mut!(source.source_funcs), source_funcs);
+             }
+
+--- a/src/main_context_futures.rs
++++ b/src/main_context_futures.rs
+@@ -353,7 +353,7 @@
+     }
+ }
+
+-unsafe impl<T> Send for JoinHandle<T> {}
++unsafe impl<T: Send> Send for JoinHandle<T> {}
+
+ // rustdoc-stripper-ignore-next
+ /// Variant of [`JoinHandle`] that is returned from [`MainContext::spawn_from_within`].
+@@ -575,10 +575,10 @@
+     // rustdoc-stripper-ignore-next
+     /// Spawn a new infallible `Future` on the main context from inside the main context.
+     ///
+-    /// The given `Future` does not have to be `Send` but the closure to spawn it has to be.
++    /// The given `Future` does not have to be `Send` but the closure to spawn it and its result do.
+     ///
+     /// This can be called only from any thread.
+-    pub fn spawn_from_within<R: 'static, F: Future<Output = R> + 'static>(
++    pub fn spawn_from_within<R: Send + 'static, F: Future<Output = R> + 'static>(
+         &self,
+         func: impl FnOnce() -> F + Send + 'static,
+     ) -> SpawnWithinJoinHandle<R> {
+@@ -588,10 +588,10 @@
+     // rustdoc-stripper-ignore-next
+     /// Spawn a new infallible `Future` on the main context from inside the main context.
+     ///
+-    /// The given `Future` does not have to be `Send` but the closure to spawn it has to be.
++    /// The given `Future` does not have to be `Send` but the closure to spawn it and its result do.
+     ///
+     /// This can be called only from any thread.
+-    pub fn spawn_from_within_with_priority<R: 'static, F: Future<Output = R> + 'static>(
++    pub fn spawn_from_within_with_priority<R: Send + 'static, F: Future<Output = R> + 'static>(
+         &self,
+         priority: Priority,
+         func: impl FnOnce() -> F + Send + 'static,
+--- a/src/object.rs
++++ b/src/object.rs
+@@ -3490,21 +3490,22 @@
+ /// different threads even for object types that don't implement `Send`.
+ ///
+ /// Trying to upgrade the weak reference from another thread than the one
+-/// where it was created on will panic but dropping or cloning can be done
+-/// safely from any thread.
++/// where it was created on will panic. Cloning also requires the creating
++/// thread because cloning temporarily acquires a strong reference. Dropping
++/// a weak reference can be done safely from any thread.
+ #[derive(Debug)]
+-pub struct SendWeakRef<T: ObjectType>(WeakRef<T>, Option<usize>);
++pub struct SendWeakRef<T: ObjectType>(WeakRef<T>, usize);
+
+ impl<T: ObjectType> SendWeakRef<T> {
+     #[inline]
+     pub fn new() -> SendWeakRef<T> {
+-        SendWeakRef(WeakRef::new(), None)
++        SendWeakRef(WeakRef::new(), thread_id())
+     }
+
+     #[inline]
+     pub fn into_weak_ref(self) -> WeakRef<T> {
+         assert!(
+-            self.1.is_none() || self.1 == Some(thread_id()),
++            self.1 == thread_id(),
+             "SendWeakRef dereferenced on a different thread",
+         );
+
+@@ -3518,7 +3519,7 @@
+     #[inline]
+     fn deref(&self) -> &WeakRef<T> {
+         assert!(
+-            self.1.is_none() || self.1 == Some(thread_id()),
++            self.1 == thread_id(),
+             "SendWeakRef dereferenced on a different thread"
+         );
+
+@@ -3530,6 +3531,10 @@
+ impl<T: ObjectType> Clone for SendWeakRef<T> {
+     #[inline]
+     fn clone(&self) -> Self {
++        assert!(
++            self.1 == thread_id(),
++            "SendWeakRef cloned on a different thread"
++        );
+         Self(self.0.clone(), self.1)
+     }
+ }
+@@ -3544,15 +3549,15 @@
+ impl<T: ObjectType> From<WeakRef<T>> for SendWeakRef<T> {
+     #[inline]
+     fn from(v: WeakRef<T>) -> SendWeakRef<T> {
+-        SendWeakRef(v, Some(thread_id()))
++        SendWeakRef(v, thread_id())
+     }
+ }
+
+ unsafe impl<T: ObjectType> Sync for SendWeakRef<T> {}
+ unsafe impl<T: ObjectType> Send for SendWeakRef<T> {}
+
+-type TransformFn<'b> =
+-    Option<Box<dyn Fn(&'b crate::Binding, &'b Value) -> Option<Value> + Send + Sync + 'static>>;
++type TransformFn =
++    Option<Box<dyn Fn(&crate::Binding, &Value) -> Option<Value> + Send + Sync + 'static>>;
+
+ // rustdoc-stripper-ignore-next
+ /// Builder for object property bindings.
+@@ -3563,8 +3568,9 @@
+     target: &'a ObjectRef,
+     target_property: &'a str,
+     flags: crate::BindingFlags,
+-    transform_from: TransformFn<'f>,
+-    transform_to: TransformFn<'t>,
++    transform_from: TransformFn,
++    transform_to: TransformFn,
++    transform_lifetimes: PhantomData<(&'f (), &'t ())>,
+ }
+
+ impl<'a, 'f, 't> fmt::Debug for BindingBuilder<'a, 'f, 't> {
+@@ -3594,6 +3600,7 @@
+             flags: crate::BindingFlags::DEFAULT,
+             transform_to: None,
+             transform_from: None,
++            transform_lifetimes: PhantomData,
+         }
+     }
+
+@@ -3618,18 +3625,19 @@
+     /// Transform changed property values from the target object to the source object with the given closure.
+     ///
+     /// This function operates on concrete argument and return types.
+-    /// See [`Self::transform_from_with_values`] for a version which operates on `glib::Value`s.
++    /// The argument must be independent of the temporary property value's lifetime.
++    /// Use [`Self::transform_from_with_values`] to borrow from a `glib::Value` within the callback.
+     pub fn transform_from<
+-        S: FromValue<'f>,
++        S: for<'v> FromValue<'v> + 'static,
+         T: Into<Value>,
+-        F: Fn(&'f crate::Binding, S) -> Option<T> + Send + Sync + 'static,
++        F: Fn(&crate::Binding, S) -> Option<T> + Send + Sync + 'static,
+     >(
+         self,
+         func: F,
+     ) -> Self {
+         Self {
+             transform_from: Some(Box::new(move |binding, from_value| {
+-                let from_value = from_value.get().expect("Wrong value type");
++                let from_value = from_value.get_owned().expect("Wrong value type");
+                 func(binding, from_value).map(|r| r.into())
+             })),
+             ..self
+@@ -3657,18 +3665,19 @@
+     /// Transform changed property values from the source object to the target object with the given closure.
+     ///
+     /// This function operates on concrete argument and return types.
+-    /// See [`Self::transform_to_with_values`] for a version which operates on `glib::Value`s.
++    /// The argument must be independent of the temporary property value's lifetime.
++    /// Use [`Self::transform_to_with_values`] to borrow from a `glib::Value` within the callback.
+     pub fn transform_to<
+-        S: FromValue<'t>,
++        S: for<'v> FromValue<'v> + 'static,
+         T: Into<Value>,
+-        F: Fn(&'t crate::Binding, S) -> Option<T> + Send + Sync + 'static,
++        F: Fn(&crate::Binding, S) -> Option<T> + Send + Sync + 'static,
+     >(
+         self,
+         func: F,
+     ) -> Self {
+         Self {
+             transform_to: Some(Box::new(move |binding, from_value| {
+-                let from_value = from_value.get().expect("Wrong value type");
++                let from_value = from_value.get_owned().expect("Wrong value type");
+                 func(binding, from_value).map(|r| r.into())
+             })),
+             ..self
+--- a/src/subclass/object_impl_ref.rs
++++ b/src/subclass/object_impl_ref.rs
+@@ -15,9 +15,6 @@
+ /// This can be used for passing into closures as strong or weak reference without manually going
+ /// from the implementation type to the instance type and back.
+ pub struct ObjectImplRef<T: ObjectSubclass>(T::Type);
+-
+-unsafe impl<T: ObjectSubclass + Send + Sync> Send for ObjectImplRef<T> {}
+-unsafe impl<T: ObjectSubclass + Send + Sync> Sync for ObjectImplRef<T> {}
+
+ impl<T: ObjectSubclass> ObjectImplRef<T> {
+     // rustdoc-stripper-ignore-next
+@@ -125,9 +122,6 @@
+ /// Weak reference to an [`ObjectSubclass`] reference.
+ pub struct ObjectImplWeakRef<T: ObjectSubclass>(WeakRef<T::Type>);
+
+-unsafe impl<T: ObjectSubclass + Send + Sync> Send for ObjectImplWeakRef<T> {}
+-unsafe impl<T: ObjectSubclass + Send + Sync> Sync for ObjectImplWeakRef<T> {}
+-
+ impl<T: ObjectSubclass> ObjectImplWeakRef<T> {
+     // rustdoc-stripper-ignore-next
+     /// Upgrade to a strong reference, if possible.
+--- a/src/thread_guard.rs
++++ b/src/thread_guard.rs
+@@ -1,7 +1,7 @@
+ // Take a look at the license at the top of the repository in the LICENSE file.
+
+ use std::{
+-    mem, ptr,
++    mem,
+     sync::atomic::{AtomicUsize, Ordering},
+ };
+ fn next_thread_id() -> usize {
+@@ -21,9 +21,11 @@
+
+ // rustdoc-stripper-ignore-next
+ /// Thread guard that only gives access to the contained value on the thread it was created on.
++/// Dropping it on another thread panics and leaks the contained value rather
++/// than destroying thread-affine state on that thread.
+ pub struct ThreadGuard<T> {
+     thread_id: usize,
+-    value: T,
++    value: mem::ManuallyDrop<T>,
+ }
+
+ impl<T> ThreadGuard<T> {
+@@ -38,7 +40,7 @@
+     pub fn new(value: T) -> Self {
+         Self {
+             thread_id: thread_id(),
+-            value,
++            value: mem::ManuallyDrop::new(value),
+         }
+     }
+
+@@ -85,12 +87,15 @@
+     /// created.
+     #[inline]
+     pub fn into_inner(self) -> T {
++        // Suppress both field cleanup and a second owner assertion if this
++        // extraction is attempted from the wrong thread.
++        let mut this = mem::ManuallyDrop::new(self);
+         assert!(
+-            self.thread_id == thread_id(),
++            this.thread_id == thread_id(),
+             "Value accessed from different thread than where it was created"
+         );
+
+-        unsafe { ptr::read(&mem::ManuallyDrop::new(self).value) }
++        unsafe { mem::ManuallyDrop::take(&mut this.value) }
+     }
+
+     // rustdoc-stripper-ignore-next
+@@ -108,6 +113,9 @@
+             self.thread_id == thread_id(),
+             "Value dropped on a different thread than where it was created"
+         );
++        // On a foreign thread the assertion deliberately leaks the value:
++        // automatic field cleanup must not destroy thread-affine state.
++        unsafe { mem::ManuallyDrop::drop(&mut self.value) }
+     }
+ }
+
+--- a/src/value.rs
++++ b/src/value.rs
+@@ -8,8 +8,10 @@
+ //! type.
+ //!
+ //! [`SendValue`](struct.SendValue.html) is a version of [`Value`](struct.Value.html)
+-//! that can only store types that implement `Send` and as such implements `Send` itself. It
+-//! dereferences to `Value` so it can be used everywhere `Value` references are accepted.
++//! that stores native representations known to be thread-safe and implements `Send` itself.
++//! Safe promotions reject objects and unrecognized boxed representations even when their
++//! converter implements `Send`. It dereferences to `Value` so it can be used everywhere
++//! `Value` references are accepted.
+ //!
+ //! Supported types are `bool`, `i8`, `u8`, `i32`, `u32`, `i64`, `u64`, `f32`,
+ //! `f64`, `String` and objects (`T: IsA<Object>`).
+@@ -638,9 +640,17 @@
+         }
+     }
+
++    /// Tries to promote a value whose actual native storage is thread-safe.
++    ///
++    /// Supported boxed types are Bytes, Checksum, Date, DateTime, TimeZone,
++    /// Error, MainContext, MainLoop, Source, Closure, GStringBuilder, VariantType
++    /// and string arrays; parameter specifications, Variant and feature-enabled
++    /// Uri values are supported.
++    /// Objects and unrecognized boxed types are rejected even when `T` is
++    /// `Send`: a caller-provided `StaticType` is not a payload-safety guarantee.
+     #[inline]
+     pub fn try_into_send_value<T: Send + StaticType>(self) -> Result<SendValue, Self> {
+-        if self.type_().is_a(T::static_type()) {
++        if self.type_().is_a(T::static_type()) && value_type_is_send(self.type_()) {
+             unsafe { Ok(SendValue::unsafe_from(self.into_raw())) }
+         } else {
+             Err(self)
+@@ -776,6 +786,53 @@
+
+ unsafe impl Send for SendValue {}
+
++// Certify the stored representation, never the safe converter or type marker
++// supplied by a caller. Exact native boxed IDs have their own fixed copy/free
++// implementations; arbitrary boxed types and objects may contain local Rust
++// state. Registered enum/flags and parameter-specification types must inherit
++// their native integer/reference value table, with no custom lifecycle table.
++fn value_type_is_send(type_: Type) -> bool {
++    if matches!(
++        type_,
++        Type::I8 | Type::U8 | Type::BOOL | Type::I32 | Type::U32
++            | Type::I_LONG | Type::U_LONG | Type::I64 | Type::U64
++            | Type::F32 | Type::F64 | Type::STRING | Type::VARIANT
++    ) || [
++        Type::static_type(),
++        crate::Bytes::static_type(),
++        crate::Checksum::static_type(),
++        crate::Date::static_type(),
++        crate::DateTime::static_type(),
++        crate::TimeZone::static_type(),
++        crate::Error::static_type(),
++        crate::MainContext::static_type(),
++        crate::MainLoop::static_type(),
++        crate::Source::static_type(),
++        crate::Closure::static_type(),
++        crate::GStringBuilder::static_type(),
++        crate::VariantType::static_type(),
++        Vec::<String>::static_type(),
++    ].contains(&type_) {
++        return true;
++    }
++
++    #[cfg(feature = "v2_66")]
++    if type_ == crate::Uri::static_type() {
++        return true;
++    }
++
++    for fundamental in [Type::ENUM, Type::FLAGS, Type::PARAM_SPEC] {
++        if type_.is_a(fundamental) {
++            unsafe {
++                let table = gobject_ffi::g_type_value_table_peek(type_.into_glib());
++                return !table.is_null()
++                    && table == gobject_ffi::g_type_value_table_peek(fundamental.into_glib());
++            }
++        }
++    }
++    false
++}
++
+ impl SendValue {
+     // rustdoc-stripper-ignore-next
+     /// Consumes `SendValue` and returns the corresponding `GValue`.
+@@ -786,9 +843,24 @@
+             ptr::read(&s.inner)
+         }
+     }
++    /// Converts owned native scalar, string, enum/flags and supported GLib
++    /// boxed values into transferable storage.
++    ///
++    /// # Panics
++    ///
++    /// Panics for objects or boxed types without a known thread-safe native
++    /// representation. `Send` on a converter alone does not certify its result.
+     #[inline]
+     pub fn from_owned<T: Send + Into<Value> + ?Sized>(t: T) -> Self {
+-        unsafe { Self::unsafe_from(t.into().into_raw()) }
++        Self::from_value(t.into())
++    }
++
++    fn from_value(value: Value) -> Self {
++        assert!(
++            value_type_is_send(value.type_()),
++            "Value has no certified thread-safe native representation"
++        );
++        unsafe { Self::unsafe_from(value.into_raw()) }
+     }
+ }
+
+@@ -819,13 +891,19 @@
+ pub trait ToSendValue: Send + ToValue {
+     // rustdoc-stripper-ignore-next
+     /// Returns a `SendValue` clone of `self`.
++    ///
++    /// # Panics
++    ///
++    /// Panics if the produced value is an object or an unrecognized boxed
++    /// type. Native scalars, strings, standard enums/flags and the supported
++    /// GLib boxed representations remain transferable.
+     fn to_send_value(&self) -> SendValue;
+ }
+
+ impl<T: Send + ToValue + ?Sized> ToSendValue for T {
+     #[inline]
+     fn to_send_value(&self) -> SendValue {
+-        unsafe { SendValue::unsafe_from(self.to_value().into_raw()) }
++        SendValue::from_value(self.to_value())
+     }
+ }
+
+--- a/src/variant.rs
++++ b/src/variant.rs
+@@ -622,6 +622,9 @@
+
+     // rustdoc-stripper-ignore-next
+     /// Constructs a new serialized-mode GVariant instance.
++    ///
++    /// Copies the serialized data into storage owned by the returned variant.
++    /// Use [`Self::from_bytes`] to share an existing [`Bytes`] allocation.
+     #[doc(alias = "g_variant_new_from_data")]
+     pub fn from_data<T: StaticVariantType, A: AsRef<[u8]>>(data: A) -> Self {
+         Variant::from_data_with_type(data, &T::static_variant_type())
+@@ -680,28 +683,13 @@
+
+     // rustdoc-stripper-ignore-next
+     /// Constructs a new serialized-mode GVariant instance with a given type.
++    ///
++    /// Copies the serialized data into storage owned by the returned variant.
++    /// Use [`Self::from_bytes_with_type`] to share an existing [`Bytes`] allocation.
+     #[doc(alias = "g_variant_new_from_data")]
+     pub fn from_data_with_type<A: AsRef<[u8]>>(data: A, type_: &VariantTy) -> Self {
+-        unsafe {
+-            let data = Box::new(data);
+-            let (data_ptr, len) = {
+-                let data = (*data).as_ref();
+-                (data.as_ptr(), data.len())
+-            };
+-
+-            unsafe extern "C" fn free_data<A: AsRef<[u8]>>(ptr: ffi::gpointer) {
+-                let _ = Box::from_raw(ptr as *mut A);
+-            }
+-
+-            from_glib_none(ffi::g_variant_new_from_data(
+-                type_.as_ptr() as *const _,
+-                data_ptr as ffi::gconstpointer,
+-                len,
+-                false.into_glib(),
+-                Some(free_data::<A>),
+-                Box::into_raw(data) as ffi::gpointer,
+-            ))
+-        }
++        let bytes = Bytes::from(data.as_ref());
++        Self::from_bytes_with_type(&bytes, type_)
+     }
+
+     // rustdoc-stripper-ignore-next
+@@ -718,24 +706,8 @@
+     /// on bytes which are not guaranteed to have come from serialising another
+     /// Variant.  The caller is responsible for ensuring bad data is not passed in.
+     pub unsafe fn from_data_with_type_trusted<A: AsRef<[u8]>>(data: A, type_: &VariantTy) -> Self {
+-        let data = Box::new(data);
+-        let (data_ptr, len) = {
+-            let data = (*data).as_ref();
+-            (data.as_ptr(), data.len())
+-        };
+-
+-        unsafe extern "C" fn free_data<A: AsRef<[u8]>>(ptr: ffi::gpointer) {
+-            let _ = Box::from_raw(ptr as *mut A);
+-        }
+-
+-        from_glib_none(ffi::g_variant_new_from_data(
+-            type_.as_ptr() as *const _,
+-            data_ptr as ffi::gconstpointer,
+-            len,
+-            true.into_glib(),
+-            Some(free_data::<A>),
+-            Box::into_raw(data) as ffi::gpointer,
+-        ))
++        let bytes = Bytes::from(data.as_ref());
++        Self::from_bytes_with_type_trusted(&bytes, type_)
+     }
+
+     // rustdoc-stripper-ignore-next
+@@ -1952,30 +1924,9 @@
+ }
+
+ impl<A: AsRef<[T]>, T: FixedSizeVariantType> From<FixedSizeVariantArray<A, T>> for Variant {
+-    #[doc(alias = "g_variant_new_from_data")]
++    #[doc(alias = "g_variant_new_fixed_array")]
+     fn from(a: FixedSizeVariantArray<A, T>) -> Self {
+-        unsafe {
+-            let data = Box::new(a.0);
+-            let (data_ptr, len) = {
+-                let data = (*data).as_ref();
+-                (data.as_ptr(), mem::size_of_val(data))
+-            };
+-
+-            unsafe extern "C" fn free_data<A: AsRef<[T]>, T: FixedSizeVariantType>(
+-                ptr: ffi::gpointer,
+-            ) {
+-                let _ = Box::from_raw(ptr as *mut A);
+-            }
+-
+-            from_glib_none(ffi::g_variant_new_from_data(
+-                T::static_variant_type().to_glib_none().0,
+-                data_ptr as ffi::gconstpointer,
+-                len,
+-                false.into_glib(),
+-                Some(free_data::<A, T>),
+-                Box::into_raw(data) as ffi::gpointer,
+-            ))
+-        }
++        Variant::array_from_fixed_array(a.0.as_ref())
+     }
+ }
+
+--- a/src/variant_iter.rs
++++ b/src/variant_iter.rs
+@@ -117,13 +117,13 @@
+
+     fn impl_get(&self, i: usize) -> &'a str {
+         unsafe {
+-            let p: *mut libc::c_char = std::ptr::null_mut();
++            let mut p: *mut libc::c_char = std::ptr::null_mut();
+             let s = b"&s\0";
+             ffi::g_variant_get_child(
+                 self.variant.to_glib_none().0,
+                 i,
+                 s as *const u8 as *const _,
+-                &p,
++                &mut p,
+                 std::ptr::null::<i8>(),
+             );
+             let p = std::ffi::CStr::from_ptr(p);

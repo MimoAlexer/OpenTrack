@@ -38,11 +38,14 @@ terminal, leased cleanup state. A read-only "unreferenced" query is insufficient
 It checks age and a nonblocking per-key exclusive lock; active uploads, scanners
 and download readers produce `Busy`. It persists a retired-key marker before
 removing bytes and fsyncs the directories before `Removed`/`Missing`. Only then
-may metadata acknowledge deletion and release quota. Keep/retry the metadata after
+may metadata acknowledge deletion and release payload-byte quota. Keep/retry the metadata after
 uncertain I/O. Keys are never reused. Small private key lock/tombstone files are
 retained deliberately to prevent late work from republishing a deleted key; the
 adapter never sweeps unknown files or guesses whether a blob is live. Backup must
 retain referenced blobs and pause cleanup, including the filesystem key state.
+The application admits new reservations against a separate lifetime workspace
+key limit that includes collected and never-uploaded keys; releasing payload-byte
+quota does not release retained-key capacity.
 Store clones share one cleanup lane. A cancelled or timed-out caller leaves its
 permit with the blocking filesystem operation until it finishes; overlapping
 cleanup returns `BlobError::Busy`, so worker deadlines cannot accumulate tasks

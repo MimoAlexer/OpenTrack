@@ -61,15 +61,12 @@ impl<T: TransparentPtrType> SList<T> {
     pub unsafe fn from_glib_container(list: *mut ffi::GSList) -> SList<T> {
         // Need to copy all items as we only own the container
         if mem::needs_drop::<T>() {
-            unsafe extern "C" fn copy_item<T: TransparentPtrType>(
-                ptr: ffi::gpointer,
-                _user_data: ffi::gpointer,
-            ) {
-                let item = (*(&ptr as *const ffi::gpointer as *const T)).clone();
-                ptr::write(ptr as *mut T, item);
+            let mut node = list;
+            while !node.is_null() {
+                let item = (&*(&(*node).data as *const ffi::gpointer as *const T)).clone();
+                ptr::write(&mut (*node).data as *mut ffi::gpointer as *mut T, item);
+                node = (*node).next;
             }
-
-            ffi::g_slist_foreach(list, Some(copy_item::<T>), ptr::null_mut());
         }
 
         SList {
@@ -350,11 +347,15 @@ impl<T: TransparentPtrType> SList<T> {
             unsafe {
                 let mut ptr = head.as_ptr();
                 while !ptr.is_null() {
-                    let item = &*((*ptr).data as *const ffi::gpointer as *const T);
+                    let item = &*(&(*ptr).data as *const ffi::gpointer as *const T);
                     let next = (*ptr).next;
                     if !f(item) {
-                        ptr::drop_in_place(&mut (*ptr).data as *mut ffi::gpointer as *mut T);
-                        self.ptr = ptr::NonNull::new(ffi::g_slist_delete_link(head.as_ptr(), ptr));
+                        let item = ptr::read(&(*ptr).data as *const ffi::gpointer as *const T);
+                        self.ptr = ptr::NonNull::new(ffi::g_slist_delete_link(
+                            self.ptr.unwrap().as_ptr(),
+                            ptr,
+                        ));
+                        drop(item);
                     }
                     ptr = next;
                 }
@@ -562,12 +563,7 @@ impl<'a, T: TransparentPtrType + 'a> ToGlibPtr<'a, *mut ffi::GSList> for SList<T
 
     #[inline]
     fn to_glib_container(&'a self) -> Stash<'a, *mut ffi::GSList, Self> {
-        unsafe {
-            let ptr = ffi::g_malloc(mem::size_of::<T>().checked_mul(self.len() + 1).unwrap())
-                as *mut ffi::GSList;
-            ptr::copy_nonoverlapping(self.as_ptr(), ptr, self.len() + 1);
-            Stash(ptr, PhantomData)
-        }
+        unsafe { Stash(ffi::g_slist_copy(mut_override(self.as_ptr())), PhantomData) }
     }
 
     #[inline]

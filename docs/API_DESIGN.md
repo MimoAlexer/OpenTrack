@@ -311,7 +311,7 @@ Disabling character shortcuts pauses C, /, ?, and navigation sequences. Mod+K, E
 
 ## Projects (0022)
 
-All implemented routes below use `/api/v1/workspaces/{w}/teams/{t}/projects`. Current workspace membership and owning-team access are rechecked on every request, including idempotent replay. Inaccessible private teams/projects return 404. Viewers can read; active contributors can edit. Archive and restore additionally require current team management authority. Archived workspaces or teams are read-only.
+All implemented routes below use `/api/v1/workspaces/{w}/teams/{t}/projects`. Current workspace membership and owning-team access are rechecked on every request, including idempotent replay. Inaccessible private teams/projects return 404. Viewers can read; active contributors can edit. Changing or clearing an existing project's lead, archive and restore additionally require current team management authority. Contributors may select an eligible initial lead when creating a project. Archived workspaces or teams are read-only.
 
 | Method and suffix | Contract |
 | --- | --- |

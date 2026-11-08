@@ -105,19 +105,23 @@ async fn run() -> Result<(), String> {
         ))),
         app: app.clone(),
         origins: Arc::new(cfg.origins()),
-        secure_cookie: cfg.server.public_url.starts_with("https:"),
+        secure_cookie: cfg.secure_cookie()?,
         static_dir: Arc::new(cfg.server.static_dir.clone()),
     };
     let listener = tokio::net::TcpListener::bind(cfg.server.listen)
         .await
         .map_err(|_| "Cannot bind listener")?;
     tracing::info!(listen=%cfg.server.listen,environment=%cfg.server.environment,local_container=cfg.server.local_container,schema_version=cfg.schema_version,"OpenTrack listening");
-    axum_serve(listener, state).await?;
+    axum_serve(listener, state, cfg.server.trusted_proxy_ips).await?;
     app.pool.close().await;
     Ok(())
 }
-async fn axum_serve(listener: tokio::net::TcpListener, state: ApiState) -> Result<(), String> {
-    opentrack_api::serve(listener, state, shutdown())
+async fn axum_serve(
+    listener: tokio::net::TcpListener,
+    state: ApiState,
+    trusted_proxies: Vec<std::net::IpAddr>,
+) -> Result<(), String> {
+    opentrack_api::serve_with_trusted_proxies(listener, state, trusted_proxies, shutdown())
         .await
         .map_err(|_| "HTTP server failed".into())
 }

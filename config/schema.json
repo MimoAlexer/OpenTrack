@@ -108,6 +108,14 @@
           "default": "web/dist",
           "description": "Built frontend directory; production serving requires an absolute path. Development default is web/dist; migrations do not use it.",
           "type": "string"
+        },
+        "trusted_proxy_ips": {
+          "default": [],
+          "description": "At most 64 exact proxy socket IPs allowed to supply one X-OpenTrack-Client-IP header. Empty by default. Proxies must replace inbound headers with their direct client's address. No hostnames, CIDRs or wildcard trust.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "type": "object"
@@ -146,6 +154,13 @@
         "scanner_socket": {
           "description": "Absolute ClamAV Unix socket; configured scanner failures retain quarantine for retry.",
           "type": "string"
+        },
+        "workspace_key_quota": {
+          "default": 100000,
+          "description": "Maximum lifetime attachment storage keys per workspace, including deleted reservations and retained retirement markers.",
+          "maximum": 9223372036854775807,
+          "minimum": 1,
+          "type": "integer"
         },
         "workspace_quota_bytes": {
           "default": 5368709120,
