@@ -1,12 +1,13 @@
 -- Notifications are content-free hints. Independent API-node cursors and the
 -- durable log remain authoritative when listeners disconnect or hints are lost.
-CREATE FUNCTION realtime_wakeup() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE FUNCTION realtime_wakeup() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $$
 BEGIN
- PERFORM pg_notify('opentrack_realtime','');
+ PERFORM pg_catalog.pg_notify('opentrack_realtime','');
  RETURN NULL;
 END $$;
 CREATE TRIGGER realtime_wakeup AFTER INSERT ON workspace_events
  FOR EACH STATEMENT EXECUTE FUNCTION realtime_wakeup();
+REVOKE ALL ON FUNCTION realtime_wakeup() FROM PUBLIC;
 
 -- Account-owned operational leases enforce connection limits across API nodes.
 -- They contain public session IDs, never bearer tokens, payloads or cursors.
