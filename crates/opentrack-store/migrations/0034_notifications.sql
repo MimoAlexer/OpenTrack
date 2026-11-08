@@ -51,6 +51,7 @@ CREATE TABLE notification_sources (
  FOREIGN KEY(workspace_id,issue_id) REFERENCES issues(workspace_id,id),FOREIGN KEY(workspace_id,project_id) REFERENCES projects(workspace_id,id)
 );
 CREATE INDEX notification_sources_pending ON notification_sources(workspace_id,event_seq,id) WHERE NOT completed;
+CREATE INDEX notification_sources_legacy_pending ON notification_sources(workspace_id,id) WHERE source_transaction IS NULL AND NOT completed;
 CREATE INDEX notification_sources_transaction ON notification_sources(workspace_id,source_transaction) WHERE event_seq IS NULL;
 CREATE TABLE notification_backfills (
  workspace_id uuid PRIMARY KEY REFERENCES workspaces(id),job_id uuid,
@@ -113,9 +114,11 @@ END $$;
 CREATE TRIGGER notification_mention_source AFTER INSERT ON mention_intents FOR EACH ROW EXECUTE FUNCTION notification_discussion_source();
 CREATE TRIGGER notification_discussion_source AFTER INSERT ON discussion_sources FOR EACH ROW EXECUTE FUNCTION notification_discussion_source();
 CREATE FUNCTION notification_bind_event() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN
+ -- Recipient invalidations and unrelated events never acquire source row locks.
+ IF NOT starts_with(NEW.event_type,'issue.') AND NEW.event_type NOT IN('document.updated','comment.created','project.created') THEN RETURN NEW;END IF;
  UPDATE notification_sources s SET event_id=NEW.event_id,event_seq=NEW.seq
  WHERE s.workspace_id=NEW.workspace_id AND s.source_transaction=txid_current() AND s.event_seq IS NULL AND s.actor_id=NEW.actor_id AND (
-  (s.reason='assignment' AND NEW.event_type IN('issue.created','issue.updated') AND s.entity_id=NEW.entity_id AND s.source_version=NEW.entity_version)
+  (s.reason='assignment' AND starts_with(NEW.event_type,'issue.') AND s.entity_id=NEW.entity_id AND s.source_version=NEW.entity_version)
   OR (s.reason='mention' AND NEW.event_type='document.updated' AND s.document_id=NEW.entity_id AND s.source_version=NEW.entity_version)
   OR (s.reason IN('mention','subscribed_comment') AND NEW.event_type='comment.created' AND s.comment_id=NEW.entity_id AND s.source_version=1 AND NEW.entity_version=1)
   OR (s.reason='mention' AND NEW.event_type IN('issue.created','project.created') AND s.entity_id=NEW.entity_id AND s.source_version=1 AND NEW.entity_version=1)
@@ -139,7 +142,7 @@ CREATE OR REPLACE FUNCTION maintenance_job_authority() RETURNS trigger LANGUAGE 
  AND NOT has_function_privilege(current_user,'worker_lock_maintenance_context(uuid)','EXECUTE') THEN RAISE EXCEPTION 'Maintenance work requires worker authority' USING ERRCODE='42501';END IF;RETURN NEW;
 END $$;
 CREATE FUNCTION register_notification_consumer(w uuid) RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE saved text:=current_setting('opentrack.workspace_id',true);j uuid:=gen_random_uuid();floor bigint;n bigint;BEGIN
+DECLARE saved text:=current_setting('opentrack.workspace_id',true);floor bigint;n bigint;BEGIN
  PERFORM set_config('opentrack.workspace_id',w::text,true);
  SELECT purged_through_seq INTO STRICT floor FROM event_retention_state WHERE workspace_id=w;
  INSERT INTO consumer_registrations(workspace_id,consumer_name,consumer_version) VALUES(w,'notifications',1);GET DIAGNOSTICS n=ROW_COUNT;PERFORM consumer_required(n);
@@ -182,7 +185,7 @@ END $$;
 -- Append invalidations only after every recipient head lock/effect. The shared
 -- stream is references only; replay resolves each ID through recipient RLS.
 CREATE FUNCTION worker_flush_notification_events(w uuid,batch_limit integer) RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE item notification_invalidations%ROWTYPE;pending notification_invalidations[];finish bigint;amount integer;n bigint;published bigint:=0;constraint_name text;failed boolean;admission boolean;BEGIN
+DECLARE item notification_invalidations%ROWTYPE;pending notification_invalidations[];finish bigint;n bigint;published bigint:=0;constraint_name text;failed boolean;admission boolean;BEGIN
  IF batch_limit IS NULL OR batch_limit<1 OR batch_limit>100 THEN RAISE EXCEPTION 'Invalid notification invalidation bound' USING ERRCODE='22023';END IF;
  IF NOT worker_lock_maintenance_context(w) THEN RETURN 0;END IF;
  -- Row locks are acquired before the stream head; effects are already durable.
@@ -244,7 +247,7 @@ END $$;
 CREATE FUNCTION worker_apply_notification_events(w uuid,batch_limit integer)
 RETURNS TABLE(processed bigint,captured bigint,backfilled boolean,dead_lettered boolean) LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE cp consumer_checkpoints%ROWTYPE;b notification_backfills%ROWTYPE;m mention_intents%ROWTYPE;d discussion_sources%ROWTYPE;
- e workspace_events%ROWTYPE;source_id uuid;fanout record;dl consumer_dead_letters%ROWTYPE;n bigint;scanned integer:=0;budget integer;iterations integer:=0;
+ e workspace_events%ROWTYPE;source_id uuid;fanout record;dl consumer_dead_letters%ROWTYPE;n bigint;scanned integer:=0;budget integer;
  ids uuid[]:='{}';failure_seq bigint;failure_event uuid;failure_type text;failure_schema integer;code text:='effect_failed';failed boolean:=false;letter uuid;attempt integer;j uuid;receipt consumer_receipts%ROWTYPE;
 BEGIN
  processed:=0;captured:=0;backfilled:=false;dead_lettered:=false;budget:=batch_limit;
@@ -352,11 +355,106 @@ DECLARE n bigint;BEGIN
  IF n=0 THEN RAISE EXCEPTION 'Blocked notification invalidation unavailable' USING ERRCODE='P0002';END IF;
  RETURN consumer_operator_audit(w,notification,'notifications.invalidation_retry',reason_text);
 END $$;
+CREATE FUNCTION operator_notification_status(w uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE result jsonb;BEGIN
+ IF NOT worker_lock_maintenance_context(w) THEN RAISE EXCEPTION 'Workspace unavailable' USING ERRCODE='P0002';END IF;
+ SELECT jsonb_build_object('pending',(SELECT count(*) FROM notification_invalidations WHERE workspace_id=w AND published_seq IS NULL),'blocked',coalesce((SELECT jsonb_agg(to_jsonb(failed)) FROM (SELECT notification_id,notification_version,attempts,available_at FROM notification_invalidations WHERE workspace_id=w AND published_seq IS NULL AND blocked ORDER BY available_at,notification_id LIMIT 50) failed),'[]'::jsonb)) INTO result;
+ RETURN result;
+END $$;
+-- Every known required consumer remains an explicit retention/admission obligation.
+CREATE OR REPLACE FUNCTION worker_retain_events(w uuid,batch_limit integer)
+RETURNS TABLE(deleted bigint,purged_through_seq bigint) LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE watermark bigint;floor bigint;candidate bigint;n bigint;expected bigint;
+BEGIN
+ deleted:=0;purged_through_seq:=0;
+ IF batch_limit<1 OR batch_limit>1000 THEN RAISE EXCEPTION 'Invalid retention batch bound' USING ERRCODE='22023';END IF;
+ IF NOT worker_lock_maintenance_context(w) THEN RETURN NEXT;RETURN;END IF;
+ PERFORM 1 FROM consumer_registrations WHERE workspace_id=w ORDER BY consumer_name,consumer_version FOR SHARE;
+ PERFORM 1 FROM consumer_checkpoints WHERE workspace_id=w ORDER BY consumer_name,consumer_version FOR SHARE;
+ SELECT s.purged_through_seq INTO STRICT floor FROM event_retention_state s WHERE s.workspace_id=w FOR UPDATE;
+ purged_through_seq:=floor;
+ IF EXISTS(SELECT 1 FROM unnest(ARRAY['assignment_cleanup','planning_counts','notifications']) expected(name) WHERE NOT EXISTS(SELECT 1 FROM consumer_registrations WHERE workspace_id=w AND consumer_name=expected.name AND consumer_version=1 AND required))
+ OR EXISTS(SELECT 1 FROM consumer_registrations r LEFT JOIN consumer_checkpoints c USING(workspace_id,consumer_name,consumer_version) WHERE r.workspace_id=w AND r.required AND (c.workspace_id IS NULL OR c.backfill_job_id IS NULL)) THEN RETURN NEXT;RETURN;END IF;
+ SELECT min(c.last_seq) INTO watermark FROM consumer_registrations r JOIN consumer_checkpoints c USING(workspace_id,consumer_name,consumer_version) WHERE r.workspace_id=w AND r.required;
+ SELECT max(seq),count(*) INTO candidate,expected FROM (SELECT ev.seq FROM workspace_events ev WHERE ev.workspace_id=w AND ev.seq>floor AND ev.seq<=watermark AND ev.occurred_at<clock_timestamp()-interval '7 days' AND ev.seq<coalesce((SELECT min(recent.seq) FROM workspace_events recent WHERE recent.workspace_id=w AND recent.seq>floor AND recent.occurred_at>=clock_timestamp()-interval '7 days'),9223372036854775807) ORDER BY ev.seq LIMIT batch_limit) old;
+ IF candidate IS NULL THEN RETURN NEXT;RETURN;END IF;
+ DELETE FROM workspace_events WHERE workspace_id=w AND seq>floor AND seq<=candidate;GET DIAGNOSTICS deleted=ROW_COUNT;
+ IF deleted<>expected THEN RAISE EXCEPTION 'Required retention removal missing';END IF;
+ UPDATE event_retention_state SET purged_through_seq=candidate WHERE workspace_id=w;GET DIAGNOSTICS n=ROW_COUNT;PERFORM consumer_required(n);
+ INSERT INTO consumer_operations(workspace_id,id,action,through_seq,affected_count) VALUES(w,gen_random_uuid(),'events.retained',candidate,deleted);GET DIAGNOSTICS n=ROW_COUNT;PERFORM consumer_required(n);
+ purged_through_seq:=candidate;RETURN NEXT;
+END $$;
+CREATE OR REPLACE FUNCTION event_storage_account() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE statement text;batch record;head workspace_stream_heads%ROWTYPE;watermark bigint;next_bytes bigint;n bigint;
+BEGIN
+ statement:=CASE TG_OP
+  WHEN 'INSERT' THEN 'SELECT workspace_id,sum(storage_bytes)::bigint AS byte_delta,min(seq) AS first_seq,max(seq) AS last_seq FROM new_events GROUP BY workspace_id ORDER BY workspace_id'
+  WHEN 'DELETE' THEN 'SELECT workspace_id,-sum(storage_bytes)::bigint AS byte_delta FROM old_events GROUP BY workspace_id ORDER BY workspace_id'
+  ELSE 'SELECT n.workspace_id,(n.bytes-o.bytes)::bigint AS byte_delta FROM (SELECT workspace_id,sum(storage_bytes) AS bytes FROM new_events GROUP BY workspace_id) n JOIN (SELECT workspace_id,sum(storage_bytes) AS bytes FROM old_events GROUP BY workspace_id) o USING(workspace_id) ORDER BY n.workspace_id'
+ END;
+ -- Transition tables acquire every event-row lock before the stream head. In
+ -- particular, pruning must not lock the head between individual row deletes.
+ FOR batch IN EXECUTE statement LOOP
+  IF batch.workspace_id IS DISTINCT FROM nullif(current_setting('opentrack.workspace_id',true),'')::uuid THEN
+   RAISE EXCEPTION 'Event workspace scope unavailable' USING ERRCODE='42501';
+  END IF;
+  SELECT * INTO STRICT head FROM workspace_stream_heads WHERE workspace_id=batch.workspace_id FOR UPDATE;
+  IF TG_OP='INSERT' THEN
+   IF batch.first_seq<1 OR batch.last_seq>head.last_seq THEN
+    RAISE EXCEPTION 'Event sequence was not reserved' USING ERRCODE='23514',CONSTRAINT='event_sequence_unreserved';
+   END IF;
+   -- Never lock checkpoints after the head: retention takes those locks first.
+   -- Disabled required consumers keep their obligation and admission watermark.
+   IF EXISTS(SELECT 1 FROM unnest(ARRAY['assignment_cleanup','planning_counts','notifications']) expected(name) WHERE NOT EXISTS(SELECT 1 FROM consumer_registrations WHERE workspace_id=batch.workspace_id AND consumer_name=expected.name AND consumer_version=1 AND required))
+   OR EXISTS(SELECT 1 FROM consumer_registrations r LEFT JOIN consumer_checkpoints c USING(workspace_id,consumer_name,consumer_version) WHERE r.workspace_id=batch.workspace_id AND r.required AND (c.workspace_id IS NULL OR c.last_seq>=batch.first_seq)) THEN
+    RAISE EXCEPTION 'Required consumer state unavailable; repair before appending events' USING ERRCODE='P0001',CONSTRAINT='event_admission_blocked';
+   END IF;
+   SELECT min(c.last_seq) INTO watermark FROM consumer_registrations r JOIN consumer_checkpoints c USING(workspace_id,consumer_name,consumer_version) WHERE r.workspace_id=batch.workspace_id AND r.required;
+   IF watermark IS NULL OR head.last_seq-watermark>head.max_pending_events THEN
+    RAISE EXCEPTION 'Required consumer backlog reached its configured event limit' USING ERRCODE='P0001',CONSTRAINT='event_admission_blocked';
+   END IF;
+  END IF;
+  next_bytes:=head.retained_event_bytes+batch.byte_delta;
+  IF next_bytes<0 THEN
+   RAISE EXCEPTION 'Retained event accounting is inconsistent' USING ERRCODE='23514',CONSTRAINT='event_storage_accounting';
+  END IF;
+  IF batch.byte_delta>0 AND next_bytes>head.max_retained_event_bytes THEN
+   RAISE EXCEPTION 'Retained events reached the configured logical storage limit' USING ERRCODE='P0001',CONSTRAINT='event_admission_blocked';
+  END IF;
+  IF batch.byte_delta<>0 THEN
+   UPDATE workspace_stream_heads SET retained_event_bytes=next_bytes WHERE workspace_id=batch.workspace_id;
+   GET DIAGNOSTICS n=ROW_COUNT;PERFORM consumer_required(n);
+  END IF;
+ END LOOP;
+ RETURN NULL;
+END $$;
+CREATE OR REPLACE FUNCTION operator_event_admission_status(w uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE snapshot record;reason text;pending bigint;remaining bigint;
+BEGIN
+ IF NOT worker_lock_maintenance_context(w) THEN RAISE EXCEPTION 'Workspace unavailable' USING ERRCODE='P0002';END IF;
+ SELECT h.last_seq,h.max_pending_events,h.max_retained_event_bytes,h.retained_event_bytes,min(c.last_seq) AS watermark,
+ coalesce(bool_or(c.workspace_id IS NULL OR c.last_seq>h.last_seq),true)
+ OR EXISTS(SELECT 1 FROM unnest(ARRAY['assignment_cleanup','planning_counts','notifications']) expected(name) WHERE NOT EXISTS(SELECT 1 FROM consumer_registrations WHERE workspace_id=w AND consumer_name=expected.name AND consumer_version=1 AND required)) AS consumer_unavailable
+ INTO STRICT snapshot FROM workspace_stream_heads h
+ LEFT JOIN consumer_registrations r ON r.workspace_id=h.workspace_id AND r.required
+ LEFT JOIN consumer_checkpoints c ON c.workspace_id=r.workspace_id AND c.consumer_name=r.consumer_name AND c.consumer_version=r.consumer_version
+ WHERE h.workspace_id=w GROUP BY h.workspace_id;
+ pending:=snapshot.last_seq-snapshot.watermark;
+ remaining:=greatest(0,snapshot.max_retained_event_bytes-snapshot.retained_event_bytes);
+ IF snapshot.consumer_unavailable OR snapshot.watermark IS NULL THEN
+  reason:='required_consumer_unavailable';
+ ELSIF pending>=snapshot.max_pending_events THEN reason:='pending_event_limit';
+ ELSIF remaining<199 THEN reason:='retained_event_byte_limit';
+ END IF;
+ -- Threshold status uses the smallest possible charge, not a proposed batch.
+ RETURN jsonb_build_object('max_pending_events',snapshot.max_pending_events::text,'max_retained_event_bytes',snapshot.max_retained_event_bytes::text,'retained_event_bytes',snapshot.retained_event_bytes::text,'remaining_event_bytes',remaining::text,'minimum_event_bytes','199','pending_events',pending::text,'admission_blocked',reason IS NOT NULL,'admission_reason',reason,'accounting','logical_v1');
+END $$;
+
 DO $$ DECLARE f regprocedure;r text;BEGIN
- FOR f IN SELECT p.oid::regprocedure FROM pg_proc p WHERE p.pronamespace=current_schema()::regnamespace AND (p.proname LIKE 'notification_%' OR p.proname IN('register_notification_consumer','register_workspace_consumers','maintenance_job_authority','system_effect_authority','worker_apply_notification_events','worker_flush_notification_events','operator_notification_retry','operator_notification_retry_invalidation')) LOOP
+ FOR f IN SELECT p.oid::regprocedure FROM pg_proc p WHERE p.pronamespace=current_schema()::regnamespace AND (p.proname LIKE 'notification_%' OR p.proname IN('register_notification_consumer','register_workspace_consumers','maintenance_job_authority','system_effect_authority','worker_apply_notification_events','worker_flush_notification_events','operator_notification_retry','operator_notification_retry_invalidation','operator_notification_status','worker_retain_events','event_storage_account','operator_event_admission_status')) LOOP
   EXECUTE format('ALTER FUNCTION %s SET search_path=pg_catalog,%I,pg_temp',f,current_schema());EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC',f);
  END LOOP;
- FOR r IN SELECT DISTINCT grantee FROM information_schema.role_table_grants WHERE table_schema=current_schema() AND table_name='issues' AND grantee<>current_user LOOP
+ FOR r IN SELECT DISTINCT grants.grantee FROM information_schema.role_table_grants grants JOIN pg_roles role ON role.rolname=grants.grantee WHERE grants.table_schema=current_schema() AND grants.table_name='issues' AND grants.grantee<>current_user AND has_table_privilege(role.oid,'issues','INSERT') LOOP
   EXECUTE format('REVOKE ALL ON notifications,notification_heads,notification_preferences,notification_invalidations,notification_sources,notification_backfills FROM %I',r);
   EXECUTE format('GRANT SELECT ON notifications,notification_heads,notification_preferences TO %I',r);
   EXECUTE format('GRANT INSERT(workspace_id,user_id,notification_id,notification_version,event_kind) ON notification_invalidations TO %I',r);

@@ -155,6 +155,12 @@ async fn seed(
     count: i32,
 ) -> Vec<Uuid> {
     let mut tx = h.context(actor.user.id, workspace).await;
+    // These owner-seeded rows are historical cleanup fixtures, not authored
+    // assignments. Real App mutations retain the actor and required event guard.
+    sqlx::query("SELECT set_config('opentrack.user_id','',true)")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
     let start: i64 = sqlx::query_scalar(
         "SELECT next_issue_number FROM teams WHERE workspace_id=$1 AND id=$2 FOR UPDATE",
     )

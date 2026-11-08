@@ -156,11 +156,14 @@ async fn retain(
     workspace: Uuid,
     limit: u32,
 ) -> opentrack_domain::Result<opentrack_app::consumer::RetentionOutcome> {
+    worker.apply_notification_events(workspace).await?;
+    worker.apply_notification_events(workspace).await?;
     worker.apply_planning_events(workspace).await?;
     worker.retain(workspace, limit).await
 }
 async fn drain(worker: &Worker, workspace: Uuid) {
     for _ in 0..200 {
+        worker.apply_notification_events(workspace).await.unwrap();
         worker.capture(workspace).await.unwrap();
         let Some(claim) = worker.claim(workspace).await.unwrap() else {
             return;
@@ -780,6 +783,9 @@ async fn selectors_isolate_poisoned_workspaces_and_reclaim_exact_bytes() {
         due(h, poisoned).await;
         worker.apply_planning_events(poisoned).await.unwrap();
         worker.apply_planning_events(healthy).await.unwrap();
+        // This selector case isolates assignment failure; the independent required
+        // notification consumer must capture the healthy stream before retention.
+        worker.apply_notification_events(healthy).await.unwrap();
         let poisoned_before = snapshot(h, poisoned).await;
         let healthy_before = snapshot(h, healthy).await;
         let mut capture_cursor = None;

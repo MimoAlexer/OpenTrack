@@ -69,5 +69,13 @@ BEGIN
   END IF;
   EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO %I',issue_function,role_name);
  END IF;
+ IF to_regclass(format('%I.notifications',schema_name)) IS NOT NULL THEN
+  IF (SELECT count(*) FROM pg_proc p WHERE p.pronamespace=schema_name::regnamespace AND p.proname IN('operator_notification_retry','operator_notification_retry_invalidation','operator_notification_status'))<>3 THEN RAISE EXCEPTION 'Apply notification recovery migration before granting operator capabilities';END IF;
+  FOR issue_function IN SELECT p.oid::regprocedure FROM pg_proc p WHERE p.pronamespace=schema_name::regnamespace AND p.proname IN('operator_notification_retry','operator_notification_retry_invalidation','operator_notification_status') LOOP
+   IF NOT (SELECT prosecdef FROM pg_proc WHERE oid=issue_function) OR EXISTS(SELECT 1 FROM pg_proc p CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid=issue_function AND a.grantee=0 AND a.privilege_type='EXECUTE') THEN RAISE EXCEPTION 'Notification recovery capabilities must deny PUBLIC execution';END IF;
+   EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO %I',issue_function,role_name);
+  END LOOP;
+ END IF;
+
 END $$;
 COMMIT;

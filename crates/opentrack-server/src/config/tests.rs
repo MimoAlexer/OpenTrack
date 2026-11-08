@@ -1224,3 +1224,69 @@ fn planning_rebuild_requires_workspace_and_reason_without_unrelated_targets() {
         assert!(Cli::parse(args.into_iter().map(str::to_owned)).is_err());
     }
 }
+
+#[test]
+fn notification_recovery_commands_require_scoped_bounded_targets() {
+    let id = "00000000-0000-0000-0000-000000000001";
+    for (command, flag, expected) in [
+        (
+            "operator-notification-retry",
+            "--dead-letter",
+            Action::OperatorNotificationRetry,
+        ),
+        (
+            "operator-notification-invalidation-retry",
+            "--notification",
+            Action::OperatorNotificationInvalidationRetry,
+        ),
+    ] {
+        let cli = Cli::parse(
+            [
+                command,
+                "--workspace",
+                id,
+                flag,
+                id,
+                "--reason",
+                "Repaired source",
+            ]
+            .map(str::to_owned),
+        )
+        .unwrap();
+        assert_eq!(cli.action, expected);
+        for args in [
+            vec![command, "--workspace", id, "--reason", "Repaired"],
+            vec![command, flag, id, "--reason", "Repaired"],
+            vec![
+                command,
+                "--workspace",
+                id,
+                flag,
+                "invalid",
+                "--reason",
+                "Repaired",
+            ],
+            vec![command, "--workspace", id, flag, id],
+        ] {
+            assert!(Cli::parse(args.into_iter().map(str::to_owned)).is_err());
+        }
+    }
+    assert!(Cli::parse(["serve", "--notification", id].map(str::to_owned)).is_err());
+    assert!(
+        Cli::parse(
+            [
+                "operator-notification-retry",
+                "--workspace",
+                id,
+                "--dead-letter",
+                id,
+                "--reason",
+                "Repaired",
+                "--disposition",
+                "reconcile"
+            ]
+            .map(str::to_owned)
+        )
+        .is_err()
+    );
+}

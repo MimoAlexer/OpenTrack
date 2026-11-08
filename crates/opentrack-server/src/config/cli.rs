@@ -17,6 +17,8 @@ pub enum Action {
     OperatorEventLimits,
     OperatorCleanupResume,
     OperatorPlanningRebuild,
+    OperatorNotificationRetry,
+    OperatorNotificationInvalidationRetry,
     CheckConfig,
     PrintConfig,
     ConfigSchema,
@@ -34,6 +36,8 @@ impl Action {
                 | Self::OperatorEventLimits
                 | Self::OperatorCleanupResume
                 | Self::OperatorPlanningRebuild
+                | Self::OperatorNotificationRetry
+                | Self::OperatorNotificationInvalidationRetry
         )
     }
     pub fn is_operator(self) -> bool {
@@ -57,6 +61,7 @@ pub struct Cli {
     pub operator_reason: Option<String>,
     pub operator_workspace: Option<uuid::Uuid>,
     pub operator_dead_letter: Option<uuid::Uuid>,
+    pub operator_notification: Option<uuid::Uuid>,
     pub operator_job: Option<uuid::Uuid>,
     pub operator_disposition: Option<String>,
     pub max_pending_events: Option<i64>,
@@ -77,6 +82,7 @@ impl Default for Cli {
             operator_workspace: None,
             operator_dead_letter: None,
             operator_job: None,
+            operator_notification: None,
             operator_disposition: None,
             max_pending_events: None,
             max_event_bytes: None,
@@ -114,6 +120,10 @@ impl Cli {
                     "operator-consumer-disable" => Action::OperatorConsumerDisable,
                     "operator-event-limits" => Action::OperatorEventLimits,
                     "operator-cleanup-resume" => Action::OperatorCleanupResume,
+                    "operator-notification-retry" => Action::OperatorNotificationRetry,
+                    "operator-notification-invalidation-retry" => {
+                        Action::OperatorNotificationInvalidationRetry
+                    }
                     "operator-planning-rebuild" => Action::OperatorPlanningRebuild,
                     "check-config" => Action::CheckConfig,
                     "print-config" => Action::PrintConfig,
@@ -145,6 +155,7 @@ impl Cli {
                     | "--output-file"
                     | "--workspace"
                     | "--dead-letter"
+                    | "--notification"
                     | "--job"
                     | "--disposition"
                     | "--max-pending-events"
@@ -185,6 +196,12 @@ impl Cli {
                         uuid::Uuid::parse_str(&value)
                             .map_err(|_| "--dead-letter requires a UUID")?,
                     )
+                }
+                "--notification" => {
+                    cli.operator_notification = Some(
+                        uuid::Uuid::parse_str(&value)
+                            .map_err(|_| "--notification requires a UUID")?,
+                    );
                 }
                 "--job" => {
                     cli.operator_job =
@@ -260,6 +277,15 @@ impl Cli {
         } else if cli.max_pending_events.is_some() || cli.max_event_bytes.is_some() {
             return Err("Event limits apply only to operator-event-limits".into());
         }
+        if cli.action == Action::OperatorNotificationInvalidationRetry {
+            if cli.operator_notification.is_none() {
+                return Err("Notification invalidation retry requires --notification".into());
+            }
+        } else if cli.operator_notification.is_some() {
+            return Err(
+                "--notification applies only to operator-notification-invalidation-retry".into(),
+            );
+        }
         if cli.action.is_consumer_operator() {
             if cli.operator_workspace.is_none() {
                 return Err("Consumer operator commands require --workspace".into());
@@ -280,6 +306,12 @@ impl Cli {
                 if cli.operator_dead_letter.is_none() || cli.operator_disposition.is_none() {
                     return Err(
                         "Consumer disposition requires --dead-letter and --disposition".into(),
+                    );
+                }
+            } else if cli.action == Action::OperatorNotificationRetry {
+                if cli.operator_dead_letter.is_none() || cli.operator_disposition.is_some() {
+                    return Err(
+                        "Notification retry requires --dead-letter without --disposition".into(),
                     );
                 }
             } else if cli.operator_dead_letter.is_some() || cli.operator_disposition.is_some() {
@@ -350,6 +382,10 @@ impl Cli {
                           Resume a failed assignment cleanup with a new retry budget
   operator-planning-rebuild --workspace UUID --reason TEXT
                           Reconcile planning facts without advancing their checkpoint before completion
+  operator-notification-retry --workspace UUID --dead-letter UUID --reason TEXT
+                          Retry notification fanout after repairing its failure
+  operator-notification-invalidation-retry --workspace UUID --notification UUID --reason TEXT
+                          Retry blocked recipient stream publication
   operator-event-limits --workspace UUID --max-pending-events INTEGER --max-event-bytes INTEGER --reason TEXT
                           Set durable event admission limits with an audited reason
   check-config            Validate settings and secrets for serving, without connecting

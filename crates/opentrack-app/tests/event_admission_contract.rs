@@ -105,8 +105,19 @@ async fn drain(worker: &Worker, w: Uuid) {
     for _ in 0..20 {
         let assignment = worker.capture(w).await.unwrap();
         let planning = worker.apply_planning_events(w).await.unwrap();
+        let has_notifications: bool = sqlx::query_scalar(
+            "SELECT to_regprocedure('worker_apply_notification_events(uuid,integer)') IS NOT NULL",
+        )
+        .fetch_one(&worker.pool)
+        .await
+        .unwrap();
+        let notification_processed = if has_notifications {
+            worker.apply_notification_events(w).await.unwrap().processed
+        } else {
+            0
+        };
         let Some(claim) = worker.claim(w).await.unwrap() else {
-            if assignment.processed == 0 && planning.processed == 0 {
+            if assignment.processed == 0 && planning.processed == 0 && notification_processed == 0 {
                 return;
             }
             continue;
@@ -278,6 +289,10 @@ async fn retention(h: &Harness) {
     assert!(bytes > 0);
     assert_eq!(worker.capture(w).await.unwrap().processed, 0);
     assert_eq!(worker.apply_planning_events(w).await.unwrap().processed, 1);
+    assert_eq!(
+        worker.apply_notification_events(w).await.unwrap().processed,
+        1
+    );
     assert_eq!(
         worker.retain(w, 1000).await.unwrap().deleted,
         0,
@@ -473,6 +488,10 @@ async fn multiple_consumers(h: &Harness) {
     assert_eq!(accounting(h, &actor, w).await, bytes);
     assert_eq!(worker.capture(w).await.unwrap().processed, 1);
     assert_eq!(worker.apply_planning_events(w).await.unwrap().processed, 1);
+    assert_eq!(
+        worker.apply_notification_events(w).await.unwrap().processed,
+        1
+    );
     assert_eq!(
         accounting(h, &actor, w).await,
         bytes,

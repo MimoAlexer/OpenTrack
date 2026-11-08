@@ -39,6 +39,7 @@ async fn runner(h: &Harness) -> Worker {
 }
 async fn drain(worker: &Worker, w: Uuid) {
     for _ in 0..50 {
+        worker.apply_notification_events(w).await.unwrap();
         let tick = worker.apply_planning_events(w).await.unwrap();
         if let Some(claim) = worker.claim(w).await.unwrap() {
             assert!(matches!(

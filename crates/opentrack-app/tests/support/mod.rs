@@ -413,6 +413,15 @@ impl Harness {
             .await
             .unwrap();
         }
+        if sqlx::query_scalar::<_, bool>(
+            "SELECT to_regprocedure('operator_notification_retry(uuid,uuid,text)') IS NOT NULL",
+        )
+        .fetch_one(&self.owner)
+        .await
+        .unwrap()
+        {
+            sqlx::query(AssertSqlSafe(format!("GRANT EXECUTE ON FUNCTION {}.operator_notification_retry(uuid,uuid,text),{}.operator_notification_retry_invalidation(uuid,uuid,text),{}.operator_notification_status(uuid) TO \"{role}\"",self.schema,self.schema,self.schema))).execute(&self.owner).await.unwrap();
+        }
         scoped_url(operator, &self.schema).to_string()
     }
 

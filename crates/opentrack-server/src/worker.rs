@@ -74,6 +74,8 @@ impl JobDiscovery {
 struct Cursors {
     capture: Option<uuid::Uuid>,
     planning: Option<uuid::Uuid>,
+    notifications: Option<uuid::Uuid>,
+    notification_events: Option<uuid::Uuid>,
     job: Option<uuid::Uuid>,
     job_discovery: JobDiscovery,
     retention: Option<uuid::Uuid>,
@@ -85,6 +87,8 @@ struct Cursors {
 enum Stage {
     Capture,
     Planning,
+    Notifications,
+    NotificationEvents,
     Job,
     Retention,
     DocumentRetention,
@@ -94,7 +98,9 @@ impl Stage {
     fn next(self) -> Self {
         match self {
             Self::Capture => Self::Planning,
-            Self::Planning => Self::Job,
+            Self::Planning => Self::Notifications,
+            Self::Notifications => Self::NotificationEvents,
+            Self::NotificationEvents => Self::Job,
             Self::Job => Self::Retention,
             Self::Retention => Self::DocumentRetention,
             Self::DocumentRetention => Self::AttachmentGc,
@@ -146,6 +152,16 @@ async fn poll_stage(
             }
             Ok(removed)
         }
+        Stage::Notifications => Ok(worker
+            .apply_notification_events_next(&mut cursors.notifications)
+            .await?
+            .is_some_and(|(_, result)| {
+                result.processed > 0 || result.captured > 0 || result.backfilled
+            })),
+        Stage::NotificationEvents => Ok(worker
+            .flush_notification_events_next(&mut cursors.notification_events)
+            .await?
+            .is_some_and(|(_, published)| published > 0)),
         Stage::Planning => Ok(worker
             .apply_planning_events_next(&mut cursors.planning)
             .await?
@@ -208,7 +224,7 @@ pub async fn run(cli: &Cli, cfg: &Settings) -> Result<(), String> {
         return Err("Database migration history is incompatible with this executable".into());
     }
     let current_schema: bool =
-        sqlx::query_scalar("SELECT to_regclass('consumer_receipts') IS NOT NULL AND to_regclass('document_revisions') IS NOT NULL AND to_regclass('attachments') IS NOT NULL AND to_regclass('issue_templates') IS NOT NULL AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('issue_templates') AND attname='title_mode' AND NOT attisdropped) AND to_regclass('issue_template_sources') IS NOT NULL AND to_regclass('issue_subscriptions') IS NOT NULL AND to_regclass('document_mentions') IS NOT NULL AND to_regclass('mention_intents') IS NOT NULL AND to_regclass('subscription_events') IS NOT NULL AND to_regclass('discussion_sources') IS NOT NULL AND to_regclass('user_preferences') IS NOT NULL AND to_regclass('user_preference_events') IS NOT NULL AND to_regclass('projects') IS NOT NULL AND to_regclass('project_issues') IS NOT NULL AND to_regclass('project_updates') IS NOT NULL AND to_regclass('milestones') IS NOT NULL AND to_regclass('cycles') IS NOT NULL AND to_regclass('cycle_issues') IS NOT NULL AND to_regclass('cycle_snapshots') IS NOT NULL AND to_regclass('cycle_close_reports') IS NOT NULL AND to_regclass('cycle_carry_operations') IS NOT NULL AND to_regclass('cycle_reopen_reasons') IS NOT NULL AND to_regclass('issue_order_normalizations') IS NOT NULL AND to_regclass('issue_order_guards') IS NOT NULL AND to_regclass('issue_order_staging') IS NOT NULL AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('issues') AND attname='rank' AND NOT attisdropped) AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('teams') AND attname='ordering_version' AND NOT attisdropped) AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('project_issues') AND attname='milestone_id' AND NOT attisdropped)")
+        sqlx::query_scalar("SELECT to_regclass('notifications') IS NOT NULL AND to_regclass('notification_heads') IS NOT NULL AND to_regclass('notification_preferences') IS NOT NULL AND to_regclass('notification_sources') IS NOT NULL AND to_regclass('notification_backfills') IS NOT NULL AND to_regclass('notification_invalidations') IS NOT NULL AND to_regclass('consumer_receipts') IS NOT NULL AND to_regclass('document_revisions') IS NOT NULL AND to_regclass('attachments') IS NOT NULL AND to_regclass('issue_templates') IS NOT NULL AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('issue_templates') AND attname='title_mode' AND NOT attisdropped) AND to_regclass('issue_template_sources') IS NOT NULL AND to_regclass('issue_subscriptions') IS NOT NULL AND to_regclass('document_mentions') IS NOT NULL AND to_regclass('mention_intents') IS NOT NULL AND to_regclass('subscription_events') IS NOT NULL AND to_regclass('discussion_sources') IS NOT NULL AND to_regclass('user_preferences') IS NOT NULL AND to_regclass('user_preference_events') IS NOT NULL AND to_regclass('projects') IS NOT NULL AND to_regclass('project_issues') IS NOT NULL AND to_regclass('project_updates') IS NOT NULL AND to_regclass('milestones') IS NOT NULL AND to_regclass('cycles') IS NOT NULL AND to_regclass('cycle_issues') IS NOT NULL AND to_regclass('cycle_snapshots') IS NOT NULL AND to_regclass('cycle_close_reports') IS NOT NULL AND to_regclass('cycle_carry_operations') IS NOT NULL AND to_regclass('cycle_reopen_reasons') IS NOT NULL AND to_regclass('issue_order_normalizations') IS NOT NULL AND to_regclass('issue_order_guards') IS NOT NULL AND to_regclass('issue_order_staging') IS NOT NULL AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('issues') AND attname='rank' AND NOT attisdropped) AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('teams') AND attname='ordering_version' AND NOT attisdropped) AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('project_issues') AND attname='milestone_id' AND NOT attisdropped)")
             .fetch_one(&worker.pool)
             .await
             .map_err(|_| "Cannot inspect the worker schema")?;
@@ -229,6 +245,8 @@ pub async fn run(cli: &Cli, cfg: &Settings) -> Result<(), String> {
             for stage in [
                 Stage::Capture,
                 Stage::Planning,
+                Stage::Notifications,
+                Stage::NotificationEvents,
                 Stage::Job,
                 Stage::Retention,
                 Stage::DocumentRetention,
