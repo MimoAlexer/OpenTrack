@@ -4,6 +4,8 @@ mod cycles;
 pub use cycles::*;
 mod projects;
 pub use projects::*;
+mod project_scope;
+pub use project_scope::*;
 mod planning;
 pub use planning::*;
 mod preferences;

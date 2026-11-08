@@ -3,6 +3,7 @@ mod attachments;
 mod cycles;
 mod milestones;
 mod preferences;
+mod project_scope;
 mod projects;
 mod realtime;
 pub use attachments::AttachmentService;
@@ -95,6 +96,7 @@ fn router_configured(
         .merge(taxonomy::routes())
         .merge(templates::routes())
         .merge(projects::routes())
+        .merge(project_scope::routes())
         .merge(milestones::routes())
         .merge(cycles::routes())
         .merge(mentions::routes())

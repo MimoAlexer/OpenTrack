@@ -2,7 +2,7 @@ use super::*;
 use chrono::{DateTime, Utc};
 use opentrack_domain::*;
 use serde_json::json;
-use sqlx::{Row, postgres::PgRow};
+use sqlx::{AssertSqlSafe, Row, postgres::PgRow};
 
 pub(crate) async fn scope(
     tx: &mut store::Tx,
@@ -729,29 +729,39 @@ impl App {
             .as_deref()
             .map(|s| self.taxonomy_cursor_decode("project-updates-v1", &binding, s))
             .transpose()?;
-        let rows=sqlx::query("SELECT p.*,u.display_name AS author_name FROM project_updates p JOIN users u ON u.id=p.author_id WHERE p.workspace_id=$1 AND p.team_id=$2 AND p.project_id=$3 AND ($4::timestamptz IS NULL OR (p.created_at,p.id)<($4,$5)) ORDER BY p.created_at DESC,p.id DESC LIMIT $6").bind(w).bind(t).bind(id).bind(after.as_ref().map(|v|v.0)).bind(after.as_ref().map(|v|v.1)).bind(limit as i64+1).fetch_all(&mut *tx).await.map_err(db_error)?;
-        let has_more = rows.len() > limit;
+        let rows=sqlx::query(AssertSqlSafe(format!("{PROJECT_UPDATE_SELECT} WHERE p.workspace_id=$1 AND p.team_id=$2 AND p.project_id=$3 AND ($4::timestamptz IS NULL OR (p.created_at,p.id)<($4,$5)) ORDER BY p.created_at DESC,p.id DESC LIMIT $6"))).bind(w).bind(t).bind(id).bind(after.as_ref().map(|v|v.0)).bind(after.as_ref().map(|v|v.1)).bind(limit as i64+1).fetch_all(&mut *tx).await.map_err(db_error)?;
+        // Count the encoded wire representation, including predecessor context.
+        // A requested count is an upper bound; keyset pagination continues from
+        // the last row actually returned when the byte budget is reached.
+        let mut data = Vec::with_capacity(limit);
+        let mut bytes = 1024usize;
+        for row in rows.iter().take(limit) {
+            let update = update_row(row)?;
+            let encoded = serde_json::to_vec(&update)
+                .map_err(|_| Error::Internal)?
+                .len();
+            if bytes.saturating_add(encoded + 1) > PROJECT_UPDATE_PAGE_BYTES {
+                if data.is_empty() {
+                    return Err(Error::Conflict(
+                        "A stored project update exceeds the response budget".into(),
+                    ));
+                }
+                break;
+            }
+            bytes += encoded + 1;
+            data.push(update);
+        }
+        let has_more = rows.len() > data.len();
         let next_cursor = if has_more {
-            let r = &rows[limit - 1];
-            Some(
-                self.taxonomy_cursor_encode(
-                    "project-updates-v1",
-                    &binding,
-                    &(
-                        r.try_get::<DateTime<Utc>, _>("created_at")
-                            .map_err(db_error)?,
-                        r.try_get::<Uuid, _>("id").map_err(db_error)?,
-                    ),
-                )?,
-            )
+            let r = data.last().ok_or(Error::Internal)?;
+            Some(self.taxonomy_cursor_encode(
+                "project-updates-v1",
+                &binding,
+                &(r.created_at, r.id),
+            )?)
         } else {
             None
         };
-        let data = rows
-            .iter()
-            .take(limit)
-            .map(update_row)
-            .collect::<Result<Vec<_>>>()?;
         tx.commit().await.map_err(db_error)?;
         Ok(Page {
             data,
@@ -769,8 +779,7 @@ impl App {
     ) -> Result<ProjectUpdate> {
         let mut tx = self.scoped(a, w, false).await?;
         project(&mut tx, a, w, t, id).await?;
-        let r=sqlx::query("SELECT p.*,u.display_name AS author_name FROM project_updates p JOIN users u ON u.id=p.author_id WHERE p.workspace_id=$1 AND p.team_id=$2 AND p.project_id=$3 AND p.id=$4").bind(w).bind(t).bind(id).bind(update).fetch_optional(&mut *tx).await.map_err(db_error)?.ok_or(Error::NotFound)?;
-        let out = update_row(&r)?;
+        let out = load_update(&mut tx, w, t, id, update).await?;
         tx.commit().await.map_err(db_error)?;
         Ok(out)
     }
@@ -781,6 +790,20 @@ impl App {
         t: Uuid,
         id: Uuid,
         key: &str,
+        req: CreateProjectUpdate,
+    ) -> Result<ProjectUpdate> {
+        self.create_project_update_checked(a, w, t, id, key, None, req)
+            .await
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_project_update_checked(
+        &self,
+        a: &Actor,
+        w: Uuid,
+        t: Uuid,
+        id: Uuid,
+        key: &str,
+        expected_project: Option<&str>,
         mut req: CreateProjectUpdate,
     ) -> Result<ProjectUpdate> {
         req.body = req.body.trim().to_owned();
@@ -796,9 +819,13 @@ impl App {
                     .into(),
             ));
         }
+        req.notes = req.notes.map(ProjectUpdateNotes::normalize).transpose()?;
         let (kh, rh) = lifecycle::request_hash(key, &req)?;
         let route = format!("projects.update.create:{id}");
         let mut tx = self.scoped(a, w, false).await?;
+        // Reauthorize the target before examining a retained receipt, without
+        // taking the team write lock ahead of the idempotency lock.
+        project(&mut tx, a, w, t, id).await?;
         let replay =
             lifecycle::retry::<ProjectUpdate>(&mut tx, w, a.user.id, &route, &kh, &rh).await?;
         scope(&mut tx, a, w, t, true).await?;
@@ -808,6 +835,9 @@ impl App {
             tx.commit().await.map_err(db_error)?;
             return Ok(previous);
         }
+        if let Some(expected) = expected_project {
+            version(expected, &item)?;
+        }
         if item.archived_at.is_some() {
             return Err(Error::Conflict(
                 "Restore this project before publishing an update".into(),
@@ -815,14 +845,42 @@ impl App {
         }
         let p = progress(&mut tx, w, t, id).await?;
         let update_id = Uuid::new_v4();
-        let r=sqlx::query("INSERT INTO project_updates(id,workspace_id,team_id,project_id,author_id,body,state,health,completed,eligible) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *, (SELECT display_name FROM users WHERE id=$5) AS author_name").bind(update_id).bind(w).bind(t).bind(id).bind(a.user.id).bind(req.body).bind(item.state.as_str()).bind(item.health.as_str()).bind(p.completed).bind(p.eligible).fetch_one(&mut *tx).await.map_err(db_error)?;
-        let update = update_row(&r)?;
+        sqlx::query("INSERT INTO project_updates(id,workspace_id,team_id,project_id,author_id,body,state,health,completed,eligible,context_captured,snapshot_start_date,snapshot_target_date,notes) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,$12,$13)").bind(update_id).bind(w).bind(t).bind(id).bind(a.user.id).bind(req.body).bind(item.state.as_str()).bind(item.health.as_str()).bind(p.completed).bind(p.eligible).bind(item.start_date).bind(item.target_date).bind(req.notes.map(sqlx::types::Json)).execute(&mut *tx).await.map_err(db_error)?;
+        let update = load_update(&mut tx, w, t, id, update_id).await?;
         receipt(&mut tx, w, a, &route, &kh, &update).await?;
         emit(&mut tx, a, w, &item, "project.update_published").await?;
         tx.commit().await.map_err(db_error)?;
         Ok(update)
     }
 }
+
+const PROJECT_UPDATE_PAGE_BYTES: usize = 3 * 1024 * 1024;
+const PROJECT_UPDATE_SELECT: &str = r#"
+SELECT p.*,u.display_name AS author_name,(
+ SELECT jsonb_build_object('id',q.id,'state',q.state,'health',q.health,
+  'completed',q.completed,'eligible',q.eligible,'created_at',q.created_at,
+  'context',CASE WHEN q.context_captured THEN jsonb_build_object(
+   'start_date',q.snapshot_start_date,'target_date',q.snapshot_target_date,'notes',q.notes) ELSE NULL END)
+ FROM project_updates q
+ WHERE q.workspace_id=p.workspace_id AND q.team_id=p.team_id AND q.project_id=p.project_id
+  AND (q.created_at,q.id)<(p.created_at,p.id)
+ ORDER BY q.created_at DESC,q.id DESC LIMIT 1
+) AS previous_snapshot
+FROM project_updates p JOIN users u ON u.id=p.author_id
+"#;
+
+async fn load_update(
+    tx: &mut store::Tx,
+    w: Uuid,
+    t: Uuid,
+    project: Uuid,
+    id: Uuid,
+) -> Result<ProjectUpdate> {
+    let row = sqlx::query(AssertSqlSafe(format!("{PROJECT_UPDATE_SELECT} WHERE p.workspace_id=$1 AND p.team_id=$2 AND p.project_id=$3 AND p.id=$4")))
+        .bind(w).bind(t).bind(project).bind(id).fetch_optional(&mut **tx).await.map_err(db_error)?.ok_or(Error::NotFound)?;
+    update_row(&row)
+}
+
 fn update_row(r: &PgRow) -> Result<ProjectUpdate> {
     Ok(ProjectUpdate {
         id: r.try_get("id").map_err(db_error)?,
@@ -834,5 +892,21 @@ fn update_row(r: &PgRow) -> Result<ProjectUpdate> {
         completed: r.try_get("completed").map_err(db_error)?,
         eligible: r.try_get("eligible").map_err(db_error)?,
         created_at: r.try_get("created_at").map_err(db_error)?,
+        context: if r.try_get::<bool, _>("context_captured").map_err(db_error)? {
+            Some(ProjectUpdateContext {
+                start_date: r.try_get("snapshot_start_date").map_err(db_error)?,
+                target_date: r.try_get("snapshot_target_date").map_err(db_error)?,
+                notes: r
+                    .try_get::<Option<sqlx::types::Json<ProjectUpdateNotes>>, _>("notes")
+                    .map_err(db_error)?
+                    .map(|value| value.0),
+            })
+        } else {
+            None
+        },
+        previous: r
+            .try_get::<Option<sqlx::types::Json<ProjectUpdateSnapshot>>, _>("previous_snapshot")
+            .map_err(db_error)?
+            .map(|value| value.0),
     })
 }

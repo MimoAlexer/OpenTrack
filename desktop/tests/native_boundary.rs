@@ -533,6 +533,54 @@ async fn document_reads_allow_bounded_legacy_bodies_without_raising_other_respon
 }
 
 #[tokio::test]
+async fn only_exact_project_update_feed_reads_receive_the_larger_response_budget() {
+    let base = "/api/v1/workspaces/00000000-0000-4000-8000-000000000001/teams/00000000-0000-4000-8000-000000000002/projects/00000000-0000-4000-8000-000000000003";
+    for (method, suffix, size, accepted) in [
+        (Method::Get, "/updates", 3100 * 1024, true),
+        (Method::Get, "/updates", 4 * 1024 * 1024, false),
+        (
+            Method::Get,
+            "/updates/00000000-0000-4000-8000-000000000004",
+            1100 * 1024,
+            false,
+        ),
+        (Method::Post, "/updates", 1100 * 1024, false),
+        (Method::Get, "/updates/extra/extra", 1100 * 1024, false),
+        (Method::Get, "/metadata", 1100 * 1024, false),
+        (Method::Get, "/scope-history", 1100 * 1024, false),
+    ] {
+        let mut server = Server::new().await;
+        let transport = Transport::new().unwrap();
+        let origin = ServerOrigin::parse(&server.origin).unwrap();
+        let path = format!("{base}{suffix}");
+        let label = path.clone();
+        let running = tokio::spawn(async move {
+            transport
+                .send(&origin, method, &path, None, &BTreeMap::new(), None, None)
+                .await
+        });
+        let body = json!({"data":"x".repeat(size)});
+        let expected = body.to_string().len();
+        server
+            .next()
+            .await
+            .respond
+            .send(Response::json(200, body))
+            .ok();
+        let result = running.await.unwrap();
+        if accepted {
+            assert_eq!(result.unwrap().bytes.len(), expected, "{label}");
+        } else {
+            assert_eq!(
+                result.err().unwrap().code,
+                NativeError::server().code,
+                "{label}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
 async fn redirect_bodies_and_credential_headers_never_reach_the_renderer() {
     let mut server = Server::new().await;
     let transport = Transport::new().unwrap();
