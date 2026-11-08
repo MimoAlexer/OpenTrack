@@ -81,7 +81,7 @@ function DateValue({ field, label, value, change }: { field: FilterField; label:
 
 function ValuePicker({ field, path, values, multiple, data, session, workspaceId, team, change }: { field: FilterField; path: string; values: FilterValue[]; multiple: boolean; data: Bootstrap; session: Session; workspaceId: string; team?: string; change: (values: FilterValue[]) => void }) {
   const [open, setOpen] = useState(false); const [query, setQuery] = useState(''); const [browseTeam, setBrowseTeam] = useState(team ?? data.teams[0]?.id ?? ''); const [archived, setArchived] = useState(false);
-  const [remembered, setRemembered] = useState<Choice[]>([]); const [deniedScopes, setDeniedScopes] = useState<Set<string>>(new Set()); const scope = useSessionScope(session);
+  const [remembered, setRemembered] = useState<Choice[]>([]); const [verifiedScopes, setVerifiedScopes] = useState<Set<string>>(new Set()); const scope = useSessionScope(session);
   const remote = !['priority', 'team'].includes(field);
   const remotePath = field === 'label' ? `/workspaces/${workspaceId}/labels?scope=visible&state=all` : !browseTeam ? '' : `/workspaces/${workspaceId}/teams/${browseTeam}/${field === 'status' ? 'statuses?state=all' : field === 'assignee' ? 'assignees' : field === 'project' ? `projects?archived=${archived}` : 'cycles'}`;
   const searchOnServer = !['status', 'cycle'].includes(field);
@@ -89,10 +89,12 @@ function ValuePicker({ field, path, values, multiple, data, session, workspaceId
   const optionScope = `${scope}:${remotePath}`;
   const accessDenied = directory.error instanceof ApiError && [401, 403, 404].includes(directory.error.status);
   const confirmed = open && directory.loaded && !directory.loading && !directory.error;
-  const concealNames = accessDenied || deniedScopes.has(optionScope) && !confirmed;
+  // A new picker instance has not verified its remote directory. Bootstrap
+  // labels must not resurrect an earlier denial after a panel/query remount.
+  const concealNames = accessDenied || remote && !verifiedScopes.has(optionScope);
   useEffect(() => {
-    if (accessDenied) { setRemembered([]); setDeniedScopes(old => old.has(optionScope) ? old : new Set([...old, optionScope])); }
-    else if (confirmed) setDeniedScopes(old => { if (!old.has(optionScope)) return old; const next = new Set(old); next.delete(optionScope); return next; });
+    if (accessDenied) { setRemembered([]); setVerifiedScopes(old => { if (!old.has(optionScope)) return old; const next = new Set(old); next.delete(optionScope); return next; }); }
+    else if (confirmed) setVerifiedScopes(old => old.has(optionScope) ? old : new Set([...old, optionScope]));
   }, [accessDenied, confirmed, optionScope]);
   const seeds: Choice[] = field === 'priority' ? priorities.map((text, index) => ({ id: String(index), text })) : field === 'team' ? data.teams.map(team => ({ id: team.id, text: team.name, detail: team.archived_at ? 'Archived' : undefined })) : field === 'status' ? data.statuses.filter(status => status.team_id === browseTeam).map(status => ({ id: status.id, text: status.name })) : field === 'assignee' ? data.members.map(person => ({ id: person.id, text: person.display_name })) : [];
   const selected = values.filter(value => typeof value === 'string' || typeof value === 'number').map(String);
