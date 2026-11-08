@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { ApiError } from '../api';
+import { ApiError, retryWindowExpired } from '../api';
 import { Avatar, ErrorBanner, Loading } from '../components';
 import { isAccessError } from '../documents/model';
 import { useUnsavedChanges } from '../router';
@@ -23,9 +23,11 @@ export function ProjectUpdates({ project, session, refresh, readOnly, denied, ch
   const [error, setError] = useState<unknown>(null); const [accessError, setAccessError] = useState<unknown>(null); const [busy, setBusy] = useState(false); const [uncertain, setUncertain] = useState(false); const [notice, setNotice] = useState('');
   const [currentProject, setCurrentProject] = useState(project); const [reviewRequired, setReviewRequired] = useState(false); const [review, setReview] = useState<Project | null>(null);
   const pending = useRef<PendingUpdate | null>(null); const flight = useRef(false); const notesInitialized = useRef(false);
+  const [expired, setExpired] = useState(false);
+  const dirty = !!body || includeNotes || !!notes.risks.length || !!notes.decisions.length;
   const problem = includeNotes ? notesProblem(notes) : null;
-  useUnsavedChanges(!!body.trim() || includeNotes || uncertain);
-  useEffect(() => { if (!uncertain && !reviewRequired) setCurrentProject(project); }, [project.id, project.etag]);
+  useUnsavedChanges(dirty || uncertain);
+  useEffect(() => { if (!dirty && !uncertain && !expired && !reviewRequired) setCurrentProject(project); }, [project, dirty, uncertain, expired, reviewRequired]);
   useEffect(() => { if (isAccessError(directory.error)) { setAccessError(directory.error); denied(directory.error); } }, [directory.error]);
   function toggleNotes(value: boolean) {
     if (value && !notesInitialized.current) {
@@ -38,7 +40,7 @@ export function ProjectUpdates({ project, session, refresh, readOnly, denied, ch
     catch (error) { setError(error); if (isAccessError(error)) { setAccessError(error); denied(error); } }
   }
   async function submit(event: FormEvent) {
-    event.preventDefault(); if (flight.current || busy || !body.trim() || readOnly || !currentProject.can_edit || currentProject.archived_at || reviewRequired || problem) return;
+    event.preventDefault(); if (flight.current || expired || busy || !body.trim() || !project.can_edit || project.archived_at || readOnly || !currentProject.can_edit || currentProject.archived_at || reviewRequired || problem) return;
     flight.current = true;
     if (!uncertain || !pending.current) pending.current = { body: { body: body.trim(), ...(includeNotes ? { notes: copyNotes(notes) } : {}) }, key: crypto.randomUUID(), etag: currentProject.etag };
     setBusy(true); setError(null); setNotice('');
@@ -48,16 +50,20 @@ export function ProjectUpdates({ project, session, refresh, readOnly, denied, ch
     } catch (error) {
       setError(error);
       if (isAccessError(error)) { setAccessError(error); denied(error); }
+      if (retryWindowExpired(error)) {
+        pending.current = null; setUncertain(false); setExpired(true); setRevision(value => value + 1);
+        return;
+      }
       const conditionalConflict = error instanceof ApiError && error.status === 412;
       setUncertain(!conditionalConflict && (uncertain || error instanceof ApiError && (error.status === 0 || error.status === 408 || error.status >= 500)));
       if (error instanceof ApiError && error.status === 412) { pending.current = null; setReviewRequired(true); setReview(null); await loadCurrentProject(); }
     } finally { setBusy(false); flight.current = false; }
   }
   if (accessError || isAccessError(directory.error)) return <section aria-label="Project updates"><ErrorBanner error={accessError || directory.error}/></section>;
-  const writable = !readOnly && currentProject.can_edit && !currentProject.archived_at;
+  const writable = !readOnly && project.can_edit && !project.archived_at && currentProject.can_edit && !currentProject.archived_at;
   return <section className="project-updates" aria-label="Project updates"><header className="project-section-heading"><div><h3>Updates</h3><p>Written progress, with state, health and project dates captured when published.</p></div></header>
     {writable && <form className="project-update-composer" onSubmit={submit}>
-      <fieldset disabled={busy || uncertain || !!review && (!review.can_edit || !!review.archived_at)}><label className="field">Write an update<textarea name="project-update" value={body} onChange={event => setBody(event.target.value)} rows={4} placeholder="What changed? What needs attention?" disabled={busy || uncertain || !!review && (!review.can_edit || !!review.archived_at)}/></label>
+      <fieldset disabled={busy || uncertain || expired || !!review && (!review.can_edit || !!review.archived_at)}><label className="field">Write an update<textarea name="project-update" value={body} onChange={event => setBody(event.target.value)} rows={4} placeholder="What changed? What needs attention?" disabled={busy || uncertain || expired || !!review && (!review.can_edit || !!review.archived_at)}/></label>
         <p className="muted">Dates to capture: {updateDate(currentProject.start_date)} → {updateDate(currentProject.target_date)}.</p>
         <label className="project-update-include-notes"><input type="checkbox" checked={includeNotes} onChange={event => toggleNotes(event.target.checked)}/>Record reviewed risks and decisions in this update</label>
         {includeNotes ? <><p>Review these lists before publishing. Empty lists explicitly record no risks or decisions.</p><ProjectUpdateNotesEditor notes={notes} change={setNotes}/></> : <p className="muted">Risks and decisions will be left unspecified.</p>}
@@ -65,8 +71,12 @@ export function ProjectUpdates({ project, session, refresh, readOnly, denied, ch
       <ErrorBanner error={error}/>{problem && <p role="alert" className="project-validation">{problem}</p>}
       {uncertain && <p className="notice">The response was interrupted. Retry safely to confirm this update without publishing a duplicate.</p>}
       {reviewRequired && <section className="project-update-review" aria-label="Review current project context"><h4>The project changed before publication</h4><p>Your update and notes are preserved. Review the current project context before trying again.</p>{review && <><p>{states[review.state]} · {healthLabels[review.health]}</p><p>Start: {updateDate(review.start_date)} · Target: {updateDate(review.target_date)}</p><button type="button" className="button compact" disabled={busy || !review.can_edit || !!review.archived_at} onClick={() => { setCurrentProject(review); changed?.(review); setReviewRequired(false); setReview(null); setError(null); }}>Use current project context</button>{(!review.can_edit || review.archived_at) && <p>This project is currently read-only. Your draft remains preserved.</p>}</>}<button type="button" className="button compact" disabled={busy} onClick={async () => { setReview(null); setBusy(true); try { await loadCurrentProject(); } finally { setBusy(false); } }}>Reload current project context</button></section>}
-      <div className="project-update-actions"><span>{Array.from(body).length.toLocaleString()} / 8,000</span><button className="button primary compact" disabled={busy || !body.trim() || reviewRequired || !!problem}>{busy ? 'Publishing…' : uncertain ? 'Retry safely' : 'Publish update'}</button></div>
+      <div className="project-update-actions"><span>{Array.from(body).length.toLocaleString()} / 8,000</span><button className="button primary compact" disabled={busy || expired || !body.trim() || reviewRequired || !!problem}>{busy ? 'Publishing…' : uncertain ? 'Retry safely' : 'Publish update'}</button></div>
     </form>}
+    {expired && <div className="notice"><p>The retry window ended. Inspect the refreshed updates to check whether your publication was recorded.</p>
+      <button type="button" className="button compact" disabled={directory.loading || !!directory.error || !directory.value} onClick={() => {
+        setBody(''); setIncludeNotes(false); setNotes(emptyNotes()); notesInitialized.current = false; setExpired(false); setError(null);
+      }}>Close attempted draft</button></div>}
     <p className="project-save-notice" role="status">{notice}</p><ErrorBanner error={directory.error} retry={directory.retry}/>
     {!directory.value && directory.loading ? <Loading label="Loading project updates…"/> : <div className="project-update-feed" aria-busy={directory.loading}>{directory.value?.data.map((update, index, updates) => {
       const previous = 'previous' in update ? update.previous : updates[index + 1];

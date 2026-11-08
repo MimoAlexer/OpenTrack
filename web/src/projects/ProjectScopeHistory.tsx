@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ApiError } from '../api';
+import { ApiError, retryWindowExpired } from '../api';
 import { ErrorBanner, Loading } from '../components';
 import { useNativeRequestRevision, useSessionBoundary } from '../desktop/context';
 import { isAccessError } from '../documents/model';
@@ -60,6 +60,7 @@ function ScopeHistory({ project, session, refresh, readOnly, denied, changed }: 
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [uncertain, setUncertain] = useState(false);
+  const [expired, setExpired] = useState<PendingWrite['kind'] | null>(null);
   const [review, setReview] = useState(false);
   const [notice, setNotice] = useState('');
   const [label, setLabel] = useState('');
@@ -102,6 +103,14 @@ function ScopeHistory({ project, session, refresh, readOnly, denied, changed }: 
     return () => abort.abort();
   }, [viewKey, refresh, attempt, nativeRevision]);
 
+  function reloadScope() {
+    setSnapshot(null);
+    setSelected('');
+    setIssueId('');
+    setAgreed(false);
+    setAttempt(count => count + 1);
+  }
+
   async function more(kind: MoreKind) {
     const cursor = kind === 'events' ? value?.events.next_cursor : kind === 'items' ? value?.items_next_cursor : value?.baselines_next_cursor;
     if (!value || !cursor || loading || loadingMore || busy || uncertain) return;
@@ -112,7 +121,8 @@ function ScopeHistory({ project, session, refresh, readOnly, denied, changed }: 
       const next = await request<ProjectScopeSnapshot>(url(kind, cursor), { signal: abort.signal });
       if (!mounted.current || abort.signal.aborted || token !== generation.current) return;
       if (next.scope_etag !== before.scope_etag || next.baseline?.id !== before.baseline?.id) {
-        setReadError(new Error('The scope changed while loading history. Refresh to review the current scope.'));
+        setNotice('The scope changed while loading history. The previous pages were cleared.');
+        reloadScope();
         return;
       }
       const merged: ProjectScopeSnapshot = kind === 'events'
@@ -123,12 +133,17 @@ function ScopeHistory({ project, session, refresh, readOnly, denied, changed }: 
       setSnapshot({ key, value: merged });
     } catch (error) {
       if (!mounted.current || abort.signal.aborted || token !== generation.current) return;
-      setReadError(error); if (isAccessError(error)) deny(error);
+      if (error instanceof ApiError && [410, 422].includes(error.status)) {
+        setNotice('The saved page is no longer current. The previous pages were cleared.');
+        reloadScope();
+      } else {
+        setReadError(error); if (isAccessError(error)) deny(error);
+      }
     } finally { if (mounted.current && !abort.signal.aborted && token === generation.current) setLoadingMore(null); }
   }
 
   const canWrite = !readOnly && project.can_edit && !project.archived_at;
-  const frozen = busy || uncertain || review || loading || !!loadingMore || !!readError;
+  const frozen = busy || uncertain || !!expired || review || loading || !!loadingMore || !!readError;
   async function write(operation: PendingWrite) {
     if (writing.current || !canWrite) return;
     writing.current = true; setBusy(true); setWriteError(null); setNotice('');
@@ -148,7 +163,12 @@ function ScopeHistory({ project, session, refresh, readOnly, denied, changed }: 
       if (!mounted.current) return;
       setWriteError(error);
       if (isAccessError(error)) deny(error);
-      else if (uncertainError(error)) setUncertain(true);
+      else if (retryWindowExpired(error)) {
+        pending.current = null;
+        setUncertain(false);
+        setExpired(operation.kind);
+        reloadScope();
+      } else if (uncertainError(error) || uncertain && error instanceof ApiError && error.status === 429) setUncertain(true);
       else {
         pending.current = null; setUncertain(false);
         if (error instanceof ApiError && [409, 412].includes(error.status)) {
@@ -181,6 +201,14 @@ function ScopeHistory({ project, session, refresh, readOnly, denied, changed }: 
     {!!readError && value && <p role="status">The scope could not be refreshed. Changes are unavailable until a fresh comparison is loaded.</p>}
     <ErrorBanner error={writeError}/>
     {uncertain && <div className="notice scope-recovery"><p>The response was interrupted. Retry the same request to confirm its outcome without recording a duplicate.</p><button className="button compact" type="button" disabled={busy || !canWrite} onClick={() => { if (pending.current) void write(pending.current); }}>{busy ? 'Confirming…' : 'Retry safely'}</button></div>}
+    {expired && <div className="notice scope-recovery">
+      <p>The retry window ended. Inspect the refreshed baselines and scope changes to check whether your attempt was recorded.</p>
+      <button className="button compact" type="button" disabled={loading || !!readError || !value} onClick={() => {
+        if (expired === 'baseline') { setLabel(''); setBaselineReason(''); setAgreed(false); }
+        else { setChangeReason(''); setIssueId(''); }
+        setExpired(null); setWriteError(null);
+      }}>Close attempted draft</button>
+    </div>}
     {review && <div className="notice scope-recovery"><p>The scope changed. Review the refreshed comparison before submitting this draft again.</p><button className="button compact" type="button" disabled={loading || !!readError || !value} onClick={() => { setReview(false); setWriteError(null); }}>I reviewed the refreshed scope</button></div>}
     <p role="status" className="project-save-notice">{notice}</p>
     {!!baselineOptions.length && <div className="scope-baseline-selector"><label className="field">Compare with baseline<select aria-label="Compare with baseline" name="scope-baseline" value={selected || value?.baseline?.id || ''} disabled={busy || uncertain || !!loadingMore} onChange={event => setSelected(event.target.value)}>{baselineOptions.map(baseline => <option key={baseline.id} value={baseline.id}>{baseline.label} · {when(baseline.created_at)}</option>)}</select></label></div>}

@@ -240,3 +240,46 @@ describe('project scope history', () => {
     expect(container.querySelector<HTMLSelectElement>('[name="scope-baseline"]')!.value).toBe(older.id);
   });
 });
+
+it.each(['invalid', 'expired', 'validator'] as const)('drops all stale scope references before reloading a %s continuation', async failure => {
+  let reload!: (response: Response) => void;
+  let stale = false;
+  const fetch = vi.fn((url: string) => {
+    if (url.includes('cursor=')) {
+      stale = true;
+      return Promise.resolve(failure === 'validator' ? json(snapshot({ scope_etag: '"changed"' }))
+        : json({ code: failure === 'expired' ? 'cursor_expired' : 'validation_failed' }, 422));
+    }
+    if (stale) return new Promise<Response>(resolve => { reload = resolve; });
+    return Promise.resolve(json(snapshot({ events: { data: [event], has_more: true, next_cursor: 'next' } })));
+  });
+  vi.stubGlobal('fetch', fetch);
+  await render(view()); await input('scope-baseline', baseline.id); await input('scope-issue', issue.id); await agree();
+  expect(container.textContent).toContain(issue.title);
+  await click('Load older scope changes');
+  expect(container.querySelector('a[href$="/issue-one"]')).toBeNull();
+  expect(container.textContent).not.toContain(issue.title);
+  expect(container.textContent).not.toContain(event.reason);
+  expect(container.textContent).not.toContain('1 currently accessible issue remains');
+  expect(container.querySelector('[name="scope-baseline"]')).toBeNull();
+  expect(fetch.mock.calls.at(-1)![0]).not.toMatch(/cursor=|baseline_id=/);
+  await act(async () => reload(json(snapshot({ current: [], comparison: { unchanged: 0, added: [], removed: [], postponed: [] }, events: { data: [], next_cursor: null, has_more: false } }))));
+  expect(container.textContent).not.toContain(issue.title);
+  expect(container.querySelector<HTMLSelectElement>('[name="scope-issue"]')!.value).toBe('');
+  expect(container.querySelector<HTMLInputElement>('.scope-agreement input')!.checked).toBe(false);
+});
+
+it('reconciles an expired baseline against refreshed history and closes the attempted draft', async () => {
+  let posts = 0;
+  vi.stubGlobal('fetch', vi.fn((_url: string, options: RequestInit) => {
+    if (options.method !== 'POST') return Promise.resolve(json(snapshot({ baseline: { ...baseline, label: posts ? 'Release plan' : 'Previous plan' } })));
+    if (++posts === 1) return Promise.reject(new TypeError('Response lost'));
+    return Promise.resolve(json({ code: 'conflict', details: { retry_window_expired: true } }, 409));
+  }));
+  await render(view()); await baselineDraft(); await submit('Set scope baseline'); await click('Retry safely');
+  expect(container.querySelector('.scope-comparison h4')!.textContent).toBe('Release plan');
+  expect(button('Set baseline').disabled).toBe(true);
+  await click('Close attempted draft');
+  expect(container.querySelector<HTMLInputElement>('[name="scope-baseline-name"]')!.value).toBe('');
+  expect(posts).toBe(2);
+});

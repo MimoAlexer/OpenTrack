@@ -96,6 +96,7 @@ describe('update notes authoring', () => {
     let posts = 0; const fetch = vi.fn((_url: string, options: RequestInit) => options.method === 'POST' ? ++posts === 1 ? Promise.reject(new TypeError('lost response')) : Promise.resolve(json(update(), 201)) : Promise.resolve(json(page([])))); vi.stubGlobal('fetch', fetch);
     await render(screen()); await body('Risk review'); await includeNotes(); await click('Add risk'); await input('Risk 1 title', 'Supplier delay'); await submit();
     expect(container.querySelector<HTMLTextAreaElement>('[name="project-update"]')!.disabled).toBe(true); expect(hasUnsavedChanges()).toBe(true);
+    await render(screen({ project: { ...project, etag: '"project:2"', target_date: '2026-12-15' } }));
     await click('Retry safely'); const requests = fetch.mock.calls.filter(([, options]) => options.method === 'POST').map(([, options]) => options);
     expect(requests[0].body).toBe(requests[1].body); expect(new Headers(requests[0].headers).get('Idempotency-Key')).toBe(new Headers(requests[1].headers).get('Idempotency-Key')); expect(new Headers(requests[0].headers).get('If-Match')).toBe(new Headers(requests[1].headers).get('If-Match')); expect(hasUnsavedChanges()).toBe(false);
   });
@@ -146,4 +147,36 @@ describe('latest update overview', () => {
     expect(container.textContent).toContain('Showing the last confirmed update'); expect(container.textContent).toContain('Risks and decisions were not recorded'); expect(container.textContent).not.toContain('No open risks recorded');
     await render(<ProjectUpdateOverview resource={{ ...props, loading: false, value: page([update()]), error: new ApiError(404, 'not_found', 'Not found') }} openUpdates={() => {}}/>); expect(container.textContent).not.toContain('Progress update'); expect(container.textContent).not.toContain('Dependency delay');
   });
+});
+
+it.each([true, false])('uses the authored context on parent refresh when dirty=%s', async dirty => {
+  const latest = { ...project, etag: '"project:2"', target_date: '2026-12-15' };
+  const fetch = vi.fn((_url: string, options: RequestInit) => Promise.resolve(json(options.method === 'POST' ? update() : page([]))));
+  vi.stubGlobal('fetch', fetch);
+  await render(screen());
+  if (dirty) {
+    await body('Authored update'); await includeNotes(); await click('Add risk'); await input('Risk 1 title', 'Schedule');
+  }
+  await render(screen({ project: latest }));
+  if (!dirty) await body('New update');
+  await submit();
+  const sent = fetch.mock.calls.find(([, options]) => options.method === 'POST')![1];
+  expect(new Headers(sent.headers).get('If-Match')).toBe(dirty ? project.etag : latest.etag);
+  if (dirty) expect(JSON.parse(sent.body as string)).toMatchObject({ body: 'Authored update', notes: { risks: [{ title: 'Schedule' }] } });
+});
+
+it('reconciles an expired update against the refreshed feed and closes the attempted draft', async () => {
+  let posts = 0;
+  vi.stubGlobal('fetch', vi.fn((_url: string, options: RequestInit) => {
+    if (options.method !== 'POST') return Promise.resolve(json(page(posts ? [update({ body: 'Saved update' })] : [])));
+    if (++posts === 1) return Promise.reject(new TypeError('Response lost'));
+    return Promise.resolve(json({ code: 'conflict', details: { retry_window_expired: true } }, 409));
+  }));
+  await render(screen()); await body('Saved update'); await submit();
+  await render(screen({ project: { ...project, etag: '"project:2"' } })); await click('Retry safely');
+  expect(container.querySelector('article .project-update-body')?.textContent).toBe('Saved update');
+  await submit(); expect(posts).toBe(2);
+  await click('Close attempted draft');
+  expect(container.querySelector<HTMLTextAreaElement>('[name="project-update"]')!.value).toBe('');
+  expect(hasUnsavedChanges()).toBe(false);
 });
