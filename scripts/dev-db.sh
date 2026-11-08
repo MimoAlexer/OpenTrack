@@ -149,11 +149,10 @@ for database in ['opentrack', 'opentrack_test']:
         print("SELECT '" + command + "' WHERE to_regclass('public.jobs') IS NOT NULL\\gexec")
     print(f"SELECT 'REVOKE UPDATE, DELETE, TRUNCATE ON public.document_attachments,public.document_attachment_revisions FROM {database}' WHERE to_regclass('public.document_attachments') IS NOT NULL\\gexec")
     for command in [
-        f'REVOKE ALL ON public.issue_order_staging FROM {database}',
         f'REVOKE UPDATE,DELETE,TRUNCATE ON public.issue_order_normalizations,public.issue_order_guards FROM {database}',
     ]:
         print("SELECT '" + command + "' WHERE to_regclass('public.issue_order_staging') IS NOT NULL\\gexec")
-    for table in ['planning_backfills', 'assignment_reconciliations', 'consumer_registrations', 'consumer_checkpoints', 'consumer_receipts', 'consumer_dead_letters', 'consumer_alerts', 'event_retention_state', 'consumer_operations', 'document_retention_operations', 'attachment_storage_operations']:
+    for table in ['planning_backfills', 'assignment_reconciliations', 'consumer_registrations', 'consumer_checkpoints', 'consumer_receipts', 'consumer_dead_letters', 'consumer_alerts', 'event_retention_state', 'consumer_operations', 'document_retention_operations', 'attachment_storage_operations', 'issue_order_staging', 'document_mentions', 'mention_intents', 'discussion_sources']:
         print(f"SELECT 'REVOKE ALL ON public.{table} FROM {database}' WHERE to_regclass('public.{table}') IS NOT NULL\\gexec")
     print(f"SELECT 'REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER ON public.planning_issue_facts FROM {database}' WHERE to_regclass('public.planning_issue_facts') IS NOT NULL\\gexec")
     for command in [
