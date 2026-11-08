@@ -496,3 +496,157 @@ async fn disposition_state(h: &Harness, a: &Actor, w: Uuid) -> Value {
     tx.commit().await.unwrap();
     value
 }
+
+#[tokio::test]
+async fn every_supported_workflow_category_survives_planning_backfill_and_replay() {
+    let h = Harness::new().await;
+    let r = h.clone();
+    let result = tokio::spawn(async move { workflow_categories(&r).await }).await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+    h.cleanup().await;
+}
+
+async fn workflow_categories(h: &Harness) {
+    let (a, w, t) = setup(h).await;
+    let mut project = h
+        .app
+        .create_project(
+            &a,
+            w,
+            t,
+            "all-category-project",
+            req(json!({"name":"Every workflow category"})),
+        )
+        .await
+        .unwrap();
+    let mut issues = std::collections::BTreeMap::new();
+    let mut status_ids = std::collections::BTreeMap::new();
+    for category in STATUS_CATEGORIES {
+        let flow = h.app.workflow(&a, w, t).await.unwrap();
+        let status = if let Some(status) = flow.statuses.iter().find(|s| s.category == *category) {
+            status.id
+        } else {
+            h.app
+                .create_status(
+                    &a,
+                    w,
+                    t,
+                    &format!("all-category-status-{category}"),
+                    &flow.etag(),
+                    req(json!({"name":format!("Planning {category}"),"category":category,"color":"gray"})),
+                )
+                .await
+                .unwrap()
+                .0
+        };
+        status_ids.insert(*category, status);
+        let issue = h
+            .app
+            .create_issue(
+                &a,
+                w,
+                &format!("all-category-issue-{category}"),
+                req(json!({"team_id":t,"title":format!("Planning {category}"),"status_id":status})),
+            )
+            .await
+            .unwrap();
+        project = h
+            .app
+            .set_project_issue(
+                &a,
+                w,
+                t,
+                project.id,
+                issue.id,
+                &project.etag,
+                ProjectMembership { included: true },
+            )
+            .await
+            .unwrap();
+        issues.insert(*category, issue);
+    }
+    let live = h.app.project_progress(&a, w, t, project.id).await.unwrap();
+    assert_eq!(live.calculation_source, PlanningCalculationSource::Live);
+    assert_eq!(
+        (live.total, live.eligible, live.completed, live.open),
+        (6, 5, 1, 4)
+    );
+    let worker = runner(h).await;
+    drain(&worker, w).await;
+    let projected = h.app.project_progress(&a, w, t, project.id).await.unwrap();
+    assert_eq!(
+        projected.calculation_source,
+        PlanningCalculationSource::Projection
+    );
+    assert_eq!(
+        (
+            projected.total,
+            projected.eligible,
+            projected.completed,
+            projected.open
+        ),
+        (live.total, live.eligible, live.completed, live.open),
+    );
+    let facts = state(h, &a, w).await;
+    let categories = facts["facts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|fact| fact["category"].as_str().unwrap())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(categories, STATUS_CATEGORIES.iter().copied().collect());
+
+    // A triage transition after the baseline must also pass the durable event
+    // consumer. Until it does, the entire scope uses its current source rows.
+    let completed = &issues["completed"];
+    let updated = h
+        .app
+        .update_issue(
+            &a,
+            w,
+            completed.id,
+            &completed.etag(),
+            json!({"status_id":status_ids["triage"]}),
+        )
+        .await
+        .unwrap();
+    let fallback = h.app.project_progress(&a, w, t, project.id).await.unwrap();
+    assert_eq!(fallback.calculation_source, PlanningCalculationSource::Live);
+    assert_eq!((fallback.completed, fallback.open), (0, 5));
+    drain(&worker, w).await;
+    let current = h.app.project_progress(&a, w, t, project.id).await.unwrap();
+    assert_eq!(
+        current.calculation_source,
+        PlanningCalculationSource::Projection
+    );
+    assert_eq!(
+        (
+            current.total,
+            current.eligible,
+            current.completed,
+            current.open
+        ),
+        (
+            fallback.total,
+            fallback.eligible,
+            fallback.completed,
+            fallback.open
+        )
+    );
+    let state = state(h, &a, w).await;
+    let fact = state["facts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|fact| fact["issue_id"] == json!(updated.id))
+        .unwrap();
+    assert_eq!(fact["category"], "triage");
+    assert_eq!(
+        fact["issue_version"].as_i64().unwrap().to_string(),
+        updated.version
+    );
+    assert_eq!(state["checkpoint"]["last_seq"], state["head"]);
+    assert!(state["letters"].as_array().unwrap().is_empty());
+}
