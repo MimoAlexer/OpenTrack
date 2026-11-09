@@ -769,7 +769,8 @@ async fn real_postgres_notification_next_snooze_deadline_includes_read_and_exclu
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn notification_readiness_is_private_repeatable_and_atomic_under_suppressed_effects() {
-    let h = Harness::new().await; let copy = h.clone();
+    let h = Harness::new().await;
+    let copy = h.clone();
     let result = tokio::spawn(async move {
         let h = &copy; let (owner,w,t) = setup(h).await;
         let recipient = person(h,&owner,w,"member").await;
@@ -788,6 +789,9 @@ async fn notification_readiness_is_private_repeatable_and_atomic_under_suppresse
             assert!(!sqlx::query_scalar::<_,bool>("SELECT has_function_privilege(current_user,'worker_ready_notification_workspace(uuid)','EXECUTE')").fetch_one(pool).await.unwrap());
         }
         let original = h.app.notifications(&recipient,w,query(NotificationFilter::Unread)).await.unwrap().items.remove(0);
+        // 0037 eagerly creates this guard for capture; remove only the private
+        // projection in this isolated fixture to exercise the missing-guard fault.
+        sqlx::query("TRUNCATE notification_ready_workspaces").execute(&h.owner).await.unwrap();
         sqlx::raw_sql("CREATE FUNCTION test_suppress_readiness() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$; CREATE TRIGGER test_suppress_readiness BEFORE INSERT ON notification_ready_workspaces FOR EACH ROW EXECUTE FUNCTION test_suppress_readiness()")
             .execute(&h.owner).await.unwrap();
         assert!(h.app.update_notification(&recipient,w,ids[0],&original.etag,action(NotificationAction::Read)).await.is_err());
@@ -821,23 +825,38 @@ async fn notification_readiness_is_private_repeatable_and_atomic_under_suppresse
         assert!(opentrack_app::App::connect(&h.runtime_url(),&h.setup_token,2,1).await.is_err());
         operator.close().await; worker.pool.close().await;
     }).await;
-    h.cleanup().await; if let Err(error)=result { std::panic::resume_unwind(error.into_panic()); }
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
 }
 
 async fn readiness_waits_for_guard(h: &Harness, pid: i32) {
-    let deadline = tokio::time::Instant::now()+std::time::Duration::from_secs(2);
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
     loop {
-        if sqlx::query_scalar::<_,bool>("SELECT cardinality(pg_blocking_pids($1))>0").bind(pid).fetch_one(&h.owner).await.unwrap() { return; }
-        assert!(tokio::time::Instant::now()<deadline,"The controlled readiness writer must wait for its guard");
+        if sqlx::query_scalar::<_, bool>("SELECT cardinality(pg_blocking_pids($1))>0")
+            .bind(pid)
+            .fetch_one(&h.app.pool)
+            .await
+            .unwrap()
+        {
+            return;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "The controlled readiness writer must wait for its guard"
+        );
         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn notification_readiness_serializes_final_publication_with_insert_and_rollback() {
-    for insert_first in [false,true] { for commit in [false,true] {
-        let h=Harness::new().await; let copy=h.clone();
-        let result=tokio::spawn(async move {
+    for insert_first in [false, true] {
+        for commit in [false, true] {
+            let h = Harness::new().await;
+            let copy = h.clone();
+            let result=tokio::spawn(async move {
             let h=&copy;let(owner,w,t)=setup(h).await;let recipient=person(h,&owner,w,"member").await;
             let source=issue(h,&owner,w,t,json!({})).await;
             let ids=seed(h,&owner,&recipient,w,&source,t,2).await;
@@ -874,13 +893,18 @@ async fn notification_readiness_serializes_final_publication_with_insert_and_rol
             let mut cursor=None;let due=worker.flush_notification_events_next(&mut cursor).await.unwrap();
             assert_eq!(due,commit.then_some((w,1)));worker.pool.close().await;
         }).await;
-        h.cleanup().await;if let Err(error)=result { std::panic::resume_unwind(error.into_panic()); }
-    }}
+            h.cleanup().await;
+            if let Err(error) = result {
+                std::panic::resume_unwind(error.into_panic());
+            }
+        }
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn notification_readiness_round_robin_skips_idle_and_revisits_busy_after_other_due_work() {
-    let h=Harness::new().await;let copy=h.clone();
+    let h = Harness::new().await;
+    let copy = h.clone();
     let result=tokio::spawn(async move {
         let h=&copy;let(owner,w,t)=setup(h).await;
         let organization=h.app.organizations(&owner).await.unwrap()[0].id;
@@ -902,5 +926,78 @@ async fn notification_readiness_round_robin_skips_idle_and_revisits_busy_after_o
         assert_eq!(worker.flush_notification_events_next(&mut cursor).await.unwrap(),Some((scopes[0].0,1)));
         worker.pool.close().await;
     }).await;
-    h.cleanup().await;if let Err(error)=result { std::panic::resume_unwind(error.into_panic()); }
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+async fn capture_event(tx: &mut store::Tx, w: Uuid, user: Uuid) -> i64 {
+    let seq:i64=sqlx::query_scalar("UPDATE workspace_stream_heads SET last_seq=last_seq+1 WHERE workspace_id=$1 RETURNING last_seq").bind(w).fetch_one(&mut **tx).await.unwrap();
+    sqlx::query("INSERT INTO workspace_events(workspace_id,seq,event_id,event_type,entity_id,entity_version,actor_id,mutation_id) VALUES($1,$2,$3,'workspace.updated',$1,1,$4,$5)")
+        .bind(w).bind(seq).bind(Uuid::new_v4()).bind(user).bind(Uuid::new_v4()).execute(&mut **tx).await.unwrap();
+    seq
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn notification_capture_readiness_tracks_backfill_enable_failure_and_operator_retry() {
+    let h = Harness::new().await;
+    let copy = h.clone();
+    let result=tokio::spawn(async move {
+        let h=&copy;let(owner,w,_)=setup(h).await;
+        let worker=opentrack_app::worker::Worker::connect(&h.worker_url().await,Default::default()).await.unwrap();
+        let mut cursor=None;assert_eq!(worker.apply_notification_events_next(&mut cursor).await.unwrap().unwrap().0,w,"Initial backfill is ready without source events");
+        for _ in 0..4 { worker.apply_notification_events(w).await.unwrap(); }
+        let mut tx=h.context(owner.user.id,w).await;
+        let seq=capture_event(&mut tx,w,owner.user.id).await;
+        let publication:Option<chrono::DateTime<Utc>>=sqlx::query_scalar("SELECT available_at FROM notification_ready_workspaces WHERE workspace_id=$1").bind(w).fetch_one(&mut *tx).await.unwrap();
+        sqlx::query("UPDATE consumer_registrations SET enabled=false WHERE workspace_id=$1 AND consumer_name='notifications'").bind(w).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+        cursor=None;assert!(worker.apply_notification_events_next(&mut cursor).await.unwrap().is_none());
+        let mut tx=h.context(owner.user.id,w).await;
+        sqlx::query("UPDATE consumer_registrations SET enabled=true WHERE workspace_id=$1 AND consumer_name='notifications'").bind(w).execute(&mut *tx).await.unwrap();
+        let letter=Uuid::new_v4();
+        sqlx::query("INSERT INTO consumer_dead_letters(workspace_id,id,consumer_name,consumer_version,seq,attempts,state,error_code,available_at) VALUES($1,$2,'notifications',1,$3,1,'blocked','effect_failed',clock_timestamp())").bind(w).bind(letter).bind(seq).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+        assert!(worker.apply_notification_events_next(&mut cursor).await.unwrap().is_none());
+        let mut tx=h.context(owner.user.id,w).await;
+        sqlx::query("UPDATE consumer_dead_letters SET state='retry_wait',available_at=clock_timestamp()+interval '1 day' WHERE workspace_id=$1 AND id=$2").bind(w).bind(letter).execute(&mut *tx).await.unwrap();tx.commit().await.unwrap();
+        assert!(worker.apply_notification_events_next(&mut cursor).await.unwrap().is_none());
+        let operator=sqlx::PgPool::connect(&h.operator_url().await).await.unwrap();
+        sqlx::query("SELECT operator_notification_retry($1,$2,'Reviewed current failure')").bind(w).bind(letter).execute(&operator).await.unwrap();
+        assert_eq!(worker.apply_notification_events_next(&mut cursor).await.unwrap().unwrap().0,w);
+        let mut tx=h.context(owner.user.id,w).await;
+        let current:Option<chrono::DateTime<Utc>>=sqlx::query_scalar("SELECT available_at FROM notification_ready_workspaces WHERE workspace_id=$1").bind(w).fetch_one(&mut *tx).await.unwrap();assert_eq!(current,publication,"Capture scheduling cannot overwrite publication scheduling");tx.commit().await.unwrap();
+        for pool in [&h.app.pool,&operator] { assert!(!sqlx::query_scalar::<_,bool>("SELECT has_function_privilege(current_user,'worker_ready_notification_capture_workspace(uuid)','EXECUTE') OR has_function_privilege(current_user,'notification_recompute_capture(uuid)','EXECUTE')").fetch_one(pool).await.unwrap()); }
+        operator.close().await;worker.pool.close().await;
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result {
+        std::panic::resume_unwind(error.into_panic());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn notification_capture_readiness_serializes_append_and_checkpoint_with_rollback() {
+    for append_first in [false, true] {
+        for commit in [false, true] {
+            let h = Harness::new().await;
+            let copy = h.clone();
+            let result=tokio::spawn(async move {
+            let h=&copy;let(owner,w,_)=setup(h).await;
+            let worker=opentrack_app::worker::Worker::connect(&h.worker_url().await,Default::default()).await.unwrap();for _ in 0..4 {worker.apply_notification_events(w).await.unwrap();}
+            let mut tx=h.context(owner.user.id,w).await;let catchup=capture_event(&mut tx,w,owner.user.id).await;tx.commit().await.unwrap();
+            let mut guard=h.context(owner.user.id,w).await;sqlx::query("SELECT workspace_id FROM notification_ready_workspaces WHERE workspace_id=$1 FOR UPDATE").bind(w).fetch_one(&mut *guard).await.unwrap();
+            let mut append=store::begin(&h.app.pool).await.unwrap();store::context(&mut append,owner.user.id,Some(w)).await.unwrap();let append_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *append).await.unwrap();
+            let mut checkpoint=h.context(owner.user.id,w).await;let checkpoint_pid:i32=sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(&mut *checkpoint).await.unwrap();let user=owner.user.id;
+            let append=async move {capture_event(&mut append,w,user).await;if commit {append.commit().await.unwrap();}else{append.rollback().await.unwrap();}};
+            let checkpoint=async move {sqlx::query("UPDATE consumer_checkpoints SET last_seq=$2 WHERE workspace_id=$1 AND consumer_name='notifications'").bind(w).bind(catchup).execute(&mut *checkpoint).await.unwrap();checkpoint.commit().await.unwrap();};
+            let(a,c)=if append_first {let a=tokio::spawn(append);readiness_waits_for_guard(h,append_pid).await;let c=tokio::spawn(checkpoint);readiness_waits_for_guard(h,checkpoint_pid).await;(a,c)}else{let c=tokio::spawn(checkpoint);readiness_waits_for_guard(h,checkpoint_pid).await;let a=tokio::spawn(append);readiness_waits_for_guard(h,append_pid).await;(a,c)};
+            guard.commit().await.unwrap();a.await.unwrap();c.await.unwrap();
+            let mut cursor=None;let ready=worker.apply_notification_events_next(&mut cursor).await.unwrap();assert_eq!(ready.is_some(),commit,"Fresh guard computation must retain committed append and omit rolled-back work");worker.pool.close().await;
+        }).await;
+            h.cleanup().await;
+            if let Err(error) = result {
+                std::panic::resume_unwind(error.into_panic());
+            }
+        }
+    }
 }

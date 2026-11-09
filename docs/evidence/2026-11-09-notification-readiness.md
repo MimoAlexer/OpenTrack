@@ -34,3 +34,20 @@ The migration is additive and preserves recipient content. Source rollback can
 use the previous registry scan while leaving the private projection installed.
 No destructive down-migration is supplied. Existing migrations 0034 and 0035 are
 unchanged.
+
+## Initial delivery follow-up
+
+The same idle scan also delayed materialization before an outbox row existed.
+With migration 0036 alone, the 40-idle-workspace initial-delivery regression still
+had no published notification after 10,018 ms. Migration 0037 appends independent
+`capture_at` readiness to the existing private guard; it does not modify 0036.
+Scoped triggers track notification backfill/checkpoint lag, registration state,
+and the current failure's retry time. Blocked, disabled and caught-up consumers
+are omitted; operator retry and enable transitions restore readiness.
+
+Real HTTP initial assignment and remote read regressions both pass with the
+unchanged default worker interval and ten-second deadline: initial delivery in
+2,023 ms and read publication in 2,024 ms. Capture and publication update only
+their own scheduling column. Controlled append-versus-checkpoint races cover
+both guard orders and append commit/rollback; backfill, enable/disable, blocked
+and deferred failures, operator retry, and private function access are checked.
