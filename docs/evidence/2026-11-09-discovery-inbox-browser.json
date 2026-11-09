@@ -1,0 +1,102 @@
+{
+  "source_commit": "b90c334f8c09246883890a894c9443550703d08e",
+  "environment": "Local PostgreSQL 18, actual API and restricted worker; canonical Playwright configuration, one worker, zero retries",
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "real worker fan-out reaches the durable inbox and keyboard processing persists",
+      "status": "passed",
+      "duration_ms": 5397
+    },
+    {
+      "browser": "chromium",
+      "check": "local timezone snooze and personal inbox preferences survive reload without SMTP",
+      "status": "passed",
+      "duration_ms": 3797
+    },
+    {
+      "browser": "chromium",
+      "check": "revoked private-team access removes every saved source title and body from the inbox",
+      "status": "passed",
+      "duration_ms": 3887
+    },
+    {
+      "browser": "chromium",
+      "check": "canonical recipient stream refreshes inbox, unread badge and source preview before revocation clears private data",
+      "status": "passed",
+      "duration_ms": 7045
+    },
+    {
+      "browser": "chromium",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 1917
+    },
+    {
+      "browser": "firefox",
+      "check": "real worker fan-out reaches the durable inbox and keyboard processing persists",
+      "status": "passed",
+      "duration_ms": 5330
+    },
+    {
+      "browser": "firefox",
+      "check": "local timezone snooze and personal inbox preferences survive reload without SMTP",
+      "status": "passed",
+      "duration_ms": 5389
+    },
+    {
+      "browser": "firefox",
+      "check": "revoked private-team access removes every saved source title and body from the inbox",
+      "status": "passed",
+      "duration_ms": 5273
+    },
+    {
+      "browser": "firefox",
+      "check": "canonical recipient stream refreshes inbox, unread badge and source preview before revocation clears private data",
+      "status": "passed",
+      "duration_ms": 6436
+    },
+    {
+      "browser": "firefox",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 3595
+    },
+    {
+      "browser": "webkit",
+      "check": "real worker fan-out reaches the durable inbox and keyboard processing persists",
+      "status": "passed",
+      "duration_ms": 5909
+    },
+    {
+      "browser": "webkit",
+      "check": "local timezone snooze and personal inbox preferences survive reload without SMTP",
+      "status": "passed",
+      "duration_ms": 5178
+    },
+    {
+      "browser": "webkit",
+      "check": "revoked private-team access removes every saved source title and body from the inbox",
+      "status": "passed",
+      "duration_ms": 5968
+    },
+    {
+      "browser": "webkit",
+      "check": "canonical recipient stream refreshes inbox, unread badge and source preview before revocation clears private data",
+      "status": "passed",
+      "duration_ms": 4249
+    },
+    {
+      "browser": "webkit",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 4003
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}
