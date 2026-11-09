@@ -111,6 +111,57 @@ describe('project scope history', () => {
     expect(new Headers(posts[1][1].headers).get('Idempotency-Key')).not.toBe(new Headers(posts[0][1].headers).get('Idempotency-Key'));
   });
 
+  it.each(['baseline', 'change'] as const)('keeps a reviewed %s action usable during a pending ordinary refresh and fences its late result', async kind => {
+    let refreshing = false; const reads: ((response: Response) => void)[] = [];
+    const denied = vi.fn();
+    const fetch = vi.fn((_url: string, options: RequestInit) => options.method === 'POST'
+      ? Promise.resolve(json(snapshot({ scope_etag: '"scope-two"' })))
+      : refreshing ? new Promise<Response>(resolve => reads.push(resolve)) : Promise.resolve(json(snapshot())));
+    vi.stubGlobal('fetch', fetch);
+    await render(view({ denied }));
+    if (kind === 'baseline') await baselineDraft();
+    else { await input('scope-issue', issue.id); await input('scope-change-reason', 'Reviewed removal.'); }
+    refreshing = true; await render(view({ denied, refresh: 1 }));
+    const lateRead = reads[0];
+    expect(button(kind === 'baseline' ? 'Set baseline' : 'Record scope change').disabled).toBe(false);
+    await submit(kind === 'baseline' ? 'Set scope baseline' : 'Record scope change');
+    const posts = fetch.mock.calls.filter(([, options]) => options.method === 'POST');
+    expect(posts).toHaveLength(1);
+    expect(new Headers(posts[0][1].headers).get('If-Match')).toBe('"scope-one"');
+    await act(async () => lateRead(problem(403, 'Superseded read')));
+    expect(denied).not.toHaveBeenCalled(); expect(container.textContent).not.toContain('Scope history unavailable');
+    expect(container.textContent).toContain(kind === 'baseline' ? 'Baseline set.' : 'Issue postponed and its reason recorded.');
+  });
+
+  it.each(['baseline', 'change'] as const)('requires fresh review after a pending-refresh %s write conflicts', async kind => {
+    let refreshing = false; const reads: ((response: Response) => void)[] = []; const denied = vi.fn();
+    const fetch = vi.fn((_url: string, options: RequestInit) => options.method === 'POST'
+      ? Promise.resolve(problem(412, 'Scope changed.'))
+      : refreshing ? new Promise<Response>(resolve => reads.push(resolve)) : Promise.resolve(json(snapshot())));
+    vi.stubGlobal('fetch', fetch); await render(view({ denied }));
+    if (kind === 'baseline') await baselineDraft();
+    else { await input('scope-issue', issue.id); await input('scope-change-reason', 'Reviewed change.'); }
+    refreshing = true; await render(view({ denied, refresh: 1 })); const oldRead = reads[0];
+    await submit(kind === 'baseline' ? 'Set scope baseline' : 'Record scope change');
+    expect(reads).toHaveLength(2);
+    await act(async () => { oldRead(problem(403, 'Superseded authority')); reads[1](json(snapshot({ scope_etag: '"scope-two"' }))); });
+    expect(denied).not.toHaveBeenCalled(); expect(container.textContent).toContain('Review the refreshed comparison');
+    expect(button(kind === 'baseline' ? 'Set baseline' : 'Record scope change').disabled).toBe(true);
+    await submit(kind === 'baseline' ? 'Set scope baseline' : 'Record scope change');
+    expect(fetch.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(1);
+  });
+
+  it('blocks initial and changed-comparison reads without a confirmed snapshot for that context', async () => {
+    const alternative = { ...baseline, id: 'baseline-two' }; const reads: ((response: Response) => void)[] = [];
+    const fetch = vi.fn(() => new Promise<Response>(resolve => reads.push(resolve))); vi.stubGlobal('fetch', fetch);
+    await render(view()); expect(container.querySelector('form')).toBeNull();
+    await act(async () => reads[0](json(snapshot({ baselines: [baseline, alternative] })))); await baselineDraft();
+    await input('scope-baseline', alternative.id);
+    expect(container.querySelector('form')).toBeNull(); expect(fetch).toHaveBeenCalledTimes(2);
+    await act(async () => reads[1](json(snapshot({ baselines: [baseline, alternative] }))));
+    expect(button('Set baseline').disabled).toBe(true);
+  });
+
   it.each(['unchanged', 'changed', 'denied'] as const)('binds checked baseline agreement to the confirmed scope through realtime refresh: %s', async outcome => {
     let finish!: (response: Response) => void; let refreshing = false;
     const denied = vi.fn();
@@ -120,7 +171,7 @@ describe('project scope history', () => {
     vi.stubGlobal('fetch', fetch);
     await render(view({ denied })); await baselineDraft();
     refreshing = true; await render(view({ denied, refresh: 1 }));
-    expect(button('Set baseline').disabled).toBe(true);
+    expect(button('Set baseline').disabled).toBe(false);
     await act(async () => finish(outcome === 'denied' ? problem(403, 'Access changed.') : json(snapshot({ scope_etag: outcome === 'changed' ? '"scope-two"' : '"scope-one"' }))));
     if (outcome === 'denied') {
       expect(denied).toHaveBeenCalledTimes(1); expect(container.querySelector('form')).toBeNull();

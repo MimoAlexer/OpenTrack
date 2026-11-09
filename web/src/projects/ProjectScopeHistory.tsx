@@ -145,7 +145,9 @@ function ScopeHistory({ project, session, refresh, readOnly, denied, changed }: 
   }
 
   const canWrite = !readOnly && project.can_edit && !project.archived_at;
-  const frozen = busy || uncertain || !!expired || review || loading || !!loadingMore || !!readError;
+  // Known reviewed scope remains actionable during background revalidation;
+  // writes still use its validator and fence that read before sending.
+  const frozen = busy || uncertain || !!expired || review || (loading && !value) || !!loadingMore || !!readError;
   async function write(operation: PendingWrite) {
     if (writing.current || !canWrite) return;
     writing.current = true; setBusy(true); setWriteError(null); setNotice('');
