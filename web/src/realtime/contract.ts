@@ -9,12 +9,16 @@ export const resetReason = (value: unknown): value is ResetReason => ['access_ch
 export function cursorValue(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 4096 && /^[\x21-\x7e]+$/.test(value);
 }
+const discoverySources: Record<string, string> = {
+  'discovery.personal_changed': 'discovery_personal',
+  'view.created': 'view', 'view.updated': 'view', 'view.deleted': 'view',
+};
 const uuid = (value: unknown) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
 const word = (value: unknown) => typeof value === 'string' && value.length > 0 && value.length <= 128 && /^[a-zA-Z0-9_.-]+$/.test(value);
 export function canonicalEvent(value: unknown, workspaceId: string): CanonicalEvent {
   if (!value || typeof value !== 'object') throw new Error('Invalid realtime event.');
   const event = value as CanonicalEvent;
-  if (event.schema_version !== 1 || event.workspace_id !== workspaceId || !uuid(event.event_id) || !uuid(event.entity_id)
+  if ((Object.hasOwn(discoverySources, event.type) && discoverySources[event.type] !== event.entity_type) || event.schema_version !== 1 || event.workspace_id !== workspaceId || !uuid(event.event_id) || !uuid(event.entity_id)
     || !word(event.type) || !word(event.entity_type) || event.actor_id !== null
     || typeof event.entity_version !== 'string' || !/^(0|[1-9][0-9]{0,18})$/.test(event.entity_version) || BigInt(event.entity_version) > 9223372036854775807n
     || (event.mutation_id !== null && !uuid(event.mutation_id)) || typeof event.occurred_at !== 'string' || event.occurred_at.length > 64 || !Number.isFinite(Date.parse(event.occurred_at))

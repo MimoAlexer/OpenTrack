@@ -1,0 +1,40 @@
+{
+  "other_tenant": 70000,
+  "private_in_tenant": 27000,
+  "samples": [
+    {
+      "errors": 0,
+      "max_ms": 39.285919,
+      "p50_ms": 24.764625,
+      "p95_ms": 33.235777,
+      "query": "quasar",
+      "runs": 25
+    },
+    {
+      "errors": 0,
+      "max_ms": 42.937979,
+      "p50_ms": 30.674001,
+      "p95_ms": 36.75526,
+      "query": "nebula",
+      "runs": 25
+    },
+    {
+      "errors": 0,
+      "max_ms": 31.213936,
+      "p50_ms": 26.342908,
+      "p95_ms": 29.447062,
+      "query": "GRA-100",
+      "runs": 25
+    },
+    {
+      "errors": 0,
+      "max_ms": 30.552042,
+      "p50_ms": 24.635187,
+      "p95_ms": 27.862841,
+      "query": "missingterm",
+      "runs": 25
+    }
+  ],
+  "sources": 100000,
+  "visible": 3000
+}

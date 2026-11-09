@@ -1,0 +1,42 @@
+{
+  "source": "de3807866f26ffa225ff9d01b2ee3ec06be4e23a",
+  "tree": "950d1936eb73528efae2692fee5fab07df4b8d12",
+  "files": [
+    {
+      "path": "work/target-discovery/debug/opentrack-server",
+      "sha256": "8054360a82cf2b5ba52aee3c3143a9969c83b577b67099714e659553ad83616a"
+    },
+    {
+      "path": "web/dist/index.html",
+      "sha256": "a92813ed1f8f6adfb1f73a002e5c569b3718d9c06d74e1256066cab2c3743da1"
+    },
+    {
+      "path": "web/dist/assets/RichTextEditor-O3KFfiAP.js",
+      "sha256": "93a61b9f442c9d3df812d58b8f9f8d0e9b5f5517c85dbfc4a37b777e8bcd0eec"
+    },
+    {
+      "path": "web/dist/assets/RichTextEditor-O3KFfiAP.js.map",
+      "sha256": "36e9d8d6ac93f712f2eedf7980aa4054819121ec3067af2a2f30b993473887dd"
+    },
+    {
+      "path": "web/dist/assets/index-BbdQ7SUD.js",
+      "sha256": "71d7bd6f6eeeac46a59277a16eb9604f98b781466dbad61809fb3570c8318f19"
+    },
+    {
+      "path": "web/dist/assets/index-BbdQ7SUD.js.map",
+      "sha256": "eaf168031a4eb8b598a1af8cff725d752701a40938f9411e0a360d1cfdc55a53"
+    },
+    {
+      "path": "web/dist/assets/index-D_RcmQr8.css",
+      "sha256": "7899af3dc339addf64ba8e49ac9487f20c145d60f343fc1beb7688985cb015e5"
+    },
+    {
+      "path": "web/dist/assets/portability.worker-DEvlQVr4.js",
+      "sha256": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a"
+    },
+    {
+      "path": "web/dist/assets/portability.worker-DEvlQVr4.js.map",
+      "sha256": "76e15c4597a5e883188598a4b923cd88f455fc73d15858e3361dc6b624148985"
+    }
+  ]
+}

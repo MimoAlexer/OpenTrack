@@ -163,6 +163,16 @@ pub(crate) struct IssuePatch {
         crate::notifications::mark_read,
         crate::notifications::get_preferences,
         crate::notifications::update_preferences,
+        crate::discovery::list,
+        crate::discovery::create,
+        crate::discovery::detail,
+        crate::discovery::update,
+        crate::discovery::delete,
+        crate::discovery::favorite,
+        crate::discovery::execute,
+        crate::discovery::search_query,
+        crate::discovery::search_get,
+        crate::discovery::suggestions,
         crate::preferences::get_preferences,
         crate::preferences::update_preferences,
         crate::mentions::candidates,
@@ -343,6 +353,29 @@ pub fn openapi() -> Value {
     });
     doc["security"] = json!([{"cookieAuth":[]},{"nativeBearer":[]}]);
     doc["components"]["schemas"]["IssuePatch"]["additionalProperties"] = json!(false);
+    // Views and private saved searches share typed handlers, with separate
+    // canonical resource paths and endpoint-enforced kinds.
+    let aliases = doc["paths"]
+        .as_object()
+        .expect("OpenAPI paths")
+        .iter()
+        .filter(|(path, _)| path.contains("/views"))
+        .map(|(path, item)| {
+            let mut item = item.clone();
+            for (_, op) in item.as_object_mut().expect("Path object") {
+                if let Some(id) = op["operationId"].as_str() {
+                    op["operationId"] = json!(id.replace("views_", "saved_searches_"));
+                }
+            }
+            (path.replace("/views", "/saved-searches"), item)
+        })
+        .collect::<Vec<_>>();
+    for (path, item) in aliases {
+        doc["paths"]
+            .as_object_mut()
+            .expect("OpenAPI paths")
+            .insert(path, item);
+    }
     for (path, item) in doc["paths"].as_object_mut().expect("OpenAPI paths") {
         for (method, operation) in item.as_object_mut().expect("Path object") {
             if !["get", "post", "patch", "put", "delete"].contains(&method.as_str()) {
@@ -481,6 +514,8 @@ pub fn openapi() -> Value {
                             "/api/v1/workspaces/{w}",
                             "/api/v1/workspaces/{w}/preferences",
                             "/api/v1/workspaces/{w}/notification-preferences",
+                            "/api/v1/workspaces/{w}/views/{id}",
+                            "/api/v1/workspaces/{w}/saved-searches/{id}",
                             "/api/v1/workspaces/{w}/issues/{id}",
                             "/api/v1/workspaces/{w}/issues/{id}/subscription",
                             "/api/v1/workspaces/{w}/issues/{issue}/document",

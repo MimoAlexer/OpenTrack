@@ -185,7 +185,7 @@ fn build_issue_query(
     Ok(query)
 }
 
-fn push_node(
+pub(crate) fn push_node(
     query: &mut QueryBuilder<Postgres>,
     node: &IssueFilterNode,
 ) -> Result<(), sqlx::Error> {

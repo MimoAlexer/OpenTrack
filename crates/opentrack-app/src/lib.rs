@@ -4,6 +4,7 @@ pub use realtime::{RealtimeBatch, RealtimeFrame, RealtimeListener};
 mod assignment_cleanup;
 mod attachments;
 mod cycles;
+mod discovery;
 mod issue_ordering;
 mod issue_query;
 mod milestones;

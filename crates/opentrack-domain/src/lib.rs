@@ -1,3 +1,5 @@
+mod discovery;
+pub use discovery::*;
 mod milestones;
 pub use milestones::*;
 mod issue_query;

@@ -118,7 +118,7 @@ impl ApiRequest {
         {
             return Err(NativeError::invalid());
         }
-        if issue_query_request(self.method, &self.path)
+        if structured_query_request(self.method, &self.path)
             && self.query.as_deref().is_some_and(|query| !query.is_empty())
         {
             return Err(NativeError::invalid());
@@ -155,7 +155,8 @@ impl ApiRequest {
             || self.path.ends_with("/issues")
             || self.path.split('/').any(|segment| segment == "templates")
             || project_narrative_request(self.method, &self.path)
-            || issue_query_request(self.method, &self.path)
+            || structured_query_request(self.method, &self.path)
+            || saved_definition_request(self.method, &self.path)
         {
             1024 * 1024
         } else if project_update_request(self.method, &self.path) {
@@ -202,10 +203,18 @@ fn project_narrative_request(method: Method, path: &str) -> bool {
         _ => false,
     }
 }
-fn issue_query_request(method: Method, path: &str) -> bool {
+fn structured_query_request(method: Method, path: &str) -> bool {
     matches!(
         path.split('/').collect::<Vec<_>>().as_slice(),
-        ["", "api", "v1", "workspaces", _, "issues", "query"]
+        [
+            "",
+            "api",
+            "v1",
+            "workspaces",
+            _,
+            "issues" | "search",
+            "query"
+        ]
     ) && method == Method::Post
 }
 fn realtime_page_query(query: Option<&str>) -> bool {
@@ -249,6 +258,21 @@ fn realtime_page_query(query: Option<&str>) -> bool {
     }
     cursor
 }
+fn saved_definition_request(method: Method, path: &str) -> bool {
+    match path.split('/').collect::<Vec<_>>().as_slice() {
+        ["", "api", "v1", "workspaces", _, "views" | "saved-searches"] => method == Method::Post,
+        [
+            "",
+            "api",
+            "v1",
+            "workspaces",
+            _,
+            "views" | "saved-searches",
+            object,
+        ] => id(object) && method == Method::Patch,
+        _ => false,
+    }
+}
 fn project_update_request(method: Method, path: &str) -> bool {
     method == Method::Post
         && matches!(
@@ -286,7 +310,14 @@ fn workspace_route(method: Method, path: &[&str]) -> bool {
         [] => matches!(method, Get | Patch),
         ["access" | "bootstrap"] => method == Get,
         ["events", "page"] => method == Get,
-        ["issues", "query"] => method == Post,
+        ["issues", "query"] | ["search", "query"] => method == Post,
+        ["search"] | ["search", "suggestions"] => method == Get,
+        ["views" | "saved-searches"] => matches!(method, Get | Post),
+        ["views" | "saved-searches", object] => {
+            id(object) && matches!(method, Get | Patch | Delete)
+        }
+        ["views" | "saved-searches", object, "favorite"] => id(object) && method == Put,
+        ["views" | "saved-searches", object, "execute"] => id(object) && method == Post,
         ["invitations" | "issues" | "labels" | "teams"] => matches!(method, Get | Post),
         ["members" | "mention-candidates" | "issue-reference-candidates"] => method == Get,
         ["notifications"] => method == Get,
@@ -344,12 +375,16 @@ mod structured_issue_query_tests {
             path: format!("/api/v1/workspaces/00000000-0000-0000-0000-000000000001/{suffix}"),
             query: None,
             headers: BTreeMap::new(),
-            body: Some(
-                serde_json::from_str(include_str!(
-                    "../../crates/opentrack-domain/tests/fixtures/issue-query-v1.json"
-                ))
-                .unwrap(),
-            ),
+            body: if method == Method::Get {
+                None
+            } else {
+                Some(
+                    serde_json::from_str(include_str!(
+                        "../../crates/opentrack-domain/tests/fixtures/issue-query-v1.json"
+                    ))
+                    .unwrap(),
+                )
+            },
         }
     }
 
@@ -360,7 +395,7 @@ mod structured_issue_query_tests {
             assert!(request(method, "issues/query").check().is_err());
         }
         for suffix in [
-            "search/query",
+            "search/query-ish",
             "issues/query/",
             "issues/query/extra",
             "issues/%71uery",
@@ -402,9 +437,62 @@ mod structured_issue_query_tests {
     }
 
     #[test]
+    fn saved_discovery_and_search_routes_are_narrow_and_body_only() {
+        let object = "22222222-2222-4222-8222-222222222222";
+        for suffix in ["views", "saved-searches"] {
+            for method in [Method::Get, Method::Post] {
+                assert!(request(method, suffix).check().is_ok());
+            }
+            for method in [Method::Get, Method::Patch, Method::Delete] {
+                assert!(
+                    request(method, &format!("{suffix}/{object}"))
+                        .check()
+                        .is_ok()
+                );
+            }
+            assert!(
+                request(Method::Put, &format!("{suffix}/{object}/favorite"))
+                    .check()
+                    .is_ok()
+            );
+            assert!(
+                request(Method::Post, &format!("{suffix}/{object}/execute"))
+                    .check()
+                    .is_ok()
+            );
+            assert!(
+                request(Method::Get, &format!("{suffix}/invalid"))
+                    .check()
+                    .is_err()
+            );
+            assert!(
+                request(Method::Post, &format!("{suffix}/{object}/favorite"))
+                    .check()
+                    .is_err()
+            );
+        }
+        assert!(request(Method::Get, "search").check().is_ok());
+        assert!(request(Method::Get, "search/suggestions").check().is_ok());
+        assert!(request(Method::Post, "search/query").check().is_ok());
+        assert!(request(Method::Get, "search/query").check().is_err());
+        for suffix in ["search/query/", "search/query/extra", "search/query-ish"] {
+            assert!(request(Method::Post, suffix).check().is_err());
+        }
+        let mut value = request(Method::Post, "search/query");
+        value.query = Some("q=hidden".into());
+        assert!(value.check().is_err());
+        let mut value = request(Method::Post, "search/query");
+        value.body = Some(serde_json::json!({"value":"x".repeat(100_000)}));
+        assert!(value.check().is_ok());
+    }
+
+    #[test]
     fn query_body_budget_is_exact_and_keeps_ordinary_route_limits() {
         for (method, suffix, limit) in [
             (Method::Post, "issues/query", 1024 * 1024),
+            (Method::Post, "search/query", 1024 * 1024),
+            (Method::Post, "views", 1024 * 1024),
+            (Method::Post, "saved-searches", 1024 * 1024),
             (Method::Patch, "preferences", 65536),
         ] {
             let overhead = serde_json::to_vec(&serde_json::json!({"value":""}))

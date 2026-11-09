@@ -80,6 +80,8 @@ enum SourceKind {
     Invitation,
     Preferences,
     Notification,
+    DiscoveryPersonal,
+    DiscoveryView,
     Access,
 }
 
@@ -150,6 +152,8 @@ fn registration(kind: &str) -> Option<(SourceKind, &'static str)> {
         "invitation.created" | "invitation.revoked" => (Invitation, "invitation"),
         "user.preferences_changed" => (Preferences, "user_preferences"),
         "notification.created" | "notification.updated" => (Notification, "notification"),
+        "discovery.personal_changed" => (DiscoveryPersonal, "discovery_personal"),
+        "view.created" | "view.updated" | "view.deleted" => (DiscoveryView, "view"),
         "access.changed" => (Access, "workspace"),
         _ => return None,
     })
@@ -191,6 +195,15 @@ pub async fn stream_source(
     }
     use SourceKind::*;
     let readable = match source {
+        DiscoveryPersonal | DiscoveryView => {
+            // Replay remains usable on migration 0033 without the later saved
+            // discovery schema; an absent source fails closed.
+            let installed: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_class WHERE relnamespace=current_schema()::regnamespace AND relname='discovery_view_sources' AND relkind IN('r','p')) AND EXISTS(SELECT 1 FROM pg_class WHERE relnamespace=current_schema()::regnamespace AND relname='discovery_personal_heads' AND relkind IN('r','p'))")
+                .fetch_one(&mut **tx).await?;
+            installed
+                && (source != DiscoveryPersonal || row.team_id.is_none())
+                && crate::discovery_event_visible(tx, workspace, user, &row.event_type, row.entity_id).await?
+        }
         Notification => {
             // M07 is optional for this earlier migration. Never fall through to
             // another schema or treat a recipient-private event as workspace-wide.
@@ -417,6 +430,22 @@ async fn attachment_visible(
 #[cfg(test)]
 mod tests {
     use super::{SourceKind, registration};
+
+    #[test]
+    fn saved_discovery_events_register_private_and_shared_sources_explicitly() {
+        assert_eq!(
+            registration("discovery.personal_changed"),
+            Some((SourceKind::DiscoveryPersonal, "discovery_personal"))
+        );
+        for kind in ["view.created", "view.updated", "view.deleted"] {
+            assert_eq!(
+                registration(kind),
+                Some((SourceKind::DiscoveryView, "view"))
+            );
+        }
+        assert_eq!(registration("view.private_preview"), None);
+        assert_eq!(registration("discovery.created"), None);
+    }
 
     #[test]
     fn notification_invalidations_require_the_explicit_recipient_policy() {

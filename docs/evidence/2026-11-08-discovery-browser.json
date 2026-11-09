@@ -1,0 +1,82 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1032
+    },
+    {
+      "browser": "chromium",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 618
+    },
+    {
+      "browser": "chromium",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 877
+    },
+    {
+      "browser": "chromium",
+      "check": "narrow keyboard save preserves draft after a remote version conflict",
+      "status": "passed",
+      "duration_ms": 486
+    },
+    {
+      "browser": "firefox",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 2099
+    },
+    {
+      "browser": "firefox",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 1118
+    },
+    {
+      "browser": "firefox",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 1086
+    },
+    {
+      "browser": "firefox",
+      "check": "narrow keyboard save preserves draft after a remote version conflict",
+      "status": "passed",
+      "duration_ms": 816
+    },
+    {
+      "browser": "webkit",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1641
+    },
+    {
+      "browser": "webkit",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 1275
+    },
+    {
+      "browser": "webkit",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 1367
+    },
+    {
+      "browser": "webkit",
+      "check": "narrow keyboard save preserves draft after a remote version conflict",
+      "status": "passed",
+      "duration_ms": 977
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}

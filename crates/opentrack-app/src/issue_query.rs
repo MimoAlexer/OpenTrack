@@ -45,7 +45,7 @@ fn targets(node: &IssueFilterNode, selected: &mut BTreeMap<IssueQueryField, BTre
     }
 }
 
-async fn validate_targets(
+pub(crate) async fn validate_targets(
     tx: &mut store::Tx,
     actor: &Actor,
     workspace: Uuid,
@@ -102,9 +102,40 @@ async fn validate_targets(
     Ok(())
 }
 
+pub(crate) async fn query_clock(tx: &mut store::Tx, timezone: &str) -> Result<DateTime<Utc>> {
+    let (as_of, valid_zone): (DateTime<Utc>, bool) = sqlx::query_as(
+        "SELECT statement_timestamp(),EXISTS(SELECT 1 FROM pg_timezone_names WHERE name=$1)",
+    )
+    .bind(timezone)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(db_error)?;
+    if !valid_zone || !(timezone == "UTC" || timezone.contains('/')) {
+        return Err(Error::Invalid(
+            "Choose a valid IANA query timezone, such as UTC or Europe/Zurich".into(),
+        ));
+    }
+    Ok(as_of)
+}
+
 impl App {
     pub async fn query_issues(
         &self,
+        actor: &Actor,
+        workspace: Uuid,
+        query: IssueQuery,
+    ) -> Result<IssueQueryPage> {
+        query.validate()?;
+        let mut tx = self.scoped(actor, workspace, false).await?;
+        let result = self
+            .query_issues_in(&mut tx, actor, workspace, query)
+            .await?;
+        tx.commit().await.map_err(db_error)?;
+        Ok(result)
+    }
+    pub(crate) async fn query_issues_in(
+        &self,
+        tx: &mut store::Tx,
         actor: &Actor,
         workspace: Uuid,
         mut query: IssueQuery,
@@ -118,23 +149,9 @@ impl App {
                 .filter(|q| !q.is_empty())
                 .map(str::to_owned);
         }
-        let mut tx = self.scoped(actor, workspace, false).await?;
-        let epoch = store::auth_epoch(&mut tx, workspace)
-            .await
-            .map_err(db_error)?;
-        validate_targets(&mut tx, actor, workspace, &query).await?;
-        let (as_of, valid_zone): (DateTime<Utc>, bool) = sqlx::query_as(
-            "SELECT statement_timestamp(),EXISTS(SELECT 1 FROM pg_timezone_names WHERE name=$1)",
-        )
-        .bind(&query.timezone)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(db_error)?;
-        if !valid_zone || !(query.timezone == "UTC" || query.timezone.contains('/')) {
-            return Err(Error::Invalid(
-                "Choose a valid IANA query timezone, such as UTC or Europe/Zurich".into(),
-            ));
-        }
+        let epoch = store::auth_epoch(tx, workspace).await.map_err(db_error)?;
+        validate_targets(tx, actor, workspace, &query).await?;
+        let as_of = query_clock(tx, &query.timezone).await?;
         let manual = query.sort == IssueQuerySort::Manual;
         let order_version = if manual {
             let team = query.team_id.ok_or(Error::Internal)?;
@@ -143,7 +160,7 @@ impl App {
             )
             .bind(workspace)
             .bind(team)
-            .fetch_one(&mut *tx)
+            .fetch_one(&mut **tx)
             .await
             .map_err(db_error)?;
             if !active {
@@ -151,12 +168,11 @@ impl App {
                     "Restore this team before using manual order".into(),
                 ));
             }
-            if let Some(progress) =
-                issue_ordering::active(&mut tx, actor, workspace, team, None).await?
+            if let Some(progress) = issue_ordering::active(tx, actor, workspace, team, None).await?
             {
                 return Err(Error::IssueOrderMaintenance(vec![progress]));
             }
-            Some(issue_ordering::order_version(&mut tx, workspace, team).await?)
+            Some(issue_ordering::order_version(tx, workspace, team).await?)
         } else {
             None
         };
@@ -204,7 +220,7 @@ impl App {
             ),
         };
         let mut data = store::list_issue_query(
-            &mut tx,
+            tx,
             workspace,
             actor.user.id,
             &query.flat_filter(),
@@ -219,7 +235,7 @@ impl App {
             let last = data.last().ok_or(Error::Internal)?;
             let position = if manual {
                 let (category, position, status, rank, id): (i32,i32,Uuid,String,Uuid) = sqlx::query_as("SELECT CASE s.category WHEN 'triage' THEN 0 WHEN 'backlog' THEN 1 WHEN 'unstarted' THEN 2 WHEN 'started' THEN 3 WHEN 'completed' THEN 4 ELSE 5 END,s.position,s.id,i.rank::text,i.id FROM issues i JOIN workflow_statuses s ON s.workspace_id=i.workspace_id AND s.team_id=i.team_id AND s.id=i.status_id WHERE i.workspace_id=$1 AND i.team_id=$2 AND i.id=$3")
-                    .bind(workspace).bind(query.team_id).bind(last.id).fetch_one(&mut *tx).await.map_err(db_error)?;
+                    .bind(workspace).bind(query.team_id).bind(last.id).fetch_one(&mut **tx).await.map_err(db_error)?;
                 QueryPosition::Manual(category, position, status, rank, id)
             } else {
                 QueryPosition::Standard(
@@ -242,12 +258,10 @@ impl App {
         let mut order_maintenance = Vec::new();
         if !manual
             && let Some(team) = query.team_id
-            && let Some(progress) =
-                issue_ordering::active(&mut tx, actor, workspace, team, None).await?
+            && let Some(progress) = issue_ordering::active(tx, actor, workspace, team, None).await?
         {
             order_maintenance.push(progress);
         }
-        tx.commit().await.map_err(db_error)?;
         Ok(IssueQueryPage {
             page: IssuePage {
                 data,

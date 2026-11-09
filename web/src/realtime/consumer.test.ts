@@ -134,3 +134,21 @@ it('rejects unsupported event schemas without advancing replay, and drops late b
   await vi.advanceTimersByTimeAsync(1000); expect(fetch.mock.calls[1][1].headers['Last-Event-ID']).toBe('cursor_initial');
   active = false; second.send(wire(event())); await settle(); await vi.advanceTimersByTimeAsync(100); expect(consumer.invalidate).not.toHaveBeenCalled(); expect(consumer.reset).not.toHaveBeenCalled();
 });
+
+it('validates saved discovery invalidation source identities explicitly',()=>{
+ for(const [type,entity_type] of [['discovery.personal_changed','discovery_personal'],['view.created','view'],['view.updated','view'],['view.deleted','view']]) {
+  expect(canonicalEvent({...event(),type,entity_type},'workspace').entity_type).toBe(entity_type);
+  expect(()=>canonicalEvent({...event(),type,entity_type:'issue'},'workspace')).toThrow();
+ }
+});
+
+it.each([false,true])('coalesces explicit saved discovery invalidations over browser/native (%s)',async(native)=>{
+ const records=[['discovery.personal_changed','discovery_personal'],['view.created','view'],['view.updated','view'],['view.deleted','view']].map(([type,entity_type],index)=>({...event('1',`00000000-0000-0000-0000-00000000002${index}`),type,entity_type}));
+ const stream=channel();const fetch=vi.fn().mockResolvedValue(stream.response);vi.stubGlobal('fetch',fetch);
+ const request=vi.fn().mockResolvedValue({events:records,cursor:'saved_next',has_more:false});
+ const consumer=start({native,request:request as ScopedRequest});await settle();
+ if(!native){for(const record of records)stream.send(wire(record));await settle();}
+ await vi.advanceTimersByTimeAsync(50);
+ expect(consumer.invalidate).toHaveBeenCalledTimes(1);expect(consumer.reset).not.toHaveBeenCalled();
+ if(native)expect(fetch).not.toHaveBeenCalled();else expect(request).not.toHaveBeenCalled();
+});

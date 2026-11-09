@@ -1,0 +1,121 @@
+{
+  "status": "failed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1209
+    },
+    {
+      "browser": "chromium",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 564
+    },
+    {
+      "browser": "chromium",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 789
+    },
+    {
+      "browser": "chromium",
+      "check": "narrow keyboard save preserves draft after a remote version conflict",
+      "status": "passed",
+      "duration_ms": 1078
+    },
+    {
+      "browser": "chromium",
+      "check": "Open revalidates remote narrowing and deletion while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 839
+    },
+    {
+      "browser": "chromium",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 2133
+    },
+    {
+      "browser": "firefox",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1974
+    },
+    {
+      "browser": "firefox",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 837
+    },
+    {
+      "browser": "firefox",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 969
+    },
+    {
+      "browser": "firefox",
+      "check": "narrow keyboard save preserves draft after a remote version conflict",
+      "status": "passed",
+      "duration_ms": 1453
+    },
+    {
+      "browser": "firefox",
+      "check": "Open revalidates remote narrowing and deletion while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 1109
+    },
+    {
+      "browser": "firefox",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 2367
+    },
+    {
+      "browser": "webkit",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "failed",
+      "duration_ms": 10938,
+      "failure": "saved-discovery.browser.ts:17"
+    },
+    {
+      "browser": "webkit",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 1109
+    },
+    {
+      "browser": "webkit",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 1291
+    },
+    {
+      "browser": "webkit",
+      "check": "narrow keyboard save preserves draft after a remote version conflict",
+      "status": "passed",
+      "duration_ms": 1772
+    },
+    {
+      "browser": "webkit",
+      "check": "Open revalidates remote narrowing and deletion while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 1375
+    },
+    {
+      "browser": "webkit",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 2596
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published.",
+  "source": "811c7a26cc64628f99b043e1994be3566862dc96",
+  "result_scope": "Second corrective browser run;17/18passed; a pre-commit directory snapshot erased a newly saved WebKit row."
+}
