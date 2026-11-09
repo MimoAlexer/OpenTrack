@@ -27,7 +27,7 @@
 
 Keep issues, projects, discussion, files, and workflows together on your own server. The core runs without an AI account or a paid cloud service. Browser and desktop use the same accounts, permissions, and PostgreSQL data.
 
-**Source checkpoint: schema 34, 8 November 2026.** Structured issue filters, bounded realtime replay and the durable in-app inbox now compose with project planning. The [combined qualification record](docs/evidence/2026-11-08-discovery-inbox-integration.md) distinguishes executed checks from outstanding acceptance; the [requirements ledger](docs/REQUIREMENTS_STATUS.md) retains the full product's remaining gates.
+**Source checkpoint: schema 35, 9 November 2026.** Saved views and searches, structured issue filters, bounded realtime replay and the durable in-app inbox now compose with project planning. The [combined qualification record](docs/evidence/2026-11-08-discovery-inbox-integration.md) distinguishes executed checks from outstanding acceptance; the [requirements ledger](docs/REQUIREMENTS_STATUS.md) retains the full product's remaining gates.
 
 ## What works today
 
@@ -38,6 +38,7 @@ Keep issues, projects, discussion, files, and workflows together on your own ser
 - **Reusable team workflows.** Versioned issue templates, opt-in team/date title patterns, preview and merge/replace choices, custom statuses and defaults, and durable status-replacement jobs.
 - **Controlled access.** Private teams, invitations, account-session management, operator recovery and scoped authorization. A separate worker handles bounded background work and assignment cleanup.
 - **Structured filters and live refresh.** List and board share bounded structured queries and local calendar-date filters. Authorized replay refreshes current data; disconnection pauses issue writes while preserving unsaved drafts.
+- **Saved discovery.** Personal saved searches, shared views and favorites retain reviewed filters. Exact issue-key and weighted full-text search respect current access; remote definition changes require reconciliation before overwriting. Fuzzy search remains pending.
 - **In-app inbox.** Assignment, mention and followed-comment delivery through the restricted worker. Read, archive and snooze notifications, retain personal preferences, and reauthorize private source labels and previews. Processing the inbox does not change its source issue.
 - **Browser and desktop.** Compact properties, command palette, persistent character-shortcut preferences, guarded navigation sequences and light/dark themes. The Linux client embeds the same UI and uses browser sign-in plus the OS credential vault.
 
@@ -45,11 +46,13 @@ The in-app inbox works independently of email. **SMTP delivery, email channels a
 
 ## What comes next
 
-The remaining roadmap includes native interaction and attachment/recovery qualification, boards, timelines and reporting parity; saved views and broader search remain separate discovery work. Realtime and the in-app inbox are implemented slices with explicit remaining qualification gates. Project briefs currently share the project metadata version; independent brief history, mentions, issue references and attachments remain unfinished. Complete-product execution resumed on 22 October through five assigned lanes, with one integration owner and acceptance evidence required for every completion claim.
+The remaining roadmap includes native interaction and attachment/recovery qualification, boards, timelines and reporting parity; fuzzy search, command-palette discovery and large-list virtualization remain unfinished. Realtime and the in-app inbox are implemented slices with explicit remaining qualification gates. Project briefs currently share the project metadata version; independent brief history, mentions, issue references and attachments remain unfinished. Complete-product execution resumed on 22 October through five assigned lanes, with one integration owner and acceptance evidence required for every completion claim.
 
 The broader roadmap includes **initiatives, roadmap scenarios and capacity, retrospectives, decisions, feedback, releases, incidents and reports**, alongside integrations and optional AI/isolated agents. These are planned capabilities, not current screens.
 
 [Browse the project board](https://github.com/users/MimoAlexer/projects/3) · [GitHub project guide](docs/GITHUB_PROJECT.md) · [Read the roadmap](docs/ROADMAP.md) · [See the concrete TODO list](docs/PROJECT_HANDOFF_2026-10-18.md#next-concrete-work)
+
+For a new machine, use the [laptop continuation guide](docs/LAPTOP_HANDOFF.md).
 
 ## Run locally
 

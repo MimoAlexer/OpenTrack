@@ -1,5 +1,13 @@
 # OpenTrack implementation handoff
 
+## Current continuation — 9 November 2026
+
+Use the [laptop continuation guide](docs/LAPTOP_HANDOFF.md) and current README for the schema 0035 source. PRs [174](https://github.com/MimoAlexer/OpenTrack/pull/174) and [175](https://github.com/MimoAlexer/OpenTrack/pull/175) carry the composed discovery/realtime/inbox work; their live GitHub checks and merge state govern integration. PR [173](https://github.com/MimoAlexer/OpenTrack/pull/173) merged source-HTTPS recovery qualification. The complete product remains unfinished.
+
+Main protection now enforces all four configured checks, current-base status and resolved review conversations, including for administrators. The dated checkpoints below preserve historical settings and must not override current AGENTS.md or GitHub state. Credentials, private databases, attachments, raw logs and local archives remain outside Git.
+
+## Historical checkpoints
+
 ## Assigned execution continues — 23 October 2026
 
 The latest user instruction resumes assigned work until further instructions and revokes the temporary finish-current-work/merge-then-stop restriction. Each worker follows its assigned queue and shared coordination protocol; completed increments and preserved partial work are not restarted. Agent 5 owns shared contracts, contiguous migration reservations, exact-head review/merging and final qualification. Whole-product completion still requires all queues, F01–F47, X01–X66, M01–M21 and product gates to have real evidence on integrated main; unavailable manual or external gates remain explicit. See the [integrated server/admission/recovery qualification](docs/evidence/2026-10-23-agent5-integrated-qualification.md), [earlier batch record](docs/evidence/2026-10-22-started-batch.md), [requirements ledger](docs/REQUIREMENTS_STATUS.md) and current AGENTS.md.
