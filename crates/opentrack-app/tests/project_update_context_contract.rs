@@ -403,6 +403,15 @@ async fn upgrade(h: &Harness) {
     sqlx::query("INSERT INTO idempotency_records(workspace_id,principal_id,route,key_hash,request_hash,response_body) VALUES($1,$2,$3,$4,$5,$6)").bind(w).bind(a.user.id).bind(&route).bind(digest(key.as_bytes())).bind(&request_hash).bind(&legacy).execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
     store::MIGRATOR.run(&h.owner).await.unwrap();
+    // Match the stop/migrate/restart lifecycle: no runtime connection may keep
+    // a cached pre-upgrade SELECT * projects result type after 0035 adds a column.
+    let mut previous_connections = Vec::new();
+    for _ in 0..h.app.pool.size() {
+        previous_connections.push(h.app.pool.acquire().await.unwrap());
+    }
+    for connection in previous_connections {
+        connection.close().await.unwrap();
+    }
     let old = h.app.get_project_update(&a, w, t, p.id, id).await.unwrap();
     assert!(old.context.is_none());
     assert!(old.previous.is_none());

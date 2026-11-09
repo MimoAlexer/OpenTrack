@@ -88,9 +88,20 @@ async fn exercise(h: &Harness) {
     store::MIGRATOR.run(&h.owner).await.unwrap();
     // 0015 adds explicit attribution/schema defaults without rewriting history.
     // Compare the complete new snapshot, not a projection that would conceal
-    // unrelated changes. Subsequent rollback checks retain all current fields.
+    // unrelated changes. 0035 also adds the weighted search projection, whose
+    // expectation comes from the original snapshot rather than the new column.
+    // Subsequent rollback checks retain all current fields.
     let mut expected_current = before_upgrade.clone();
     for issue in expected_current["issues"].as_array_mut().unwrap() {
+        let expected_search: String = sqlx::query_scalar(
+            "SELECT (setweight(to_tsvector('simple'::regconfig,$1),'A') || setweight(to_tsvector('simple'::regconfig,$2),'B'))::text",
+        )
+        .bind(issue["title"].as_str().unwrap())
+        .bind(issue["description"].as_str().unwrap())
+        .fetch_one(&h.owner)
+        .await
+        .unwrap();
+        issue["search_document"] = json!(expected_search);
         issue["body_version"] = json!(1);
         let rank = ranks
             .iter()
