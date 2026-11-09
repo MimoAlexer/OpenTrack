@@ -128,7 +128,7 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply}:Props) {
         const unexpectedDefinition=savedBody?.definition ? !item.definition || signature(normalized(savedBody.definition))!==signature(normalized(item.definition)) : operation.base?.id===item.id && operation.base.etag!==item.etag;
         if(sameSelection && unexpectedDefinition){setReconciliation(item);setRepair(null);}
         else if(sameSelection && savedBody?.definition){setSelected(item);setSelectionBlocked(!item.definition||!!item.repair_required);activeSaved.current=item.definition?{id:item.id,fingerprint:signature(normalized(item.definition))}:null;setRepair(null);setReconciliation(null);}
-        else if(sameSelection && operation.target===item.id)setSelected(item);
+        else if(sameSelection && operation.base?.id===item.id)setSelected(item);
       } else {
         const id=operation.target;setViews(p=>p&&{...p,data:p.data.filter(d=>d.id!==id)});setSearches(p=>p&&{...p,data:p.data.filter(d=>d.id!==id)});
         if(sameSelection){setSelected(null);activeSaved.current=null;setRepair(null);setReconciliation(null);}

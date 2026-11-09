@@ -196,3 +196,14 @@ it('a different object can be opened while deletion completes without clearing t
  });
  const x=await mount();try{await click(x.host,'Private saved');await click(x.host,'Delete saved definition');await click(x.host,'Private other');await act(async()=>deletion.resolve(undefined));expect(x.host.textContent).not.toContain('Private saved');expect(x.host.textContent).toContain('Private other · Version 1');expect(x.applied.at(-1)?.filter).toEqual(narrow.filter);}finally{await x.close();}
 });
+it('favoriting another directory row preserves the selected write base and its filters',async()=>{
+ const patches:{path:string;body:unknown}[]=[];
+ vi.mocked(request).mockImplementation(async(path,options)=>{
+  if(options?.method==='PUT')return {...record('other',narrow),favorite:true} as never;
+  if(options?.method==='PATCH'){patches.push({path,body:options.body});return {...record(),name:'Rename A'} as never;}
+  if(path.endsWith('/views/saved'))return record() as never;
+  if(path.endsWith('/views/other'))return record('other',narrow) as never;
+  return directory(path.endsWith('/views')?[record(),record('other',narrow)]:[]) as never;
+ });
+ const x=await mount();try{await click(x.host,'Private saved');await click(x.host,'Favorite Private other');expect(x.host.textContent).toContain('Private saved · Version 1');await input(x.host,'Definition name','Rename A');await click(x.host,'Save changes');expect(patches).toHaveLength(1);expect(patches[0]).toMatchObject({path:'/workspaces/workspace/views/saved',body:{name:'Rename A',definition:{query:{filter:null}}}});await click(x.host,'Private other');expect(x.applied.at(-1)?.filter).toEqual(narrow.filter);}finally{await x.close();}
+});

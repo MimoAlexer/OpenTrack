@@ -15,3 +15,5 @@ Validation on the corrective source:
 - `npm --prefix web run build`: passes; existing large-chunk advisory remains.
 
 These are React/jsdom request-boundary regressions and build checks, not fresh browser, PostgreSQL, native, physical-input or assistive-technology qualification. Migration 0035 and the database/API behavior are unchanged; rollback is a source revert. Generated API files remain outside this corrective commit for coordinated union regeneration. Full acceptance and protected integration remain separate gates.
+
+Follow-up review found that the actual favorite target could still replace a different selected object without applying its filters. A new broad-A/restrictive-B regression failed with B incorrectly becoming selected after favoriting B. Metadata now updates selection only when the returned object matches the captured selected base. The corrected regression verifies rename targets A, then explicitly opens B and observes its restrictive predicate. The full web suite passes 1,025 tests across 89 files; both TypeScript targets pass again.
