@@ -88,3 +88,28 @@ it('refreshes renamed bootstrap metadata while retaining the current stream and 
   expect(container.querySelector('[aria-label="Issue title"]')).toBe(original); expect(original.value).toBe('Unsubmitted title draft');
   expect(channels).toHaveLength(1); expect(bootstrapCount).toBe(2);
 });
+
+it('canonical remote-read invalidation clears row and badge despite delayed older list responses', async () => {
+  history.replaceState({ otIndex: 0 }, '', '/w/workspace/inbox');
+  const intervals = vi.spyOn(window, 'setInterval'); const cancelled = vi.spyOn(window, 'clearInterval');
+  await render();
+  expect(container.querySelector('.inbox-badge')?.textContent).toBe('1');
+  expect(container.querySelector('[data-notification-id]')).not.toBeNull();
+  const original = fetch.getMockImplementation() as (url: string, options: RequestInit) => Promise<Response>;
+  const delayed: Array<(response: Response) => void> = [];
+  let hold = true;
+  fetch.mockImplementation((url: string, options: RequestInit) => url.includes('/notifications?') && hold ? new Promise<Response>(resolve => delayed.push(resolve)) : original(url, options));
+  await send(wire('invalidation', { ...event, event_id: '00000000-0000-0000-0000-000000000021', type: 'notification.created', entity_type: 'notification', entity_id: notificationId, entity_version: '1', changed_fields: [] }));
+  await act(async () => vi.advanceTimersByTimeAsync(50));
+  expect(delayed).toHaveLength(2);
+  hold = false; notificationCount = 0;
+  await send(wire('invalidation', { ...event, event_id: '00000000-0000-0000-0000-000000000022', type: 'notification.updated', entity_type: 'notification', entity_id: notificationId, entity_version: '2', changed_fields: [] }));
+  await act(async () => vi.advanceTimersByTimeAsync(50));
+  expect(container.querySelector('[data-notification-id]')).toBeNull();
+  expect(container.querySelector('.inbox-badge')).toBeNull();
+  await act(async () => { for (const finish of delayed) finish(json({ items: [notification()], next_cursor: null, next_snoozed_at: null, snapshot: 'older-snapshot', unread_count: 1 })); });
+  expect(container.querySelector('[data-notification-id]')).toBeNull();
+  expect(container.querySelector('.inbox-badge')).toBeNull();
+  expect(channels).toHaveLength(1);
+  expect(intervals.mock.calls.filter(([, delay], index) => delay === 15_000 && !cancelled.mock.calls.some(([id]) => id === intervals.mock.results[index].value))).toHaveLength(0);
+});
