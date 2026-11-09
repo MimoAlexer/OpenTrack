@@ -1,4 +1,4 @@
-import { registerAdmission } from './fixtures';
+import { registerAdmission, pollingFallbackForHeldHttp } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import type { Response } from '@playwright/test';
 import { test, expect } from './fixtures';
@@ -100,7 +100,10 @@ test('palette excludes private controls and refuses team and project suggestions
     expect(privateResponse.status()).toBe(201);
     const hidden = await privateResponse.json() as TeamDetail;
     expect((await saved.http.get(`${saved.path}/teams/${hidden.id}`)).status()).toBe(404);
+    // Keep this stale-suggestion current-read denial distinct from live-stream revocation.
+    await pollingFallbackForHeldHttp(page, saved);
     await saved.open(page);
+    await pollingFallbackForHeldHttp(page, saved);
     await page.goto(`/w/${saved.workspace}/issues?team_id=${team.id}`);
     await expect(page.getByRole('button', { name: /^New issue/ })).toBeEnabled();
     await page.getByRole('button', { name: 'Search commands', exact: true }).click();

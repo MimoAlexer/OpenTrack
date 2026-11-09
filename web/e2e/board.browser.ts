@@ -1,4 +1,4 @@
-import { registerAdmission } from './fixtures';
+import { pollingFallbackForHeldHttp, registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import type { Locator, Page, Request as BrowserRequest, Response as BrowserResponse, Route } from '@playwright/test';
 import { test, expect, SavedWorkspace } from './fixtures';
@@ -85,6 +85,10 @@ test('pointer and keyboard board moves persist only status with one version incr
   expect(moved.request().headers()['if-match']).toBe(issues[0].etag);
   onlyStatusChanged(issues[0], await saved.issue(issues[0].id), target.id);
   await expect(column.locator(`#row-${issues[0].id}`)).toBeVisible();
+  // Begin the independent keyboard journey from a fresh persisted snapshot,
+  // after the pointer mutation rather than during its queued live invalidation.
+  await page.reload();
+  await expect(page.locator(`[data-board-status="${target.id}"] #row-${issues[0].id}`)).toBeVisible();
   const opener = page.getByRole('button', { name: `Move ${issues[1].key}`, exact: true });
   await expect(opener).toBeEnabled(); await opener.focus();
   await page.keyboard.press('Enter');
@@ -323,6 +327,7 @@ for (const recovery of ['automatic', 'Try again', 'Open all issues'] as const) {
       expect(granted.teams.some(value => value.id === control.team.id)).toBe(true);
       expect((await member.get(saved.path + '/issues/' + publicIssue.id)).status()).toBe(200);
       await page.context().clearCookies(); await page.context().addCookies((await member.storageState()).cookies);
+      await pollingFallbackForHeldHttp(page, saved);
       await open(page, saved, { ...filters, status_id: issue.status_id });
       expect(new URL(page.url()).searchParams.get('status_id')).toBe(issue.status_id);
       await expect(page.locator('#row-' + issue.id)).toBeVisible();

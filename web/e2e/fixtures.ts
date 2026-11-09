@@ -135,6 +135,25 @@ export const test = base.extend<Record<never, never>, WorkerFixtures>({
 });
 export { expect };
 
+/** Select the supported polling fallback for a held-HTTP failure-path journey.
+ * Only the first real bootstrap omits its optional cursor. All authorization,
+ * rows and subsequent recovery/bootstrap responses remain authoritative.
+ * Connected realtime journeys must use the unmodified bootstrap instead.
+ */
+export async function pollingFallbackForHeldHttp(page: Page, saved: SavedWorkspace) {
+  await page.route(`${saved.origin}${saved.path}/bootstrap`, async route => {
+    const response = await route.fetch({ maxRetries: 0, maxRedirects: 0 });
+    try {
+      expect(response.status()).toBe(200);
+      const snapshot = await response.json() as Bootstrap & { realtime_cursor?: string | null };
+      expect(typeof snapshot.realtime_cursor).toBe('string');
+      const { realtime_cursor: omittedCursor, ...pollingSnapshot } = snapshot;
+      void omittedCursor;
+      await route.fulfill({ response, json: pollingSnapshot });
+    } finally { await response.dispose(); }
+  }, { times: 1 });
+}
+
 export function registerAdmission(count: number) {
   if (!Number.isInteger(count) || count < 1 || count > 20) throw new Error('Browser admission phase is invalid.');
   let lease = 0;
