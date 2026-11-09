@@ -1,10 +1,12 @@
 # OpenTrack blueprint map
 
+Notification scheduling: [due-work discovery and verification](evidence/2026-11-09-notification-readiness.md).
+
 Saved discovery: [implementation and remaining gates](evidence/2026-11-08-saved-discovery.md); [laptop continuation](LAPTOP_HANDOFF.md).
 
 Current source qualification: [8 November combined filters, realtime and in-app inbox evidence](evidence/2026-11-08-discovery-inbox-integration.md) separates executed checks from pending gates on schema `0034`. Historical integrated qualification: [23 October server, admission and recovery evidence](evidence/2026-10-23-agent5-integrated-qualification.md), including real exhaustion/scanner checks and both native container architectures on schema `0026`. The [22 October started-batch record](evidence/2026-10-22-started-batch.md) retains earlier accepted increments. The user requests continued assigned work until further instructions; [the implementation plan](IMPLEMENTATION_PLAN.md) and [requirements ledger](REQUIREMENTS_STATUS.md) govern scope and incomplete gates.
 
-Planning implementation: the [Projects guide](PROJECTS.md), [milestone model](MILESTONES.md) and [cycle guide](CYCLES.md) cover independent rich briefs/revisions, outcomes, linked issues, local intervals, scope history and explicit close/carry-forward. The current source requires migrations through `0035`. Broader planning, recurrence and product acceptance remain unfinished.
+Planning implementation: the [Projects guide](PROJECTS.md), [milestone model](MILESTONES.md) and [cycle guide](CYCLES.md) cover independent rich briefs/revisions, outcomes, linked issues, local intervals, scope history and explicit close/carry-forward. The current source requires migrations through `0037`. Broader planning, recurrence and product acceptance remain unfinished.
 
 Historical checkpoint: [18 October 2026 project handoff](PROJECT_HANDOFF_2026-10-18.md), including implemented behavior, executed checks and the remaining roadmap. The user resumed complete-product implementation on 20 October 2026; see [the active handoff](../HANDOFF.md). The [GitHub project guide](GITHUB_PROJECT.md) links the project, all 21 milestones and 112 task issues.
 

@@ -27,7 +27,7 @@
 
 Keep issues, projects, discussion, files, and workflows together on your own server. The core runs without an AI account or a paid cloud service. Browser and desktop use the same accounts, permissions, and PostgreSQL data.
 
-**Source checkpoint: schema 35, 9 November 2026.** Saved views and searches, structured issue filters, bounded realtime replay and the durable in-app inbox now compose with project planning. The [combined qualification record](docs/evidence/2026-11-08-discovery-inbox-integration.md) distinguishes executed checks from outstanding acceptance; the [requirements ledger](docs/REQUIREMENTS_STATUS.md) retains the full product's remaining gates.
+**Source checkpoint: schema 37, 9 November 2026.** Saved views and searches, structured issue filters, bounded realtime replay and the durable in-app inbox now compose with project planning. The [combined qualification record](docs/evidence/2026-11-08-discovery-inbox-integration.md) distinguishes executed checks from outstanding acceptance; the [requirements ledger](docs/REQUIREMENTS_STATUS.md) retains the full product's remaining gates.
 
 ## What works today
 

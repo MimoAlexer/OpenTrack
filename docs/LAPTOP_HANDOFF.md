@@ -10,7 +10,7 @@ git pull --ff-only origin main
 git status --short
 ```
 
-For an existing checkout, preserve any local edits before switching branches. Read `AGENTS.md`, `README.md`, `IMPLEMENTATION_PLAN.md` and `REQUIREMENTS_STATUS.md`. The source includes migrations through 0035. Check [PR 174](https://github.com/MimoAlexer/OpenTrack/pull/174) and [PR 175](https://github.com/MimoAlexer/OpenTrack/pull/175) for the exact integration state; a branch or passing local build alone does not establish a merged or complete product.
+For an existing checkout, preserve any local edits before switching branches. Read `AGENTS.md`, `README.md`, `IMPLEMENTATION_PLAN.md` and `REQUIREMENTS_STATUS.md`. The source includes migrations through 0037. Check [PR 174](https://github.com/MimoAlexer/OpenTrack/pull/174) and [PR 175](https://github.com/MimoAlexer/OpenTrack/pull/175) for the exact integration state; a branch or passing local build alone does not establish a merged or complete product.
 
 ## Start a fresh local installation
 

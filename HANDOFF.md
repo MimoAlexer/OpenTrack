@@ -2,7 +2,7 @@
 
 ## Current continuation — 9 November 2026
 
-Use the [laptop continuation guide](docs/LAPTOP_HANDOFF.md) and current README for the schema 0035 source. PRs [174](https://github.com/MimoAlexer/OpenTrack/pull/174) and [175](https://github.com/MimoAlexer/OpenTrack/pull/175) carry the composed discovery/realtime/inbox work; their live GitHub checks and merge state govern integration. PR [173](https://github.com/MimoAlexer/OpenTrack/pull/173) merged source-HTTPS recovery qualification. The complete product remains unfinished.
+Use the [laptop continuation guide](docs/LAPTOP_HANDOFF.md) and current README for the schema 0037 source. PRs [174](https://github.com/MimoAlexer/OpenTrack/pull/174) and [175](https://github.com/MimoAlexer/OpenTrack/pull/175) carry the composed discovery/realtime/inbox work; their live GitHub checks and merge state govern integration. PR [173](https://github.com/MimoAlexer/OpenTrack/pull/173) merged source-HTTPS recovery qualification. The complete product remains unfinished.
 
 Main protection now enforces all four configured checks, current-base status and resolved review conversations, including for administrators. The dated checkpoints below preserve historical settings and must not override current AGENTS.md or GitHub state. Credentials, private databases, attachments, raw logs and local archives remain outside Git.
 
