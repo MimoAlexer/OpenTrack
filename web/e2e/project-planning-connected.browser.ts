@@ -7,9 +7,13 @@ import type { FullProject, Page as ResultPage, ProjectIssue, ProjectProgress, Pr
 import type { ProjectScopeSnapshot } from '../src/projects/ProjectScopeHistory';
 
 async function keyboardActivate(control: Locator) {
-  await expect(control).toBeEnabled();
-  await control.focus();
-  await expect(control).toBeFocused();
+  // A live refresh may disable and blur a control between browser calls.
+  // Reacquire the current enabled control without retrying its activation.
+  await expect.poll(async () => {
+    if (!await control.isEnabled()) return false;
+    await control.focus();
+    return control.evaluate(element => document.activeElement === element && !element.matches(':disabled'));
+  }, { timeout: test.info().project.use.actionTimeout }).toBe(true);
   await control.press('Enter');
 }
 
