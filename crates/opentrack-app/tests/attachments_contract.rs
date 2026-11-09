@@ -789,7 +789,12 @@ async fn real_postgres_attachment_0016_upgrade_preserves_documents() {
         let mut tx = copy.context(a.user.id, w).await;
         let upgraded: Value = sqlx::query_scalar("SELECT to_jsonb(d)-'project_id'-'migrated_initial' FROM documents d WHERE workspace_id=$1 AND issue_id=$2")
             .bind(w).bind(issue.id).fetch_one(&mut *tx).await.unwrap();
-        assert_eq!(upgraded, stored);
+        // 0035 indexes current project briefs here; issue-owned documents keep
+        // an empty vector even with preserved text (issues own their index).
+        let mut expected_stored = stored.clone();
+        expected_stored["search_document"] = json!("");
+        assert_eq!(stored["plain_text"], "Preserved document");
+        assert_eq!(upgraded, expected_stored);
         tx.commit().await.unwrap();
         assert_eq!(
             serde_json::to_value(copy.app.get_issue(&a, w, issue.id).await.unwrap()).unwrap(),

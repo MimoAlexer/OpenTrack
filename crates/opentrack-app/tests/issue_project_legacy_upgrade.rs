@@ -100,19 +100,36 @@ async fn exercise(h: &Harness, version: i64) {
             .max()
             .unwrap()
     );
-    assert_eq!(snapshot(h, &actor, workspace).await, before);
+    // 0035 adds the weighted issue search projection. Compute the expected
+    // value from the original request, never from the generated table column,
+    // while retaining exact comparisons of every original row and side effect.
+    let expected_search: String = sqlx::query_scalar(
+        "SELECT (setweight(to_tsvector('simple'::regconfig,$1),'A') || setweight(to_tsvector('simple'::regconfig,$2),'B'))::text",
+    )
+    .bind(&legacy.title)
+    .bind(&legacy.description)
+    .fetch_one(&h.owner)
+    .await
+    .unwrap();
+    assert_eq!(
+        expected_search,
+        "'issue':5B 'keep':3B 'once':6B 'retry':2A 'this':4B 'upgrade':1A"
+    );
+    let mut expected_current = before.clone();
+    expected_current["issues"][0]["search_document"] = json!(expected_search);
+    assert_eq!(snapshot(h, &actor, workspace).await, expected_current);
     let replay = h
         .app
         .create_issue(&actor, workspace, key, request.clone())
         .await
         .unwrap();
     assert_eq!(replay.id, issue.id);
-    assert_eq!(snapshot(h, &actor, workspace).await, before);
+    assert_eq!(snapshot(h, &actor, workspace).await, expected_current);
 
     request.title = "Different request".into();
     assert!(matches!(
         h.app.create_issue(&actor, workspace, key, request).await,
         Err(Error::Conflict(_))
     ));
-    assert_eq!(snapshot(h, &actor, workspace).await, before);
+    assert_eq!(snapshot(h, &actor, workspace).await, expected_current);
 }
