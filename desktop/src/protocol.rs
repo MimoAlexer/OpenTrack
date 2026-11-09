@@ -1515,6 +1515,7 @@ mod realtime_and_query_tests {
         assert!(query.check().is_ok());
         for (suffix, method, limit) in [
             ("issues/query", Method::Post, 1024 * 1024),
+            ("search/query", Method::Post, 1024 * 1024),
             ("preferences", Method::Patch, 65536),
         ] {
             let overhead = serde_json::to_vec(&serde_json::json!({"value":""}))
@@ -1531,7 +1532,9 @@ mod realtime_and_query_tests {
             assert!(request(method, "issues/query", None).check().is_err());
         }
         for suffix in [
-            "search/query",
+            "search/query/",
+            "search/query/extra",
+            "search/%71uery",
             "issues/query/",
             "issues/query/extra",
             "issues/%71uery",
