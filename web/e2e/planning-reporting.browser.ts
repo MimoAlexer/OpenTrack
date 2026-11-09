@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { devices, type APIRequest, type APIResponse, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { test, expect, SavedWorkspace, registerAdmission } from './fixtures';
+import { test, expect, SavedWorkspace, registerAdmission, pollingFallbackForHeldHttp } from './fixtures';
 import type { Bootstrap, Issue, IssuePage, Session } from '../src/types';
 import type { InvitationIssued, TeamDetail, TeamMember } from '../src/settings/types';
 import type { Workflow } from '../src/workflows/types';
@@ -193,6 +193,7 @@ test('current planning counts match exact authorized rows through exclusions and
 });
 
 test('planning counts retain calculation times through held reads, failures and reviewed refresh', async ({ page, saved }) => {
+  await pollingFallbackForHeldHttp(page, saved);
   const plan = await planning(saved); const gates: Awaited<ReturnType<typeof holdRead>>[] = [];
   try {
     await page.goto(projectUrl(saved, plan));
@@ -217,6 +218,8 @@ test('planning counts retain calculation times through held reads, failures and 
     await page.getByRole('navigation', { name: 'Project sections', exact: true }).getByRole('button', { name: 'Issues', exact: true }).click();
     await expect(page.locator('.project-issue-row').filter({ hasText: plan.issues[0].title }).locator('.project-issue-status')).toHaveText(plan.workflow.statuses.find(status => status.category === 'completed')!.name);
 
+    // This navigation begins a separate held cycle-count read phase.
+    await pollingFallbackForHeldHttp(page, saved);
     await page.goto(cycleUrl(saved, plan)); const scope = page.getByRole('region', { name: 'Cycle scope', exact: true }); await progress(scope, 2, 4, true);
     const cycleTime = await scope.locator('time[data-planning-calculation]').getAttribute('datetime'); const cycleGate = await holdRead(page, `${saved.origin}${saved.path}${plan.cyclePath}/scope`); gates.push(cycleGate);
     await page.getByRole('button', { name: 'Refresh cycle counts', exact: true }).click(); await cycleGate.ready;
@@ -229,6 +232,8 @@ test('planning counts retain calculation times through held reads, failures and 
     await expect(scope.getByRole('row').filter({ hasText: plan.issues[3].title }).getByRole('cell').nth(1)).toHaveText(plan.workflow.statuses.find(status => status.category === 'completed')!.name);
 
     const control = await saved.request<FullProject>(`/teams/${plan.team.id}/projects`, 'POST', { name: `Fresh control ${randomUUID()}` }, { 'Idempotency-Key': randomUUID() });
+    // Preserve the deliberate late HTTP response across navigation below.
+    await pollingFallbackForHeldHttp(page, saved);
     await page.goto(projectUrl(saved, plan)); await progress(project, 3, 4);
     const old = await holdRead(page, `${saved.origin}${saved.path}${plan.projectPath}/progress`); gates.push(old);
     await page.getByRole('button', { name: 'Refresh planning counts', exact: true }).click(); await old.ready;
@@ -266,8 +271,8 @@ test('populated private planning counts disappear after real access revocation w
     expect((await authoritative(viewer, plan)).expected).toMatchObject({ completed: 1, eligible: 4, total: 5 });
     const paths = [`${plan.projectPath}/progress`, `${plan.milestonePath}/progress`, `${plan.cyclePath}/scope`];
     for (const path of paths) expect((await outsider.http.get(`${saved.path}${path}`)).status()).toBe(404);
-    const projectPage = await context.newPage(); await projectPage.goto(projectUrl(saved, plan));
-    const cyclePage = await context.newPage(); await cyclePage.goto(cycleUrl(saved, plan));
+    const projectPage = await context.newPage(); await pollingFallbackForHeldHttp(projectPage, viewer); await projectPage.goto(projectUrl(saved, plan));
+    const cyclePage = await context.newPage(); await pollingFallbackForHeldHttp(cyclePage, viewer); await cyclePage.goto(cycleUrl(saved, plan));
     await progress(projectPage.locator('.project-progress-section'), 1, 4); await progress(projectPage.locator('.milestone-group'), 1, 4);
     await progress(cyclePage.getByRole('region', { name: 'Cycle scope', exact: true }), 1, 4, true);
     const projectGate = await holdRead(projectPage, `${saved.origin}${saved.path}${plan.projectPath}/progress`);
@@ -298,6 +303,7 @@ test('populated private planning counts disappear after real access revocation w
 
 
 test('planning projections show actual validation and fact times while the default worker also clears revoked assignments', async ({ page, playwright, saved, context }) => {
+  await pollingFallbackForHeldHttp(page, saved);
   const plan = await planning(saved);
   await expect.poll(async () => {
     const current = await authoritative(saved, plan);
@@ -308,7 +314,7 @@ test('planning projections show actual validation and fact times while the defau
   const project = page.locator('.project-progress-section');
   const milestone = page.locator('.milestone-group').filter({ has: page.getByRole('heading', { name: plan.milestone.title, exact: true }) });
   await progress(project, 1, 4); await progress(milestone, 1, 4);
-  const cyclePage = await context.newPage(); await cyclePage.goto(cycleUrl(saved, plan));
+  const cyclePage = await context.newPage(); await pollingFallbackForHeldHttp(cyclePage, saved); await cyclePage.goto(cycleUrl(saved, plan));
   const cycle = cyclePage.getByRole('region', { name: 'Cycle scope', exact: true });
   await progress(cycle, 1, 4, true);
   for (const [panel, value] of [[project, projected.project], [milestone, projected.milestone], [cycle, projected.scope]] as const) {
@@ -333,6 +339,8 @@ test('planning projections show actual validation and fact times while the defau
     for (const key of ['project', 'milestone', 'scope'] as const) {
       expect(after[key].calculation_source).toBe('projection'); expect(after[key].facts_as_of).toBe(projected[key].facts_as_of);
     }
+    // Reload starts the held projection refresh failure phase.
+    await pollingFallbackForHeldHttp(page, saved);
     await page.bringToFront(); await page.reload();
     await progress(project, 1, 4); await expect(project).toHaveAttribute('aria-busy', 'false');
     const calculated = await project.locator('time[data-planning-calculation]').getAttribute('datetime');

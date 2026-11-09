@@ -1,13 +1,14 @@
 import { registerAdmission } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import type { Route } from '@playwright/test';
-import { test, expect } from './fixtures';
+import { test, expect, pollingFallbackForHeldHttp } from './fixtures';
 import type { Milestone } from '../src/projects/Milestones';
 import type { FullProject, Page, ProjectIssue } from '../src/projects/types';
 import type { Issue, Session, Team } from '../src/types';
 registerAdmission(1);
 
 test('milestone conflicts preserve relative intent and new milestones; a lost committed response is reconciled without replay', async ({ page, saved }) => {
+  await pollingFallbackForHeldHttp(page, saved);
   const suffix = randomUUID().slice(0, 8);
   const team = await saved.request<Team>('/teams', 'POST', { name: `Move review ${suffix}`, key: `R${suffix.toUpperCase()}`, private: false }, { 'Idempotency-Key': randomUUID() });
   const base = `/teams/${team.id}/projects`;
@@ -20,6 +21,8 @@ test('milestone conflicts preserve relative intent and new milestones; a lost co
     creationTag = (await saved.request<FullProject>(path)).metadata_etag;
   }
   await saved.open(page);
+  // saved.open has its own document; begin the project fault phase separately.
+  await pollingFallbackForHeldHttp(page, saved);
   await page.goto(`/w/${saved.workspace}/projects/${project.id}?team_id=${team.id}`);
   const section = page.getByRole('region', { name: 'Project milestones', exact: true });
   await expect(section.getByRole('heading', { level: 4 })).toHaveText(milestones.map(item => item.title));
@@ -61,6 +64,8 @@ test('milestone conflicts preserve relative intent and new milestones; a lost co
     await review.getByRole('button', { name: 'Done', exact: true }).click();
     await expect(section.getByRole('button', { name: 'Move Third outcome up', exact: true })).toBeFocused();
   } finally { await page.unroute(endpoint, relay); }
+  // The next phase deliberately retains an old order across a held HTTP read.
+  await pollingFallbackForHeldHttp(page, saved);
   await page.reload();
   const finalOrder = [milestones[1], milestones[2], milestones[0], added];
   await expect(section.getByRole('heading', { level: 4 })).toHaveText(finalOrder.map(item => item.title));
@@ -100,6 +105,7 @@ test('milestone conflicts preserve relative intent and new milestones; a lost co
 });
 
 test('project assignment review exhausts pagination, preserves milestone intent and reconciles absence without replay or stale private labels', async ({ page, saved, playwright }) => {
+  await pollingFallbackForHeldHttp(page, saved);
   const suffix = randomUUID().slice(0, 8);
   const invitation = await saved.request<{ token: string }>('/invitations', 'POST', { email: `planning-${randomUUID()}@example.test`, role: 'admin', team_ids: [] }, { 'Idempotency-Key': randomUUID() });
   const admin = await playwright.request.newContext({ baseURL: saved.origin, extraHTTPHeaders: { Origin: saved.origin }, storageState: { cookies: [], origins: [] } });
@@ -122,6 +128,8 @@ test('project assignment review exhausts pagination, preserves milestone intent 
     const target = [...issues].sort((a, b) => a.id.localeCompare(b.id)).at(-1)!;
     const targetBefore = await request<Issue>(`/issues/${target.id}`);
     await saved.open(page);
+    // saved.open has its own document; begin the project fault phase separately.
+    await pollingFallbackForHeldHttp(page, saved);
     await page.goto(`/w/${saved.workspace}/projects/${project.id}?team_id=${team.id}`);
     await expect(page.getByRole('heading', { name: project.name, exact: true })).toBeVisible();
     await page.getByRole('navigation', { name: 'Project sections', exact: true }).getByRole('button', { name: 'Issues', exact: true }).click();
@@ -182,6 +190,8 @@ test('project assignment review exhausts pagination, preserves milestone intent 
       expect(malformed).toBe(1); expect(writes).toHaveLength(3);
       await review.getByRole('button', { name: 'Discard assignment', exact: true }).click();
     } finally { await page.unroute(`${listEndpoint}?*`, corruptDecision); }
+    // Begin the next explicit HTTP recovery phase with its own polling fallback.
+    await pollingFallbackForHeldHttp(page, saved);
     await page.reload();
     await page.getByRole('navigation', { name: 'Project sections', exact: true }).getByRole('button', { name: 'Issues', exact: true }).click();
     await section.getByRole('button', { name: 'Load more issues', exact: true }).click();
@@ -207,6 +217,8 @@ test('project assignment review exhausts pagination, preserves milestone intent 
       await review.getByRole('button', { name: 'Done', exact: true }).click();
       await expect(section).toBeFocused();
     } finally { await page.unroute(membershipEndpoint, relay); }
+    // Begin the next explicit HTTP recovery phase with its own polling fallback.
+    await pollingFallbackForHeldHttp(page, saved);
     await page.reload();
     await page.getByRole('navigation', { name: 'Project sections', exact: true }).getByRole('button', { name: 'Issues', exact: true }).click();
     await expect(section.locator('.project-issue-row')).toHaveCount(50);
