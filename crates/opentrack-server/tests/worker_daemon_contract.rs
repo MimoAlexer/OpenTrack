@@ -379,7 +379,7 @@ async fn default_daemon_dispatches_issue_order_normalization() {
     h.cleanup().await;
 }
 
-async fn measure_discovery(h: &Harness, worker_url: &str) -> (String, Value) {
+async fn measure_discovery(h: &Harness, worker_url: &str) -> Vec<(String, String, Value)> {
     sqlx::raw_sql(
         "CREATE TABLE test_worker_selector_calls(
       id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -412,52 +412,55 @@ async fn measure_discovery(h: &Harness, worker_url: &str) -> (String, Value) {
       AND a.grantee<>c.relowner)")
         .fetch_one(&h.owner).await.unwrap();
     assert!(private, "Selector measurements must remain owner-only");
-    let (definition, body, attributes): (String, String, Value) = sqlx::query_as(
-        "SELECT pg_get_functiondef(p.oid),prosrc,to_jsonb(p)-'prosrc'
-         FROM pg_proc p WHERE oid='worker_ready_workspaces(uuid,integer)'::regprocedure",
-    )
-    .fetch_one(&h.owner)
-    .await
-    .unwrap();
-    assert_eq!(definition.matches(&body).count(), 1);
-    let measured = definition.replacen(
-        &body,
-        &format!(
-        "WITH measurement AS (INSERT INTO test_worker_selector_calls(after_workspace,page_limit)
-         VALUES($1,$2) RETURNING id)\n{body}"
-    ),
-        1,
-    );
-    sqlx::raw_sql(sqlx::AssertSqlSafe(measured))
-        .execute(&h.owner)
+    let mut originals = Vec::new();
+    // Preserve the fixed stage rotation in the probe: notification stages now
+    // discover due scopes through their own single-workspace selectors.
+    for (signature, limit) in [
+        ("worker_ready_workspaces(uuid,integer)", "$2"),
+        ("worker_ready_notification_capture_workspace(uuid)", "1"),
+        ("worker_ready_notification_workspace(uuid)", "1"),
+    ] {
+        let (definition, body, attributes): (String, String, Value) = sqlx::query_as(
+            "SELECT pg_get_functiondef(p.oid),prosrc,to_jsonb(p)-'prosrc' FROM pg_proc p WHERE oid=$1::regprocedure",
+        ).bind(signature).fetch_one(&h.owner).await.unwrap();
+        assert_eq!(definition.matches(&body).count(), 1);
+        let measured = definition.replacen(&body, &format!(
+            "WITH measurement AS (INSERT INTO test_worker_selector_calls(after_workspace,page_limit) VALUES($1,{limit}) RETURNING id)\n{body}"
+        ), 1);
+        sqlx::raw_sql(sqlx::AssertSqlSafe(measured))
+            .execute(&h.owner)
+            .await
+            .unwrap();
+        let current: Value = sqlx::query_scalar(
+            "SELECT to_jsonb(p)-'prosrc' FROM pg_proc p WHERE oid=$1::regprocedure",
+        )
+        .bind(signature)
+        .fetch_one(&h.owner)
         .await
         .unwrap();
-    let current: Value = sqlx::query_scalar(
-        "SELECT to_jsonb(p)-'prosrc' FROM pg_proc p WHERE oid='worker_ready_workspaces(uuid,integer)'::regprocedure",
-    ).fetch_one(&h.owner).await.unwrap();
-    assert!(
-        attributes == current,
-        "Only the isolated selector body may change"
-    );
-    (definition, attributes)
+        assert!(
+            attributes == current,
+            "Only isolated selector bodies may change"
+        );
+        originals.push((signature.to_owned(), definition, attributes));
+    }
+    originals
 }
 
-async fn restore_discovery(h: &Harness, original: &(String, Value)) {
-    sqlx::raw_sql(sqlx::AssertSqlSafe(original.0.clone()))
-        .execute(&h.owner)
-        .await
-        .unwrap();
-    let (definition, attributes): (String, Value) = sqlx::query_as(
-        "SELECT pg_get_functiondef(p.oid),to_jsonb(p)-'prosrc'
-         FROM pg_proc p WHERE oid='worker_ready_workspaces(uuid,integer)'::regprocedure",
-    )
-    .fetch_one(&h.owner)
-    .await
-    .unwrap();
-    assert!(
-        definition == original.0 && attributes == original.1,
-        "Selector definition, authority, search path and ACL must be restored exactly"
-    );
+async fn restore_discovery(h: &Harness, originals: &[(String, String, Value)]) {
+    for (signature, definition, attributes) in originals {
+        sqlx::raw_sql(sqlx::AssertSqlSafe(definition.clone()))
+            .execute(&h.owner)
+            .await
+            .unwrap();
+        let (restored, current): (String, Value) = sqlx::query_as(
+            "SELECT pg_get_functiondef(p.oid),to_jsonb(p)-'prosrc' FROM pg_proc p WHERE oid=$1::regprocedure",
+        ).bind(signature).fetch_one(&h.owner).await.unwrap();
+        assert!(
+            restored == *definition && current == *attributes,
+            "Every selector definition, authority, search path and ACL must be restored exactly"
+        );
+    }
 }
 
 async fn discovery_calls(h: &Harness) -> Vec<DiscoveryCall> {
@@ -646,7 +649,7 @@ fn discovery_receipt(output: &str, calls: &[DiscoveryCall]) -> Value {
     json!({"stages":stages,"selector_calls":calls.iter().map(|call|
         json!({"ordinal":call.0,"db_epoch_us":call.1,"cursor_present":call.2.is_some(),"page_limit":call.3})
     ).collect::<Vec<_>>(),"profile":profile.expect("Actual owned startup diagnostics must be present"),
-        "clock_tolerance_us":100000,"query_stage_mapping":"One owned child's fixed rotation; page20 is Job, page1 follows Capture/Planning/Notifications/NotificationEvents/Retention/DocumentRetention/AttachmentGc. Final in-flight completion may be absent.",
+        "clock_tolerance_us":100000,"query_stage_mapping":"All three selectors instrumented in one owned child: registry page20 is Job; registry page1 plus dedicated single-workspace notification selectors follow Capture/Planning/Notifications/NotificationEvents/Retention/DocumentRetention/AttachmentGc. Final in-flight completion may be absent.",
         "limits":"Instrumented selector calls are not CPU measurements. Database wall-clock gaps allow 100ms clock/observation tolerance; no CPU percentage, throughput or p95 is inferred."})
 }
 
