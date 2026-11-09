@@ -85,14 +85,20 @@ test('manual list and board use one full-group reference for pointer and keyboar
   const empty = page.locator(`[data-order-status="${target.id}"] .issue-board-empty`);
   await position(page, saved, c, target.id, 'append', undefined, () => drag(page, handle(), empty, 'append'));
   expect((await manual(saved, team.id, status.id)).data.map(item => item.id)).toEqual([a.id, h.id]); expect((await manual(saved, team.id, target.id)).data.map(item => item.id)).toEqual([c.id]);
+  // Start the independent keyboard phase from the committed pointer snapshot.
+  await page.reload();
+  await expect(page.locator(`[data-order-status="${target.id}"] #row-${c.id}`)).toBeVisible();
   await page.getByRole('combobox', { name: 'Issue layout', exact: true }).selectOption('list');
   await position(page, saved, c, status.id, 'append', undefined, () => keyboardMove(page, c, status.id, 'append'));
   expect((await manual(saved, team.id, status.id)).data.map(item => item.id)).toEqual([a.id, h.id, c.id]);
+  await page.reload();
+  await expect.poll(() => page.locator('.issue-groups a.issue-row').evaluateAll(nodes => nodes.map(node => node.id))).toEqual([`row-${a.id}`, `row-${c.id}`]);
   await position(page, saved, c, status.id, 'before', a, () => keyboardMove(page, c, status.id, 'before', a));
   expect((await manual(saved, team.id, status.id)).data.map(item => item.id)).toEqual([c.id, a.id, h.id]); expect(await saved.issue(h.id)).toEqual(h);
   await page.reload(); await expect(page.locator('.issue-groups a.issue-row')).toHaveCount(2);
   expect(await page.locator('.issue-groups a.issue-row').evaluateAll(nodes => nodes.map(node => node.id))).toEqual([`row-${c.id}`, `row-${a.id}`]);
   for (const input of ['pointer', 'keyboard'] as const) for (const conflict of [412, 409]) {
+    await pollingFallbackForHeldHttp(page, saved);
     await page.goto(url(saved, team.id, input === 'pointer' ? 'board' : 'list', token)); await expect(page.locator(`#row-${c.id}`)).toBeVisible();
     const current = await saved.issue(c.id); const snapshot = await manual(saved, team.id, status.id); let authoritative: ManualPage | undefined; let canonical: Issue | undefined;
     const concurrent = async () => {
