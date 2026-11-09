@@ -77,7 +77,7 @@ for command in [
 ]:
     statements.append("SELECT '" + command + "' WHERE to_regclass('public.jobs') IS NOT NULL\\gexec")
 # Match App::connect's no-access consumer relations after the broad table grant.
-for table in ['planning_backfills', 'assignment_reconciliations', 'consumer_registrations', 'consumer_checkpoints', 'consumer_receipts', 'consumer_dead_letters', 'consumer_alerts', 'event_retention_state', 'consumer_operations', 'document_retention_operations', 'attachment_storage_operations', 'issue_order_staging', 'document_mentions', 'mention_intents', 'discussion_sources', 'notification_sources', 'notification_backfills']:
+for table in ['planning_backfills', 'assignment_reconciliations', 'consumer_registrations', 'consumer_checkpoints', 'consumer_receipts', 'consumer_dead_letters', 'consumer_alerts', 'event_retention_state', 'consumer_operations', 'document_retention_operations', 'attachment_storage_operations', 'issue_order_staging', 'document_mentions', 'mention_intents', 'discussion_sources', 'notification_sources', 'notification_backfills', 'notification_ready_workspaces']:
     statements.append(f"SELECT 'REVOKE ALL ON public.{table} FROM {runtime}' WHERE to_regclass('public.{table}') IS NOT NULL\\gexec")
 statements.append(f"SELECT 'REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER ON public.planning_issue_facts FROM {runtime}' WHERE to_regclass('public.planning_issue_facts') IS NOT NULL\\gexec")
 # Match migration 0034 after the broad table grant, including recipient-only

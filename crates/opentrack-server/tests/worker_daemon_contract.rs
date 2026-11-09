@@ -1784,3 +1784,89 @@ async fn shutdown_drains_only_the_second_cached_effect_and_starts_no_later_stage
         std::panic::resume_unwind(error.into_panic());
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn default_daemon_publishes_sparse_notification_update_among_idle_workspaces() {
+    use opentrack_domain::{NotificationQuery, NotificationItem};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let h = Harness::new().await;
+    let runner = h.clone();
+    let result = tokio::spawn(async move {
+        let h = &runner;
+        let (actor, scopes, worker_url) = discovery_fixture(h, 40).await;
+        let workspace = scopes[0];
+        let team = h.app.bootstrap(&actor, workspace).await.unwrap().teams[0].id;
+        let recipient = Uuid::new_v4();
+        let email = format!("{recipient}@example.test");
+        let mut tx = h.context(actor.user.id, workspace).await;
+        sqlx::query("INSERT INTO users(id,email,display_name,password_hash) SELECT $1,$2,'Example Recipient',password_hash FROM users WHERE id=$3")
+            .bind(recipient).bind(&email).bind(actor.user.id).execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO workspace_members(workspace_id,user_id,role) VALUES($1,$2,'member')")
+            .bind(workspace).bind(recipient).execute(&mut *tx).await.unwrap();
+        sqlx::query("INSERT INTO team_members(workspace_id,team_id,user_id,role) VALUES($1,$2,$3,'contributor')")
+            .bind(workspace).bind(team).bind(recipient).execute(&mut *tx).await.unwrap();
+        tx.commit().await.unwrap();
+        let (session, cookie) = h.app.login(serde_json::from_value(json!({"email":email,"password":"Discovery daemon contract password 421!"})).unwrap()).await.unwrap();
+        let recipient_actor = h.app.authenticate(&cookie).await.unwrap();
+        h.app.create_issue(&actor, workspace, "sparse-notification-source", serde_json::from_value(json!({"team_id":team,"title":"Sparse notification source","assignee_id":recipient})).unwrap()).await.unwrap();
+        let fixture_worker = Worker::connect(&worker_url, WorkerOptions::default()).await.unwrap();
+        for _ in 0..5 {
+            fixture_worker.capture(workspace).await.unwrap();
+            fixture_worker.apply_planning_events(workspace).await.unwrap();
+            fixture_worker.apply_notification_events(workspace).await.unwrap();
+            fixture_worker.flush_notification_events(workspace).await.unwrap();
+        }
+        fixture_worker.pool.close().await;
+        let notification = h.app.notifications(&recipient_actor, workspace, NotificationQuery::default()).await.unwrap().items.into_iter().next().unwrap();
+        assert_eq!(notification.version, "1");
+        let directory = PrivateDirectory::new();
+        let (mut daemon, log_path) = start_discovery_worker(&directory, &worker_url);
+        let ready_deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            let output = fs::read_to_string(&log_path).unwrap();
+            if output.contains("Worker idle wait started") { break; }
+            assert!(Instant::now() < ready_deadline, "Default worker must enter its idle scan");
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        // A real API process and PATCH exercise the durable personal outbox.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let origin = format!("http://{address}");
+        let state = opentrack_api::ApiState {
+            app: h.app.clone(), attachments: None,
+            origins: std::sync::Arc::new(vec![origin.clone()]), secure_cookie: false,
+            static_dir: std::sync::Arc::new(directory.0.clone()),
+        };
+        struct OwnedApi(tokio::task::JoinHandle<()>);
+        impl Drop for OwnedApi { fn drop(&mut self) { self.0.abort(); } }
+        let api = OwnedApi(tokio::spawn(async move {
+            opentrack_api::serve_with_trusted_proxies(listener, state, vec![], std::future::pending::<()>()).await.unwrap();
+        }));
+        let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
+        let body = r#"{"action":"read"}"#;
+        let started = Instant::now();
+        socket.write_all(format!("PATCH /api/v1/workspaces/{workspace}/notifications/{} HTTP/1.1\r\nHost: {address}\r\nOrigin: {origin}\r\nCookie: opentrack_session={cookie}\r\nX-CSRF-Token: {}\r\nIf-Match: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", notification.id, session.csrf_token, notification.etag, body.len()).as_bytes()).await.unwrap();
+        let mut bytes = Vec::new(); socket.read_to_end(&mut bytes).await.unwrap();
+        assert!(bytes.starts_with(b"HTTP/1.1 200 "), "The real recipient PATCH must commit");
+        let mut published = false;
+        while started.elapsed() < Duration::from_secs(10) {
+            let mut tx = h.context(actor.user.id, workspace).await;
+            published = sqlx::query_scalar("SELECT published_seq IS NOT NULL FROM notification_invalidations WHERE workspace_id=$1 AND user_id=$2 AND notification_id=$3 AND notification_version=2")
+                .bind(workspace).bind(recipient).bind(notification.id).fetch_one(&mut *tx).await.unwrap();
+            tx.commit().await.unwrap();
+            if published { break; }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        let elapsed_ms = started.elapsed().as_millis();
+        stop_discovery_worker(&mut daemon).await;
+        drop(api);
+        let output = fs::read_to_string(log_path).unwrap();
+        let rounds = output.lines().filter(|line| line.contains("NotificationEvents") && line.contains("Worker stage completed")).count();
+        println!("{}", json!({"idle_workspaces":40,"poll_interval_ms":2000,"notification_flush_rounds":rounds,"published":published,"elapsed_ms":elapsed_ms}));
+        let current: NotificationItem = h.app.notifications(&recipient_actor, workspace, NotificationQuery { filter: Some(opentrack_domain::NotificationFilter::All), ..Default::default() }).await.unwrap().items.into_iter().next().unwrap();
+        assert!(current.read_at.is_some());
+        assert!(published, "A due recipient update must publish within the existing ten-second connected UI budget");
+    }).await;
+    h.cleanup().await;
+    if let Err(error) = result { std::panic::resume_unwind(error.into_panic()); }
+}

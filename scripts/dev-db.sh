@@ -152,7 +152,7 @@ for database in ['opentrack', 'opentrack_test']:
         f'REVOKE UPDATE,DELETE,TRUNCATE ON public.issue_order_normalizations,public.issue_order_guards FROM {database}',
     ]:
         print("SELECT '" + command + "' WHERE to_regclass('public.issue_order_staging') IS NOT NULL\\gexec")
-    for table in ['planning_backfills', 'assignment_reconciliations', 'consumer_registrations', 'consumer_checkpoints', 'consumer_receipts', 'consumer_dead_letters', 'consumer_alerts', 'event_retention_state', 'consumer_operations', 'document_retention_operations', 'attachment_storage_operations', 'issue_order_staging', 'document_mentions', 'mention_intents', 'discussion_sources', 'notification_sources', 'notification_backfills']:
+    for table in ['planning_backfills', 'assignment_reconciliations', 'consumer_registrations', 'consumer_checkpoints', 'consumer_receipts', 'consumer_dead_letters', 'consumer_alerts', 'event_retention_state', 'consumer_operations', 'document_retention_operations', 'attachment_storage_operations', 'issue_order_staging', 'document_mentions', 'mention_intents', 'discussion_sources', 'notification_sources', 'notification_backfills', 'notification_ready_workspaces']:
         print(f"SELECT 'REVOKE ALL ON public.{table} FROM {database}' WHERE to_regclass('public.{table}') IS NOT NULL\\gexec")
     print(f"SELECT 'REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER ON public.planning_issue_facts FROM {database}' WHERE to_regclass('public.planning_issue_facts') IS NOT NULL\\gexec")
     # Match migration 0034 after the broad table grant, including recipient-only
