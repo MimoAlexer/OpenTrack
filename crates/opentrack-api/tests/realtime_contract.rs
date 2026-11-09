@@ -1966,3 +1966,43 @@ async fn stalled_sse_watchdog_frees_queued_payload_and_admission_with_old_bodies
         std::panic::resume_unwind(error.into_panic());
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn idle_sse_flushes_a_content_free_first_frame_before_heartbeat() {
+    let h = Harness::new().await;
+    let runner = h.clone();
+    let result = tokio::spawn(async move {
+        let f = setup(&runner).await;
+        let snapshot = bootstrap(&runner.router, &f.owner, &f.base).await;
+        let server = Server::start(runner.router.clone()).await;
+        let mut stream = TcpSse::open(
+            &server,
+            &f.owner,
+            &f.base,
+            snapshot["realtime_cursor"].as_str().unwrap(),
+        )
+        .await;
+        // A quiet workspace must deliver bytes well before the 15-second
+        // heartbeat and the browser acceptance connection deadline.
+        let bytes = tokio::time::timeout(Duration::from_secs(1), async {
+            let mut line = String::new();
+            stream.reader.read_line(&mut line).await.unwrap();
+            let length = usize::from_str_radix(line.trim(), 16).unwrap();
+            assert!(length <= 32, "Initial frame must have a fixed small bound");
+            let mut bytes = vec![0; length + 2];
+            stream.reader.read_exact(&mut bytes).await.unwrap();
+            assert_eq!(&bytes[length..], b"\r\n");
+            bytes.truncate(length);
+            bytes
+        })
+        .await
+        .expect("Idle SSE must flush its first frame immediately");
+        assert_eq!(
+            bytes, b": connected\n\n",
+            "Initial bytes must contain no event, entity or cursor"
+        );
+    })
+    .await;
+    h.cleanup().await;
+    result.unwrap();
+}

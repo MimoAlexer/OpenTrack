@@ -404,6 +404,7 @@ struct BodyState {
     terminal: watch::Receiver<Option<&'static str>>,
     control: Arc<Control>,
     done: bool,
+    started: bool,
 }
 impl Drop for BodyState {
     fn drop(&mut self) {
@@ -588,6 +589,7 @@ pub(crate) async fn events(
         terminal: control.terminal.subscribe(),
         control,
         done: false,
+        started: false,
     };
     let body = stream::unfold(state, |mut state| async move {
         if state.done {
@@ -598,6 +600,16 @@ pub(crate) async fn events(
                 state.delivery.close();
                 state.done = true;
                 return Some((Ok::<_, Infallible>(reset_event(reason)), state));
+            }
+            if !state.started {
+                state.started = true;
+                // Flush the admitted response even when replay is empty. Some
+                // browsers wait for body bytes before resolving fetch headers.
+                // A fixed comment acknowledges no cursor and carries no data.
+                return Some((
+                    Ok::<_, Infallible>(Event::default().comment("connected")),
+                    state,
+                ));
             }
             let frame = tokio::select! {
                 _ = state.terminal.changed() => continue,
