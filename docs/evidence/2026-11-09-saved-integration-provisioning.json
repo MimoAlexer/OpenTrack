@@ -1,0 +1,54 @@
+{
+  "ci": [
+    {
+      "attempt": 1,
+      "migrations": [
+        32,
+        33,
+        34,
+        35
+      ],
+      "sha384_matches": true,
+      "runtime_worker_operator_restricted": true,
+      "worker_operator_saved_table_privileges": false
+    },
+    {
+      "attempt": 2,
+      "migrations": [
+        32,
+        33,
+        34,
+        35
+      ],
+      "sha384_matches": true,
+      "runtime_worker_operator_restricted": true,
+      "worker_operator_saved_table_privileges": false
+    }
+  ],
+  "development": [
+    {
+      "attempt": 1,
+      "migrations": [
+        32,
+        33,
+        34,
+        35
+      ],
+      "sha384_matches": true,
+      "runtime_worker_operator_restricted": true,
+      "worker_operator_saved_table_privileges": false
+    },
+    {
+      "attempt": 2,
+      "migrations": [
+        32,
+        33,
+        34,
+        35
+      ],
+      "sha384_matches": true,
+      "runtime_worker_operator_restricted": true,
+      "worker_operator_saved_table_privileges": false
+    }
+  ]
+}

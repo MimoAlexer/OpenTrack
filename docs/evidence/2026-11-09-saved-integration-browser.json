@@ -1,0 +1,166 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 1512
+    },
+    {
+      "browser": "chromium",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1354
+    },
+    {
+      "browser": "chromium",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 605
+    },
+    {
+      "browser": "chromium",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 707
+    },
+    {
+      "browser": "chromium",
+      "check": "narrow keyboard draft survives realtime reconciliation of a remote version",
+      "status": "passed",
+      "duration_ms": 1207
+    },
+    {
+      "browser": "chromium",
+      "check": "Open revalidates deletion during dropped realtime while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 987
+    },
+    {
+      "browser": "chromium",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 2423
+    },
+    {
+      "browser": "chromium",
+      "check": "realtime updates an open saved directory and remote deletion preserves the draft",
+      "status": "passed",
+      "duration_ms": 1742
+    },
+    {
+      "browser": "firefox",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 3196
+    },
+    {
+      "browser": "firefox",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 2040
+    },
+    {
+      "browser": "firefox",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 951
+    },
+    {
+      "browser": "firefox",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 1350
+    },
+    {
+      "browser": "firefox",
+      "check": "narrow keyboard draft survives realtime reconciliation of a remote version",
+      "status": "passed",
+      "duration_ms": 2267
+    },
+    {
+      "browser": "firefox",
+      "check": "Open revalidates deletion during dropped realtime while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 1471
+    },
+    {
+      "browser": "firefox",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 2959
+    },
+    {
+      "browser": "firefox",
+      "check": "realtime updates an open saved directory and remote deletion preserves the draft",
+      "status": "passed",
+      "duration_ms": 1327
+    },
+    {
+      "browser": "webkit",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 3192
+    },
+    {
+      "browser": "webkit",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 2064
+    },
+    {
+      "browser": "webkit",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 1138
+    },
+    {
+      "browser": "webkit",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 1369
+    },
+    {
+      "browser": "webkit",
+      "check": "narrow keyboard draft survives realtime reconciliation of a remote version",
+      "status": "passed",
+      "duration_ms": 1949
+    },
+    {
+      "browser": "webkit",
+      "check": "Open revalidates deletion during dropped realtime while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 1794
+    },
+    {
+      "browser": "webkit",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 3517
+    },
+    {
+      "browser": "webkit",
+      "check": "realtime updates an open saved directory and remote deletion preserves the draft",
+      "status": "passed",
+      "duration_ms": 1669
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published.",
+  "source_commit": "1ceee2bbfd8d6e66f6667beca7c31b381f88ff3c",
+  "source_tree": "c582dacb51ead25f9df0ae7e61cd17ad9e413d25",
+  "artifact_sha256": {
+    "opentrack-server": "8e706a1a5ad7fb298a314f03a285ded2ce6a56b6dcf3e8e59012a46e89739e8e",
+    "web/dist/assets/RichTextEditor-CkypScPD.js": "696e729ea3285e81b477a3714cae7a84af146fb46cc1ce44af18c09b729dc28c",
+    "web/dist/assets/index-CCKqLnw-.js": "93ee50cdf0f50b35e5129f53998ef1ecf9591ece70bb1a3813f650b545d46341",
+    "web/dist/assets/index-DTvJ34kL.css": "6e90730ac4eff7a3babcfa25999b3f3fb4faef8c6f45f2572465da226eb2c72f",
+    "web/dist/assets/portability.worker-DEvlQVr4.js": "458380312c22af14633f3c83fd1d7886573bafb43c2fe6634577eb385ff5bf5a",
+    "web/dist/index.html": "d08b99a378f86fe368515f750d7fcc549264bca68f0bd96344f87dfbf66c4ab1",
+    "web/dist/theme.js": "ecbfbd71724111e6635040c8b53272f9eebc331228e799f0eaa548672855291e"
+  },
+  "owned_api_worker_stopped": true
+}

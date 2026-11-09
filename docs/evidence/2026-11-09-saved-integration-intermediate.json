@@ -1,0 +1,201 @@
+{
+  "status": "failed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 1732
+    },
+    {
+      "browser": "chromium",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1445
+    },
+    {
+      "browser": "chromium",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 636
+    },
+    {
+      "browser": "chromium",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 959
+    },
+    {
+      "browser": "chromium",
+      "check": "narrow keyboard draft survives realtime reconciliation of a remote version",
+      "status": "passed",
+      "duration_ms": 1365
+    },
+    {
+      "browser": "chromium",
+      "check": "Open revalidates deletion during dropped realtime while denial cancels a delayed real search response",
+      "status": "failed",
+      "duration_ms": 10190,
+      "failure": "fixtures.ts:70",
+      "saved_readiness": {
+        "setup_status": {
+          "state": "completed",
+          "status": 200,
+          "elapsed_ms": 15
+        },
+        "session": {
+          "state": "completed",
+          "status": 200,
+          "elapsed_ms": 9
+        },
+        "bootstrap": {
+          "state": "completed",
+          "status": 200,
+          "elapsed_ms": 19
+        },
+        "access": {
+          "state": "completed",
+          "status": 200,
+          "elapsed_ms": 8
+        }
+      }
+    },
+    {
+      "browser": "chromium",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 3241
+    },
+    {
+      "browser": "chromium",
+      "check": "realtime updates an open saved directory and remote deletion preserves the draft",
+      "status": "passed",
+      "duration_ms": 1342
+    },
+    {
+      "browser": "firefox",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 3512
+    },
+    {
+      "browser": "firefox",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 2086
+    },
+    {
+      "browser": "firefox",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 1023
+    },
+    {
+      "browser": "firefox",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 1320
+    },
+    {
+      "browser": "firefox",
+      "check": "narrow keyboard draft survives realtime reconciliation of a remote version",
+      "status": "passed",
+      "duration_ms": 2121
+    },
+    {
+      "browser": "firefox",
+      "check": "Open revalidates deletion during dropped realtime while denial cancels a delayed real search response",
+      "status": "failed",
+      "duration_ms": 10398,
+      "failure": "fixtures.ts:70",
+      "saved_readiness": {
+        "setup_status": {
+          "state": "completed",
+          "status": 200,
+          "elapsed_ms": 5
+        },
+        "session": {
+          "state": "completed",
+          "status": 200,
+          "elapsed_ms": 9
+        },
+        "bootstrap": {
+          "state": "completed",
+          "status": 200,
+          "elapsed_ms": 18
+        },
+        "access": {
+          "state": "completed",
+          "status": 200,
+          "elapsed_ms": 6
+        }
+      }
+    },
+    {
+      "browser": "firefox",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 3807
+    },
+    {
+      "browser": "firefox",
+      "check": "realtime updates an open saved directory and remote deletion preserves the draft",
+      "status": "passed",
+      "duration_ms": 1583
+    },
+    {
+      "browser": "webkit",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 2761
+    },
+    {
+      "browser": "webkit",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1980
+    },
+    {
+      "browser": "webkit",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 1172
+    },
+    {
+      "browser": "webkit",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 1581
+    },
+    {
+      "browser": "webkit",
+      "check": "narrow keyboard draft survives realtime reconciliation of a remote version",
+      "status": "passed",
+      "duration_ms": 1833
+    },
+    {
+      "browser": "webkit",
+      "check": "Open revalidates deletion during dropped realtime while denial cancels a delayed real search response",
+      "status": "timedOut",
+      "duration_ms": 60034,
+      "failure": "saved-discovery.browser.ts:89"
+    },
+    {
+      "browser": "webkit",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 3209
+    },
+    {
+      "browser": "webkit",
+      "check": "realtime updates an open saved directory and remote deletion preserves the draft",
+      "status": "passed",
+      "duration_ms": 1637
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}

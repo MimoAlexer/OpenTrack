@@ -1,0 +1,156 @@
+{
+  "status": "failed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 1748
+    },
+    {
+      "browser": "chromium",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1198
+    },
+    {
+      "browser": "chromium",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 635
+    },
+    {
+      "browser": "chromium",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 904
+    },
+    {
+      "browser": "chromium",
+      "check": "narrow keyboard draft survives realtime reconciliation of a remote version",
+      "status": "passed",
+      "duration_ms": 1225
+    },
+    {
+      "browser": "chromium",
+      "check": "Open revalidates remote narrowing and deletion while denial cancels a delayed real search response",
+      "status": "failed",
+      "duration_ms": 10842,
+      "failure": "saved-discovery.browser.ts:104"
+    },
+    {
+      "browser": "chromium",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 2556
+    },
+    {
+      "browser": "chromium",
+      "check": "realtime updates an open saved directory and remote deletion preserves the draft",
+      "status": "passed",
+      "duration_ms": 962
+    },
+    {
+      "browser": "firefox",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 3007
+    },
+    {
+      "browser": "firefox",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1708
+    },
+    {
+      "browser": "firefox",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 960
+    },
+    {
+      "browser": "firefox",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 990
+    },
+    {
+      "browser": "firefox",
+      "check": "narrow keyboard draft survives realtime reconciliation of a remote version",
+      "status": "passed",
+      "duration_ms": 1503
+    },
+    {
+      "browser": "firefox",
+      "check": "Open revalidates remote narrowing and deletion while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 1297
+    },
+    {
+      "browser": "firefox",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 2829
+    },
+    {
+      "browser": "firefox",
+      "check": "realtime updates an open saved directory and remote deletion preserves the draft",
+      "status": "passed",
+      "duration_ms": 1280
+    },
+    {
+      "browser": "webkit",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 2564
+    },
+    {
+      "browser": "webkit",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1571
+    },
+    {
+      "browser": "webkit",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 1242
+    },
+    {
+      "browser": "webkit",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 1526
+    },
+    {
+      "browser": "webkit",
+      "check": "narrow keyboard draft survives realtime reconciliation of a remote version",
+      "status": "passed",
+      "duration_ms": 1757
+    },
+    {
+      "browser": "webkit",
+      "check": "Open revalidates remote narrowing and deletion while denial cancels a delayed real search response",
+      "status": "failed",
+      "duration_ms": 11326,
+      "failure": "saved-discovery.browser.ts:104"
+    },
+    {
+      "browser": "webkit",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 3029
+    },
+    {
+      "browser": "webkit",
+      "check": "realtime updates an open saved directory and remote deletion preserves the draft",
+      "status": "passed",
+      "duration_ms": 1560
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}
