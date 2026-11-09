@@ -1041,10 +1041,22 @@ async fn upgrade(h: &Harness) {
         .bind(workspace).fetch_all(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
     store::MIGRATOR.run(&h.owner).await.unwrap();
-    // 0016 adds the canonical initial document projection. Preserve a full-row
-    // comparison so no unrelated assignment or issue changes are hidden.
+    // 0016 adds the initial document projection, 0027 the canonical rank, and
+    // 0035 the weighted search projection. Derive the known fixture's search
+    // expectation independently of the generated column, retaining full-row
+    // equality so no unrelated assignment or issue changes are hidden.
+    let expected_search: String = sqlx::query_scalar(
+        "SELECT setweight(to_tsvector('simple'::regconfig,'Bounded cleanup fixture'),'A')::text",
+    )
+    .fetch_one(&h.owner)
+    .await
+    .unwrap();
+    assert_eq!(expected_search, "'bounded':1A 'cleanup':2A 'fixture':3A");
     let mut expected_current = old.clone();
     for issue in &mut expected_current {
+        assert_eq!(issue["title"], "Bounded cleanup fixture");
+        assert_eq!(issue["description"], "");
+        issue["search_document"] = json!(expected_search);
         issue["body_version"] = json!(1);
         let rank = ranks
             .iter()
