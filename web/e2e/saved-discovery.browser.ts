@@ -86,7 +86,10 @@ test('narrow keyboard draft survives realtime reconciliation of a remote version
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 
-test('Open revalidates remote narrowing and deletion while denial cancels a delayed real search response',async({page,saved})=>{
+test('Open revalidates deletion during dropped realtime while denial cancels a delayed real search response',async({page,saved})=>{
+  // Exercise explicit revalidation with unavailable live delivery. The separate
+  // realtime journey requires automatic removal with the real stream connected.
+  await page.route('**/events',route=>route.abort('connectionfailed'));
   const title=`Fresh open ${randomUUID()}`,token=`pending${randomUUID().replaceAll('-','')}`;
   const issue=await saved.create(`Delayed authorized result ${randomUUID()}`,paragraph(token));await saved.patch(issue,{priority:1});
   const current=await saved.request<Saved>('/views','POST',{name:title,kind:'view',visibility:'workspace',definition:{query:{version:1,filter:null},layout:'list',group_by:'status',columns:['key','title']}},{'Idempotency-Key':randomUUID()});
