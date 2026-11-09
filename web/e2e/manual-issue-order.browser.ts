@@ -1,4 +1,4 @@
-import { registerAdmission } from './fixtures';
+import { registerAdmission, pollingFallbackForHeldHttp } from './fixtures';
 import { createHash, randomUUID } from 'node:crypto';
 import type { TiptapEditorHTMLElement } from '@tiptap/core';
 import { readFileSync } from 'node:fs';
@@ -184,6 +184,8 @@ test('an unknown position survives authority refresh with its exact request and 
     const privateStage = `Confidential position stage ${token}`;
     flow = await adminRequest<Workflow>(`/teams/${publicTeam.id}/statuses/${initial.id}`, 'PATCH', { name: privateStage }, { 'If-Match': `"workflow:${publicTeam.id}:${flow.version}:true"` });
     const deniedIssue = await adminRequest<Issue>('/issues', 'POST', { team_id: publicTeam.id, status_id: initial.id, title: `Confidential position issue ${token}` }, { 'Idempotency-Key': randomUUID() });
+    // Exercise the stale-client HTTP denial while access/workflow refreshes are deliberately held.
+    await pollingFallbackForHeldHttp(page, saved);
     await page.goto(url(saved, publicTeam.id, 'board')); await page.getByRole('button', { name: `Position ${deniedIssue.key}`, exact: true }).click();
     const review = page.getByRole('dialog', { name: `Position ${deniedIssue.key}`, exact: true }); await expect(review.getByRole('button', { name: 'Apply reviewed position', exact: true })).toBeEnabled();
     privateEndpoint = `${new URL(saved.origin).origin}${saved.path}/issues/${deniedIssue.id}/position`; accessEndpoint = `${new URL(saved.origin).origin}${saved.path}/access`; workflowEndpoint = `${new URL(saved.origin).origin}${saved.path}/teams/${publicTeam.id}/workflow`; sessionEndpoint = `${new URL(saved.origin).origin}/api/v1/auth/session`;
