@@ -1,0 +1,247 @@
+{
+  "source_commit": "8c5a77c89da6dedc944ba4ae177ef3ab73156ec9",
+  "environment": "Disposable local PostgreSQL 18, real API and restricted worker; canonical browser guards, one worker, zero retries",
+  "fixture": "Fresh canonical three-engine manual-order preparation: 501 rows per synthetic team, actual worker partial staging of 100, requester access loss and resumable blocked state; private manifest retained outside Git",
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "pointer and keyboard board moves persist only status with one version increment",
+      "status": "passed",
+      "duration_ms": 1176
+    },
+    {
+      "browser": "chromium",
+      "check": "connected private board authority: automatic reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 2433
+    },
+    {
+      "browser": "chromium",
+      "check": "connected private board authority: Try again reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 2895
+    },
+    {
+      "browser": "chromium",
+      "check": "connected private board authority: Open all issues reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 2549
+    },
+    {
+      "browser": "chromium",
+      "check": "an unknown position survives authority refresh with its exact request and conceals an actually denied private source",
+      "status": "passed",
+      "duration_ms": 3393
+    },
+    {
+      "browser": "chromium",
+      "check": "canonical recipient stream refreshes inbox, unread badge and source preview before revocation clears private data",
+      "status": "passed",
+      "duration_ms": 6231
+    },
+    {
+      "browser": "chromium",
+      "check": "palette excludes private controls and refuses team and project suggestions after visibility is revoked",
+      "status": "passed",
+      "duration_ms": 2409
+    },
+    {
+      "browser": "chromium",
+      "check": "planning counts retain calculation times through held reads, failures and reviewed refresh",
+      "status": "passed",
+      "duration_ms": 1768
+    },
+    {
+      "browser": "chromium",
+      "check": "populated private planning counts disappear after real access revocation without stale resurrection",
+      "status": "passed",
+      "duration_ms": 4554
+    },
+    {
+      "browser": "chromium",
+      "check": "planning projections show actual validation and fact times while the default worker also clears revoked assignments",
+      "status": "passed",
+      "duration_ms": 5765
+    },
+    {
+      "browser": "chromium",
+      "check": "milestone conflicts preserve relative intent and new milestones; a lost committed response is reconciled without replay",
+      "status": "passed",
+      "duration_ms": 1427
+    },
+    {
+      "browser": "chromium",
+      "check": "project assignment review exhausts pagination, preserves milestone intent and reconciles absence without replay or stale private labels",
+      "status": "passed",
+      "duration_ms": 5927
+    },
+    {
+      "browser": "chromium",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 1478
+    },
+    {
+      "browser": "firefox",
+      "check": "pointer and keyboard board moves persist only status with one version increment",
+      "status": "passed",
+      "duration_ms": 2035
+    },
+    {
+      "browser": "firefox",
+      "check": "connected private board authority: automatic reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 2648
+    },
+    {
+      "browser": "firefox",
+      "check": "connected private board authority: Try again reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 3256
+    },
+    {
+      "browser": "firefox",
+      "check": "connected private board authority: Open all issues reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 2717
+    },
+    {
+      "browser": "firefox",
+      "check": "an unknown position survives authority refresh with its exact request and conceals an actually denied private source",
+      "status": "passed",
+      "duration_ms": 3799
+    },
+    {
+      "browser": "firefox",
+      "check": "canonical recipient stream refreshes inbox, unread badge and source preview before revocation clears private data",
+      "status": "passed",
+      "duration_ms": 5409
+    },
+    {
+      "browser": "firefox",
+      "check": "palette excludes private controls and refuses team and project suggestions after visibility is revoked",
+      "status": "passed",
+      "duration_ms": 2512
+    },
+    {
+      "browser": "firefox",
+      "check": "planning counts retain calculation times through held reads, failures and reviewed refresh",
+      "status": "passed",
+      "duration_ms": 2191
+    },
+    {
+      "browser": "firefox",
+      "check": "populated private planning counts disappear after real access revocation without stale resurrection",
+      "status": "passed",
+      "duration_ms": 4416
+    },
+    {
+      "browser": "firefox",
+      "check": "planning projections show actual validation and fact times while the default worker also clears revoked assignments",
+      "status": "passed",
+      "duration_ms": 8238
+    },
+    {
+      "browser": "firefox",
+      "check": "milestone conflicts preserve relative intent and new milestones; a lost committed response is reconciled without replay",
+      "status": "passed",
+      "duration_ms": 2044
+    },
+    {
+      "browser": "firefox",
+      "check": "project assignment review exhausts pagination, preserves milestone intent and reconciles absence without replay or stale private labels",
+      "status": "passed",
+      "duration_ms": 6756
+    },
+    {
+      "browser": "firefox",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 2262
+    },
+    {
+      "browser": "webkit",
+      "check": "pointer and keyboard board moves persist only status with one version increment",
+      "status": "passed",
+      "duration_ms": 1765
+    },
+    {
+      "browser": "webkit",
+      "check": "connected private board authority: automatic reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 2740
+    },
+    {
+      "browser": "webkit",
+      "check": "connected private board authority: Try again reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 3131
+    },
+    {
+      "browser": "webkit",
+      "check": "connected private board authority: Open all issues reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 2955
+    },
+    {
+      "browser": "webkit",
+      "check": "an unknown position survives authority refresh with its exact request and conceals an actually denied private source",
+      "status": "passed",
+      "duration_ms": 3651
+    },
+    {
+      "browser": "webkit",
+      "check": "canonical recipient stream refreshes inbox, unread badge and source preview before revocation clears private data",
+      "status": "passed",
+      "duration_ms": 5168
+    },
+    {
+      "browser": "webkit",
+      "check": "palette excludes private controls and refuses team and project suggestions after visibility is revoked",
+      "status": "passed",
+      "duration_ms": 2825
+    },
+    {
+      "browser": "webkit",
+      "check": "planning counts retain calculation times through held reads, failures and reviewed refresh",
+      "status": "passed",
+      "duration_ms": 2379
+    },
+    {
+      "browser": "webkit",
+      "check": "populated private planning counts disappear after real access revocation without stale resurrection",
+      "status": "passed",
+      "duration_ms": 4876
+    },
+    {
+      "browser": "webkit",
+      "check": "planning projections show actual validation and fact times while the default worker also clears revoked assignments",
+      "status": "passed",
+      "duration_ms": 5825
+    },
+    {
+      "browser": "webkit",
+      "check": "milestone conflicts preserve relative intent and new milestones; a lost committed response is reconciled without replay",
+      "status": "passed",
+      "duration_ms": 2035
+    },
+    {
+      "browser": "webkit",
+      "check": "project assignment review exhausts pagination, preserves milestone intent and reconciles absence without replay or stale private labels",
+      "status": "passed",
+      "duration_ms": 6435
+    },
+    {
+      "browser": "webkit",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 2595
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}
