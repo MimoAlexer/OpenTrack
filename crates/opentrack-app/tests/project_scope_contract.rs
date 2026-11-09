@@ -332,7 +332,7 @@ async fn agreement_never_captures_only_the_first_page_of_an_oversized_scope() {
         let template = issue(&h, &a, w, t, json!({"title":"Bulk scope fixture"})).await;
         let mut tx = h.context(a.user.id, w).await;
         sqlx::query("SET LOCAL statement_timeout='20s'").execute(&mut *tx).await.unwrap();
-        let ids: Vec<Uuid> = sqlx::query_scalar("WITH source AS (SELECT * FROM issues WHERE workspace_id=$1 AND id=$2), generated AS (SELECT gen_random_uuid() AS id,n FROM generate_series(10000,11000) n), cloned AS (INSERT INTO issues SELECT (jsonb_populate_record(NULL::issues,to_jsonb(source)||jsonb_build_object('id',generated.id,'number',generated.n))).* FROM source CROSS JOIN generated RETURNING id) SELECT array_agg(id) FROM cloned")
+        let ids: Vec<Uuid> = sqlx::query_scalar("WITH source AS (SELECT * FROM issues WHERE workspace_id=$1 AND id=$2), generated AS (SELECT gen_random_uuid() AS id,n FROM generate_series(10000,11000) n), cloned AS (INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,description,status_id,priority,assignee_id,estimate,due_date,version,archived_at,deleted_at,created_at,updated_at,parent_id,body_version,rank) SELECT generated.id,source.workspace_id,source.team_id,source.created_by_user_id,generated.n,source.title,source.description,source.status_id,source.priority,source.assignee_id,source.estimate,source.due_date,source.version,source.archived_at,source.deleted_at,source.created_at,source.updated_at,source.parent_id,source.body_version,source.rank FROM source CROSS JOIN generated RETURNING id) SELECT array_agg(id) FROM cloned")
             .bind(w).bind(template.id).fetch_one(&mut *tx).await.unwrap();
         assert_eq!(ids.len(),1001);
         sqlx::query("INSERT INTO project_issues(workspace_id,team_id,project_id,issue_id) SELECT $1,$2,$3,i FROM unnest($4::uuid[]) i")
@@ -594,7 +594,7 @@ async fn check_scope_plan(h: Harness) {
         .execute(&mut *tx)
         .await
         .unwrap();
-    sqlx::query("INSERT INTO issues SELECT (jsonb_populate_record(NULL::issues,to_jsonb(i)||jsonb_build_object('id',gen_random_uuid(),'number',n))).* FROM issues i, generate_series(10000,13999) n WHERE i.workspace_id=$1 AND i.id=$2")
+    sqlx::query("INSERT INTO issues(id,workspace_id,team_id,created_by_user_id,number,title,description,status_id,priority,assignee_id,estimate,due_date,version,archived_at,deleted_at,created_at,updated_at,parent_id,body_version,rank) SELECT gen_random_uuid(),i.workspace_id,i.team_id,i.created_by_user_id,n,i.title,i.description,i.status_id,i.priority,i.assignee_id,i.estimate,i.due_date,i.version,i.archived_at,i.deleted_at,i.created_at,i.updated_at,i.parent_id,i.body_version,i.rank FROM issues i, generate_series(10000,13999) n WHERE i.workspace_id=$1 AND i.id=$2")
             .bind(w).bind(i.id).execute(&mut *tx).await.unwrap();
     sqlx::query("INSERT INTO project_issues(workspace_id,team_id,project_id,issue_id)
                      SELECT workspace_id,team_id,$3,id FROM issues WHERE workspace_id=$1 AND team_id=$2 AND number BETWEEN 10000 AND 10999")
