@@ -1,5 +1,6 @@
 """Real Compose event-admission qualification for the disposable smoke project."""
 from contextlib import contextmanager
+from datetime import datetime
 import json
 import re
 import urllib.parse
@@ -7,15 +8,36 @@ from uuid import UUID, uuid4
 
 
 def _required_consumers(registrations, require):
-    expected = {("assignment_cleanup", 1), ("planning_counts", 1)}
-    require(len(registrations) == 2
+    expected = {("assignment_cleanup", 1), ("planning_counts", 1), ("notifications", 1)}
+    require(len(registrations) == 3
             and {(row["consumer_name"], row["consumer_version"]) for row in registrations} == expected
             and all(type(row["consumer_version"]) is int and row["required"] is True
                     and type(row["enabled"]) is bool for row in registrations),
-            "Qualification requires exactly the actual assignment and planning consumers")
+            "Qualification requires exactly the actual assignment, planning and notification consumers")
     result = {row["consumer_name"]: row for row in registrations}
     require(result["planning_counts"]["enabled"], "The actual planning consumer must be enabled")
+    require(result["notifications"]["enabled"], "The actual notification consumer must be enabled")
     return result
+
+
+def _notification_status(value, require):
+    require(isinstance(value, dict) and set(value) == {"pending", "blocked"}
+            and type(value["pending"]) is int and 0 <= value["pending"] <= 9223372036854775807
+            and isinstance(value["blocked"], list) and len(value["blocked"]) <= min(50, value["pending"]),
+            "Notification status did not preserve bounded redacted counts")
+    for row in value["blocked"]:
+        require(isinstance(row, dict) and set(row) == {"notification_id", "notification_version", "attempts", "available_at"}
+                and isinstance(row["notification_id"], str)
+                and re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", row["notification_id"])
+                and type(row["notification_version"]) is int and 1 <= row["notification_version"] <= 9223372036854775807
+                and type(row["attempts"]) is int and 0 <= row["attempts"] <= 2147483647
+                and isinstance(row["available_at"], str),
+                "Notification status exposed invalid or unredacted blocked work")
+        try:
+            timestamp = datetime.fromisoformat(row["available_at"])
+        except ValueError:
+            require(False, "Notification status has an invalid retry timestamp")
+        require(timestamp.tzinfo is not None, "Notification retry timestamp requires a timezone")
 
 
 @contextmanager
@@ -82,13 +104,14 @@ def qualify(q, base, issue_path, require):
     def status():
         result = operator("operator-consumer-status")
         require(set(result) == {"workspace_id", "head_seq", "purged_through_seq", "registrations",
-                                "dead_letters", "failed_jobs", "oldest_pending_at", "event_admission"}
+                                "dead_letters", "failed_jobs", "oldest_pending_at", "event_admission", "notification_invalidations"}
                 and set(result["event_admission"]) == {
                     "max_pending_events", "max_retained_event_bytes", "retained_event_bytes",
                     "remaining_event_bytes", "minimum_event_bytes", "pending_events", "admission_blocked",
                     "admission_reason", "accounting"}
                 and result["event_admission"]["accounting"] == "logical_v1",
                 "Operator CLI status did not preserve its redacted logical-accounting contract")
+        _notification_status(result["notification_invalidations"], require)
         for collection, fields in (
                 ("registrations", {"consumer_name", "consumer_version", "required", "enabled", "last_seq", "backfill_job_id", "lag"}),
                 ("dead_letters", {"id", "consumer_name", "consumer_version", "seq", "event_type", "schema_version", "attempts", "state", "error_code", "created_at", "available_at"}),
@@ -109,7 +132,9 @@ def qualify(q, base, issue_path, require):
           'backfill',(SELECT backfill_job_id IS NOT NULL FROM consumer_checkpoints WHERE workspace_id=h.workspace_id AND consumer_name='assignment_cleanup' AND consumer_version=1),
           'planning_checkpoint',(SELECT last_seq FROM consumer_checkpoints WHERE workspace_id=h.workspace_id AND consumer_name='planning_counts' AND consumer_version=1),
           'planning_backfill',(SELECT backfill_job_id IS NOT NULL FROM consumer_checkpoints WHERE workspace_id=h.workspace_id AND consumer_name='planning_counts' AND consumer_version=1),
-          'jobs',(SELECT count(*) FROM jobs WHERE workspace_id=h.workspace_id AND kind IN('assignment.reconcile','planning.backfill') AND state<>'succeeded'))
+          'notification_checkpoint',(SELECT last_seq FROM consumer_checkpoints WHERE workspace_id=h.workspace_id AND consumer_name='notifications' AND consumer_version=1),
+          'notification_backfill',(SELECT backfill_job_id IS NOT NULL FROM consumer_checkpoints WHERE workspace_id=h.workspace_id AND consumer_name='notifications' AND consumer_version=1),
+          'jobs',(SELECT count(*) FROM jobs WHERE workspace_id=h.workspace_id AND kind IN('assignment.reconcile','planning.backfill','notification.backfill') AND state<>'succeeded'))
           FROM workspace_stream_heads h LEFT JOIN workspace_events e USING(workspace_id)
           WHERE h.workspace_id='{workspace}' GROUP BY h.workspace_id"""))
         require(result["exact"] and result["bytes"] == result["sum"],
@@ -122,7 +147,9 @@ def qualify(q, base, issue_path, require):
                   "issue_subscriptions", "subscription_events", "issue_template_sources",
                   "idempotency_records", "activity_entries", "audit_entries", "workspace_events",
                   "workspace_stream_heads", "workspace_auth_guards", "consumer_operations",
-                  "consumer_checkpoints", "consumer_receipts", "planning_issue_facts", "planning_backfills")
+                  "consumer_checkpoints", "consumer_receipts", "planning_issue_facts", "planning_backfills",
+                  "notification_heads", "notification_preferences", "notifications", "notification_invalidations",
+                  "notification_sources", "notification_backfills")
         fields = [f"'workspace',(SELECT to_jsonb(t) FROM workspaces t WHERE id='{workspace}')"]
         fields += [f"'{table}',(SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]') FROM {table} t WHERE workspace_id='{workspace}')"
                    for table in tables]
@@ -171,8 +198,8 @@ def qualify(q, base, issue_path, require):
         for _ in range(20):
             once()
             result = metrics()
-            if (result["checkpoint"] == result["planning_checkpoint"] == result["head"]
-                    and result["backfill"] and result["planning_backfill"] and result["jobs"] == 0):
+            if (result["checkpoint"] == result["planning_checkpoint"] == result["notification_checkpoint"] == result["head"]
+                    and result["backfill"] and result["planning_backfill"] and result["notification_backfill"] and result["jobs"] == 0):
                 return result
         raise RuntimeError("Bounded actual worker polls did not drain the fixture")
 
@@ -294,6 +321,8 @@ def qualify(q, base, issue_path, require):
                     "Disabled required capture or retention discarded uncaptured work")
             require(advanced["planning_checkpoint"] == pinned["head"] and advanced["planning_backfill"],
                     "The enabled planning consumer did not apply the retained event independently")
+            require(advanced["notification_checkpoint"] == pinned["head"] and advanced["notification_backfill"],
+                    "The enabled notification consumer did not capture the retained event independently")
             key, body = candidate("disabled retry")
             blocked(key, body)
             limits(1, pinned["bytes"], "Require exact retained byte reclamation")
@@ -304,8 +333,8 @@ def qualify(q, base, issue_path, require):
             require(reclaimed["checkpoint"] == pinned["head"] and reclaimed["floor"] == pinned["head"]
                     and reclaimed["count"] == 0 and reclaimed["bytes"] == 0,
                     "Re-enabled actual worker did not capture and reclaim the exact aged charge")
-            require(q.sql(f"""SELECT count(*)=2 AND bool_and(job_id IS NULL AND consumer_version=1
-              AND ((consumer_name='assignment_cleanup' AND state='ignored') OR (consumer_name='planning_counts' AND state='applied')))
+            require(q.sql(f"""SELECT count(*)=3 AND bool_and(job_id IS NULL AND consumer_version=1
+              AND ((consumer_name='assignment_cleanup' AND state='ignored') OR (consumer_name='planning_counts' AND state='applied') OR (consumer_name='notifications' AND state='ignored')))
               FROM consumer_receipts WHERE workspace_id='{workspace}' AND event_id='{event['id']}' AND seq={event['seq']}""") == "t",
                     "Actual consumers did not persist their independent capture and apply receipts")
             recover(key, body)
