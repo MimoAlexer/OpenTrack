@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Boundary and cleanup regressions; no Docker, database or HTTP acceptance."""
+import copy
 import importlib.util
 from pathlib import Path
 import subprocess
@@ -26,7 +27,7 @@ def require(condition, message):
 class ConsumerRegistrations(unittest.TestCase):
     def registrations(self):
         return [{"consumer_name": name, "consumer_version": 1, "required": True, "enabled": True}
-                for name in ("assignment_cleanup", "planning_counts")]
+                for name in ("assignment_cleanup", "planning_counts", "notifications")]
 
     def test_exact_real_consumers_and_assignment_state(self):
         rows = self.registrations()
@@ -47,6 +48,44 @@ class ConsumerRegistrations(unittest.TestCase):
             with self.subTest(key=key, value=value), self.assertRaises(RuntimeError):
                 module._required_consumers(rows, require)
 
+
+    def test_notification_consumer_must_be_present_and_enabled(self):
+        for rows in (self.registrations()[:2], self.registrations()):
+            if len(rows) == 3:
+                rows[2]["enabled"] = False
+            with self.subTest(rows=rows), self.assertRaises(RuntimeError):
+                module._required_consumers(rows, require)
+
+
+class NotificationStatus(unittest.TestCase):
+    def receipt(self):
+        return {"pending": 1, "blocked": [{"notification_id": "12345678-abcd-4123-8123-123456789abc",
+                "notification_version": 1, "attempts": 3, "available_at": "2026-11-09T12:00:00+00:00"}]}
+
+    def test_valid_empty_and_blocked_status(self):
+        for value in ({"pending": 0, "blocked": []}, self.receipt()):
+            module._notification_status(value, require)
+
+    def test_rejects_extra_secret_fields_and_invalid_counts(self):
+        for field, value in (("pending", True), ("pending", -1), ("pending", "1"),
+                             ("blocked", {}), ("blocked", self.receipt()["blocked"] * 51),
+                             ("secret", "redacted")):
+            receipt = self.receipt()
+            receipt[field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(RuntimeError):
+                module._notification_status(receipt, require)
+        for field, value in (("notification_id", "invalid"), ("notification_version", 0),
+                             ("notification_version", True), ("notification_version", 2**63),
+                             ("attempts", -1), ("attempts", True), ("attempts", 2**31),
+                             ("available_at", "invalid"), ("available_at", "2026-11-09T12:00:00"), ("body", "private")):
+            receipt = copy.deepcopy(self.receipt())
+            receipt["blocked"][0][field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(RuntimeError):
+                module._notification_status(receipt, require)
+        receipt = self.receipt()
+        receipt["pending"] = 0
+        with self.assertRaises(RuntimeError):
+            module._notification_status(receipt, require)
 
 class SourceBoundaries(unittest.TestCase):
     def test_smoke_cli_loads_in_isolated_python(self):
