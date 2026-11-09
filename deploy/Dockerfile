@@ -16,6 +16,7 @@ WORKDIR /build/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY web/ ./
+COPY crates/opentrack-domain/tests/fixtures/issue-query-v1.json /build/crates/opentrack-domain/tests/fixtures/issue-query-v1.json
 RUN npm run build
 
 FROM rust:1.98.1-bookworm@sha256:93ce27a88655056a51dbdd8f5f2d7ddc071c7b0070fb288a37b5a285fc83971e AS server
