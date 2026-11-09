@@ -89,11 +89,11 @@ test('narrow keyboard draft survives realtime reconciliation of a remote version
 test('Open revalidates deletion during dropped realtime while denial cancels a delayed real search response',async({page,saved})=>{
   // Exercise explicit revalidation with unavailable live delivery. The separate
   // realtime journey requires automatic removal with the real stream connected.
-  await page.route('**/events',route=>route.abort('connectionfailed'));
   const title=`Fresh open ${randomUUID()}`,token=`pending${randomUUID().replaceAll('-','')}`;
   const issue=await saved.create(`Delayed authorized result ${randomUUID()}`,paragraph(token));await saved.patch(issue,{priority:1});
   const current=await saved.request<Saved>('/views','POST',{name:title,kind:'view',visibility:'workspace',definition:{query:{version:1,filter:null},layout:'list',group_by:'status',columns:['key','title']}},{'Idempotency-Key':randomUUID()});
-  await saved.open(page);await page.locator('.discovery > summary').click();
+  await saved.open(page);
+  await page.locator('.discovery > summary').click();
   const directory=page.getByRole('region',{name:'Saved views',exact:true});await expect(directory.getByRole('button',{name:title,exact:true})).toBeVisible();
   const filter={kind:'predicate',field:'priority',op:'eq',value:1};
   const narrowed=await saved.request<Saved>(`/views/${current.id}`,'PATCH',{name:title,kind:'view',visibility:'workspace',team_id:null,definition:{...current.definition!,query:{...current.definition!.query,filter}}},{'If-Match':current.etag,'Idempotency-Key':randomUUID()});
@@ -103,6 +103,8 @@ test('Open revalidates deletion during dropped realtime while denial cancels a d
   const gate=new Promise<void>(r=>{release=r;}),fetched=new Promise<void>(r=>{started=r;}),settled=new Promise<void>(r=>{finished=r;});
   await page.route('**/search/query',async route=>{try{const response=await route.fetch();expect(response.status()).toBe(200);expect((await response.json() as {data:{id:string}[]}).data.some(hit=>hit.id===issue.id)).toBe(true);started();await gate;try{await route.fulfill({response});}catch{/* The current-authority denial aborts this original request. */}}finally{finished();}});
   await page.getByRole('searchbox',{name:'Search issues and projects',exact:true}).fill(token);await fetched;
+  await page.route('**/events',route=>route.abort('connectionfailed'));
+  await page.context().setOffline(true);await expect(page.getByRole('status').filter({hasText:'You are offline'})).toBeVisible();await page.context().setOffline(false);
   const removed=await saved.http.delete(`${saved.path}/views/${current.id}`,{headers:{Origin:saved.origin,'X-CSRF-Token':saved.session.csrf_token,'If-Match':narrowed.etag,'Idempotency-Key':randomUUID()}});expect(removed.status()).toBe(204);
   await directory.getByRole('button',{name:title,exact:true}).click();await expect(page.getByRole('alert')).toBeVisible();await expect(directory.getByRole('button',{name:title,exact:true})).toHaveCount(0);
   release();await settled;await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
