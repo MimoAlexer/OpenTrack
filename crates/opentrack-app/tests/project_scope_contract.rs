@@ -295,6 +295,16 @@ async fn populated_schema_upgrade_preserves_memberships_without_inventing_old_hi
         let i = issue(&h, &a, w, t, json!({"title":"Legacy project scope"})).await;
         link(&h, &a, w, t, p.id, i.id, true).await;
         opentrack_store::MIGRATOR.run(&h.owner).await.unwrap();
+        // An upgrade restarts runtime connections after applying schema changes.
+        // Retire every old connection together so cached SELECT * plans cannot
+        // retain the pre-upgrade projects row type after new columns are added.
+        let mut previous_connections = Vec::new();
+        for _ in 0..h.app.pool.size() {
+            previous_connections.push(h.app.pool.acquire().await.unwrap());
+        }
+        for connection in previous_connections {
+            connection.close().await.unwrap();
+        }
         let view = history(&h, &a, w, t, p.id).await;
         assert!(view.legacy_history_unknown);
         assert_eq!(view.current.len(), 1);
