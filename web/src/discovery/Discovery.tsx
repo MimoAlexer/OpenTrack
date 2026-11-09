@@ -55,6 +55,8 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0}:
   const mounted=useRef(true);
   const generation=useRef(0);
   const directoryRevision=useRef(0);
+  const removed=useRef(new Set<string>());
+  const visiblePage=(page:Directory):Directory=>({...page,data:page.data.filter(item=>!removed.current.has(item.id))});
   const previousRefresh=useRef(refresh);
   const selectedCurrent=useRef(selected);selectedCurrent.current=selected;
   const authorityController=useRef(new AbortController());
@@ -104,12 +106,12 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0}:
     setViews(null);setSearches(null);setSearch(null);
     const selected=selectedCurrent.current;
     if(!selected)return;
-    const abort=new AbortController(),operation=lease(abort),revision=directoryRevision.current;
+    const abort=new AbortController(),operation=lease(abort),revision=directoryRevision.current,selection=selectionSequence.current;
     void request<Saved>(`${base}/${resource(selected.kind)}/${selected.id}`,{signal:operation.signal})
-      .then(item=>{if(operation.current() && revision===directoryRevision.current && selectedCurrent.current?.id===item.id && selectedCurrent.current.etag!==item.etag){setReconciliation(item);setRepair(null);}})
+      .then(item=>{if(operation.current() && revision===directoryRevision.current && selection===selectionSequence.current && selectedCurrent.current?.id===item.id && BigInt(item.version)>=BigInt(selectedCurrent.current.version) && selectedCurrent.current.etag!==item.etag){setReconciliation(item);setRepair(null);}})
       .catch(reason=>{
-        if(!operation.current() || revision!==directoryRevision.current || selectedCurrent.current?.id!==selected.id)return;
-        if(reason instanceof ApiError && reason.status===404){selectionSequence.current++;setSelected(null);activeSaved.current=null;setRepair(null);setReconciliation(null);setSelectionBlocked(false);}
+        if(!operation.current() || revision!==directoryRevision.current || selection!==selectionSequence.current || selectedCurrent.current?.id!==selected.id)return;
+        if(reason instanceof ApiError && reason.status===404){removed.current.add(selected.id);setViews(page=>page&&visiblePage(page));setSearches(page=>page&&visiblePage(page));selectionSequence.current++;setSelected(null);activeSaved.current=null;setRepair(null);setReconciliation(null);setSelectionBlocked(false);}
         else if(!denial(reason,operation))setError(reason);
       });
     return()=>abort.abort();
@@ -118,11 +120,12 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0}:
     if(!activated)return;
     const abort=new AbortController(),operation=lease(abort),revision=directoryRevision.current;setError(null);
     Promise.all([request<Directory>(`${base}/views`,{signal:operation.signal}),request<Directory>(`${base}/saved-searches`,{signal:operation.signal})])
-      .then(([v,s])=>{if(!operation.current())return;if(revision!==directoryRevision.current){setReload(value=>value+1);return;}setViews(v);setSearches(s);})
+      .then(([v,s])=>{if(!operation.current())return;if(revision!==directoryRevision.current){setReload(value=>value+1);return;}setViews(visiblePage(v));setSearches(visiblePage(s));})
       .catch(reason=>{if(operation.current() && !denial(reason,operation))setError(reason);});
     return()=>abort.abort();
   },[authority,base,reload,activated,refresh]);
   function replace(item:Saved) {
+    if(removed.current.has(item.id))return;
     const update=(page:Directory|null):Directory=>({data:page?.data.some(d=>d.id===item.id)?page.data.map(d=>d.id===item.id?item:d):[...(page?.data??[]),item],has_more:page?.has_more??false,next_cursor:page?.next_cursor});
     (item.kind==='view'?setViews:setSearches)(update);
   }
@@ -140,6 +143,7 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0}:
     try {
       const item=await request<Saved|undefined>(operation.path,operation.options);
       if(!operation.lease.current())return;
+      if(operation.target && removed.current.has(operation.target)){if(pending.current===operation)pending.current=null;return;}
       // A pre-commit directory snapshot must never replace a committed row.
       directoryRevision.current++;
       const sameSelection=operation.selection===selectionSequence.current;
@@ -196,7 +200,7 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0}:
   async function more(saveKind:Kind) {
     const page=saveKind==='view'?views:searches;if(!page?.next_cursor)return;
     const operation=lease(),revision=directoryRevision.current;
-    try{const next=await request<Directory>(`${base}/${resource(saveKind)}?cursor=${encodeURIComponent(page.next_cursor)}`,{signal:operation.signal});if(operation.current()){if(revision!==directoryRevision.current){setReload(value=>value+1);return;}(saveKind==='view'?setViews:setSearches)({...next,data:[...page.data,...next.data]});}}
+    try{const next=await request<Directory>(`${base}/${resource(saveKind)}?cursor=${encodeURIComponent(page.next_cursor)}`,{signal:operation.signal});if(operation.current()){if(revision!==directoryRevision.current){setReload(value=>value+1);return;}(saveKind==='view'?setViews:setSearches)(visiblePage({...next,data:[...page.data,...next.data]}));}}
     catch(reason){if(operation.current()&&!denial(reason,operation))setError(reason);}
   }
   const searchBody=()=>({query:{...queryBody(view),q:term,sort:'created',archived:false,...(kind!=='issue'?{filter:null,team_id:null}:{})},types:kind==='all'?['issue','project']:[kind]});

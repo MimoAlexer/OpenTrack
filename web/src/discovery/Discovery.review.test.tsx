@@ -285,3 +285,46 @@ it.each([false,true])('late realtime detail cannot roll back a newer local save 
   expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Save changes')?.disabled).toBe(false);
  }finally{await act(async()=>root.unmount());host.remove();}
 });
+
+it('confirmed refresh deletion fences older write success and directory snapshots for that object only',async()=>{
+ const old=record(),other=record('other'),patch=deferred<unknown>(),listing=deferred<unknown>();let refreshing=false;
+ vi.mocked(request).mockImplementation(async(path,options)=>{
+  if(options?.method==='PATCH')return patch.promise as never;
+  if(path.endsWith('/views'))return refreshing?listing.promise as never:directory([old,other]) as never;
+  if(path.endsWith('/saved-searches'))return directory([]) as never;
+  if(refreshing)throw new ApiError(404,'not_found','Removed remotely');
+  return old as never;
+ });
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);const host=document.createElement('div');document.body.append(host);const root=createRoot(host);
+ const props={workspaceId:'workspace',scope:'principal:1',session,teams:[],view:broad,apply:()=>true};
+ try{
+  await act(async()=>root.render(<Discovery {...props} refresh={0}/>));
+  await act(async()=>{const details=host.querySelector('details')!;details.open=true;details.dispatchEvent(new Event('toggle',{bubbles:true}));});
+  await click(host,'Private saved');await input(host,'Definition name','Retained name');await click(host,'Save changes');
+  refreshing=true;await act(async()=>root.render(<Discovery {...props} refresh={1}/>));
+  await act(async()=>{patch.resolve({...old,name:'Late committed title',version:'2',etag:'"saved:2"'});listing.resolve(directory([old,other]));});
+  expect(host.textContent).toContain('Private other');expect(host.textContent).not.toContain('Private saved');expect(host.textContent).not.toContain('Late committed title');
+  expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Save changes')).toBeUndefined();
+  expect(([...host.querySelectorAll('input')].find(e=>e.closest('label')?.textContent?.startsWith('Definition name')) as HTMLInputElement).value).toBe('Retained name');
+ }finally{await act(async()=>root.unmount());host.remove();}
+});
+
+it.each([false,true])('old refresh detail cannot supersede an explicit newer same-object Open (%s)',async(deleted)=>{
+ const old=record(),late=deferred<unknown>(),newer={...record(),version:'2',etag:'"saved:2"'};let mode='initial';
+ vi.mocked(request).mockImplementation(async path=>{
+  if(path.endsWith('/views'))return directory([old]) as never;
+  if(path.endsWith('/saved-searches'))return directory([]) as never;
+  return mode==='refresh'?late.promise as never:mode==='new'?newer as never:old as never;
+ });
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);const host=document.createElement('div');document.body.append(host);const root=createRoot(host);
+ const props={workspaceId:'workspace',scope:'principal:1',session,teams:[],view:broad,apply:()=>true};
+ try{
+  await act(async()=>root.render(<Discovery {...props} refresh={0}/>));
+  await act(async()=>{const details=host.querySelector('details')!;details.open=true;details.dispatchEvent(new Event('toggle',{bubbles:true}));});
+  await click(host,'Private saved');mode='refresh';await act(async()=>root.render(<Discovery {...props} refresh={1}/>));
+  mode='new';await click(host,'Private saved');
+  await act(async()=>{if(deleted)late.reject(new ApiError(404,'not_found','Old lookup'));else late.resolve(old);});
+  expect(host.textContent).toContain('Private saved · Version 2');expect(host.textContent).not.toContain('Review latest saved filters');
+  expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Save changes')?.disabled).toBe(false);
+ }finally{await act(async()=>root.unmount());host.remove();}
+});
