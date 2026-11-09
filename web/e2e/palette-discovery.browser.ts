@@ -54,8 +54,14 @@ test('palette discovers teams and explicit-team projects, preserves group valida
   await expect(palette.locator('.command-error').filter({ hasText: 'Projects' }).getByRole('alert')).toBeVisible();
   await expect(palette.getByRole('option')).toHaveCount(0);
   await expect.poll(() => responses.filter(response => new URL(response.url()).searchParams.get('q') === overlong).length).toBe(3);
-  const rejected = queries.slice(beforeRejected);
-  expect(rejected).toHaveLength(3); expect(rejected.every(query => query.q === overlong)).toBe(true);
+  // A real background list read must not be attributed to the palette query.
+  // Live invalidation can cause the same independent request during this window.
+  const backgroundStatus = await page.evaluate(async path => (await fetch(`${path}/issues?limit=1`, { credentials: 'same-origin' })).status, saved.path);
+  expect(backgroundStatus).toBe(200);
+  expect(queries.slice(beforeRejected).some(query => query.path === `${saved.path}/issues` && query.q === null)).toBe(true);
+  const rejected = queries.slice(beforeRejected).filter(query => query.q === overlong);
+  expect(rejected).toHaveLength(3);
+  expect(rejected.map(query => query.path).sort()).toEqual([`${saved.path}/issues`, `${saved.path}/teams`, `${saved.path}${projectPath}`].sort());
   const statuses = responses.filter(response => new URL(response.url()).searchParams.get('q') === overlong).map(response => ({ path: new URL(response.url()).pathname, status: response.status() }));
   expect(statuses.find(response => response.path === `${saved.path}/issues`)?.status).toBe(200);
   expect(statuses.find(response => response.path === `${saved.path}/teams`)?.status).toBe(422);
