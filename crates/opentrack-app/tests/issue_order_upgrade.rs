@@ -42,8 +42,12 @@ async fn snapshot(h: &Harness, a: &Actor, w: Uuid, before_search_upgrade: bool) 
         // snapshot synthesizes the additive 0035 projections; current snapshots
         // read the actual stored columns, so missing or wrong backfills fail.
         let projection = match (table, before_search_upgrade) {
-            ("issues", true) => "(to_jsonb(x)-'rank') || jsonb_build_object('search_document',(setweight(to_tsvector('simple'::regconfig,x.title),'A') || setweight(to_tsvector('simple'::regconfig,x.description),'B'))::text)",
-            ("documents", true) => "to_jsonb(x) || jsonb_build_object('search_document',CASE WHEN x.project_id IS NOT NULL THEN setweight(to_tsvector('simple'::regconfig,x.plain_text),'B')::text ELSE '' END)",
+            ("issues", true) => {
+                "(to_jsonb(x)-'rank') || jsonb_build_object('search_document',(setweight(to_tsvector('simple'::regconfig,x.title),'A') || setweight(to_tsvector('simple'::regconfig,x.description),'B'))::text)"
+            }
+            ("documents", true) => {
+                "to_jsonb(x) || jsonb_build_object('search_document',CASE WHEN x.project_id IS NOT NULL THEN setweight(to_tsvector('simple'::regconfig,x.plain_text),'B')::text ELSE '' END)"
+            }
             ("issues", false) => "to_jsonb(x)-'rank'",
             ("teams", _) => "to_jsonb(x)-'ordering_version'",
             _ => "to_jsonb(x)",
