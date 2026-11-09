@@ -1,0 +1,446 @@
+{
+  "source_commit": "a91eb1cb49c73f0e8658f4615fc9d4310f295a8f",
+  "served_index_sha256": "4bad3bc3609749a2f7d701aa8054bb32dffe2673d38cb758479e87b91a9cf794",
+  "environment": "Local PostgreSQL 18 schema35, actual API and restricted worker; canonical Playwright origin/timeouts, one worker, zero retries",
+  "manual_fixture": "Fresh canonical three-engine501-row preparation; actual worker100-row staging, requester access loss and resumable blocked state; private manifest and credentials outside Git",
+  "status": "passed",
+  "checks": [
+    {
+      "browser": "chromium",
+      "check": "pointer and keyboard board moves persist only status with one version increment",
+      "status": "passed",
+      "duration_ms": 1280
+    },
+    {
+      "browser": "chromium",
+      "check": "connected private board authority: automatic reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 2481
+    },
+    {
+      "browser": "chromium",
+      "check": "connected private board authority: Try again reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 2895
+    },
+    {
+      "browser": "chromium",
+      "check": "connected private board authority: Open all issues reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 2503
+    },
+    {
+      "browser": "chromium",
+      "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+      "status": "passed",
+      "duration_ms": 5316
+    },
+    {
+      "browser": "chromium",
+      "check": "an unknown position survives authority refresh with its exact request and conceals an actually denied private source",
+      "status": "passed",
+      "duration_ms": 3181
+    },
+    {
+      "browser": "chromium",
+      "check": "real worker fan-out reaches the durable inbox and keyboard processing persists",
+      "status": "passed",
+      "duration_ms": 4447
+    },
+    {
+      "browser": "chromium",
+      "check": "canonical recipient stream refreshes inbox, unread badge and source preview before revocation clears private data",
+      "status": "passed",
+      "duration_ms": 5762
+    },
+    {
+      "browser": "chromium",
+      "check": "palette discovers teams and explicit-team projects, preserves group validation and navigates by keyboard after current reads",
+      "status": "passed",
+      "duration_ms": 1692
+    },
+    {
+      "browser": "chromium",
+      "check": "palette excludes private controls and refuses team and project suggestions after visibility is revoked",
+      "status": "passed",
+      "duration_ms": 2405
+    },
+    {
+      "browser": "chromium",
+      "check": "planning counts retain calculation times through held reads, failures and reviewed refresh",
+      "status": "passed",
+      "duration_ms": 1723
+    },
+    {
+      "browser": "chromium",
+      "check": "populated private planning counts disappear after real access revocation without stale resurrection",
+      "status": "passed",
+      "duration_ms": 4658
+    },
+    {
+      "browser": "chromium",
+      "check": "planning projections show actual validation and fact times while the default worker also clears revoked assignments",
+      "status": "passed",
+      "duration_ms": 5954
+    },
+    {
+      "browser": "chromium",
+      "check": "milestone conflicts preserve relative intent and new milestones; a lost committed response is reconciled without replay",
+      "status": "passed",
+      "duration_ms": 1461
+    },
+    {
+      "browser": "chromium",
+      "check": "project assignment review exhausts pagination, preserves milestone intent and reconciles absence without replay or stale private labels",
+      "status": "passed",
+      "duration_ms": 6055
+    },
+    {
+      "browser": "chromium",
+      "check": "agreed project scope, explained changes and authored update context remain connected after later planning and reload",
+      "status": "passed",
+      "duration_ms": 3894
+    },
+    {
+      "browser": "chromium",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 1523
+    },
+    {
+      "browser": "chromium",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1045
+    },
+    {
+      "browser": "chromium",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 682
+    },
+    {
+      "browser": "chromium",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 773
+    },
+    {
+      "browser": "chromium",
+      "check": "narrow keyboard draft survives realtime reconciliation of a remote version",
+      "status": "passed",
+      "duration_ms": 1100
+    },
+    {
+      "browser": "chromium",
+      "check": "Open revalidates deletion during dropped realtime while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 839
+    },
+    {
+      "browser": "chromium",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 2288
+    },
+    {
+      "browser": "chromium",
+      "check": "realtime updates an open saved directory and remote deletion preserves the draft",
+      "status": "passed",
+      "duration_ms": 749
+    },
+    {
+      "browser": "firefox",
+      "check": "pointer and keyboard board moves persist only status with one version increment",
+      "status": "passed",
+      "duration_ms": 2138
+    },
+    {
+      "browser": "firefox",
+      "check": "connected private board authority: automatic reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 2873
+    },
+    {
+      "browser": "firefox",
+      "check": "connected private board authority: Try again reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 3406
+    },
+    {
+      "browser": "firefox",
+      "check": "connected private board authority: Open all issues reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 2951
+    },
+    {
+      "browser": "firefox",
+      "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+      "status": "passed",
+      "duration_ms": 7037
+    },
+    {
+      "browser": "firefox",
+      "check": "an unknown position survives authority refresh with its exact request and conceals an actually denied private source",
+      "status": "passed",
+      "duration_ms": 3921
+    },
+    {
+      "browser": "firefox",
+      "check": "real worker fan-out reaches the durable inbox and keyboard processing persists",
+      "status": "passed",
+      "duration_ms": 4670
+    },
+    {
+      "browser": "firefox",
+      "check": "canonical recipient stream refreshes inbox, unread badge and source preview before revocation clears private data",
+      "status": "passed",
+      "duration_ms": 5647
+    },
+    {
+      "browser": "firefox",
+      "check": "palette discovers teams and explicit-team projects, preserves group validation and navigates by keyboard after current reads",
+      "status": "passed",
+      "duration_ms": 2132
+    },
+    {
+      "browser": "firefox",
+      "check": "palette excludes private controls and refuses team and project suggestions after visibility is revoked",
+      "status": "passed",
+      "duration_ms": 3167
+    },
+    {
+      "browser": "firefox",
+      "check": "planning counts retain calculation times through held reads, failures and reviewed refresh",
+      "status": "passed",
+      "duration_ms": 2445
+    },
+    {
+      "browser": "firefox",
+      "check": "populated private planning counts disappear after real access revocation without stale resurrection",
+      "status": "passed",
+      "duration_ms": 4965
+    },
+    {
+      "browser": "firefox",
+      "check": "planning projections show actual validation and fact times while the default worker also clears revoked assignments",
+      "status": "passed",
+      "duration_ms": 6518
+    },
+    {
+      "browser": "firefox",
+      "check": "milestone conflicts preserve relative intent and new milestones; a lost committed response is reconciled without replay",
+      "status": "passed",
+      "duration_ms": 2285
+    },
+    {
+      "browser": "firefox",
+      "check": "project assignment review exhausts pagination, preserves milestone intent and reconciles absence without replay or stale private labels",
+      "status": "passed",
+      "duration_ms": 7671
+    },
+    {
+      "browser": "firefox",
+      "check": "agreed project scope, explained changes and authored update context remain connected after later planning and reload",
+      "status": "passed",
+      "duration_ms": 6056
+    },
+    {
+      "browser": "firefox",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 2663
+    },
+    {
+      "browser": "firefox",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1439
+    },
+    {
+      "browser": "firefox",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 840
+    },
+    {
+      "browser": "firefox",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 1725
+    },
+    {
+      "browser": "firefox",
+      "check": "narrow keyboard draft survives realtime reconciliation of a remote version",
+      "status": "passed",
+      "duration_ms": 1731
+    },
+    {
+      "browser": "firefox",
+      "check": "Open revalidates deletion during dropped realtime while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 1197
+    },
+    {
+      "browser": "firefox",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 2693
+    },
+    {
+      "browser": "firefox",
+      "check": "realtime updates an open saved directory and remote deletion preserves the draft",
+      "status": "passed",
+      "duration_ms": 1150
+    },
+    {
+      "browser": "webkit",
+      "check": "pointer and keyboard board moves persist only status with one version increment",
+      "status": "passed",
+      "duration_ms": 1950
+    },
+    {
+      "browser": "webkit",
+      "check": "connected private board authority: automatic reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 3973
+    },
+    {
+      "browser": "webkit",
+      "check": "connected private board authority: Try again reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 3547
+    },
+    {
+      "browser": "webkit",
+      "check": "connected private board authority: Open all issues reconstructs the parent before public recovery",
+      "status": "passed",
+      "duration_ms": 3107
+    },
+    {
+      "browser": "webkit",
+      "check": "manual list and board use one full-group reference for pointer and keyboard placement across statuses",
+      "status": "passed",
+      "duration_ms": 6304
+    },
+    {
+      "browser": "webkit",
+      "check": "an unknown position survives authority refresh with its exact request and conceals an actually denied private source",
+      "status": "passed",
+      "duration_ms": 4145
+    },
+    {
+      "browser": "webkit",
+      "check": "real worker fan-out reaches the durable inbox and keyboard processing persists",
+      "status": "passed",
+      "duration_ms": 3583
+    },
+    {
+      "browser": "webkit",
+      "check": "canonical recipient stream refreshes inbox, unread badge and source preview before revocation clears private data",
+      "status": "passed",
+      "duration_ms": 5333
+    },
+    {
+      "browser": "webkit",
+      "check": "palette discovers teams and explicit-team projects, preserves group validation and navigates by keyboard after current reads",
+      "status": "passed",
+      "duration_ms": 2456
+    },
+    {
+      "browser": "webkit",
+      "check": "palette excludes private controls and refuses team and project suggestions after visibility is revoked",
+      "status": "passed",
+      "duration_ms": 2874
+    },
+    {
+      "browser": "webkit",
+      "check": "planning counts retain calculation times through held reads, failures and reviewed refresh",
+      "status": "passed",
+      "duration_ms": 2634
+    },
+    {
+      "browser": "webkit",
+      "check": "populated private planning counts disappear after real access revocation without stale resurrection",
+      "status": "passed",
+      "duration_ms": 5303
+    },
+    {
+      "browser": "webkit",
+      "check": "planning projections show actual validation and fact times while the default worker also clears revoked assignments",
+      "status": "passed",
+      "duration_ms": 5583
+    },
+    {
+      "browser": "webkit",
+      "check": "milestone conflicts preserve relative intent and new milestones; a lost committed response is reconciled without replay",
+      "status": "passed",
+      "duration_ms": 2169
+    },
+    {
+      "browser": "webkit",
+      "check": "project assignment review exhausts pagination, preserves milestone intent and reconciles absence without replay or stale private labels",
+      "status": "passed",
+      "duration_ms": 7190
+    },
+    {
+      "browser": "webkit",
+      "check": "agreed project scope, explained changes and authored update context remain connected after later planning and reload",
+      "status": "passed",
+      "duration_ms": 5385
+    },
+    {
+      "browser": "webkit",
+      "check": "replays remote issue changes after offline recovery while preserving an editable local draft",
+      "status": "passed",
+      "duration_ms": 2800
+    },
+    {
+      "browser": "webkit",
+      "check": "saved view round-trips filters and favorite through rename and explicit deletion",
+      "status": "passed",
+      "duration_ms": 1585
+    },
+    {
+      "browser": "webkit",
+      "check": "full-text body search renders safe snippets and opens current issue detail",
+      "status": "passed",
+      "duration_ms": 1197
+    },
+    {
+      "browser": "webkit",
+      "check": "private saved search runs current body results and keeps text overrides unsaved until explicit save",
+      "status": "passed",
+      "duration_ms": 1284
+    },
+    {
+      "browser": "webkit",
+      "check": "narrow keyboard draft survives realtime reconciliation of a remote version",
+      "status": "passed",
+      "duration_ms": 1721
+    },
+    {
+      "browser": "webkit",
+      "check": "Open revalidates deletion during dropped realtime while denial cancels a delayed real search response",
+      "status": "passed",
+      "duration_ms": 1438
+    },
+    {
+      "browser": "webkit",
+      "check": "an authorized editor must explicitly review replacement of a redacted shared definition",
+      "status": "passed",
+      "duration_ms": 2906
+    },
+    {
+      "browser": "webkit",
+      "check": "realtime updates an open saved directory and remote deletion preserves the draft",
+      "status": "passed",
+      "duration_ms": 1609
+    }
+  ],
+  "limitations": [
+    "Synthetic composition events do not qualify a real OS IME.",
+    "Native desktop, assistive technology, physical keyboard layouts and screenshot review remain separate gates."
+  ],
+  "artifacts": "No auth state, trace, video, screenshot, request headers or HTTP bodies are published."
+}
