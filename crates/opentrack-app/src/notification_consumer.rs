@@ -30,7 +30,14 @@ impl Worker {
         &self,
         cursor: &mut Option<Uuid>,
     ) -> Result<Option<(Uuid, consumer::ConsumerTick)>> {
-        let Some(workspace) = self.consumer_scope(cursor).await? else {
+        let workspace: Option<Uuid> =
+            sqlx::query_scalar("SELECT worker_ready_notification_capture_workspace($1)")
+                .bind(*cursor)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(db_error)?;
+        *cursor = workspace;
+        let Some(workspace) = workspace else {
             return Ok(None);
         };
         Ok(Some((
@@ -55,10 +62,16 @@ impl Worker {
         &self,
         cursor: &mut Option<Uuid>,
     ) -> Result<Option<(Uuid, i64)>> {
-        let workspace: Option<Uuid> = sqlx::query_scalar("SELECT worker_ready_notification_workspace($1)")
-            .bind(*cursor).fetch_one(&self.pool).await.map_err(db_error)?;
+        let workspace: Option<Uuid> =
+            sqlx::query_scalar("SELECT worker_ready_notification_workspace($1)")
+                .bind(*cursor)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(db_error)?;
         *cursor = workspace;
-        let Some(workspace) = workspace else { return Ok(None); };
+        let Some(workspace) = workspace else {
+            return Ok(None);
+        };
         Ok(Some((
             workspace,
             self.flush_notification_events(workspace).await?,

@@ -110,10 +110,18 @@ impl Harness {
             sqlx::raw_sql(AssertSqlSafe(format!("REVOKE ALL ON {schema}.notifications,{schema}.notification_heads,{schema}.notification_preferences,{schema}.notification_sources,{schema}.notification_backfills,{schema}.notification_invalidations FROM \"{role}\"; GRANT SELECT ON {schema}.notifications,{schema}.notification_heads,{schema}.notification_preferences TO \"{role}\"; GRANT UPDATE(read_at,archived_at,snoozed_until,version) ON {schema}.notifications TO \"{role}\"; GRANT INSERT(workspace_id,user_id,assignments,mentions,subscribed_comments),UPDATE(assignments,mentions,subscribed_comments,version,updated_at) ON {schema}.notification_preferences TO \"{role}\"; GRANT INSERT(workspace_id,user_id,notification_id,notification_version,event_kind) ON {schema}.notification_invalidations TO \"{role}\"")))
                 .execute(&base_owner).await.unwrap();
         }
-        if sqlx::query_scalar::<_,bool>("SELECT to_regclass($1) IS NOT NULL")
-            .bind(format!("{schema}.notification_ready_workspaces")).fetch_one(&base_owner).await.unwrap() {
-            sqlx::raw_sql(AssertSqlSafe(format!("REVOKE ALL ON {schema}.notification_ready_workspaces FROM \"{role}\"")))
-                .execute(&base_owner).await.unwrap();
+        if sqlx::query_scalar::<_, bool>("SELECT to_regclass($1) IS NOT NULL")
+            .bind(format!("{schema}.notification_ready_workspaces"))
+            .fetch_one(&base_owner)
+            .await
+            .unwrap()
+        {
+            sqlx::raw_sql(AssertSqlSafe(format!(
+                "REVOKE ALL ON {schema}.notification_ready_workspaces FROM \"{role}\""
+            )))
+            .execute(&base_owner)
+            .await
+            .unwrap();
         }
         let planning: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
             .bind(format!("{schema}.planning_issue_facts"))
