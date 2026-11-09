@@ -7,6 +7,7 @@ import type { FullProject, Page as ResultPage, ProjectIssue, ProjectProgress, Pr
 import type { ProjectScopeSnapshot } from '../src/projects/ProjectScopeHistory';
 
 async function keyboardActivate(control: Locator) {
+  await expect(control).toBeEnabled();
   await control.focus();
   await expect(control).toBeFocused();
   await control.press('Enter');

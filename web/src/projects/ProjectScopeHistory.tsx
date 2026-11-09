@@ -94,7 +94,9 @@ function ScopeHistory({ project, session, refresh, readOnly, denied, changed }: 
     request<ProjectScopeSnapshot>(url(), { signal: abort.signal }).then(next => {
       if (!mounted.current || abort.signal.aborted || token !== generation.current) return;
       setSnapshot({ key: viewKey, value: next });
-      setAgreed(false);
+      // Agreement belongs to the reviewed scope, not the transport refresh.
+      // Keep it only while the same view and authorized validator still hold.
+      if (!value || value.scope_etag !== next.scope_etag || !next.can_agree) setAgreed(false);
       setIssueId(previous => next.current.some(issue => issue.id === previous) ? previous : '');
     }).catch(error => {
       if (!mounted.current || abort.signal.aborted || token !== generation.current) return;

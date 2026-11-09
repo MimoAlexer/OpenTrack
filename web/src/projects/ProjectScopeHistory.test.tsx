@@ -111,6 +111,44 @@ describe('project scope history', () => {
     expect(new Headers(posts[1][1].headers).get('Idempotency-Key')).not.toBe(new Headers(posts[0][1].headers).get('Idempotency-Key'));
   });
 
+  it.each(['unchanged', 'changed', 'denied'] as const)('binds checked baseline agreement to the confirmed scope through realtime refresh: %s', async outcome => {
+    let finish!: (response: Response) => void; let refreshing = false;
+    const denied = vi.fn();
+    const fetch = vi.fn((_url: string, options: RequestInit) => options.method === 'POST'
+      ? Promise.resolve(json(snapshot()))
+      : refreshing ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(json(snapshot())));
+    vi.stubGlobal('fetch', fetch);
+    await render(view({ denied })); await baselineDraft();
+    refreshing = true; await render(view({ denied, refresh: 1 }));
+    expect(button('Set baseline').disabled).toBe(true);
+    await act(async () => finish(outcome === 'denied' ? problem(403, 'Access changed.') : json(snapshot({ scope_etag: outcome === 'changed' ? '"scope-two"' : '"scope-one"' }))));
+    if (outcome === 'denied') {
+      expect(denied).toHaveBeenCalledTimes(1); expect(container.querySelector('form')).toBeNull();
+    } else {
+      expect(container.querySelector<HTMLInputElement>('.scope-agreement input')!.checked).toBe(outcome === 'unchanged');
+      expect(button('Set baseline').disabled).toBe(outcome !== 'unchanged');
+      if (outcome === 'unchanged') {
+        await submit('Set scope baseline');
+        const posts = fetch.mock.calls.filter(([, options]) => options.method === 'POST');
+        expect(posts).toHaveLength(1);
+        expect(new Headers(posts[0][1].headers).get('If-Match')).toBe('"scope-one"');
+      }
+    }
+  });
+
+  it('requires fresh agreement when the comparison context changes even with the same scope validator', async () => {
+    const alternative = { ...baseline, id: 'baseline-two', label: 'Another comparison' };
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(json(snapshot({ baselines: [baseline, alternative] })))));
+    await render(view()); await baselineDraft();
+    await act(async () => {
+      const selector = container.querySelector<HTMLSelectElement>('[name="scope-baseline"]')!;
+      selector.value = alternative.id; selector.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(container.querySelector<HTMLInputElement>('.scope-agreement input')!.checked).toBe(false);
+    expect(button('Set baseline').disabled).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('[name="scope-baseline-name"]')!.value).toBe(' Release plan ');
+  });
+
   it('requires fresh agreement after a refresh loads changed scope without discarding the draft', async () => {
     let reads = 0;
     const fetch = vi.fn((_url: string, options: RequestInit) => Promise.resolve(json(snapshot({ scope_etag: options.method === 'POST' || ++reads > 1 ? '"scope-two"' : '"scope-one"' })))); vi.stubGlobal('fetch', fetch);
