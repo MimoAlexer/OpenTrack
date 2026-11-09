@@ -328,3 +328,28 @@ it.each([false,true])('old refresh detail cannot supersede an explicit newer sam
   expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Save changes')?.disabled).toBe(false);
  }finally{await act(async()=>root.unmount());host.remove();}
 });
+
+it.each([2,3])('a delayed explicit refresh v%s cannot reopen an adopted review, while a fresh later update is reviewable',async(lateVersion)=>{
+ const remote={...record('saved',narrow),version:'2',etag:'"saved:2"'};
+ const delayed=deferred<unknown>();let current=record(),slow=false;
+ vi.mocked(request).mockImplementation(async path=>{
+  if(path.endsWith('/views/saved'))return slow?delayed.promise as never:current as never;
+  return directory(path.endsWith('/views')?[record()]:[]) as never;
+ });
+ const x=await mount();try{
+  await click(x.host,'Private saved');current=remote;
+  await click(x.host,'Refresh saved version');
+  slow=true;await click(x.host,'Refresh saved version');
+  await click(x.host,'Use latest filters and keep draft name');
+  await act(async()=>delayed.resolve({...remote,version:String(lateVersion),etag:`"saved:${lateVersion}"`}));
+  expect(x.host.textContent).not.toContain('Review latest saved filters');
+  expect([...x.host.querySelectorAll('button')].find(b=>b.textContent==='Save changes')?.disabled).toBe(false);
+  slow=false;current={...remote,version:'4',etag:'"saved:4"'};
+  await click(x.host,'Refresh saved version');
+  expect(x.host.textContent).toContain('Review latest saved filters');
+  expect([...x.host.querySelectorAll('button')].find(b=>b.textContent==='Save changes')?.disabled).toBe(true);
+  await click(x.host,'Use latest filters and keep draft name');
+  expect(x.host.textContent).toContain('Private saved · Version 4');
+  expect([...x.host.querySelectorAll('button')].find(b=>b.textContent==='Save changes')?.disabled).toBe(false);
+ }finally{await x.close();}
+});

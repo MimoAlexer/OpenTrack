@@ -171,6 +171,10 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0}:
     void write(`${base}/${resource(saveKind)}${updating?`/${selected!.id}`:''}`,updating?'PATCH':'POST',body,updating?selected!.etag:undefined);
   }
   function accept(item:Saved,keepDraftName=false):boolean {
+    // Deliberate adoption supersedes reads begun for the previous selection,
+    // including a refresh of an already visible review. Its late completion
+    // must not reinstall that review or retain its opening state.
+    selectionSequence.current++;selectionRead.current?.abort();selectionRead.current=null;setOpening(false);
     setRepair(null);setReconciliation(null);setSelected(item);if(!keepDraftName)setName(item.name);
     if(!item.definition || item.repair_required){setSelectionBlocked(true);activeSaved.current=null;setAwaitingView(null);setError(new Error(item.repair_required??'Repair this saved definition before running it.'));return false;}
     const next=asView(item.definition),invalid=validateView(next);
