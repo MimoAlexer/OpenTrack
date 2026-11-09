@@ -512,7 +512,13 @@ async fn upgrade(h: &Harness) {
     let mut tx = h.context(a.user.id, w).await;
     let upgraded: Value = sqlx::query_scalar("SELECT to_jsonb(d)-'project_id'-'migrated_initial' FROM documents d WHERE workspace_id=$1 AND issue_id=$2")
         .bind(w).bind(issue.id).fetch_one(&mut *tx).await.unwrap();
-    assert_eq!(upgraded, stored);
+    // 0035 adds an empty search vector to issue-owned documents; project
+    // narratives alone receive weighted document terms. Preserve every original
+    // document field while checking the exact new projection, rather than
+    // excluding it from the full historical comparison.
+    let mut expected = stored.clone();
+    expected["search_document"] = json!("");
+    assert_eq!(upgraded, expected);
     tx.commit().await.unwrap();
     assert_eq!(
         serde_json::to_value(h.app.issue_document(&a, w, issue.id).await.unwrap()).unwrap(),

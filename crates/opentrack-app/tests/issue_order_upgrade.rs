@@ -20,7 +20,7 @@ async fn runtime(h: &Harness, a: &Actor, w: Uuid) -> store::Tx {
     tx
 }
 
-async fn snapshot(h: &Harness, a: &Actor, w: Uuid) -> Vec<Value> {
+async fn snapshot(h: &Harness, a: &Actor, w: Uuid, before_search_upgrade: bool) -> Vec<Value> {
     let mut tx = h.context(a.user.id, w).await;
     let mut result = Vec::new();
     for table in [
@@ -38,9 +38,14 @@ async fn snapshot(h: &Harness, a: &Actor, w: Uuid) -> Vec<Value> {
         "issue_labels",
         "issue_relations",
     ] {
-        let projection = match table {
-            "issues" => "to_jsonb(x)-'rank'",
-            "teams" => "to_jsonb(x)-'ordering_version'",
+        // Retain every historical source field. Only the pre-upgrade expected
+        // snapshot synthesizes the additive 0035 projections; current snapshots
+        // read the actual stored columns, so missing or wrong backfills fail.
+        let projection = match (table, before_search_upgrade) {
+            ("issues", true) => "(to_jsonb(x)-'rank') || jsonb_build_object('search_document',(setweight(to_tsvector('simple'::regconfig,x.title),'A') || setweight(to_tsvector('simple'::regconfig,x.description),'B'))::text)",
+            ("documents", true) => "to_jsonb(x) || jsonb_build_object('search_document',CASE WHEN x.project_id IS NOT NULL THEN setweight(to_tsvector('simple'::regconfig,x.plain_text),'B')::text ELSE '' END)",
+            ("issues", false) => "to_jsonb(x)-'rank'",
+            ("teams", _) => "to_jsonb(x)-'ordering_version'",
             _ => "to_jsonb(x)",
         };
         let rows = sqlx::query_scalar(AssertSqlSafe(format!(
@@ -119,8 +124,8 @@ async fn exercise(h: &Harness) {
         }
         tx.commit().await.unwrap();
     }
-    let before = snapshot(h, &actor, w).await;
-    let other_before = snapshot(h, &actor, other.id).await;
+    let before = snapshot(h, &actor, w, true).await;
+    let other_before = snapshot(h, &actor, other.id, true).await;
     let mut connection = h.owner.acquire().await.unwrap();
     connection.close_on_drop();
     store::MIGRATOR
@@ -129,11 +134,11 @@ async fn exercise(h: &Harness) {
         .unwrap();
     connection.close().await.unwrap();
     assert!(
-        snapshot(h, &actor, w).await == before,
+        snapshot(h, &actor, w, false).await == before,
         "Logical data and effects changed during backfill"
     );
     assert!(
-        snapshot(h, &actor, other.id).await == other_before,
+        snapshot(h, &actor, other.id, false).await == other_before,
         "Other workspace data changed during backfill"
     );
     let forced: bool = sqlx::query_scalar("SELECT bool_and(relforcerowsecurity) FROM pg_class WHERE oid IN('workspaces'::regclass,'teams'::regclass,'issues'::regclass,'issue_order_staging'::regclass)")
@@ -189,7 +194,7 @@ async fn exercise(h: &Harness) {
         tx.commit().await.unwrap();
     }
     assert!(
-        snapshot(h, &actor, w).await == before,
+        snapshot(h, &actor, w, false).await == before,
         "Physical normalization changed logical data or effects"
     );
     for (sql, constraint) in [
@@ -307,7 +312,7 @@ async fn exercise(h: &Harness) {
     let limited: bool = sqlx::query_scalar("SELECT NOT has_column_privilege(current_user,'issues','rank','UPDATE') AND NOT has_column_privilege(current_user,'teams','ordering_version','UPDATE') AND NOT has_table_privilege(current_user,'issue_order_staging','SELECT,INSERT,UPDATE,DELETE') AND NOT has_function_privilege(current_user,'issue_order_rebalance_inline(uuid,uuid,uuid)','EXECUTE')")
         .fetch_one(&worker.pool).await.unwrap();
     assert!(limited);
-    let before_worker = snapshot(h, &actor, w).await;
+    let before_worker = snapshot(h, &actor, w, false).await;
     let first = worker.claim(w).await.unwrap().unwrap();
     assert_eq!(
         worker.run_claim(&first).await.unwrap(),
@@ -375,7 +380,7 @@ async fn exercise(h: &Harness) {
     assert!(finished);
     assert_eq!((staged, applied), (501, 501));
     assert!(
-        snapshot(h, &actor, w).await == before_worker,
+        snapshot(h, &actor, w, false).await == before_worker,
         "Worker normalization changed logical issue data or effects"
     );
     let mut tx = runtime(h, &actor, w).await;
