@@ -60,7 +60,7 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply}:Props) {
   const selectionRead=useRef<AbortController|null>(null);
   const searchRead=useRef<AbortController|null>(null);
   const activeSaved=useRef<{id:string;fingerprint:string}|null>(null);
-  const pending=useRef<{path:string;options:Parameters<typeof request>[1];lease:Lease;selection:number;target?:string}|null>(null);
+  const pending=useRef<{path:string;options:Parameters<typeof request>[1];lease:Lease;selection:number;target?:string;base:Saved|null}|null>(null);
   const authority=`${scope}:${workspaceId}`;
   const snapshot=signature(definition(view));
   function lease(local?:AbortController):Lease {
@@ -105,11 +105,13 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply}:Props) {
     const update=(page:Directory|null):Directory=>({data:page?.data.some(d=>d.id===item.id)?page.data.map(d=>d.id===item.id?item:d):[...(page?.data??[]),item],has_more:page?.has_more??false,next_cursor:page?.next_cursor});
     (item.kind==='view'?setViews:setSearches)(update);
   }
-  async function write(path:string,method:string,body?:unknown,etag?:string) {
+  async function write(path:string,method:string,body?:unknown,etag?:string,target=selected?.id) {
     if(busy)return;
+    // Writes supersede detail snapshots begun before the local mutation.
+    selectionRead.current?.abort();selectionRead.current=null;setOpening(false);
     const operation=lease();
     const options={method,body,csrf:session.csrf_token,signal:operation.signal,headers:{'Idempotency-Key':crypto.randomUUID(),...(etag?{'If-Match':etag}:{})}};
-    pending.current={path,options,lease:operation,selection:selectionSequence.current,target:selected?.id};await dispatchWrite();
+    pending.current={path,options,lease:operation,selection:selectionSequence.current,target,base:selected};await dispatchWrite();
   }
   async function dispatchWrite() {
     const operation=pending.current;if(!operation?.lease.current())return;
@@ -123,7 +125,9 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply}:Props) {
       if(item){
         replace(item);
         const savedBody=operation.options?.body as {definition?:Definition}|undefined;
-        if(sameSelection && savedBody?.definition){setSelected(item);setSelectionBlocked(!item.definition||!!item.repair_required);activeSaved.current=item.definition?{id:item.id,fingerprint:signature(normalized(item.definition))}:null;setRepair(null);setReconciliation(null);}
+        const unexpectedDefinition=savedBody?.definition ? !item.definition || signature(normalized(savedBody.definition))!==signature(normalized(item.definition)) : operation.base?.id===item.id && operation.base.etag!==item.etag;
+        if(sameSelection && unexpectedDefinition){setReconciliation(item);setRepair(null);}
+        else if(sameSelection && savedBody?.definition){setSelected(item);setSelectionBlocked(!item.definition||!!item.repair_required);activeSaved.current=item.definition?{id:item.id,fingerprint:signature(normalized(item.definition))}:null;setRepair(null);setReconciliation(null);}
         else if(sameSelection && operation.target===item.id)setSelected(item);
       } else {
         const id=operation.target;setViews(p=>p&&{...p,data:p.data.filter(d=>d.id!==id)});setSearches(p=>p&&{...p,data:p.data.filter(d=>d.id!==id)});
@@ -151,6 +155,7 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply}:Props) {
     return true;
   }
   async function open(item:Saved) {
+    if(pending.current?.target===item.id)return;
     selectionRead.current?.abort();const abort=new AbortController();selectionRead.current=abort;
     const operation=lease(abort),selection=++selectionSequence.current;setOpening(true);setRepair(null);setReconciliation(null);setError(null);
     try{const current=await request<Saved>(`${base}/${resource(item.kind)}/${item.id}`,{signal:operation.signal});if(operation.current()&&selection===selectionSequence.current){replace(current);accept(current);}}
@@ -158,7 +163,7 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply}:Props) {
     finally{if(operation.current()&&selection===selectionSequence.current)setOpening(false);}
   }
   async function refreshSelected() {
-    if(!selected)return;
+    if(!selected || pending.current?.target===selected.id)return;
     selectionRead.current?.abort();const abort=new AbortController();selectionRead.current=abort;
     const operation=lease(abort),selection=++selectionSequence.current;setOpening(true);setRepair(null);setError(null);
     try{const item=await request<Saved>(`${base}/${resource(selected.kind)}/${selected.id}`,{signal:operation.signal});if(operation.current()&&selection===selectionSequence.current){replace(item);setReconciliation(item);}}
@@ -192,10 +197,10 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply}:Props) {
     catch(reason){if(operation.current()&&!denial(reason,operation)){setSearch(null);setSearchError(reason);}}
     finally{if(operation.current())setSearching(false);}
   }
-  const directory = (page: Directory | null, label: string, saveKind: Kind) => <section aria-label={label}><h3>{label}</h3>{page ? page.data.length ? <ul>{[...page.data].sort((a, b) => Number(b.favorite) - Number(a.favorite)).map(item => <li key={item.id}><button type="button" className="quiet" onClick={() => void open(item)}>{item.name}</button><span>{item.visibility}{item.repair_required ? ' · Repair required' : ''}</span><button type="button" className="quiet" disabled={busy} aria-label={`${item.favorite ? 'Unfavorite' : 'Favorite'} ${item.name}`} onClick={() => void write(`${base}/${resource(item.kind)}/${item.id}/favorite`, 'PUT', { favorite: !item.favorite })}>{item.favorite ? '★' : '☆'}</button></li>)}</ul> : <p>No {label.toLowerCase()} yet.</p> : !error && <Loading label={`Loading ${label.toLowerCase()}…`}/>} {page?.has_more && <button type="button" className="button compact" onClick={() => void more(saveKind)}>Load more {label.toLowerCase()}</button>}</section>;
+  const directory = (page: Directory | null, label: string, saveKind: Kind) => <section aria-label={label}><h3>{label}</h3>{page ? page.data.length ? <ul>{[...page.data].sort((a, b) => Number(b.favorite) - Number(a.favorite)).map(item => <li key={item.id}><button type="button" className="quiet" disabled={busy && pending.current?.target===item.id} onClick={() => void open(item)}>{item.name}</button><span>{item.visibility}{item.repair_required ? ' · Repair required' : ''}</span><button type="button" className="quiet" disabled={busy} aria-label={`${item.favorite ? 'Unfavorite' : 'Favorite'} ${item.name}`} onClick={() => void write(`${base}/${resource(item.kind)}/${item.id}/favorite`, 'PUT', { favorite: !item.favorite }, undefined, item.id)}>{item.favorite ? '★' : '☆'}</button></li>)}</ul> : <p>No {label.toLowerCase()} yet.</p> : !error && <Loading label={`Loading ${label.toLowerCase()}…`}/>} {page?.has_more && <button type="button" className="button compact" onClick={() => void more(saveKind)}>Load more {label.toLowerCase()}</button>}</section>;
   return <details className="discovery" onToggle={event=>{if(event.currentTarget.open)setActivated(true);}}><summary>Saved views and full-text search</summary>{activated && <div className="discovery-content">
     <div className="discovery-save"><label className="field">Definition name<input value={name} disabled={opening} onChange={e => setName(e.target.value)}/></label><label className="field">View audience<select value={audience} disabled={opening} onChange={e => setAudience(e.target.value)}><option value="personal">Only me</option><option value="workspace">Workspace</option>{teams.filter(t => !t.archived_at).map(t => <option key={t.id} value={t.id}>Team · {t.name}</option>)}</select></label><button type="button" className="button compact" disabled={busy || opening || !name.trim()} onClick={() => save('view')}>Save new view</button></div>
-    {selected && <div className="notice"><span>{selected.name} · Version {selected.version}{unsaved ? ' · Unsaved overrides' : ''}{!selected.can_edit ? ' · Read only' : ''}</span>{selected.can_edit && <><button type="button" className="button compact" disabled={busy || updateBlocked || !name.trim() || selected.kind === 'search' && !term.trim()} onClick={() => save(selected.kind, true)}>Save changes</button><button type="button" className="quiet" disabled={busy || opening} onClick={() => void write(`${base}/${resource(selected.kind)}/${selected.id}`, 'DELETE', undefined, selected.etag)}>Delete saved definition</button></>}<button type="button" className="quiet" disabled={opening} onClick={() => void refreshSelected()}>Refresh saved version</button></div>}
+    {selected && <div className="notice"><span>{selected.name} · Version {selected.version}{unsaved ? ' · Unsaved overrides' : ''}{!selected.can_edit ? ' · Read only' : ''}</span>{selected.can_edit && <><button type="button" className="button compact" disabled={busy || updateBlocked || !name.trim() || selected.kind === 'search' && !term.trim()} onClick={() => save(selected.kind, true)}>Save changes</button><button type="button" className="quiet" disabled={busy || opening} onClick={() => void write(`${base}/${resource(selected.kind)}/${selected.id}`, 'DELETE', undefined, selected.etag)}>Delete saved definition</button></>}<button type="button" className="quiet" disabled={busy || opening} onClick={() => void refreshSelected()}>Refresh saved version</button></div>}
     {opening && <p role="status">Checking the current saved definition…</p>}
     {needsRepair && selected?.can_edit && <div className="notice"><p>Ordinary Save changes is unavailable for these saved filters. Review an explicit replacement before changing the definition.</p><button type="button" className="button compact" disabled={busy || opening || !!reconciliation} onClick={reviewRepair}>Review replacement filters</button></div>}
     {repair && <section className="notice" aria-label="Review replacement filters"><h3>Review replacement filters</h3><p>This will replace the unavailable saved definition with the locally visible filters captured below. Renaming alone does not repair or preserve the unavailable predicate.</p><pre>{JSON.stringify(repair.definition,null,2)}</pre><label><input type="checkbox" checked={repair.acknowledged} onChange={event=>setRepair({...repair,acknowledged:event.target.checked})}/> I reviewed these replacement filters and intend to replace the saved definition.</label><button type="button" className="button compact" disabled={busy || !repair.acknowledged} onClick={confirmRepair}>Replace saved definition with reviewed filters</button><button type="button" className="quiet" onClick={()=>setRepair(null)}>Cancel replacement</button></section>}

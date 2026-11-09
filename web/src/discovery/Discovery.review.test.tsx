@@ -141,3 +141,58 @@ it('a directory snapshot begun before a successful save cannot erase the committ
   await act(async()=>initial.resolve(directory([])));expect(row()).toBe(true);expect(x.host.textContent).toContain('No saved searches yet.');expect(reads).toBe(2);
  }finally{await x.close();}
 });
+it.each([false,true])('favorite metadata with intervening narrowing requires reconciliation (favorite=%s)',async(favorite)=>{
+ const initial={...record(),favorite};const remote={...record('saved',narrow),favorite:!favorite,version:'2',etag:'"saved:2"'};const patches:unknown[]=[];
+ vi.mocked(request).mockImplementation(async(path,options)=>{
+  if(options?.method==='PUT')return remote as never;
+  if(options?.method==='PATCH'){patches.push(options.body);return remote as never;}
+  if(path.endsWith('/views/saved'))return initial as never;
+  return directory(path.endsWith('/views')?[initial]:[]) as never;
+ });
+ const x=await mount();try{await click(x.host,'Private saved');await input(x.host,'Definition name','Rename');await click(x.host,`${favorite?'Unfavorite':'Favorite'} Private saved`);expect(x.host.textContent).toContain('Review latest saved filters');await click(x.host,'Save changes');expect(patches).toHaveLength(0);await click(x.host,'Use latest filters and keep draft name');await click(x.host,'Save changes');expect(patches[0]).toMatchObject({name:'Rename',definition:{query:{filter:narrow.filter}}});}finally{await x.close();}
+});
+it.each([false,true])('lost response definition replay reconciles intervening remote change=%s',async(changed)=>{
+ let attempts=0;const patches:unknown[]=[];
+ vi.mocked(request).mockImplementation(async(path,options)=>{
+  if(options?.method==='PATCH'){patches.push(options.body);if(++attempts===1)throw new ApiError(0,'network_error','Response lost');return {...record('saved',changed?narrow:broad),etag:'"saved:3"',version:'3',name:'Rename'} as never;}
+  if(path.endsWith('/views/saved'))return record() as never;
+  return directory(path.endsWith('/views')?[record()]:[]) as never;
+ });
+ const x=await mount();try{await click(x.host,'Private saved');await input(x.host,'Definition name','Rename');await click(x.host,'Save changes');await click(x.host,'Try again');expect(x.host.textContent?.includes('Review latest saved filters')).toBe(changed);if(changed){await click(x.host,'Save changes');expect(patches).toHaveLength(2);await click(x.host,'Use latest filters and keep draft name');await click(x.host,'Save changes');expect(patches[2]).toMatchObject({definition:{query:{filter:narrow.filter}}});}}finally{await x.close();}
+});
+it.each(['read-first','delete-first'] as const)('cannot reopen a deleting selection (%s)',async(order)=>{
+ const deletion=deferred<undefined>(),detail=deferred<unknown>();let reads=0;
+ vi.mocked(request).mockImplementation(async(path,options)=>{
+  if(options?.method==='DELETE')return deletion.promise as never;
+  if(path.endsWith('/views/saved'))return (++reads===1?record():detail.promise) as never;
+  return directory(path.endsWith('/views')?[record()]:[]) as never;
+ });
+ const x=await mount();try{await click(x.host,'Private saved');await click(x.host,'Delete saved definition');await click(x.host,'Private saved');if(order==='read-first')await act(async()=>detail.resolve(record()));await act(async()=>deletion.resolve(undefined));if(order==='delete-first')await act(async()=>detail.resolve(record()));expect(x.host.textContent).not.toContain('Private saved');expect(x.applied).toHaveLength(1);}finally{await x.close();}
+});
+it('a pre-write refresh cannot offer stale filters after a successful write',async()=>{
+ const detail=deferred<unknown>();let reads=0;
+ vi.mocked(request).mockImplementation(async(path,options)=>{
+  if(options?.method==='PUT')return {...record(),favorite:true} as never;
+  if(path.endsWith('/views/saved'))return (++reads===1?record():detail.promise) as never;
+  return directory(path.endsWith('/views')?[record()]:[]) as never;
+ });
+ const x=await mount();try{await click(x.host,'Private saved');await click(x.host,'Refresh saved version');await click(x.host,'Favorite Private saved');await act(async()=>detail.resolve(record('saved',narrow)));expect(x.host.textContent).not.toContain('Review latest saved filters');expect(x.host.textContent).not.toContain('Checking the current saved definition');}finally{await x.close();}
+});
+it('same-version favorite preserves draft edits without requiring reconciliation',async()=>{
+ vi.mocked(request).mockImplementation(async(path,options)=>{
+  if(options?.method==='PUT')return {...record(),favorite:true} as never;
+  if(path.endsWith('/views/saved'))return record() as never;
+  return directory(path.endsWith('/views')?[record()]:[]) as never;
+ });
+ const x=await mount();try{await click(x.host,'Private saved');await input(x.host,'Definition name','Draft');await click(x.host,'Favorite Private saved');expect(x.host.textContent).not.toContain('Review latest saved filters');expect(x.host.querySelector<HTMLInputElement>('.discovery-save input')?.value).toBe('Draft');}finally{await x.close();}
+});
+it('a different object can be opened while deletion completes without clearing that selection',async()=>{
+ const deletion=deferred<undefined>();
+ vi.mocked(request).mockImplementation(async(path,options)=>{
+  if(options?.method==='DELETE')return deletion.promise as never;
+  if(path.endsWith('/views/saved'))return record() as never;
+  if(path.endsWith('/views/other'))return record('other',narrow) as never;
+  return directory(path.endsWith('/views')?[record(),record('other')]:[]) as never;
+ });
+ const x=await mount();try{await click(x.host,'Private saved');await click(x.host,'Delete saved definition');await click(x.host,'Private other');await act(async()=>deletion.resolve(undefined));expect(x.host.textContent).not.toContain('Private saved');expect(x.host.textContent).toContain('Private other · Version 1');expect(x.applied.at(-1)?.filter).toEqual(narrow.filter);}finally{await x.close();}
+});
