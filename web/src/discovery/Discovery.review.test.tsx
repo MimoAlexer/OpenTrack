@@ -353,3 +353,47 @@ it.each([2,3])('a delayed explicit refresh v%s cannot reopen an adopted review, 
   expect([...x.host.querySelectorAll('button')].find(b=>b.textContent==='Save changes')?.disabled).toBe(false);
  }finally{await x.close();}
 });
+
+it('ordinary invalidation preserves a favorite control through activation and rejects its stale directory snapshot',async()=>{
+ const delayed=deferred<unknown>();let refreshing=false,hold=true,current=record(),writes=0;
+ vi.mocked(request).mockImplementation(async(path,options)=>{
+  if(options?.method==='PUT'){writes++;current={...current,favorite:true};return current as never;}
+  if(path.endsWith('/views')){if(refreshing && hold){hold=false;return delayed.promise as never;}return directory([current],!refreshing) as never;}
+  return directory([]) as never;
+ });
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);const host=document.createElement('div');document.body.append(host);const root=createRoot(host);
+ const props={workspaceId:'workspace',scope:'principal:1',session,teams:[],view:broad,apply:()=>true};
+ try{
+  await act(async()=>root.render(<Discovery {...props} refresh={0}/>));
+  await act(async()=>{const details=host.querySelector('details')!;details.open=true;details.dispatchEvent(new Event('toggle',{bubbles:true}));});
+  const button=host.querySelector('button[aria-label="Favorite Private saved"]') as HTMLButtonElement;
+  await act(async()=>button.dispatchEvent(new MouseEvent('mousedown',{bubbles:true})));
+  refreshing=true;await act(async()=>root.render(<Discovery {...props} refresh={1}/>));
+  expect(host.querySelector('button[aria-label="Favorite Private saved"]')).toBe(button);
+  expect([...host.querySelectorAll('button')].some(button=>button.textContent==='Load more saved views')).toBe(false);
+  await act(async()=>{button.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));button.click();});
+  expect(writes).toBe(1);
+  await act(async()=>delayed.resolve(directory([record()])));
+  expect(host.querySelector('button[aria-label="Unfavorite Private saved"]')).not.toBeNull();
+ }finally{await act(async()=>root.unmount());host.remove();}
+});
+
+it('ordinary refresh retains rows only until current authority denies the read',async()=>{
+ const delayed=deferred<unknown>();let refreshing=false,writes=0;
+ vi.mocked(request).mockImplementation(async(path,options)=>{
+  if(options?.method==='PUT'){writes++;return record() as never;}
+  return path.endsWith('/views')?(refreshing?delayed.promise:directory([record()])) as never:directory([]) as never;
+ });
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);const host=document.createElement('div');document.body.append(host);const root=createRoot(host);
+ const props={workspaceId:'workspace',scope:'principal:1',session,teams:[],view:broad,apply:()=>true};
+ try{
+  await act(async()=>root.render(<Discovery {...props} refresh={0}/>));
+  await act(async()=>{const details=host.querySelector('details')!;details.open=true;details.dispatchEvent(new Event('toggle',{bubbles:true}));});
+  const button=host.querySelector('button[aria-label="Favorite Private saved"]') as HTMLButtonElement;
+  refreshing=true;await act(async()=>root.render(<Discovery {...props} refresh={1}/>));
+  expect(button.isConnected).toBe(true);
+  await act(async()=>delayed.reject(new ApiError(403,'forbidden','Access removed')));
+  expect(host.textContent).not.toContain('Private saved');expect(button.isConnected).toBe(false);
+  await act(async()=>button.click());expect(writes).toBe(0);
+ }finally{await act(async()=>root.unmount());host.remove();}
+});

@@ -103,7 +103,11 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0}:
     // Revalidate selected metadata without replacing the local name or filters.
     // An echoed local write with the same validator needs no further review.
     directoryRevision.current++;
-    setViews(null);setSearches(null);setSearch(null);
+    // Keep keyed controls mounted across an ordinary refresh, including an
+    // activation already in progress; old continuations are no longer usable.
+    // Authority denial and confirmed deletion still clear their affected rows.
+    setViews(page=>page&&{...page,has_more:false,next_cursor:null});
+    setSearches(page=>page&&{...page,has_more:false,next_cursor:null});setSearch(null);
     const selected=selectedCurrent.current;
     if(!selected)return;
     const abort=new AbortController(),operation=lease(abort),revision=directoryRevision.current,selection=selectionSequence.current;
