@@ -45,8 +45,8 @@ test('replays remote issue changes after offline recovery while preserving an ed
     for (const client of [page, peer]) {
       await expect(client.getByRole('navigation', { name: 'Workspace navigation' }).getByText(teamName, { exact: true })).toBeVisible();
       await client.locator('.filter-menu summary').click();
-      await expect(client.locator('.filter-popover').getByLabel('Team', { exact: true }).locator(`option[value="${team.id}"]`)).toHaveText(teamName);
-      await expect(client.locator('.filter-popover').getByLabel('Status', { exact: true }).locator(`option[value="${issue.status_id}"]`)).toContainText(statusName);
+      await expect(client.locator('.filter-popover').getByRole('combobox', { name: 'Team', exact: true }).locator(`option[value="${team.id}"]`)).toHaveText(teamName);
+      await expect(client.locator('.filter-popover').getByRole('combobox', { name: 'Status', exact: true }).locator(`option[value="${issue.status_id}"]`)).toContainText(statusName);
       await client.locator('.filter-menu summary').click();
     }
     await expect(title).toHaveValue(draft); await expect(save).toBeEnabled();
