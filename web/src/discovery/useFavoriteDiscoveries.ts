@@ -127,9 +127,8 @@ export function useFavoriteDiscoveries({ workspaceId, scope, enabled, refresh, o
   const value = context.current;
   return {
     views: group('view'), searches: group('search'), enabled: active && !(value?.key === key && value.denied),
-    refresh: () => { const value = context.current; if (!value || !current(value)) return; read(value, 'view'); read(value, 'search'); },
+    refresh: () => { if (!value || !current(value)) return; read(value, 'view'); read(value, 'search'); },
     unavailable: (kind, id) => {
-      const value = context.current;
       if (!value || !current(value)) return;
       value.unavailable.add(typedId(kind, id));
       value.groups[kind].items = value.groups[kind].items.filter(item => item.id.toLowerCase() !== id.toLowerCase()); changed();

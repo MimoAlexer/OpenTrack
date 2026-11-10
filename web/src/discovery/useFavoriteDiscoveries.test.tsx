@@ -85,3 +85,21 @@ it('does not fetch or display cached labels for an invalid workspace or empty au
  await render(); expect(container.textContent).toContain('Favorite 2'); await render({ workspaceId: 'invalid' }); expect(container.textContent).toBe(''); expect(favorites.enabled).toBe(false);
  await render({ workspaceId, scope: '' }); expect(favorites.enabled).toBe(false); expect(fetch).toHaveBeenCalledTimes(2);
 });
+it.each(['authority', 'enable'] as const)('rejects unavailable actions retained before a %s replacement context', async replacement => {
+ vi.stubGlobal('fetch', vi.fn(async (url: string) => json(page([saved(2, url.includes('/views?') ? 'view' : 'search')]))));
+ await render(); const old = favorites;
+ if (replacement === 'authority') { await render({ scope: 'different-principal:new-epoch' }); await render({ scope: 'account:workspace:epoch:session' }); }
+ else { await render({ enabled: false }); await render({ enabled: true }); }
+ await act(async () => old.unavailable('view', id(2)));
+ expect(favorites.views.items.map(item => item.id)).toEqual([id(2)]); expect(favorites.searches.items.map(item => item.id)).toEqual([id(2)]);
+});
+it.each(['authority', 'enable'] as const)('rejects refresh actions retained before a %s replacement context', async replacement => {
+ const pending = deferred(); let hold = false; const signals: AbortSignal[] = [];
+ const fetch = vi.fn((url: string, init: RequestInit) => { if (hold) { signals.push(init.signal as AbortSignal); return pending.promise; } return Promise.resolve(json(page([saved(2, url.includes('/views?') ? 'view' : 'search')]))); }); vi.stubGlobal('fetch', fetch);
+ await render(); const old = favorites;
+ if (replacement === 'authority') { await render({ scope: 'different-principal:new-epoch' }); await render({ scope: 'account:workspace:epoch:session' }); }
+ else { await render({ enabled: false }); await render({ enabled: true }); }
+ hold = true; await act(async () => favorites.refresh()); const count = fetch.mock.calls.length;
+ await act(async () => old.refresh());
+ expect(fetch).toHaveBeenCalledTimes(count); expect(signals).toHaveLength(2); expect(signals.every(signal => !signal.aborted)).toBe(true); expect(favorites.views.busy).toBe(true);
+});
