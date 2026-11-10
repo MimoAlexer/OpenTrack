@@ -5,145 +5,145 @@
       "browser": "chromium",
       "check": "palette discovers teams and mixed projects, preserves independent group validation and navigates by keyboard after current reads",
       "status": "passed",
-      "duration_ms": 2035
+      "duration_ms": 1931
     },
     {
       "browser": "chromium",
       "check": "palette excludes private controls and refuses team and project suggestions after visibility is revoked",
       "status": "passed",
-      "duration_ms": 2520
+      "duration_ms": 2296
     },
     {
       "browser": "chromium",
       "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
       "status": "passed",
-      "duration_ms": 4127
+      "duration_ms": 3796
     },
     {
       "browser": "chromium",
       "check": "palette finds saved issue bodies and current project briefs across teams with literal safe results",
       "status": "passed",
-      "duration_ms": 1403
+      "duration_ms": 1256
     },
     {
       "browser": "chromium",
       "check": "palette excludes private search controls and revalidates stale issue and project results after access is revoked",
       "status": "passed",
-      "duration_ms": 2616
+      "duration_ms": 2396
     },
     {
       "browser": "chromium",
       "check": "palette ignores a delayed real search response after a newer query has resolved",
       "status": "passed",
-      "duration_ms": 897
+      "duration_ms": 837
     },
     {
       "browser": "chromium",
       "check": "palette searches saved issues and reauthorizes recent titles with character shortcuts disabled",
       "status": "passed",
-      "duration_ms": 1036
+      "duration_ms": 932
     },
     {
       "browser": "chromium",
       "check": "palette keeps focus and removes a saved result deleted before it is selected",
       "status": "passed",
-      "duration_ms": 702
+      "duration_ms": 628
     },
     {
       "browser": "firefox",
       "check": "palette discovers teams and mixed projects, preserves independent group validation and navigates by keyboard after current reads",
       "status": "passed",
-      "duration_ms": 3058
+      "duration_ms": 3178
     },
     {
       "browser": "firefox",
       "check": "palette excludes private controls and refuses team and project suggestions after visibility is revoked",
       "status": "passed",
-      "duration_ms": 3044
+      "duration_ms": 2623
     },
     {
       "browser": "firefox",
       "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
       "status": "passed",
-      "duration_ms": 5030
+      "duration_ms": 4434
     },
     {
       "browser": "firefox",
       "check": "palette finds saved issue bodies and current project briefs across teams with literal safe results",
       "status": "passed",
-      "duration_ms": 1921
+      "duration_ms": 1807
     },
     {
       "browser": "firefox",
       "check": "palette excludes private search controls and revalidates stale issue and project results after access is revoked",
       "status": "passed",
-      "duration_ms": 2969
+      "duration_ms": 2531
     },
     {
       "browser": "firefox",
       "check": "palette ignores a delayed real search response after a newer query has resolved",
       "status": "passed",
-      "duration_ms": 1473
+      "duration_ms": 1373
     },
     {
       "browser": "firefox",
       "check": "palette searches saved issues and reauthorizes recent titles with character shortcuts disabled",
       "status": "passed",
-      "duration_ms": 1674
+      "duration_ms": 1481
     },
     {
       "browser": "firefox",
       "check": "palette keeps focus and removes a saved result deleted before it is selected",
       "status": "passed",
-      "duration_ms": 918
+      "duration_ms": 816
     },
     {
       "browser": "webkit",
       "check": "palette discovers teams and mixed projects, preserves independent group validation and navigates by keyboard after current reads",
       "status": "passed",
-      "duration_ms": 2710
+      "duration_ms": 2620
     },
     {
       "browser": "webkit",
       "check": "palette excludes private controls and refuses team and project suggestions after visibility is revoked",
       "status": "passed",
-      "duration_ms": 3366
+      "duration_ms": 3087
     },
     {
       "browser": "webkit",
       "check": "palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation",
       "status": "passed",
-      "duration_ms": 5551
+      "duration_ms": 4776
     },
     {
       "browser": "webkit",
       "check": "palette finds saved issue bodies and current project briefs across teams with literal safe results",
       "status": "passed",
-      "duration_ms": 2297
+      "duration_ms": 2115
     },
     {
       "browser": "webkit",
       "check": "palette excludes private search controls and revalidates stale issue and project results after access is revoked",
       "status": "passed",
-      "duration_ms": 3125
+      "duration_ms": 2850
     },
     {
       "browser": "webkit",
       "check": "palette ignores a delayed real search response after a newer query has resolved",
       "status": "passed",
-      "duration_ms": 1628
+      "duration_ms": 1540
     },
     {
       "browser": "webkit",
       "check": "palette searches saved issues and reauthorizes recent titles with character shortcuts disabled",
       "status": "passed",
-      "duration_ms": 1814
+      "duration_ms": 1651
     },
     {
       "browser": "webkit",
       "check": "palette keeps focus and removes a saved result deleted before it is selected",
       "status": "passed",
-      "duration_ms": 1309
+      "duration_ms": 1273
     }
   ],
   "limitations": [
