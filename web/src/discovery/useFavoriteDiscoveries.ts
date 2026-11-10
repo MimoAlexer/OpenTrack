@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, currentSessionGeneration, request } from '../api';
 import type { components } from '../generated/api';
 
@@ -29,7 +29,7 @@ interface GroupState {
   controller?: AbortController;
 }
 interface Context {
-  key: string; workspaceId: string; session: number; disposed: boolean; denied: boolean; refresh: number;
+  key: string; token: object; workspaceId: string; session: number; disposed: boolean; denied: boolean; refresh: number;
   groups: Record<FavoriteKind, GroupState>;
   unavailable: Set<string>;
 }
@@ -42,6 +42,9 @@ export function useFavoriteDiscoveries({ workspaceId, scope, enabled, refresh, o
   const session = currentSessionGeneration();
   const active = enabled && uuid.test(workspaceId) && !!scope;
   const key = JSON.stringify([workspaceId, scope, session, active]);
+  // This render-owned token exists before child effects can capture an action.
+  // A replacement grant receives a new token even when its string key returns.
+  const token = useMemo(() => ({}), [key]);
   const latestKey = useRef(key); latestKey.current = key;
   const callback = useRef(onDenied); callback.current = onDenied;
   const context = useRef<Context | null>(null);
@@ -88,7 +91,7 @@ export function useFavoriteDiscoveries({ workspaceId, scope, enabled, refresh, o
   }
   useEffect(() => {
     if (!active) return;
-    const value: Context = { key, workspaceId, session, disposed: false, denied: false, refresh, groups: { view: empty(), search: empty() }, unavailable: new Set() };
+    const value: Context = { key, token, workspaceId, session, disposed: false, denied: false, refresh, groups: { view: empty(), search: empty() }, unavailable: new Set() };
     context.current = value;
     read(value, 'view'); read(value, 'search');
     const expired = () => deny(value);
@@ -127,9 +130,10 @@ export function useFavoriteDiscoveries({ workspaceId, scope, enabled, refresh, o
   const value = context.current;
   return {
     views: group('view'), searches: group('search'), enabled: active && !(value?.key === key && value.denied),
-    refresh: () => { if (!value || !current(value)) return; read(value, 'view'); read(value, 'search'); },
+    refresh: () => { const value = context.current; if (!value || value.token !== token || !current(value)) return; read(value, 'view'); read(value, 'search'); },
     unavailable: (kind, id) => {
-      if (!value || !current(value)) return;
+      const value = context.current;
+      if (!value || value.token !== token || !current(value)) return;
       value.unavailable.add(typedId(kind, id));
       value.groups[kind].items = value.groups[kind].items.filter(item => item.id.toLowerCase() !== id.toLowerCase()); changed();
     },

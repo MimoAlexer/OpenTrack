@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { advanceSessionGeneration } from '../api';
+import { advanceSessionGeneration, request } from '../api';
 import { useFavoriteDiscoveries } from './useFavoriteDiscoveries';
 const workspaceId = '00000000-0000-4000-8000-000000000001';
 const id = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -12,10 +12,11 @@ const json = (value: unknown, status = 200) => new Response(JSON.stringify(value
 function deferred() { let resolve!: (response: Response) => void; const promise = new Promise<Response>(done => { resolve = done; }); return { promise, resolve }; }
 let container: HTMLDivElement; let root: Root;
 let favorites: ReturnType<typeof useFavoriteDiscoveries>;
+let initialActions: typeof favorites | undefined;
 let options: Parameters<typeof useFavoriteDiscoveries>[0];
-function Harness({ value }: { value: typeof options }) { favorites = useFavoriteDiscoveries(value); return <>{favorites.views.items.map(item => <p key={`v:${item.id}`}>{item.name}</p>)}{favorites.searches.items.map(item => <p key={`s:${item.id}`}>{item.name}</p>)}</>; }
+function Harness({ value }: { value: typeof options }) { favorites = useFavoriteDiscoveries(value); initialActions ??= favorites; return <>{favorites.views.items.map(item => <p key={`v:${item.id}`}>{item.name}</p>)}{favorites.searches.items.map(item => <p key={`s:${item.id}`}>{item.name}</p>)}</>; }
 async function render(patch: Partial<typeof options> = {}) { options = { ...options, ...patch }; await act(async () => root.render(<Harness value={options} />)); }
-beforeEach(() => { vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true); container = document.createElement('div'); document.body.append(container); root = createRoot(container); options = { workspaceId, scope: 'account:workspace:epoch:session', enabled: true, refresh: 0 }; });
+beforeEach(() => { vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true); container = document.createElement('div'); document.body.append(container); root = createRoot(container); initialActions = undefined; options = { workspaceId, scope: 'account:workspace:epoch:session', enabled: true, refresh: 0 }; });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 it('requests bounded favorite pages and retains only safe summaries', async () => {
  const fetch = vi.fn(async (url: string) => json(page(url.includes('/views?') ? [saved(2), saved(3, 'search'), saved(4, 'view', { favorite: false }), saved(5, 'view', { workspace_id: id(100) }), ...Array.from({ length: 20 }, (_, n) => saved(n + 10))] : [saved(6, 'search')]))); vi.stubGlobal('fetch', fetch);
@@ -102,4 +103,30 @@ it.each(['authority', 'enable'] as const)('rejects refresh actions retained befo
  hold = true; await act(async () => favorites.refresh()); const count = fetch.mock.calls.length;
  await act(async () => old.refresh());
  expect(fetch).toHaveBeenCalledTimes(count); expect(signals).toHaveLength(2); expect(signals.every(signal => !signal.aborted)).toBe(true); expect(favorites.views.busy).toBe(true);
+});
+
+it('accepts cold-render actions after the initial context effect has started reads', async () => {
+ const fetch = vi.fn(async (url: string) => json(page([saved(2, url.includes('/views?') ? 'view' : 'search')]))); vi.stubGlobal('fetch', fetch);
+ await render();
+ await act(async () => initialActions!.refresh()); expect(fetch).toHaveBeenCalledTimes(4);
+ await act(async () => initialActions!.unavailable('view', id(2)));
+ expect(favorites.views.items).toHaveLength(0); expect(favorites.searches.items).toHaveLength(1);
+});
+
+it('tombstones a cold child detail denial before held favorite collection reads return', async () => {
+ const views = deferred(), searches = deferred(), target = deferred();
+ vi.stubGlobal('fetch', vi.fn((url: string) => url.endsWith(`/views/${id(2)}`) ? target.promise : url.includes('/saved-searches?') ? searches.promise : views.promise));
+ function ColdDetail({ unavailable }: Pick<typeof favorites, 'unavailable'>) {
+  useEffect(() => { void request(`/workspaces/${workspaceId}/views/${id(2)}`).catch(() => unavailable('view', id(2))); }, []);
+  return null;
+ }
+ function ColdParent() {
+  favorites = useFavoriteDiscoveries(options);
+  return <ColdDetail unavailable={favorites.unavailable}/>;
+ }
+ await act(async () => root.render(<ColdParent/>));
+ await act(async () => target.resolve(json({ code: 'not_found', detail: 'Unavailable' }, 404)));
+ await act(async () => { views.resolve(json(page([saved(2)]))); searches.resolve(json(page([saved(2, 'search')]))); });
+ expect(favorites.views.items).toHaveLength(0); expect(favorites.searches.items.map(item => item.id)).toEqual([id(2)]);
+ expect(favorites.views.busy).toBe(false); expect(favorites.searches.busy).toBe(false);
 });
