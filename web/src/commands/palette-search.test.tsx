@@ -179,6 +179,63 @@ it('keeps a search error recoverable and retries the exact query without broaden
   expect(fetch.mock.calls.filter(([url]) => url.includes('/search?')).map(([url]) => Object.fromEntries(new URL(url, 'https://example.test').searchParams))).toEqual([{ q: text, limit: '20' }, { q: text, limit: '20' }]);
 });
 
+it.each(['Teams', 'Search'] as const)('settles a cancelled selection after retrying %s while its sibling detail is pending', async retryGroup => {
+  const item = hit('project', 'selected', 'Work result'); const team = { id: 'destination', workspace_id: 'workspace', key: 'EX', name: 'Team result', archived_at: null };
+  const pending = deferred(); let attempts = 0; const options = source(); const close = vi.fn();
+  const frames = vi.fn(); vi.stubGlobal('requestAnimationFrame', frames);
+  const fetch = vi.fn((path: string) => {
+    const url = new URL(path, 'https://example.test');
+    if (url.pathname.endsWith('/search') || url.pathname.endsWith('/teams')) {
+      const failedGroup = retryGroup === 'Search' ? url.pathname.endsWith('/search') : url.pathname.endsWith('/teams');
+      if (failedGroup && ++attempts === 1) return Promise.resolve(json({ code: 'unavailable', detail: `${retryGroup} temporarily unavailable` }, 503));
+      return Promise.resolve(json(url.pathname.endsWith('/search') ? page(item) : { data: [team], has_more: false, next_cursor: null }));
+    }
+    return pending.promise;
+  }); vi.stubGlobal('fetch', fetch);
+  await render(options, close); await query('match'); await tick();
+  expect(rows()).toHaveLength(1); expect(container.querySelector('[role="listbox"]')?.getAttribute('aria-busy')).toBe('false'); await enter();
+  expect(container.querySelector('[role="listbox"]')?.getAttribute('aria-busy')).toBe('true');
+  const retry = Array.from(container.querySelectorAll('.command-error')).find(group => group.querySelector('strong')?.textContent === retryGroup)!.querySelector('button')!;
+  await act(async () => retry.click()); await tick();
+  expect(container.querySelector('[role="alert"]')).toBeNull(); expect(rows()).toHaveLength(2);
+  await act(async () => pending.resolve(json(retryGroup === 'Teams' ? detail(item) : team)));
+  expect(close).not.toHaveBeenCalled(); expect(options.open).not.toHaveBeenCalled(); expect(frames).not.toHaveBeenCalled();
+  expect(location.pathname + location.search).toBe('/w/workspace/issues?team_id=current-team');
+  expect(container.querySelector('[role="listbox"]')?.getAttribute('aria-busy')).toBe('false');
+  expect(container.querySelector('[role="status"][aria-live="polite"]')?.textContent).toBe('0 issue results, 1 teams and 1 projects in this workspace.');
+});
+
+it.each([
+  ['Teams', 'success'], ['Search', 'success'], ['Teams', '404'], ['Search', '404'],
+] as const)('keeps a newer detail busy after retrying %s when an older selection returns %s', async (retryGroup, earlierResult) => {
+  const item = hit('project', 'selected', 'Work result'); const team = { id: 'destination', workspace_id: 'workspace', key: 'EX', name: 'Team result', archived_at: null };
+  const older = deferred(); const newer = deferred(); let attempts = 0; let selections = 0; const options = source(); const close = vi.fn();
+  const frames: FrameRequestCallback[] = []; vi.stubGlobal('requestAnimationFrame', (frame: FrameRequestCallback) => { frames.push(frame); return frames.length; });
+  const fetch = vi.fn((path: string) => {
+    const url = new URL(path, 'https://example.test');
+    if (url.pathname.endsWith('/search') || url.pathname.endsWith('/teams')) {
+      const failedGroup = retryGroup === 'Search' ? url.pathname.endsWith('/search') : url.pathname.endsWith('/teams');
+      if (failedGroup && ++attempts === 1) return Promise.resolve(json({ code: 'unavailable', detail: `${retryGroup} temporarily unavailable` }, 503));
+      return Promise.resolve(json(url.pathname.endsWith('/search') ? page(item) : { data: [team], has_more: false, next_cursor: null }));
+    }
+    return ++selections === 1 ? older.promise : newer.promise;
+  }); vi.stubGlobal('fetch', fetch);
+  await render(options, close); await query('match'); await tick();
+  await act(async () => container.querySelector('input')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))); await enter();
+  const retry = Array.from(container.querySelectorAll('.command-error')).find(group => group.querySelector('strong')?.textContent === retryGroup)!.querySelector('button')!;
+  await act(async () => retry.click()); await tick(); await enter(); await enter();
+  expect(selections).toBe(2); expect(container.querySelector('[role="listbox"]')?.getAttribute('aria-busy')).toBe('true');
+  await act(async () => older.resolve(earlierResult === '404' ? json({ code: 'not_found', detail: 'Earlier selection is unavailable' }, 404) : json(retryGroup === 'Teams' ? detail(item) : team)));
+  expect(close).not.toHaveBeenCalled(); expect(frames).toHaveLength(0);
+  expect(rows()).toHaveLength(2); expect(container.querySelector('[role="alert"]')).toBeNull();
+  expect(container.querySelector('[role="listbox"]')?.getAttribute('aria-busy')).toBe('true');
+  expect(container.querySelector('[role="status"][aria-live="polite"]')?.textContent).toBe('Searching accessible results…');
+  await act(async () => newer.resolve(json(retryGroup === 'Teams' ? detail(item) : team)));
+  expect(close).toHaveBeenCalledOnce(); expect(frames).toHaveLength(1);
+  expect(container.querySelector('[role="listbox"]')?.getAttribute('aria-busy')).toBe('false');
+  expect(container.querySelector('[role="status"][aria-live="polite"]')?.textContent).toBe('0 issue results, 1 teams and 1 projects in this workspace.');
+});
+
 it.each([
   { label: '257 supplementary scalars', text: '🚀'.repeat(257) },
   { label: '33 words', text: Array.from({ length: 33 }, (_, index) => `term${index}`).join(' ') },
