@@ -88,8 +88,8 @@ it.each([403, 404])('repeated collection %s with unchanged authority has only on
   expect(reads.filter(path => path === '/auth/session')).toHaveLength(2);
   expect(reads.filter(path => path.endsWith('/bootstrap'))).toHaveLength(2);
   expect(reads.filter(path => path.endsWith('/access'))).toHaveLength(2);
-  expect(host.textContent).toContain('Favorite directory unavailable');
-  const retry = host.querySelector<HTMLButtonElement>('[aria-label="Retry favorite views"]'); expect(retry).not.toBeNull();
+  expect(host.textContent).toContain('Favorites are unavailable');
+  const retry = host.querySelector<HTMLButtonElement>('[aria-label="Retry favorites"]'); expect(retry).not.toBeNull();
   await act(async () => retry!.click());
   expect(vi.mocked(request).mock.calls.filter(([path]) => path === '/auth/session')).toHaveLength(2);
   expect(vi.mocked(request).mock.calls.filter(([path]) => path.endsWith('/bootstrap'))).toHaveLength(2);

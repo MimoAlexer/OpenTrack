@@ -187,6 +187,34 @@ it('a delayed previous full-text result cannot reappear while another favorite i
   expect(host.textContent).not.toContain('Obsolete delayed search hit'); conceal(); expect(executionCalls().filter(([path]) => path.endsWith('/search/query'))).toHaveLength(1);
 });
 
+it('a selected search deleted after opening clears its name and term, tombstones its typed favorite, and fences an older directory', async () => {
+  const listing = deferred<unknown>(); const fallback = vi.mocked(request).getMockImplementation()!; let reads = 0;
+  vi.mocked(request).mockImplementation((path, options) => {
+    if (path.endsWith(`/saved-searches/${id}`)) return (++reads === 1 ? Promise.resolve(saved('search')) : Promise.reject(new ApiError(404, 'not_available', 'Saved search removed'))) as never;
+    if (path.endsWith('/saved-searches')) return listing.promise as never;
+    return fallback(path, options);
+  });
+  await go(favoriteUrl('search')); await render(); await tick();
+  expect(host.textContent).toContain('Current renamed favorite · Version 2'); expect(host.textContent).toContain('Current full-text result');
+  await click('Refresh saved version');
+  expect(unavailable).toHaveBeenCalledWith('search', id);
+  expect(host.textContent).not.toContain('Current renamed favorite'); expect(host.querySelector<HTMLInputElement>('.discovery-save input')?.value).toBe('');
+  expect(host.querySelector<HTMLInputElement>('[aria-label="Search issues and projects"]')?.value).toBe('');
+  expect(host.querySelector('.discovery-results')).toBeNull();
+  await act(async () => listing.resolve({ ...directory, data: [saved('search')] })); await tick();
+  expect(host.textContent).not.toContain('Current renamed favorite'); expect(host.textContent).not.toContain('Current full-text result');
+});
+
+it.each(['id', 'kind', 'workspace_id'] as const)('a refreshed selected favorite with mismatched %s cannot appear in reconciliation', async field => {
+  const fallback = vi.mocked(request).getMockImplementation()!; let reads = 0;
+  const wrong = saved('view', { [field]: field === 'kind' ? 'search' : 'different', name: 'Mismatched object secret' });
+  vi.mocked(request).mockImplementation((path, options) => path.endsWith(`/views/${id}`) ? Promise.resolve(++reads === 1 ? saved() : wrong) as never : fallback(path, options));
+  await go(favoriteUrl()); await render(); expect(host.textContent).toContain('Current renamed favorite · Version 2');
+  await click('Refresh saved version');
+  expect(reads).toBe(2); expect(host.querySelector('[aria-label="Review latest saved filters"]')).toBeNull();
+  expect(host.textContent).not.toContain('Mismatched object secret'); expect(host.textContent).toContain('Current renamed favorite · Version 2');
+});
+
 it('explicit All issues exits a held intent and fences its delayed response', async () => {
   const detail = deferred<Saved>(); const fallback = vi.mocked(request).getMockImplementation()!;
   vi.mocked(request).mockImplementation((path, options) => path.endsWith(`/views/${id}`) ? detail.promise as never : fallback(path, options));
