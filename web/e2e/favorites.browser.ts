@@ -100,21 +100,30 @@ test('private other-user favorites and malformed direct links never broaden issu
     const response = await member.post(`${saved.path}/saved-searches`, { data: { name, kind: 'search', visibility: 'personal', definition: definition(saved.team.id, 'private') }, headers: { 'X-CSRF-Token': session.csrf_token, 'Idempotency-Key': randomUUID() } });
     expect(response.status()).toBe(201); const item = await response.json() as Saved;
     expect((await member.put(`${saved.path}/saved-searches/${item.id}/favorite`, { data: { favorite: true }, headers: { 'X-CSRF-Token': session.csrf_token, 'Idempotency-Key': randomUUID() } })).status()).toBe(200);
-    await saved.open(page); await expect(favorites(page)).not.toContainText(name);
-    const reads = queryReads(page, saved);
-    const denied = page.waitForResponse(value => new URL(value.url()).pathname === `${saved.path}/saved-searches/${item.id}`);
-    await page.goto(href(saved, item)); expect((await denied).status()).toBe(404);
-    await expect(page.getByRole('alert').first()).toBeVisible(); await assertBlocked(page, reads);
-    await expect(page.locator('.discovery')).not.toContainText(name);
-    for (const invalid of ['view:not-a-uuid', `search:${item.id}:extra`]) {
-      reads.length = 0;
-      await page.goto(`/w/${saved.workspace}/issues?open_saved=${encodeURIComponent(invalid)}`);
-      await expect(page.getByRole('alert').filter({ hasText: 'saved discovery link is invalid' })).toBeVisible();
-      await assertBlocked(page, reads);
-    }
-    await page.getByRole('button', { name: 'Open all issues', exact: true }).click();
-    await expect(page.getByRole('button', { name: /^New issue/ })).toBeEnabled();
-    await expect.poll(() => reads.length).toBeGreaterThan(0);
+    const ownerFavorites = page.waitForResponse(value => value.request().method() === 'GET'
+      && new URL(value.url()).pathname === `${saved.path}/saved-searches`
+      && new URL(value.url()).searchParams.get('favorites') === 'true');
+    await saved.open(page); expect((await ownerFavorites).status()).toBe(200);
+    await expect(group(page, 'search')).toHaveAttribute('aria-busy', 'false');
+    await expect(favorites(page)).not.toContainText(name);
+    // Isolate request accounting from the preceding All issues document.
+    const target = await page.context().newPage();
+    try {
+      const reads = queryReads(target, saved);
+      const denied = target.waitForResponse(value => new URL(value.url()).pathname === `${saved.path}/saved-searches/${item.id}`);
+      await target.goto(href(saved, item)); expect((await denied).status()).toBe(404);
+      await expect(target.getByRole('alert').first()).toBeVisible(); await assertBlocked(target, reads);
+      await expect(target.locator('.discovery')).not.toContainText(name);
+      for (const invalid of ['view:not-a-uuid', `search:${item.id}:extra`]) {
+        reads.length = 0;
+        await target.goto(`/w/${saved.workspace}/issues?open_saved=${encodeURIComponent(invalid)}`);
+        await expect(target.getByRole('alert').filter({ hasText: 'saved discovery link is invalid' })).toBeVisible();
+        await assertBlocked(target, reads);
+      }
+      await target.getByRole('button', { name: 'Open all issues', exact: true }).click();
+      await expect(target.getByRole('button', { name: /^New issue/ })).toBeEnabled();
+      await expect.poll(() => reads.length).toBeGreaterThan(0);
+    } finally { await target.close(); }
   } finally { await member.dispose(); }
 });
 
