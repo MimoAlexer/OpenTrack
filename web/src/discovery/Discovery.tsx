@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ApiError, currentSessionGeneration, request } from '../api';
 import { ErrorBanner, Loading } from '../components';
 import { Link, navigate } from '../router';
@@ -35,6 +35,7 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0,f
   const intentHeld=favoriteIntent.state!=='absent';
   const intentKey=JSON.stringify(favoriteIntent);
   const currentIntent=useRef(intentKey);currentIntent.current=intentKey;
+  const unavailableCallback=useRef(favoriteUnavailable);unavailableCallback.current=favoriteUnavailable;
   const [intentReadKey,setIntentReadKey]=useState('');
   const [intentRetry,setIntentRetry]=useState(0);
   const controlsReady=!intentHeld || favoriteIntent.state==='valid' && intentReadKey===intentKey;
@@ -81,7 +82,7 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0,f
     const signal=local?AbortSignal.any([authorityController.current.signal,local.signal]):authorityController.current.signal;
     return {signal,current:()=>mounted.current && ticket===generation.current && credential===currentSessionGeneration() && !signal.aborted && (!bindIntent || currentIntent.current===intentKey && (intentHeld ? location.href===rawUrl : parseFavoriteIntent(location.href,workspaceId).state==='absent'))};
   }
-  useEffect(()=>{
+  useLayoutEffect(()=>{
     mounted.current=true;
     if(authorityController.current.signal.aborted)authorityController.current=new AbortController();
     return()=>{mounted.current=false;generation.current++;authorityController.current.abort();selectionRead.current?.abort();searchRead.current?.abort();pending.current=null;};
@@ -90,7 +91,7 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0,f
   function denial(reason:unknown,operation:Lease,target?:{id:string;kind:Kind}):boolean {
     if(!operation.current() || !(reason instanceof ApiError) || ![401,403,404].includes(reason.status))return false;
     const unavailable=target??(favoriteIntent.state==='valid'?favoriteIntent:null);
-    if(unavailable)favoriteUnavailable?.(unavailable.kind,unavailable.id);
+    if(unavailable)unavailableCallback.current?.(unavailable.kind,unavailable.id);
     // Invalidate every captured page, write/replay and read before clearing UI.
     generation.current++;authorityController.current.abort();authorityController.current=new AbortController();
     selectionSequence.current++;selectionRead.current?.abort();searchRead.current?.abort();pending.current=null;activeSaved.current=null;
@@ -126,7 +127,7 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0,f
       .then(item=>{if(!operation.current() || revision!==directoryRevision.current || selection!==selectionSequence.current)return;verifyResponse(item,selected);if(selectedCurrent.current?.id===item.id && BigInt(item.version)>=BigInt(selectedCurrent.current.version) && selectedCurrent.current.etag!==item.etag){setReconciliation(item);setRepair(null);}})
       .catch(reason=>{
         if(!operation.current() || revision!==directoryRevision.current || selection!==selectionSequence.current || selectedCurrent.current?.id!==selected.id)return;
-        if(reason instanceof ApiError && reason.status===404){favoriteUnavailable?.(selected.kind,selected.id);removed.current.add(selected.id);if(selectedFavorite.current?.id===selected.id){searchRead.current?.abort();setName('');setTerm('');setSearch(null);setSearchError(null);}setError(reason);setViews(page=>page&&visiblePage(page));setSearches(page=>page&&visiblePage(page));selectionSequence.current++;setSelected(null);activeSaved.current=null;setRepair(null);setReconciliation(null);setSelectionBlocked(false);}
+        if(reason instanceof ApiError && reason.status===404){unavailableCallback.current?.(selected.kind,selected.id);removed.current.add(selected.id);if(selectedFavorite.current?.id===selected.id){searchRead.current?.abort();setName('');setTerm('');setSearch(null);setSearchError(null);}setError(reason);setViews(page=>page&&visiblePage(page));setSearches(page=>page&&visiblePage(page));selectionSequence.current++;setSelected(null);activeSaved.current=null;setRepair(null);setReconciliation(null);setSelectionBlocked(false);}
         else if(!denial(reason,operation,selected))setError(reason);
       });
     return()=>abort.abort();
