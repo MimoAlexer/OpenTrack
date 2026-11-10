@@ -23,8 +23,10 @@ afterEach(async () => {
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
 const team = (id: string, name = id, workspace_id = 'workspace') => ({ id, name, workspace_id, key: `EX-${id}`, archived_at: null });
 const project = (id: string, name = id, workspace_id = 'workspace', team_id = 'team') => ({ id, name, workspace_id, team_id, archived_at: null });
-const issue = (id: string) => ({ id, title: `Match issue ${id}`, workspace_id: 'workspace', key: `EX-${id}`, archived_at: null });
 const page = (...data: unknown[]) => ({ data, has_more: false, next_cursor: null });
+const searchPage = (...data: unknown[]) => ({ ...page(...data), fuzzy_degraded: false, notice: null, query_context: { as_of: '2026-11-10T12:00:00Z', timezone: 'UTC' } });
+const searchIssue = (id: string) => ({ kind: 'issue', id, title: `Match issue ${id}`, key: `EX-${id}`, team_id: 'team', snippet: 'Body match' });
+const searchProject = (id: string, name = `Match project ${id}`, team_id = 'team') => ({ kind: 'project', id, title: name, key: null, team_id, snippet: 'Project match' });
 const source = (overrides: Partial<PaletteIssueSource> = {}): PaletteIssueSource => ({ workspaceId: 'workspace', scope: 'account:workspace:epoch', recentIds: [], open: vi.fn(), ...overrides });
 function deferred() { let resolve!: (response: Response) => void; const promise = new Promise<Response>(done => { resolve = done; }); return { promise, resolve }; }
 function Harness({ value, query, teamId }: { value?: PaletteIssueSource; query: string; teamId?: string }) {
@@ -124,30 +126,34 @@ it('ignores a successful detail response when authority changes during selection
   await act(async () => pending.resolve(json(team('selected')))); expect(await allowed).toBe(false); expect(container.textContent).toBe('');
 });
 
-it('shows independent team/project validation failures while a 101-scalar issue query remains usable', async () => {
+it('keeps mixed search usable when the independent team directory rejects its shorter query limit', async () => {
   const text = '\u{1f680}'.repeat(101); const close = vi.fn(); const options = source();
   const fetch = vi.fn((url: string) => {
     const request = new URL(url, 'https://example.test'); expect(request.searchParams.get('q')).toBe(text);
-    if (request.pathname.endsWith('/issues')) return Promise.resolve(json(page(issue('available'))));
-    return Promise.resolve(json({ code: 'validation_failed', detail: request.pathname.endsWith('/projects') ? 'Project query limit is 100' : 'Team query limit is 100' }, 422));
+    if (request.pathname.endsWith('/search')) return Promise.resolve(json(searchPage(searchIssue('available'), searchProject('cross-team', 'Workspace project', 'another-team'))));
+    return Promise.resolve(json({ code: 'validation_failed', detail: 'Team query limit is 100' }, 422));
   }); vi.stubGlobal('fetch', fetch);
   await act(async () => root.render(<CommandPalette commands={[]} close={close} issueSource={options} />)); await typeQuery(text); await tick();
-  expect(fetch).toHaveBeenCalledTimes(3); expect(container.querySelector('input')!.value).toBe(text);
-  expect(container.textContent).toContain('Team query limit is 100'); expect(container.textContent).toContain('Project query limit is 100');
-  expect(container.querySelectorAll('[role="option"]')).toHaveLength(1); expect(container.textContent).toContain('Match issue available');
+  expect(fetch).toHaveBeenCalledTimes(2); expect(container.querySelector('input')!.value).toBe(text);
+  expect(container.textContent).toContain('Team query limit is 100');
+  expect(container.querySelectorAll('[role="option"]')).toHaveLength(2); expect(container.textContent).toContain('Match issue available'); expect(container.textContent).toContain('Workspace project');
   expect(close).not.toHaveBeenCalled(); expect(options.open).not.toHaveBeenCalled();
 });
 
-it('fairly bounds all remote groups to twenty rows while retaining matching local commands', async () => {
+it('bounds all remote rows to twenty, retains mixed work rank and keeps local actions and team navigation discoverable', async () => {
   const data = Array.from({ length: 20 }, (_, index) => String(index));
-  vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(json(page(...data.map(id => url.includes('/issues?') ? issue(id) : url.includes('/projects?') ? project(id, `Match project ${id}`) : team(id, `Match team ${id}`)))))));
+  vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(json(url.includes('/search?')
+    ? searchPage(...data.map((id, index) => index % 2 ? searchProject(id) : searchIssue(id)))
+    : page(...data.map(id => team(id, `Match team ${id}`)))))));
   await act(async () => root.render(<CommandPalette commands={[{ id: 'local', label: 'Match local action', section: 'Actions', run: vi.fn() }]} close={vi.fn()} issueSource={source()} />));
   await typeQuery('Match'); await tick(); const rows = Array.from(container.querySelectorAll('[role="option"]'));
   expect(rows).toHaveLength(21); expect(rows[0].textContent).toContain('Match local action');
-  expect(rows.filter(row => row.textContent?.includes('Match issue'))).toHaveLength(7);
-  expect(rows.filter(row => row.textContent?.includes('Match team'))).toHaveLength(7);
-  expect(rows.filter(row => row.textContent?.includes('Match project'))).toHaveLength(6);
-  expect(rows.slice(1, 4).map(row => row.textContent)).toEqual(expect.arrayContaining([expect.stringContaining('Match issue 0'), expect.stringContaining('Match team 0'), expect.stringContaining('Match project 0')]));
+  expect(rows.slice(1, 16).map(row => row.querySelector('strong')?.textContent)).toEqual([
+    'EX-0 · Match issue 0', 'Match project 1', 'EX-2 · Match issue 2', 'Match project 3', 'EX-4 · Match issue 4',
+    'Match project 5', 'EX-6 · Match issue 6', 'Match project 7', 'EX-8 · Match issue 8', 'Match project 9',
+    'EX-10 · Match issue 10', 'Match project 11', 'EX-12 · Match issue 12', 'Match project 13', 'EX-14 · Match issue 14',
+  ]);
+  expect(rows.slice(16).map(row => row.querySelector('strong')?.textContent)).toEqual(['EX-0 · Match team 0', 'EX-1 · Match team 1', 'EX-2 · Match team 2', 'EX-3 · Match team 3', 'EX-4 · Match team 4']);
 });
 
 it.each(['team', 'project'] as const)('reauthorizes keyboard-selected %s navigation once and preserves the dirty-navigation guard', async kind => {
@@ -155,23 +161,25 @@ it.each(['team', 'project'] as const)('reauthorizes keyboard-selected %s navigat
   const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false); const close = vi.fn(); const detail = deferred();
   const fetch = vi.fn((url: string) => {
     if (!url.includes('?')) return detail.promise;
-    return Promise.resolve(json(page(...(kind === 'team' && url.includes('/teams?') ? [team('destination', 'Match team')] : kind === 'project' && url.includes('/projects?') ? [project('destination', 'Match project')] : []))));
+    return Promise.resolve(json(url.includes('/search?') ? searchPage(...(kind === 'project' ? [searchProject('destination')] : [])) : page(...(kind === 'team' ? [team('destination', 'Match team')] : []))));
   }); vi.stubGlobal('fetch', fetch);
   function DirtyPalette() { useUnsavedChanges(true); return <CommandPalette commands={[]} close={close} issueSource={source()} />; }
   await act(async () => root.render(<DirtyPalette />)); await typeQuery('Match'); await tick();
   for (const options of [{ isComposing: true }, { repeat: true }, { ctrlKey: true }]) await key('Enter', options);
-  expect(fetch).toHaveBeenCalledTimes(3); await key('Enter'); await key('Enter'); expect(fetch).toHaveBeenCalledTimes(4); expect(close).not.toHaveBeenCalled();
+  expect(fetch).toHaveBeenCalledTimes(2); await key('Enter'); await key('Enter'); expect(fetch).toHaveBeenCalledTimes(3); expect(close).not.toHaveBeenCalled();
   await act(async () => detail.resolve(json(kind === 'team' ? team('destination') : project('destination'))));
   expect(close).toHaveBeenCalledOnce(); expect(frames).toHaveLength(1); expect(confirm).not.toHaveBeenCalled();
   await act(async () => frames[0](0)); expect(confirm).toHaveBeenCalledOnce(); expect(location.pathname + location.search).toBe('/w/workspace/issues?team_id=team');
 });
 
-it('does not request projects when the palette route has no explicit team', async () => {
+it('searches workspace projects without an explicit route team or a team-scoped project listing', async () => {
   history.replaceState(null, '', '/w/workspace/issues');
-  const fetch = vi.fn().mockImplementation(() => Promise.resolve(json(page()))); vi.stubGlobal('fetch', fetch);
+  const fetch = vi.fn((url: string) => Promise.resolve(json(url.includes('/search?') ? searchPage(searchProject('visible', 'Workspace project', 'owning-team')) : page()))); vi.stubGlobal('fetch', fetch);
   await act(async () => root.render(<CommandPalette commands={[]} close={vi.fn()} issueSource={source()} />)); await typeQuery('Match'); await tick();
   expect(fetch).toHaveBeenCalledTimes(2); expect(fetch.mock.calls.every(([url]) => !String(url).includes('/projects'))).toBe(true);
-  expect(container.textContent).toContain('Choose a team to search its projects.');
+  expect(container.textContent).toContain('Workspace project');
+  const request = new URL(fetch.mock.calls.find(([url]) => url.includes('/search?'))![0], 'https://example.test');
+  expect(Object.fromEntries(request.searchParams)).toEqual({ q: 'Match', limit: '20' });
 });
 
 it('replaces cached registry team navigation with one freshly authorized search result', async () => {
@@ -179,7 +187,7 @@ it('replaces cached registry team navigation with one freshly authorized search 
   const cached = vi.fn(); const close = vi.fn(); const detail = deferred();
   const fetch = vi.fn((url: string) => {
     if (url.endsWith('/teams/destination')) return detail.promise;
-    return Promise.resolve(json(page(...(url.includes('/teams?') ? [team('destination', 'Match current team')] : []))));
+    return Promise.resolve(json(url.includes('/search?') ? searchPage() : page(team('destination', 'Match current team'))));
   }); vi.stubGlobal('fetch', fetch);
   await act(async () => root.render(<CommandPalette commands={[{ id: 'team-destination', label: 'Match cached team issues', section: 'Navigation', run: cached }]} close={close} issueSource={source()} />));
   expect(container.querySelectorAll('[role="option"]')).toHaveLength(0);

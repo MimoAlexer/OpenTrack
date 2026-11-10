@@ -8,6 +8,7 @@ import { useRecentIssues, type PaletteIssueSource } from './usePaletteIssues';
 let container: HTMLDivElement; let root: Root;
 beforeEach(() => {
   vi.useFakeTimers(); vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  history.replaceState(null, '', '/w/workspace/issues');
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
   container = document.createElement('div'); document.body.append(container); root = createRoot(container);
@@ -15,7 +16,11 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
 const issue = (id: string, title = id, workspace_id = 'workspace') => ({ id, title, workspace_id, key: `EX-${id}`, archived_at: null });
-const page = (...items: ReturnType<typeof issue>[]) => ({ data: items, has_more: false, next_cursor: null });
+const page = (...items: ReturnType<typeof issue>[]) => ({ data: items.map(item => ({ kind: 'issue', id: item.id, title: item.title, key: item.key, team_id: 'team', snippet: item.title })), has_more: false, next_cursor: null, fuzzy_degraded: false, notice: null, query_context: { as_of: '2026-11-10T12:00:00Z', timezone: 'UTC' } });
+// Team navigation has its own directory tests; keep these focused on work search and recents.
+function installFetch(fetch: (url: string, options?: RequestInit) => Promise<Response>) {
+  vi.stubGlobal('fetch', (url: string, options?: RequestInit) => url.includes('/teams?') ? Promise.resolve(json({ data: [], has_more: false, next_cursor: null })) : fetch(url, options));
+}
 const source = (overrides: Partial<PaletteIssueSource> = {}): PaletteIssueSource => ({ workspaceId: 'workspace', scope: 'account:workspace:epoch', recentIds: [], open: vi.fn(), ...overrides });
 function deferred() { let resolve!: (response: Response) => void; const promise = new Promise<Response>(done => { resolve = done; }); return { promise, resolve }; }
 async function render(value = source(), close = vi.fn()) { await act(async () => root.render(<CommandPalette commands={[]} close={close} issueSource={value} />)); }
@@ -34,14 +39,14 @@ it('sends full supplementary queries, preserves rejected text without fallback a
     if (url.endsWith('/issues/full')) return Promise.resolve(json(issue('full', text)));
     const request = new URL(url, 'https://example.test'); const value = request.searchParams.get('q')!;
     expect(request.searchParams.get('limit')).toBe('20'); queries.push(value);
-    if (value === overlong) return Promise.resolve(json({ code: 'validation_failed', detail: 'Invalid issue filter or page size' }, 422));
+    if (value === overlong) return Promise.resolve(json({ code: 'validation_failed', detail: 'Search query exceeds 256 scalars' }, 422));
     expect(value).toBe(text); return Promise.resolve(json(page(issue('full', text))));
   });
-  vi.stubGlobal('fetch', fetch);
+  installFetch(fetch);
   await render(options, close); await query(text); await tick(149); expect(fetch).not.toHaveBeenCalled(); await tick(1);
   expect(queries).toEqual([text]); expect(container.querySelector('[role="option"]')?.textContent).toContain(text);
   await query(overlong); expect(container.querySelectorAll('[role="option"]')).toHaveLength(0); await tick();
-  expect(container.querySelector('input')!.value).toBe(overlong); expect(container.textContent).toContain('Invalid issue filter or page size');
+  expect(container.querySelector('input')!.value).toBe(overlong); expect(container.textContent).toContain('Search query exceeds 256 scalars');
   expect(queries).toEqual([text, overlong]); await enter(); expect(close).not.toHaveBeenCalled(); expect(options.open).not.toHaveBeenCalled();
   await query(text); await tick(); expect(container.querySelectorAll('[role="option"]')).toHaveLength(1);
   await enter(); expect(fetch.mock.calls.at(-1)![0]).toBe('/api/v1/workspaces/workspace/issues/full');
@@ -51,7 +56,7 @@ it('sends full supplementary queries, preserves rejected text without fallback a
 
 it('debounces remote search, bounds the request, and rejects out-of-order responses even when transport ignores abort', async () => {
   const older = deferred(); const newer = deferred();
-  const fetch = vi.fn().mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise); vi.stubGlobal('fetch', fetch);
+  const fetch = vi.fn().mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise); installFetch(fetch);
   await render(); await query('old'); await tick(149); expect(fetch).not.toHaveBeenCalled(); await tick(1);
   await query('new & exact'); await tick();
   expect(fetch).toHaveBeenCalledTimes(2);
@@ -65,7 +70,7 @@ it('debounces remote search, bounds the request, and rejects out-of-order respon
 });
 
 it('removes the previous query rows immediately, including during debounce and failed replacement requests', async () => {
-  const pending = deferred(); const fetch = vi.fn().mockResolvedValueOnce(json(page(issue('a', 'Previous title')))).mockReturnValueOnce(pending.promise); vi.stubGlobal('fetch', fetch);
+  const pending = deferred(); const fetch = vi.fn().mockResolvedValueOnce(json(page(issue('a', 'Previous title')))).mockReturnValueOnce(pending.promise); installFetch(fetch);
   await render(); await query('first'); await tick(); expect(container.textContent).toContain('Previous title');
   await query('second'); expect(container.textContent).not.toContain('Previous title'); await tick();
   await act(async () => pending.resolve(json({ code: 'unavailable', detail: 'Search unavailable' }, 503)));
@@ -74,7 +79,7 @@ it('removes the previous query rows immediately, including during debounce and f
 
 it('reauthorizes reference-only recents on every open and excludes forbidden, archived and cross-workspace rows', async () => {
   const fetch = vi.fn((url: string) => Promise.resolve(url.endsWith('/denied') ? json({ code: 'not_found', detail: 'Unavailable' }, 404) : json(issue(url.split('/').pop()!, 'Current title', url.endsWith('/foreign') ? 'different-workspace' : 'workspace'))));
-  vi.stubGlobal('fetch', fetch);
+  installFetch(fetch);
   const options = source({ recentIds: ['live', 'denied', 'foreign', 'live'] });
   await render(options); await tick(0);
   expect(fetch).toHaveBeenCalledTimes(3); expect(container.querySelectorAll('[role="option"]')).toHaveLength(1); expect(container.textContent).toContain('Recent issues');
@@ -83,8 +88,9 @@ it('reauthorizes reference-only recents on every open and excludes forbidden, ar
 });
 
 it('never reuses result titles after account, workspace or authority changes', async () => {
-  const old = deferred(); const newer = deferred(); const fetch = vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(newer.promise); vi.stubGlobal('fetch', fetch);
+  const old = deferred(); const newer = deferred(); const fetch = vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(newer.promise); installFetch(fetch);
   await render(source({ recentIds: ['old'] })); await tick(0);
+  history.replaceState(null, '', '/w/next/issues');
   await render(source({ workspaceId: 'next', scope: 'next-account:next:epoch', recentIds: ['new'] }));
   expect(container.querySelectorAll('[role="option"]')).toHaveLength(0); await tick(0);
   await act(async () => old.resolve(json(issue('old', 'Forbidden former title'))));
@@ -97,7 +103,7 @@ it('never reuses result titles after account, workspace or authority changes', a
 
 it('keeps the palette open and removes an issue that becomes unavailable before invocation', async () => {
   const options = source(); const close = vi.fn();
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json(page(issue('gone', 'Previously accessible')))).mockResolvedValueOnce(json({ code: 'not_found', detail: 'This issue is unavailable.' }, 404)));
+  installFetch(vi.fn().mockResolvedValueOnce(json(page(issue('gone', 'Previously accessible')))).mockResolvedValueOnce(json({ code: 'not_found', detail: 'This issue is unavailable.' }, 404)));
   await render(options, close); await query('match'); await tick(); await enter();
   expect(close).not.toHaveBeenCalled(); expect(options.open).not.toHaveBeenCalled();
   expect(container.querySelectorAll('[role="option"]')).toHaveLength(0); expect(container.textContent).toContain('This issue is unavailable.'); expect(document.activeElement).toBe(container.querySelector('input'));
@@ -105,7 +111,7 @@ it('keeps the palette open and removes an issue that becomes unavailable before 
 
 it('reauthorizes a selected issue before closing, restores focus, and opens once on the next frame', async () => {
   const frames: FrameRequestCallback[] = []; vi.stubGlobal('requestAnimationFrame', (frame: FrameRequestCallback) => { frames.push(frame); return frames.length; });
-  const pending = deferred(); const options = source(); const close = vi.fn(); const fetch = vi.fn().mockResolvedValueOnce(json(page(issue('live')))).mockReturnValueOnce(pending.promise); vi.stubGlobal('fetch', fetch);
+  const pending = deferred(); const options = source(); const close = vi.fn(); const fetch = vi.fn().mockResolvedValueOnce(json(page(issue('live')))).mockReturnValueOnce(pending.promise); installFetch(fetch);
   await render(options, close); await query('live'); await tick(); await enter(); await enter();
   expect(fetch).toHaveBeenCalledTimes(2); expect(close).not.toHaveBeenCalled();
   await act(async () => pending.resolve(json(issue('live')))); expect(close).toHaveBeenCalledOnce(); expect(options.open).not.toHaveBeenCalled();
@@ -114,7 +120,7 @@ it('reauthorizes a selected issue before closing, restores focus, and opens once
 
 it('removes a suggestion archived after search without navigating', async () => {
   const options = source(); const close = vi.fn();
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json(page(issue('archived'))))
+  installFetch(vi.fn().mockResolvedValueOnce(json(page(issue('archived'))))
     .mockResolvedValueOnce(json({ ...issue('archived'), archived_at: '2026-10-22T00:00:00Z' })));
   await render(options, close); await query('archived'); await tick(); await enter();
   expect(close).not.toHaveBeenCalled(); expect(options.open).not.toHaveBeenCalled();
@@ -124,7 +130,7 @@ it('removes a suggestion archived after search without navigating', async () => 
 });
 
 it('does not navigate when a selected issue resolves after the palette closes', async () => {
-  const pending = deferred(); const options = source(); const close = vi.fn(); vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json(page(issue('live')))).mockReturnValueOnce(pending.promise));
+  const pending = deferred(); const options = source(); const close = vi.fn(); installFetch(vi.fn().mockResolvedValueOnce(json(page(issue('live')))).mockReturnValueOnce(pending.promise));
   await render(options, close); await query('live'); await tick(); await enter(); await act(async () => root.render(null));
   await act(async () => pending.resolve(json(issue('live')))); expect(close).not.toHaveBeenCalled(); expect(options.open).not.toHaveBeenCalled();
 });
