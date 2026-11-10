@@ -32,11 +32,11 @@ let host: HTMLDivElement; let root: Root;
 const unavailable = vi.fn();
 const rowObservations: boolean[] = [];
 let initialUrl: string;
-function Routed({ account = session, epoch = '1', dirty = false }: { account?: Session; epoch?: string; dirty?: boolean }) {
+function Routed({ account = session, epoch = '1', dirty = false, favoriteUnavailable = unavailable }: { account?: Session; epoch?: string; dirty?: boolean; favoriteUnavailable?: (kind: 'view' | 'search', id: string) => void }) {
   const route = parseRoute(useLocation());
   useUnsavedChanges(dirty);
   useLayoutEffect(() => { if (route.search.has('open_saved')) rowObservations.push(!!host.querySelector('.issue-row')); });
-  const props = { workspaceId: route.workspaceId ?? 'w', data: { ...data, auth_epoch: epoch }, session: account, params: route.search, refresh: 0, create: () => {}, searchRef: createRef<HTMLInputElement>(), favoriteUnavailable: unavailable };
+  const props = { workspaceId: route.workspaceId ?? 'w', data: { ...data, auth_epoch: epoch }, session: account, params: route.search, refresh: 0, create: () => {}, searchRef: createRef<HTMLInputElement>(), favoriteUnavailable };
   return <IssueList {...props}/>;
 }
 async function render(props: Parameters<typeof Routed>[0] = {}) { await act(async () => root.render(<Routed {...props}/>)); }
@@ -111,6 +111,17 @@ it.each([403, 404])('denied favorite GET (%s) signals a typed tombstone and neve
   vi.mocked(request).mockImplementation((path, options) => path.endsWith(`/views/${id}`) ? Promise.reject(new ApiError(code, 'not_available', 'Favorite is unavailable')) : fallback(path, options));
   await go('/w/w/issues'); await render(); vi.mocked(request).mockClear(); await go(favoriteUrl()); await tick();
   conceal(); expect(executionCalls()).toHaveLength(0); expect(unavailable).toHaveBeenCalledWith('view', id); expect(host.textContent).toContain('Favorite is unavailable'); expect(rowObservations).not.toContain(true);
+});
+
+it('notifies the current sidebar callback when a same-scope favorite denial outlives a callback replacement', async () => {
+  const detail = deferred<Saved>(); const fallback = vi.mocked(request).getMockImplementation()!;
+  const previous = vi.fn(); const current = vi.fn();
+  vi.mocked(request).mockImplementation((path, options) => path.endsWith(`/views/${id}`) ? detail.promise as never : fallback(path, options));
+  await go(favoriteUrl()); await render({ favoriteUnavailable: previous });
+  await render({ favoriteUnavailable: current });
+  await act(async () => detail.reject(new ApiError(404, 'not_available', 'Favorite removed')));
+  expect(detailCalls()).toHaveLength(1); expect(previous).not.toHaveBeenCalled(); expect(current).toHaveBeenCalledExactlyOnceWith('view', id);
+  expect(executionCalls()).toHaveLength(0); conceal();
 });
 
 it.each(['id', 'kind', 'workspace_id'] as const)('rejects a successful GET whose %s does not match the intent', async field => {
