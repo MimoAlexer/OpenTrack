@@ -238,7 +238,9 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
   }
   useWorkspaceAccess(workspace.id, sessionScope, lastKnownEpoch, refreshAuthority);
   useEffect(() => {
-    if (!metadataRevision || accessBlocked) return;
+    // Recovery owns the next snapshot and cursor. Cancel preceding metadata
+    // reads, then defer new metadata invalidations until recovery completes.
+    if (!metadataRevision || accessBlocked || replayRecovery) return;
     const abort = new AbortController(); const generation = bootstrapGeneration.current; let timer: ReturnType<typeof setTimeout>;
     async function refreshMetadata() {
       try {
@@ -256,7 +258,7 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
       }
     }
     void refreshMetadata(); return () => { abort.abort(); clearTimeout(timer); };
-  }, [metadataRevision, accessBlocked, workspace.id, sessionScope, sessionGeneration, lastKnownEpoch]);
+  }, [metadataRevision, accessBlocked, replayRecovery, workspace.id, sessionScope, sessionGeneration, lastKnownEpoch]);
   useEffect(() => {
     if (!replayRecovery || accessBlocked) return;
     const abort = new AbortController(); const generation = bootstrapGeneration.current; let timer: ReturnType<typeof setTimeout>;
