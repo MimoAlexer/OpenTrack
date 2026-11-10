@@ -49,6 +49,7 @@ export function IssueList({ workspaceId, data, session, params: flatParams, sele
   const activeRead = useRef<AbortController | null>(null);
   const deniedBoard = useRef<{ authority: string; team: string; error: unknown; retrying: boolean } | null>(null);
   const listRef = useRef<HTMLElement>(null);
+  const focusLifetime = useRef({ active: true });
   const pendingFocus = useRef<{ scope: string; authority: string; page: IssuePage; load: number; signal: AbortSignal; row: HTMLAnchorElement; rowIds: string[] } | null>(null);
   const composing = useRef(false);
   const teamId = params.get('team_id') ?? '';
@@ -184,6 +185,10 @@ export function IssueList({ workspaceId, data, session, params: flatParams, sele
     }
   }
   useLayoutEffect(() => () => { sequence.current += 1; activeRead.current?.abort(); }, []);
+  useLayoutEffect(() => {
+    const lifetime = { active: true }; focusLifetime.current = lifetime;
+    return () => { lifetime.active = false; };
+  }, [resultScope, historyScope]);
   useEffect(() => { setBoardPages({ scope: listingScope, cursors: [null], refresh }); }, [listingScope, manual ? refresh : undefined]);
   useEffect(() => { setQuery(params.get('q') ?? ''); }, [params.get('q')]);
   useEffect(() => {
@@ -235,7 +240,11 @@ export function IssueList({ workspaceId, data, session, params: flatParams, sele
     if (!current()) { pendingFocus.current = null; return; }
     if (result?.page !== pending.page) return;
     pendingFocus.current = null;
-    if (!pending.row.isConnected) restoreIssueRowFocus(pending.row.id.slice(4), pending.rowIds, headingRef?.current, current);
+    // The removal has committed. A newer read in this view must not cancel its
+    // focus recovery; changing view/authority or unmounting still invalidates it.
+    const lifetime = focusLifetime.current;
+    const currentView = () => lifetime.active && currentFocusScope.current.scope === pending.scope && currentFocusScope.current.authority === pending.authority;
+    if (!pending.row.isConnected) restoreIssueRowFocus(pending.row.id.slice(4), pending.rowIds, headingRef?.current, currentView);
   }, [result, resultScope, historyScope, headingRef]);
   async function loadMore() {
     if (favoriteHeld || board || busy || moreBusy || !nextCursor) return;
