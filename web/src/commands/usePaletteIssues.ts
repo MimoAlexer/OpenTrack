@@ -7,6 +7,7 @@ export interface PaletteIssueSource {
   scope: string;
   recentIds: readonly string[];
   open: (id: string) => void;
+  isCurrent?: () => boolean;
 }
 type Item = Pick<Issue, 'id' | 'workspace_id' | 'key' | 'title'>;
 type Result = { scope: string; items: Item[]; busy: boolean; error: unknown };
@@ -26,12 +27,12 @@ export function useRecentIssues(scope: string, issueId?: string) {
 
 export function usePaletteIssues(source: PaletteIssueSource | undefined, query: string) {
   const text = query.trim();
+  const [attempt, setAttempt] = useState(0);
   const recentIds = [...new Set(source?.recentIds ?? [])].slice(0, 10);
-  const key = JSON.stringify([source?.workspaceId, source?.scope, text, text ? [] : recentIds]);
+  const key = JSON.stringify([source?.workspaceId, source?.scope, query, text ? [] : recentIds, attempt]);
   const current = useRef(key); current.current = key;
   const controller = useRef<AbortController | null>(null);
   const [result, setResult] = useState<Result>({ scope: '', items: [], busy: false, error: null });
-  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!source) return;
     const abort = new AbortController(); controller.current = abort;
@@ -65,7 +66,7 @@ export function usePaletteIssues(source: PaletteIssueSource | undefined, query: 
     try {
       const issue = await request<Issue>(`/workspaces/${encodeURIComponent(source.workspaceId)}/issues/${encodeURIComponent(id)}`, { signal: abort.signal });
       if (!valid()) return false;
-      if (issue.workspace_id !== source.workspaceId || issue.archived_at) throw new ApiError(404, 'not_found', 'This issue is unavailable.');
+      if (issue.id !== id || issue.workspace_id !== source.workspaceId || issue.archived_at) throw new ApiError(404, 'not_found', 'This issue is unavailable.');
       return true;
     } catch (error) {
       if (valid()) setResult(previous => previous.scope === key ? { ...previous, items: previous.items.filter(item => item.id !== id), busy: false, error } : previous);
@@ -73,6 +74,7 @@ export function usePaletteIssues(source: PaletteIssueSource | undefined, query: 
     }
   }
   return {
+    generation: key,
     items: result.scope === key ? result.items : [],
     busy: !!source && (result.scope !== key || result.busy),
     error: result.scope === key ? result.error : null,

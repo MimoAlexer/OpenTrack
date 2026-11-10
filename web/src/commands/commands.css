@@ -9,6 +9,7 @@
   .command-option > span { flex: 1; min-width: 0; }
   .command-option strong { display: block; font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
   .command-option small { display: block; font-size: 10px; color: var(--muted); }
+  .command-option .command-snippet { overflow-wrap: anywhere; }
   .command-option[aria-selected='true'] { background: var(--selected); }
   .command-empty { color: var(--secondary); text-align: center; padding: 30px 20px; font-size: 13px; overflow-wrap: anywhere; }
   .command-scope { color: var(--secondary); padding: 8px 20px; font-size: 12px; }

@@ -359,7 +359,7 @@ function WorkspaceScreen({ workspace, session, theme, setTheme, signedOut, authe
     {creatingWorkspace && <CreateWorkspace session={session} close={() => setCreatingWorkspace(false)} reauthenticate={() => setReauth(true)} created={async item => { const updatedSession = await request<Session>('/auth/session'); authenticated(updatedSession); if (updatedSession.user.id !== session.user.id) return; setCreatingWorkspace(false); navigate(issuesUrl(item.id)); }} />}
     {reauth && <Reauthenticate session={session} close={() => setReauth(false)} authenticated={authenticated} />}
     <IssueOrderingDialog controller={ordering} workspaceId={workspace.id} session={session} teamDenied={teamId => { teamAccessLost(teamId); }}/>
-    {palette && !accessBlocked && <CommandPalette key={paletteScope} charactersEnabled={shortcutPreference.charactersEnabled} commands={commands.filter(command => command.id !== 'commands')} issueSource={{ workspaceId: workspace.id, scope: paletteScope, recentIds: recentIssues, open: id => navigate(issuesUrl(workspace.id, new URLSearchParams(), id)) }} close={() => setPalette(false)} />}
+    {palette && !accessBlocked && <CommandPalette key={paletteScope} charactersEnabled={shortcutPreference.charactersEnabled} commands={commands.filter(command => command.id !== 'commands')} issueSource={{ workspaceId: workspace.id, scope: paletteScope, recentIds: recentIssues, open: id => navigate(issuesUrl(workspace.id, new URLSearchParams(), id)), isCurrent: () => authorityCurrent(authorityGeneration) }} close={() => setPalette(false)} />}
     {shortcuts && <CommandHelp preference={shortcutPreference} commands={commands} close={() => setShortcuts(false)} />}
   </div>;
 }

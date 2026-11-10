@@ -5,53 +5,65 @@ import { activeShortcut, availableCommands, searchCommands, shortcutLabel, type 
 import type { ShortcutPreference } from './useShortcutPreference';
 import { usePaletteIssues, type PaletteIssueSource } from './usePaletteIssues';
 import { usePaletteEntities, type PaletteEntity } from './usePaletteEntities';
+import { usePaletteSearch, type PaletteSearchHit } from './usePaletteSearch';
+import { currentSessionGeneration } from '../api';
 import { issuesUrl, navigate, parseRoute, useLocation } from '../router';
 import { projectUrl } from '../projects/types';
 import './commands.css';
 
-type PaletteCommand = Command & { issueId?: string; entity?: PaletteEntity; group?: string };
+type PaletteCommand = Command & { issueId?: string; entity?: PaletteEntity; searchHit?: PaletteSearchHit; snippet?: string; group?: string };
 
 export function CommandPalette({ commands, close, charactersEnabled = true, issueSource }: { commands: readonly Command[]; close: () => void; charactersEnabled?: boolean; issueSource?: PaletteIssueSource }) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const dispatched = useRef(false);
   const resolving = useRef<{ scope: string } | null>(null);
-  const route = parseRoute(useLocation());
+  const location = useLocation();
+  const route = parseRoute(location);
   const teamId = route.workspaceId === issueSource?.workspaceId ? route.search.get('team_id') || undefined : undefined;
-  const source = issueSource && { ...issueSource, scope: JSON.stringify([issueSource.scope, route.workspaceId, teamId]) };
-  const selectionScope = JSON.stringify([source?.scope, query]);
+  const source = issueSource && route.valid && route.workspaceId === issueSource.workspaceId ? { ...issueSource, scope: JSON.stringify([issueSource.scope, location]) } : undefined;
+  const sessionGeneration = currentSessionGeneration();
   const id = useId();
-  const issues = usePaletteIssues(source, query);
-  const entities = usePaletteEntities(route.valid && route.workspaceId === source?.workspaceId ? source : undefined, query, teamId);
-  const groups: PaletteCommand[][] = [
-    issues.items.map(issue => ({ id: `issue-${issue.id}`, issueId: issue.id, label: `${issue.key} · ${issue.title}`, section: query.trim() ? 'Issues' : 'Recent issues', run: () => issueSource!.open(issue.id) })),
-    entities.teams.items.map(entity => ({ id: `team-${entity.id}`, entity, label: `${entity.key} · ${entity.name}`, section: 'Navigation', group: 'Teams', run: () => { navigate(issuesUrl(entity.workspaceId, new URLSearchParams({ team_id: entity.id }))); } })),
-    entities.projects.items.map(entity => ({ id: `project-${entity.id}`, entity, label: entity.name, section: 'Navigation', group: 'Projects', run: () => { navigate(projectUrl(entity.workspaceId, entity.teamId!, entity.id)); } })),
-  ];
-  const remote: PaletteCommand[] = [];
-  for (let index = 0; remote.length < 20 && groups.some(group => index < group.length); index += 1) {
-    for (const group of groups) if (group[index] && remote.length < 20) remote.push(group[index]);
-  }
-  const matches: PaletteCommand[] = [...searchCommands(commands, query).filter(command => !source || !command.id.startsWith('team-')), ...remote];
-  const busy = issues.busy || entities.teams.busy || entities.projects.busy;
-  const errors = [{ label: 'Issues', ...issues }, { label: 'Teams', ...entities.teams }, { label: 'Projects', ...entities.projects }];
+  const searching = !!query.trim();
+  const issues = usePaletteIssues(searching ? undefined : source, query);
+  const search = usePaletteSearch(source, query);
+  const entities = usePaletteEntities(source, query, teamId, false);
+  const selectionScope = JSON.stringify([source?.scope, location, query, sessionGeneration, issues.generation, search.generation, entities.teams.generation]);
+  const currentSelection = useRef(selectionScope); currentSelection.current = selectionScope;
+  const work: PaletteCommand[] = searching ? search.items.map(hit => hit.kind === 'issue'
+    ? { id: `issue-${hit.id}`, issueId: hit.id, searchHit: hit, label: hit.key ? `${hit.key} · ${hit.title}` : hit.title, snippet: hit.snippet, section: 'Issues', run: () => issueSource!.open(hit.id) }
+    : { id: `project-${hit.id}`, searchHit: hit, entity: { kind: 'project', id: hit.id, workspaceId: source!.workspaceId, teamId: hit.team_id, name: hit.title }, label: hit.title, snippet: hit.snippet, section: 'Navigation', group: 'Projects', run: () => { navigate(projectUrl(source!.workspaceId, hit.team_id, hit.id)); } })
+    : issues.items.map(issue => ({ id: `issue-${issue.id}`, issueId: issue.id, label: `${issue.key} · ${issue.title}`, section: 'Recent issues', run: () => issueSource!.open(issue.id) }));
+  const seenTeams = new Set<string>();
+  const teams: PaletteCommand[] = entities.teams.items.filter(entity => {
+    if (seenTeams.has(entity.id)) return false;
+    seenTeams.add(entity.id); return true;
+  }).map(entity => ({ id: `team-${entity.id}`, entity, label: `${entity.key} · ${entity.name}`, section: 'Navigation', group: 'Teams', run: () => { navigate(issuesUrl(entity.workspaceId, new URLSearchParams({ team_id: entity.id }))); } }));
+  // Keep the mixed stream in server relevance order while leaving room for teams.
+  const ranked = work.slice(0, 20 - Math.min(5, teams.length));
+  const remote = [...ranked, ...teams.slice(0, 20 - ranked.length)];
+  const matches: PaletteCommand[] = [...searchCommands(commands, query).filter(command => !issueSource || !command.id.startsWith('team-')), ...remote];
+  const busy = issues.busy || search.busy || entities.teams.busy;
+  const errors = [{ label: searching ? 'Search' : 'Recent issues', ...(searching ? search : issues) }, { label: 'Teams', ...entities.teams }];
   const active = matches.find(command => command.id === selected) ?? matches[0];
   const activeIndex = matches.findIndex(command => command.id === active?.id);
   useEffect(() => {
     if (active) document.getElementById(`${id}-${active.id}`)?.scrollIntoView?.({ block: 'nearest' });
   }, [active?.id, id]);
   async function choose(command: PaletteCommand) {
-    if (dispatched.current || resolving.current?.scope === selectionScope || command.available === false) return;
-    if (command.issueId || command.entity) {
+    if (dispatched.current || resolving.current?.scope === selectionScope || command.available === false || issueSource?.isCurrent?.() === false) return;
+    if (command.issueId || command.entity || command.searchHit) {
       const pending = { scope: selectionScope }; resolving.current = pending;
-      const accessible = command.issueId ? await issues.resolve(command.issueId) : await entities[command.entity!.kind === 'team' ? 'teams' : 'projects'].resolve(command.entity!);
+      const accessible = command.searchHit ? await search.resolve(command.searchHit) : command.issueId ? await issues.resolve(command.issueId) : await entities.teams.resolve(command.entity!);
       if (resolving.current === pending) resolving.current = null;
-      if (!accessible) return;
+      if (!accessible || currentSelection.current !== selectionScope || issueSource?.isCurrent?.() === false) return;
     }
     dispatched.current = true;
     close();
     // Let the modal return focus before opening another dialog or focusing a field.
-    requestAnimationFrame(command.run);
+    requestAnimationFrame(() => {
+      if (currentSelection.current === selectionScope && issueSource?.isCurrent?.() !== false && currentSessionGeneration() === sessionGeneration && `${window.location.pathname}${window.location.search}${window.location.hash}` === location) command.run();
+    });
   }
   return <Modal title="Commands" close={close}>
     <div className="command-palette">
@@ -65,11 +77,11 @@ export function CommandPalette({ commands, close, charactersEnabled = true, issu
       }} /><kbd>Esc</kbd></label>
       <div className="command-results" id={`${id}-results`} role="listbox" aria-label="Workspace commands" aria-busy={busy}>
         {matches.map(command => <div key={command.id} id={`${id}-${command.id}`} role="option" aria-selected={active?.id === command.id} className="command-option" onPointerMove={() => setSelected(command.id)} onMouseDown={event => event.preventDefault()} onClick={() => { void choose(command); }}>
-          {command.section === 'Navigation' || command.issueId ? <ArrowUpRight aria-hidden="true" /> : <CommandIcon aria-hidden="true" />}<span><strong>{command.label}</strong><small>{command.group ?? command.section}</small></span>{activeShortcut(command, charactersEnabled) && <kbd>{shortcutLabel(command.shortcut!)}</kbd>}
+          {command.section === 'Navigation' || command.issueId ? <ArrowUpRight aria-hidden="true" /> : <CommandIcon aria-hidden="true" />}<span><strong>{command.label}</strong><small>{command.group ?? command.section}</small>{command.snippet && <small className="command-snippet">{command.snippet}</small>}</span>{activeShortcut(command, charactersEnabled) && <kbd>{shortcutLabel(command.shortcut!)}</kbd>}
         </div>)}
       </div>
       {issueSource && <p className="sr-only" role="status" aria-live="polite">{busy ? 'Searching accessible results…' : `${remote.filter(item => item.issueId).length} ${query.trim() ? 'issue results' : 'recent issues'}, ${remote.filter(item => item.entity?.kind === 'team').length} teams and ${remote.filter(item => item.entity?.kind === 'project').length} projects in this workspace.`}</p>}
-      {source && query.trim() && !teamId && <p className="command-scope">Choose a team to search its projects.</p>}
+      {search.fuzzyDegraded && <p className="command-scope" role="status">{search.notice || 'Fuzzy title matching is unavailable. Exact keys and full-text search are still available.'}</p>}
       {errors.filter(group => group.error).map(group => <div className="command-error" key={group.label}><strong>{group.label}</strong><ErrorBanner error={group.error} retry={group.retry} /></div>)}
       {!matches.length && !busy && !errors.some(group => group.error) && <p className="command-empty" role="status">No commands match “{query}”.</p>}
       <footer className="command-footer"><span><kbd>↑</kbd><kbd>↓</kbd> to navigate</span><span><kbd>Enter</kbd> to select</span></footer>

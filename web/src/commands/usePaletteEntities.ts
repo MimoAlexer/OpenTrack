@@ -7,14 +7,14 @@ import type { PaletteIssueSource } from './usePaletteIssues';
 export type PaletteEntity = { kind: 'team' | 'project'; id: string; workspaceId: string; teamId?: string; name: string; key?: string };
 type Result = { scope: string; items: PaletteEntity[]; busy: boolean; error: unknown };
 
-function useEntitySearch(source: PaletteIssueSource | undefined, query: string, teamId: string | undefined, kind: PaletteEntity['kind']) {
+function useEntitySearch(source: PaletteIssueSource | undefined, query: string, teamId: string | undefined, kind: PaletteEntity['kind'], searchProjects: boolean) {
   const text = query.trim();
-  const enabled = !!source && !!text && (kind === 'team' || !!teamId);
-  const key = JSON.stringify([source?.workspaceId, source?.scope, teamId, text, kind]);
+  const [attempt, setAttempt] = useState(0);
+  const enabled = !!source && !!text && (kind === 'team' || searchProjects && !!teamId);
+  const key = JSON.stringify([source?.workspaceId, source?.scope, teamId, query, kind, enabled, attempt]);
   const current = useRef(key); current.current = key;
   const controller = useRef<AbortController | null>(null);
   const [result, setResult] = useState<Result>({ scope: '', items: [], busy: false, error: null });
-  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!enabled || !source) return;
     const abort = new AbortController(); controller.current = abort;
@@ -52,6 +52,7 @@ function useEntitySearch(source: PaletteIssueSource | undefined, query: string, 
     }
   }
   return {
+    generation: key,
     items: enabled && result.scope === key ? result.items : [],
     busy: enabled && (result.scope !== key || result.busy),
     error: enabled && result.scope === key ? result.error : null,
@@ -60,6 +61,6 @@ function useEntitySearch(source: PaletteIssueSource | undefined, query: string, 
   };
 }
 
-export function usePaletteEntities(source: PaletteIssueSource | undefined, query: string, teamId?: string) {
-  return { teams: useEntitySearch(source, query, teamId, 'team'), projects: useEntitySearch(source, query, teamId, 'project') };
+export function usePaletteEntities(source: PaletteIssueSource | undefined, query: string, teamId?: string, searchProjects = true) {
+  return { teams: useEntitySearch(source, query, teamId, 'team', searchProjects), projects: useEntitySearch(source, query, teamId, 'project', searchProjects) };
 }
