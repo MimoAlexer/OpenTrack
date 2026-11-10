@@ -14,6 +14,7 @@ function useEntitySearch(source: PaletteIssueSource | undefined, query: string, 
   const key = JSON.stringify([source?.workspaceId, source?.scope, teamId, query, kind, enabled, attempt]);
   const current = useRef(key); current.current = key;
   const controller = useRef<AbortController | null>(null);
+  const detailTicket = useRef(0);
   const [result, setResult] = useState<Result>({ scope: '', items: [], busy: false, error: null });
   useEffect(() => {
     if (!enabled || !source) return;
@@ -37,8 +38,9 @@ function useEntitySearch(source: PaletteIssueSource | undefined, query: string, 
 
   async function resolve(item: PaletteEntity) {
     const abort = controller.current;
-    if (!enabled || !source || !abort || abort.signal.aborted || item.workspaceId !== source.workspaceId || item.kind !== kind || kind === 'project' && item.teamId !== teamId) return false;
-    const valid = () => !abort.signal.aborted && current.current === key;
+    if (!enabled || !source || !abort || current.current !== key || abort.signal.aborted || item.workspaceId !== source.workspaceId || item.kind !== kind || kind === 'project' && item.teamId !== teamId) return false;
+    const ticket = ++detailTicket.current;
+    const valid = () => !abort.signal.aborted && current.current === key && detailTicket.current === ticket;
     setResult(previous => previous.scope === key ? { ...previous, busy: true, error: null } : previous);
     try {
       const path = kind === 'team' ? `/workspaces/${encodeURIComponent(source.workspaceId)}/teams/${encodeURIComponent(item.id)}` : projectMetadataPath(source.workspaceId, teamId!, item.id);
@@ -47,8 +49,10 @@ function useEntitySearch(source: PaletteIssueSource | undefined, query: string, 
       if (detail.id !== item.id || detail.workspace_id !== source.workspaceId || detail.archived_at || kind === 'project' && (!('team_id' in detail) || detail.team_id !== teamId)) throw new ApiError(404, 'not_found', `This ${kind} is unavailable.`);
       return true;
     } catch (error) {
-      if (valid()) setResult(previous => previous.scope === key ? { ...previous, items: previous.items.filter(value => value.id !== item.id), busy: false, error } : previous);
+      if (valid()) setResult(previous => previous.scope === key ? { ...previous, items: previous.items.filter(value => value.id !== item.id), error } : previous);
       return false;
+    } finally {
+      if (valid()) setResult(previous => previous.scope === key ? { ...previous, busy: false } : previous);
     }
   }
   return {

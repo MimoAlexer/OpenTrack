@@ -32,6 +32,7 @@ export function usePaletteIssues(source: PaletteIssueSource | undefined, query: 
   const key = JSON.stringify([source?.workspaceId, source?.scope, query, text ? [] : recentIds, attempt]);
   const current = useRef(key); current.current = key;
   const controller = useRef<AbortController | null>(null);
+  const detailTicket = useRef(0);
   const [result, setResult] = useState<Result>({ scope: '', items: [], busy: false, error: null });
   useEffect(() => {
     if (!source) return;
@@ -60,8 +61,9 @@ export function usePaletteIssues(source: PaletteIssueSource | undefined, query: 
 
   async function resolve(id: string) {
     const abort = controller.current;
-    if (!source || !abort || abort.signal.aborted) return false;
-    const valid = () => !abort.signal.aborted && current.current === key;
+    if (!source || !abort || current.current !== key || abort.signal.aborted) return false;
+    const ticket = ++detailTicket.current;
+    const valid = () => !abort.signal.aborted && current.current === key && detailTicket.current === ticket;
     setResult(previous => previous.scope === key ? { ...previous, busy: true, error: null } : previous);
     try {
       const issue = await request<Issue>(`/workspaces/${encodeURIComponent(source.workspaceId)}/issues/${encodeURIComponent(id)}`, { signal: abort.signal });
@@ -69,8 +71,10 @@ export function usePaletteIssues(source: PaletteIssueSource | undefined, query: 
       if (issue.id !== id || issue.workspace_id !== source.workspaceId || issue.archived_at) throw new ApiError(404, 'not_found', 'This issue is unavailable.');
       return true;
     } catch (error) {
-      if (valid()) setResult(previous => previous.scope === key ? { ...previous, items: previous.items.filter(item => item.id !== id), busy: false, error } : previous);
+      if (valid()) setResult(previous => previous.scope === key ? { ...previous, items: previous.items.filter(item => item.id !== id), error } : previous);
       return false;
+    } finally {
+      if (valid()) setResult(previous => previous.scope === key ? { ...previous, busy: false } : previous);
     }
   }
   return {

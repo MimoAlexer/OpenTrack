@@ -17,6 +17,7 @@ export function usePaletteSearch(source: PaletteIssueSource | undefined, query: 
   const key = JSON.stringify([source?.workspaceId, source?.scope, query, attempt]);
   const current = useRef(key); current.current = key;
   const active = useRef<{ key: string; abort: AbortController } | null>(null);
+  const detailTicket = useRef(0);
   const [result, setResult] = useState<Result>({ scope: '', items: [], busy: false, error: null, fuzzyDegraded: false, notice: null });
   useEffect(() => {
     if (!enabled || !source) return;
@@ -42,8 +43,9 @@ export function usePaletteSearch(source: PaletteIssueSource | undefined, query: 
 
   async function resolve(item: PaletteSearchHit) {
     const context = active.current;
-    if (!enabled || !source || !context || context.key !== key || context.abort.signal.aborted) return false;
-    const valid = () => !context.abort.signal.aborted && active.current === context && current.current === key;
+    if (!enabled || !source || !context || context.key !== key || current.current !== key || context.abort.signal.aborted) return false;
+    const ticket = ++detailTicket.current;
+    const valid = () => !context.abort.signal.aborted && active.current === context && current.current === key && detailTicket.current === ticket;
     setResult(previous => previous.scope === key ? { ...previous, busy: true, error: null } : previous);
     try {
       if (item.kind === 'issue') {
@@ -57,8 +59,10 @@ export function usePaletteSearch(source: PaletteIssueSource | undefined, query: 
       }
       return true;
     } catch (error) {
-      if (valid()) setResult(previous => previous.scope === key ? { ...previous, items: previous.items.filter(value => value.kind !== item.kind || value.id !== item.id), busy: false, error } : previous);
+      if (valid()) setResult(previous => previous.scope === key ? { ...previous, items: previous.items.filter(value => value.kind !== item.kind || value.id !== item.id), error } : previous);
       return false;
+    } finally {
+      if (valid()) setResult(previous => previous.scope === key ? { ...previous, busy: false } : previous);
     }
   }
   return {
