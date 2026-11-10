@@ -4,7 +4,7 @@ Base: merged `35f17409c3882c9a4cb706121d9160fb2c5813f3`. This checkpoint impleme
 
 Favorites are bounded, independently paginated views/searches with stable typed UUID links. One scoped state owner serves desktop navigation and the mobile drawer. Current-definition reads precede existing saved-view/search application; pending, invalid, unavailable and repair-required links hold result queries rather than falling through to an unfiltered list. Existing explicit repair, conflict and navigation flows remain available. Authority/session/URI fences and typed denial tombstones are covered by focused regressions. Automatic authority repair is bounded per observed authority state.
 
-Final checkpoint checks: **1,272 frontend tests across 99 files**, both TypeScript targets and production build passed on the combined implementation/test tree.
+Final checkpoint checks: **1,277 frontend tests across 99 files**, both TypeScript targets and production build passed on the combined implementation/test tree.
 
 Executed before checkpoint: 132 focused tests and both TypeScript targets passed on integrated source `33adff85a83d09397a496f4588f153ba3b7943a0`; independent authority review found no blocking findings. The added five browser journeys typecheck, and the old source's missing Favorites behavior was reproduced. **Green execution of the 15 new Favorites browser cases and complete hosted qualification remain pending.**
 
@@ -13,3 +13,5 @@ A separate existing editor-refresh fixture race was reproduced: its real 750 ms 
 Known minor edge: changing only a trailing empty fragment delimiter on an already-held intent may not immediately refresh its error text because the shared router snapshot omits an empty hash. Direct load rejects it, and the live-URI lease guard blocks result execution/application. Keep this edge explicit during remaining browser qualification; no broader router change was made in this checkpoint.
 
 No schema migration or wire DTO changes. Application rollback uses the previous client without changing stored definitions/favorites. Native GUI, external OS Favorite deep links, physical input, assistive technology, broader search-page UX and virtualization remain separate gates. Credentials, private databases, raw logs and browser state are excluded.
+
+CI follow-up: the automatic post-merge browser run on base `35f1740` passed 326/327 cases and failed return-focus handling at `web/e2e/keyboard.browser.ts:156`. A deterministic component test reproduced a same-view refresh canceling queued focus recovery after a committed row removal. Fix `87fbb584861112915387dd3ff10b223c5cea1272` retains response-acceptance guards and gives committed recovery a view/authority lifetime. Five regressions cover the race, filter changes/away-and-back, authority changes and unmount; 78 targeted tests, the 1,277-test full suite, both TypeScript targets, build and scoped review pass. Real-browser requalification remains pending.
