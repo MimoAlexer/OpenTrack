@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { ApiError, request } from '../api';
+import { ApiError, currentSessionGeneration, request } from '../api';
 import { ErrorBanner, Loading } from '../components';
 import { Link, navigate } from '../router';
-import type { FavoriteIntent, FavoriteKind } from './favoriteIntent';
+import { parseFavoriteIntent, type FavoriteIntent, type FavoriteKind } from './favoriteIntent';
 import type { Session, Team } from '../types';
 import type { components } from '../generated/api';
 import { queryBody, queryFragment, validateView, type StructuredView } from '../filters/model';
@@ -23,7 +23,7 @@ function asView(saved: Definition): StructuredView {
 interface Props { refresh?: number; workspaceId: string; scope: string; session: Session; view: StructuredView; teams: Team[]; apply: (view: StructuredView, replace?: boolean) => boolean; favoriteIntent?: FavoriteIntent; favoriteUnavailable?: (kind: FavoriteKind, id: string) => void }
 export function Discovery(props: Props) {
   // Keying by authority closes all drafts, names, results and pending requests.
-  return <ScopedDiscovery key={props.scope} {...props}/>;
+  return <ScopedDiscovery key={`${props.scope}:${currentSessionGeneration()}`} {...props}/>;
 }
 function signature(value:unknown):string {
   return JSON.stringify(value,(_key,item)=>item && typeof item==='object' && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])) : item);
@@ -71,14 +71,15 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0,f
   const selectionSequence=useRef(0);
   const selectionRead=useRef<AbortController|null>(null);
   const searchRead=useRef<AbortController|null>(null);
+  const selectedFavorite=useRef<{id:string;kind:Kind}|null>(null);
   const activeSaved=useRef<{id:string;fingerprint:string}|null>(null);
   const pending=useRef<{path:string;options:Parameters<typeof request>[1];lease:Lease;selection:number;target?:string;base:Saved|null}|null>(null);
   const authority=`${scope}:${workspaceId}`;
   const snapshot=signature(definition(view));
   function lease(local?:AbortController,bindIntent=false):Lease {
-    const ticket=generation.current;
+    const ticket=generation.current,credential=currentSessionGeneration(),rawUrl=location.href;
     const signal=local?AbortSignal.any([authorityController.current.signal,local.signal]):authorityController.current.signal;
-    return {signal,current:()=>mounted.current && ticket===generation.current && !signal.aborted && (!bindIntent || currentIntent.current===intentKey)};
+    return {signal,current:()=>mounted.current && ticket===generation.current && credential===currentSessionGeneration() && !signal.aborted && (!bindIntent || currentIntent.current===intentKey && (intentHeld ? location.href===rawUrl : parseFavoriteIntent(location.href,workspaceId).state==='absent'))};
   }
   useEffect(()=>{
     mounted.current=true;
@@ -86,9 +87,10 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0,f
     return()=>{mounted.current=false;generation.current++;authorityController.current.abort();selectionRead.current?.abort();searchRead.current?.abort();pending.current=null;};
   },[]);
   useEffect(()=>{if(awaitingView===snapshot)setAwaitingView(null);},[awaitingView,snapshot]);
-  function denial(reason:unknown,operation:Lease):boolean {
+  function denial(reason:unknown,operation:Lease,target?:{id:string;kind:Kind}):boolean {
     if(!operation.current() || !(reason instanceof ApiError) || ![401,403,404].includes(reason.status))return false;
-    if(favoriteIntent.state==='valid')favoriteUnavailable?.(favoriteIntent.kind,favoriteIntent.id);
+    const unavailable=target??(favoriteIntent.state==='valid'?favoriteIntent:null);
+    if(unavailable)favoriteUnavailable?.(unavailable.kind,unavailable.id);
     // Invalidate every captured page, write/replay and read before clearing UI.
     generation.current++;authorityController.current.abort();authorityController.current=new AbortController();
     selectionSequence.current++;selectionRead.current?.abort();searchRead.current?.abort();pending.current=null;activeSaved.current=null;
@@ -121,11 +123,11 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0,f
     if(!selected)return;
     const abort=new AbortController(),operation=lease(abort,true),revision=directoryRevision.current,selection=selectionSequence.current;
     void request<Saved>(`${base}/${resource(selected.kind)}/${selected.id}`,{signal:operation.signal})
-      .then(item=>{if(operation.current() && revision===directoryRevision.current && selection===selectionSequence.current && selectedCurrent.current?.id===item.id && BigInt(item.version)>=BigInt(selectedCurrent.current.version) && selectedCurrent.current.etag!==item.etag){setReconciliation(item);setRepair(null);}})
+      .then(item=>{if(!operation.current() || revision!==directoryRevision.current || selection!==selectionSequence.current)return;verifyResponse(item,selected);if(selectedCurrent.current?.id===item.id && BigInt(item.version)>=BigInt(selectedCurrent.current.version) && selectedCurrent.current.etag!==item.etag){setReconciliation(item);setRepair(null);}})
       .catch(reason=>{
         if(!operation.current() || revision!==directoryRevision.current || selection!==selectionSequence.current || selectedCurrent.current?.id!==selected.id)return;
-        if(reason instanceof ApiError && reason.status===404){removed.current.add(selected.id);setViews(page=>page&&visiblePage(page));setSearches(page=>page&&visiblePage(page));selectionSequence.current++;setSelected(null);activeSaved.current=null;setRepair(null);setReconciliation(null);setSelectionBlocked(false);}
-        else if(!denial(reason,operation))setError(reason);
+        if(reason instanceof ApiError && reason.status===404){favoriteUnavailable?.(selected.kind,selected.id);removed.current.add(selected.id);if(selectedFavorite.current?.id===selected.id){searchRead.current?.abort();setName('');setTerm('');setSearch(null);setSearchError(null);}setError(reason);setViews(page=>page&&visiblePage(page));setSearches(page=>page&&visiblePage(page));selectionSequence.current++;setSelected(null);activeSaved.current=null;setRepair(null);setReconciliation(null);setSelectionBlocked(false);}
+        else if(!denial(reason,operation,selected))setError(reason);
       });
     return()=>abort.abort();
   },[refresh]);
@@ -183,8 +185,14 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0,f
     const body={name,kind:saveKind,visibility:updating?selected!.visibility:saveKind==='search'?'personal':visibility,team_id:updating?selected!.team_id:saveKind==='view'&&visibility==='team'?audience:null,definition:current};
     void write(`${base}/${resource(saveKind)}${updating?`/${selected!.id}`:''}`,updating?'PATCH':'POST',body,updating?selected!.etag:undefined);
   }
+  function verifyResponse(item:Saved,target:{id:string;kind:Kind}) {
+    const fromFavorite=favoriteIntent.state==='valid' || selectedFavorite.current?.id===target.id && selectedFavorite.current.kind===target.kind;
+    if(typeof item.id!=='string' || item.id.toLowerCase()!==target.id.toLowerCase() || item.kind!==target.kind || fromFavorite && item.workspace_id!==workspaceId)throw new Error('The saved definition response did not match this link.');
+  }
   function accept(item:Saved,keepDraftName=false):boolean {
     if(favoriteIntent.state==='valid' && (typeof item.id!=='string' || item.id.toLowerCase()!==favoriteIntent.id || item.kind!==favoriteIntent.kind || item.workspace_id!==workspaceId)){setSelectionBlocked(true);setError(new Error('The saved definition response did not match this link.'));return false;}
+    if(favoriteIntent.state==='valid')selectedFavorite.current={id:favoriteIntent.id,kind:favoriteIntent.kind};
+    else if(selectedFavorite.current?.id!==item.id || selectedFavorite.current.kind!==item.kind)selectedFavorite.current=null;
     // Deliberate adoption supersedes reads begun for the previous selection,
     // including a refresh of an already visible review. Its late completion
     // must not reinstall that review or retain its opening state.
@@ -202,12 +210,12 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0,f
     selectionRead.current?.abort();const abort=new AbortController();selectionRead.current=abort;
     const operation=lease(abort,true),selection=++selectionSequence.current;setOpening(true);setRepair(null);setReconciliation(null);setError(null);
     try{const current=await request<Saved>(`${base}/${resource(item.kind)}/${item.id}`,{signal:operation.signal});if(operation.current()&&selection===selectionSequence.current){replace(current);accept(current);}}
-    catch(reason){if(operation.current()&&selection===selectionSequence.current&&!denial(reason,operation))setError(reason);}
+    catch(reason){if(operation.current()&&selection===selectionSequence.current&&!denial(reason,operation,item))setError(reason);}
     finally{if(operation.current()&&selection===selectionSequence.current)setOpening(false);}
   }
   useEffect(()=>{
     selectionSequence.current++;selectionRead.current?.abort();searchRead.current?.abort();
-    if(favoriteIntent.state==='absent')return;
+    if(favoriteIntent.state==='absent'){setOpening(false);return;}
     setActivated(true);setExpanded(true);setSelected(null);setName('');setTerm('');setSearch(null);setSearchError(null);setSearching(false);setRepair(null);setReconciliation(null);setSelectionBlocked(false);setAwaitingView(null);activeSaved.current=null;
     if(favoriteIntent.state==='invalid'){setOpening(false);setError(new Error(favoriteIntent.error));return;}
     const target=favoriteIntent;
@@ -228,8 +236,8 @@ function ScopedDiscovery({workspaceId,scope,session,view,teams,apply,refresh=0,f
     if(!selected || pending.current?.target===selected.id)return;
     selectionRead.current?.abort();const abort=new AbortController();selectionRead.current=abort;
     const operation=lease(abort,true),selection=++selectionSequence.current;setOpening(true);setRepair(null);setError(null);
-    try{const item=await request<Saved>(`${base}/${resource(selected.kind)}/${selected.id}`,{signal:operation.signal});if(operation.current()&&selection===selectionSequence.current){replace(item);setReconciliation(item);}}
-    catch(reason){if(operation.current()&&selection===selectionSequence.current&&!denial(reason,operation))setError(reason);}
+    try{const item=await request<Saved>(`${base}/${resource(selected.kind)}/${selected.id}`,{signal:operation.signal});if(operation.current()&&selection===selectionSequence.current){verifyResponse(item,selected);replace(item);setReconciliation(item);}}
+    catch(reason){if(operation.current()&&selection===selectionSequence.current&&!denial(reason,operation,selected))setError(reason);}
     finally{if(operation.current()&&selection===selectionSequence.current)setOpening(false);}
   }
   function reviewRepair(){if(selected?.can_edit)setRepair({id:selected.id,etag:selected.etag,definition:effectiveDefinition(selected.kind),acknowledged:false});}
