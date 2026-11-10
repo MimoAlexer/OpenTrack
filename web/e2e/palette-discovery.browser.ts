@@ -1,13 +1,19 @@
 import { registerAdmission, pollingFallbackForHeldHttp } from './fixtures';
 import { randomUUID } from 'node:crypto';
-import type { Response } from '@playwright/test';
+import type { Locator, Response } from '@playwright/test';
 import { test, expect } from './fixtures';
 import type { TeamDetail } from '../src/settings/types';
 import type { FullProject } from '../src/projects/types';
 import type { Issue, Session } from '../src/types';
 registerAdmission(1);
 
-test('palette discovers teams and explicit-team projects, preserves group validation and navigates by keyboard after current reads', async ({ page, saved }) => {
+async function invokeByKeyboard(input: Locator, option: Locator) {
+  for (let step = 0; step < 20 && await option.getAttribute('aria-selected') !== 'true'; step += 1) await input.press('ArrowDown');
+  await expect(option).toHaveAttribute('aria-selected', 'true');
+  await input.press('Enter');
+}
+
+test('palette discovers teams and mixed projects, preserves independent group validation and navigates by keyboard after current reads', async ({ page, saved }) => {
   const needle = `Discovery ${randomUUID().slice(0, 8)}`;
   const team = await saved.request<TeamDetail>('/teams', 'POST', { name: `${needle} team`, key: `D${randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase()}`, private: false }, { 'Idempotency-Key': randomUUID() });
   const projectPath = `/teams/${team.id}/projects`;
@@ -20,7 +26,7 @@ test('palette discovers teams and explicit-team projects, preserves group valida
   page.on('request', request => {
     if (request.method() !== 'GET') return;
     const url = new URL(request.url());
-    if ([`${saved.path}/teams`, `${saved.path}/issues`, `${saved.path}${projectPath}`].includes(url.pathname)) queries.push({ path: url.pathname, q: url.searchParams.get('q') });
+    if ([`${saved.path}/teams`, `${saved.path}/search`, `${saved.path}/issues`, `${saved.path}${projectPath}`].includes(url.pathname)) queries.push({ path: url.pathname, q: url.searchParams.get('q') });
     if (url.pathname === `${saved.path}/teams/${team.id}` || url.pathname === `${saved.path}${projectPath}/${project.id}/metadata`) reads.push(url.pathname);
   });
   page.on('response', response => { if (response.request().method() === 'GET') responses.push(response); });
@@ -29,14 +35,15 @@ test('palette discovers teams and explicit-team projects, preserves group valida
   const input = palette.getByRole('combobox', { name: 'Search commands', exact: true });
   await expect(input).toBeFocused();
   await input.fill(needle);
-  await expect(palette.getByRole('option')).toHaveCount(2);
-  await expect(palette.getByRole('option').nth(0)).toContainText(issue.key);
-  await expect(palette.getByRole('option').nth(1)).toContainText(team.name);
-  await expect(palette).toContainText('Choose a team to search its projects.');
+  await expect(palette.getByRole('option')).toHaveCount(3);
+  await expect(palette.getByRole('option').filter({ hasText: issue.key })).toContainText('Issues');
+  await expect(palette.getByRole('option').filter({ hasText: team.name })).toContainText('Teams');
+  await expect(palette.getByRole('option').filter({ hasText: project.name })).toContainText('Projects');
+  await expect(palette).not.toContainText('Choose a team to search its projects.');
   expect(queries.filter(query => query.path.includes('/projects'))).toEqual([]);
   expect(reads).toEqual([]);
   const teamRead = page.waitForResponse(response => response.request().method() === 'GET' && new URL(response.url()).pathname === `${saved.path}/teams/${team.id}`);
-  await input.press('ArrowDown'); await input.press('Enter');
+  await invokeByKeyboard(input, palette.getByRole('option').filter({ hasText: team.name }));
   expect((await teamRead).status()).toBe(200);
   await expect(palette).toHaveCount(0);
   await expect.poll(() => new URL(page.url()).searchParams.get('team_id')).toBe(team.id);
@@ -44,34 +51,33 @@ test('palette discovers teams and explicit-team projects, preserves group valida
   await page.getByRole('button', { name: 'Search commands', exact: true }).click();
   await input.fill(needle);
   await expect(palette.getByRole('option')).toHaveCount(3);
-  await expect(palette.getByRole('option').nth(2)).toContainText(project.name);
+  await expect(palette.getByRole('option').filter({ hasText: project.name })).toBeVisible();
   const beforeRejected = queries.length;
   const overlong = randomUUID() + '\u{1F680}'.repeat(65);
   expect(Array.from(overlong)).toHaveLength(101);
   await input.fill(overlong);
   await expect(input).toHaveValue(overlong);
   await expect(palette.locator('.command-error').filter({ hasText: 'Teams' }).getByRole('alert')).toContainText('Team search must contain at most 100 characters');
-  await expect(palette.locator('.command-error').filter({ hasText: 'Projects' }).getByRole('alert')).toBeVisible();
+  await expect(palette.locator('.command-error').filter({ hasText: 'Projects' })).toHaveCount(0);
   await expect(palette.getByRole('option')).toHaveCount(0);
-  await expect.poll(() => responses.filter(response => new URL(response.url()).searchParams.get('q') === overlong).length).toBe(3);
+  await expect.poll(() => responses.filter(response => new URL(response.url()).searchParams.get('q') === overlong).length).toBe(2);
   // A real background list read must not be attributed to the palette query.
   // Live invalidation can cause the same independent request during this window.
   const backgroundStatus = await page.evaluate(async path => (await fetch(`${path}/issues?limit=1`, { credentials: 'same-origin' })).status, saved.path);
   expect(backgroundStatus).toBe(200);
   expect(queries.slice(beforeRejected).some(query => query.path === `${saved.path}/issues` && query.q === null)).toBe(true);
   const rejected = queries.slice(beforeRejected).filter(query => query.q === overlong);
-  expect(rejected).toHaveLength(3);
-  expect(rejected.map(query => query.path).sort()).toEqual([`${saved.path}/issues`, `${saved.path}/teams`, `${saved.path}${projectPath}`].sort());
+  expect(rejected).toHaveLength(2);
+  expect(rejected.map(query => query.path).sort()).toEqual([`${saved.path}/search`, `${saved.path}/teams`].sort());
   const statuses = responses.filter(response => new URL(response.url()).searchParams.get('q') === overlong).map(response => ({ path: new URL(response.url()).pathname, status: response.status() }));
-  expect(statuses.find(response => response.path === `${saved.path}/issues`)?.status).toBe(200);
+  expect(statuses.find(response => response.path === `${saved.path}/search`)?.status).toBe(200);
   expect(statuses.find(response => response.path === `${saved.path}/teams`)?.status).toBe(422);
-  expect(statuses.find(response => response.path === `${saved.path}${projectPath}`)?.status).toBe(422);
   const beforeEnter = reads.length; await input.press('Enter');
   await expect(palette).toBeVisible(); await expect(input).toBeFocused(); expect(reads).toHaveLength(beforeEnter);
   await input.fill(needle);
   await expect(palette.getByRole('option')).toHaveCount(3);
   const projectRead = page.waitForResponse(response => response.request().method() === 'GET' && new URL(response.url()).pathname === `${saved.path}${projectPath}/${project.id}/metadata`);
-  await input.press('ArrowDown'); await input.press('ArrowDown'); await input.press('Enter');
+  await invokeByKeyboard(input, palette.getByRole('option').filter({ hasText: project.name }));
   expect((await projectRead).status()).toBe(200);
   await expect(palette).toHaveCount(0);
   await expect.poll(() => new URL(page.url()).pathname).toBe(`/w/${saved.workspace}/projects/${project.id}`);
@@ -82,7 +88,7 @@ test('palette discovers teams and explicit-team projects, preserves group valida
   expect(await saved.issue(issue.id)).toEqual(issue);
   const persisted = await saved.request<FullProject>(`${projectPath}/${project.id}`);
   expect(persisted).toEqual(project);
-  expect(queries.filter(query => query.path.includes('/projects')).every(query => query.path === `${saved.path}${projectPath}`)).toBe(true);
+  expect(queries.filter(query => query.path.includes('/projects'))).toEqual([]);
   await test.info().attach('scoped-discovery', { contentType: 'application/json', body: JSON.stringify({ no_project_fanout: true, rejected_queries: rejected, statuses, team_current_read: true, project_current_read: true, keyboard_navigation: true, reload_persisted: true, no_entity_mutation: true }) });
 });
 
@@ -130,7 +136,7 @@ test('palette excludes private controls and refuses team and project suggestions
     const changed = await admin.patch(`${saved.path}/teams/${team.id}`, { headers: { 'X-CSRF-Token': session.csrf_token, 'If-Match': created.headers().etag }, data: { private: true } });
     expect(changed.status()).toBe(200);
     const projectRead = page.waitForResponse(response => response.request().method() === 'GET' && new URL(response.url()).pathname === `${projectPath}/${project.id}/metadata`);
-    await input.press('ArrowDown'); await input.press('Enter');
+    await invokeByKeyboard(input, palette.getByRole('option').filter({ hasText: project.name }));
     expect((await projectRead).status()).toBe(404);
     await expect(palette).toBeVisible(); await expect(input).toBeFocused();
     await expect(palette.getByRole('option')).toHaveCount(1);

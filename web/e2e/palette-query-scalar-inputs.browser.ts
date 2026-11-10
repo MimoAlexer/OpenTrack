@@ -3,13 +3,15 @@ import { randomUUID } from 'node:crypto';
 import type { Response } from '@playwright/test';
 import { test, expect } from './fixtures';
 import type { TeamDetail } from '../src/settings/types';
-import type { Issue, IssuePage, Session } from '../src/types';
+import type { Issue, Session } from '../src/types';
+import type { components } from '../src/generated/api';
+type SearchPage = components['schemas']['SearchPage'];
 registerAdmission(1);
 
 test('palette preserves full scalar queries, rejects 257 without fallback and resolves the authorized result before keyboard navigation', async ({ page, saved, playwright }) => {
-  const query = [...randomUUID().replaceAll('-', '')].map(value => String.fromCodePoint(0x1F600 + Number.parseInt(value, 16))).join('') + '\u{1F680}'.repeat(224);
+  const query = `head${randomUUID().replaceAll('-', '')} ${'\u{1F680}'.repeat(182)} tail${randomUUID().replaceAll('-', '')}`;
   const prefix = Array.from(query).slice(0, 60).join('');
-  expect(Array.from(query)).toHaveLength(256); expect(query.length).toBe(512);
+  expect(Array.from(query)).toHaveLength(256); expect(query.length).toBeGreaterThan(256);
   const team = await saved.request<TeamDetail>('/teams', 'POST', {
     name: `Palette scalar acceptance ${randomUUID().slice(0, 8)}`,
     key: `Q${randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase()}`, private: true,
@@ -42,14 +44,15 @@ test('palette preserves full scalar queries, rejects 257 without fallback and re
     expect(denied.status()).toBe(404);
     expect(await denied.json()).toMatchObject({ code: 'not_found' });
     const endpoint = `${saved.origin}${saved.path}/issues`;
+    const searchPath = `${saved.path}/search`;
     const searches: Response[] = []; const requested: string[] = []; const reads: Response[] = [];
     page.on('request', request => {
       const url = new URL(request.url());
-      if (request.method() === 'GET' && url.pathname === `${saved.path}/issues` && url.searchParams.has('q')) requested.push(url.searchParams.get('q')!);
+      if (request.method() === 'GET' && url.pathname === searchPath && url.searchParams.has('q')) requested.push(url.searchParams.get('q')!);
     });
     page.on('response', response => {
       const url = new URL(response.url());
-      if (response.request().method() === 'GET' && url.pathname === `${saved.path}/issues` && url.searchParams.has('q')) searches.push(response);
+      if (response.request().method() === 'GET' && url.pathname === searchPath && url.searchParams.has('q')) searches.push(response);
       if (response.request().method() === 'GET' && response.url() === `${endpoint}/${target.id}`) reads.push(response);
     });
     await saved.open(page);
@@ -62,7 +65,7 @@ test('palette preserves full scalar queries, rejects 257 without fallback and re
     await expect.poll(() => searches.some(response => new URL(response.url()).searchParams.get('q') === native)).toBe(true);
     const boundaryResponse = searches.filter(response => new URL(response.url()).searchParams.get('q') === native).at(-1)!;
     expect(boundaryResponse.status()).toBe(200);
-    const boundary = await boundaryResponse.json() as IssuePage;
+    const boundary = await boundaryResponse.json() as SearchPage;
     const boundaryQuery = new URL(boundaryResponse.url()).searchParams;
     await test.info().attach('native-boundary-evidence', { contentType: 'application/json', body: JSON.stringify({
       input_scalars: Array.from(native).length, input_utf16_units: native.length,
@@ -80,13 +83,13 @@ test('palette preserves full scalar queries, rejects 257 without fallback and re
 
     const beforeRejected = requested.length;
     const rejectedResponse = page.waitForResponse(response => response.request().method() === 'GET'
-      && new URL(response.url()).pathname === `${saved.path}/issues` && new URL(response.url()).searchParams.get('q') === query + '\u{1F680}');
+      && new URL(response.url()).pathname === searchPath && new URL(response.url()).searchParams.get('q') === query + '\u{1F680}');
     await input.pressSequentially('\u{1F680}');
     const rejected = await rejectedResponse;
     expect(rejected.status()).toBe(422);
     expect(await rejected.json()).toMatchObject({ code: 'validation_failed' });
     await expect(input).toHaveValue(query + '\u{1F680}');
-    await expect(palette.getByRole('alert').filter({ hasText: 'Invalid issue filter or page size' })).toBeVisible();
+    await expect(palette.getByRole('alert').filter({ hasText: 'Invalid issue query, timezone or page size' })).toBeVisible();
     await expect(palette.getByRole('option')).toHaveCount(0);
     expect(requested.slice(beforeRejected)).toEqual([query + '\u{1F680}']);
     const unresolvedReads = reads.length;
@@ -95,11 +98,11 @@ test('palette preserves full scalar queries, rejects 257 without fallback and re
     expect(new URL(page.url()).pathname).toBe(`/w/${saved.workspace}/issues`);
 
     const repairedResponse = page.waitForResponse(response => response.request().method() === 'GET'
-      && new URL(response.url()).pathname === `${saved.path}/issues` && new URL(response.url()).searchParams.get('q') === query);
+      && new URL(response.url()).pathname === searchPath && new URL(response.url()).searchParams.get('q') === query);
     await input.press('ControlOrMeta+A'); await input.pressSequentially(query);
     const repaired = await repairedResponse;
     expect(repaired.status()).toBe(200);
-    expect((await repaired.json() as IssuePage).data.map(issue => issue.id)).toEqual([target.id]);
+    expect((await repaired.json() as SearchPage).data.map(issue => issue.id)).toEqual([target.id]);
     await expect(palette.getByRole('option')).toHaveCount(1);
     await expect(palette.getByRole('option')).toContainText(`${target.key} · ${query}`);
     const [resolved] = await Promise.all([
