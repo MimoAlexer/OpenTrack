@@ -236,6 +236,39 @@ it.each([
   expect(container.querySelector('[role="status"][aria-live="polite"]')?.textContent).toBe('0 issue results, 1 teams and 1 projects in this workspace.');
 });
 
+it.each(['Teams', 'Search'] as const)('removes a different revoked row without interrupting the current detail after retrying %s', async retryGroup => {
+  const earlier = hit('issue', 'shared', 'Earlier issue'); const current = hit('project', 'shared', 'Current project');
+  const teams = [{ id: 'earlier', workspace_id: 'workspace', key: 'A', name: 'Earlier team', archived_at: null }, { id: 'current', workspace_id: 'workspace', key: 'B', name: 'Current team', archived_at: null }];
+  const older = deferred(); const newer = deferred(); let attempts = 0; let selections = 0; const options = source(); const close = vi.fn();
+  const frames = vi.fn(); vi.stubGlobal('requestAnimationFrame', frames);
+  const fetch = vi.fn((path: string) => {
+    const url = new URL(path, 'https://example.test');
+    if (url.pathname.endsWith('/search') || url.pathname.endsWith('/teams')) {
+      const failedGroup = retryGroup === 'Search' ? url.pathname.endsWith('/search') : url.pathname.endsWith('/teams');
+      if (failedGroup && ++attempts === 1) return Promise.resolve(json({ code: 'unavailable', detail: `${retryGroup} temporarily unavailable` }, 503));
+      return Promise.resolve(json(url.pathname.endsWith('/search') ? page(...(retryGroup === 'Teams' ? [earlier, current] : [])) : { data: retryGroup === 'Search' ? teams : [], has_more: false, next_cursor: null }));
+    }
+    return ++selections === 1 ? older.promise : newer.promise;
+  }); vi.stubGlobal('fetch', fetch);
+  await render(options, close); await query('match'); await tick(); expect(rows()).toHaveLength(2); await enter();
+  const retry = Array.from(container.querySelectorAll('.command-error')).find(group => group.querySelector('strong')?.textContent === retryGroup)!.querySelector('button')!;
+  await act(async () => retry.click()); await tick();
+  await act(async () => container.querySelector('input')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))); await enter();
+  expect(selections).toBe(2);
+  const detailPaths = fetch.mock.calls.map(([path]) => path).filter(path => !path.includes('?'));
+  expect(detailPaths).toEqual(retryGroup === 'Teams' ? ['/api/v1/workspaces/workspace/issues/shared', '/api/v1/workspaces/workspace/teams/other-team/projects/shared/metadata'] : ['/api/v1/workspaces/workspace/teams/earlier', '/api/v1/workspaces/workspace/teams/current']);
+  await act(async () => older.resolve(json({ code: 'not_found', detail: 'Earlier selection is unavailable' }, 404)));
+  expect(rows().map(row => row.querySelector('strong')?.textContent)).toEqual([retryGroup === 'Teams' ? 'Current project' : 'B · Current team']);
+  expect(container.querySelector('[role="alert"]')).toBeNull(); expect(container.textContent).not.toContain('Earlier selection is unavailable');
+  expect(container.querySelector('[role="listbox"]')?.getAttribute('aria-busy')).toBe('true');
+  expect(container.querySelector('[role="status"][aria-live="polite"]')?.textContent).toBe('Searching accessible results…');
+  expect(close).not.toHaveBeenCalled(); expect(frames).not.toHaveBeenCalled();
+  await act(async () => newer.resolve(json({ code: 'not_found', detail: 'Current selection is unavailable' }, 404)));
+  expect(rows()).toHaveLength(0); expect(container.querySelector('[role="alert"]')?.textContent).toContain('Current selection is unavailable');
+  expect(container.textContent).not.toContain('Earlier selection is unavailable'); expect(container.querySelector('[role="listbox"]')?.getAttribute('aria-busy')).toBe('false');
+  expect(close).not.toHaveBeenCalled(); expect(options.open).not.toHaveBeenCalled(); expect(frames).not.toHaveBeenCalled();
+});
+
 it.each([
   { label: '257 supplementary scalars', text: '🚀'.repeat(257) },
   { label: '33 words', text: Array.from({ length: 33 }, (_, index) => `term${index}`).join(' ') },
