@@ -33,10 +33,12 @@ export function usePaletteIssues(source: PaletteIssueSource | undefined, query: 
   const current = useRef(key); current.current = key;
   const controller = useRef<AbortController | null>(null);
   const detailTicket = useRef(0);
+  const detailRows = useRef(new Map<string, number>());
   const [result, setResult] = useState<Result>({ scope: '', items: [], busy: false, error: null });
   useEffect(() => {
     if (!source) return;
     const abort = new AbortController(); controller.current = abort;
+    const rows = new Map<string, number>(); detailRows.current = rows;
     setResult({ scope: key, items: [], busy: true, error: null });
     const valid = () => !abort.signal.aborted && current.current === key;
     const timer = setTimeout(() => {
@@ -49,7 +51,11 @@ export function usePaletteIssues(source: PaletteIssueSource | undefined, query: 
               try { return await request<Issue>(`${path}/${encodeURIComponent(id)}`, { signal: abort.signal }); }
               catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; }
             }))).filter((item): item is Issue => item !== null && !item.archived_at);
-          if (valid()) setResult({ scope: key, items: items.filter(item => item.workspace_id === source!.workspaceId).map(({ id, workspace_id, key, title }) => ({ id, workspace_id, key, title })), busy: false, error: null });
+          if (valid()) {
+            const visible = items.filter(item => item.workspace_id === source!.workspaceId).map(({ id, workspace_id, key, title }) => ({ id, workspace_id, key, title }));
+            for (const item of visible) rows.set(item.id, 0);
+            setResult({ scope: key, items: visible, busy: false, error: null });
+          }
         } catch (error) {
           if (valid()) setResult({ scope: key, items: [], busy: false, error });
         }
@@ -61,20 +67,28 @@ export function usePaletteIssues(source: PaletteIssueSource | undefined, query: 
 
   async function resolve(id: string) {
     const abort = controller.current;
-    if (!source || !abort || current.current !== key || abort.signal.aborted) return false;
+    const rows = detailRows.current;
+    if (!source || !abort || current.current !== key || abort.signal.aborted || !rows.has(id)) return false;
     const ticket = ++detailTicket.current;
-    const valid = () => !abort.signal.aborted && current.current === key && detailTicket.current === ticket;
+    rows.set(id, ticket);
+    const contextValid = () => !abort.signal.aborted && current.current === key && detailRows.current === rows;
+    const latest = () => contextValid() && detailTicket.current === ticket;
     setResult(previous => previous.scope === key ? { ...previous, busy: true, error: null } : previous);
     try {
       const issue = await request<Issue>(`/workspaces/${encodeURIComponent(source.workspaceId)}/issues/${encodeURIComponent(id)}`, { signal: abort.signal });
-      if (!valid()) return false;
+      if (!contextValid()) return false;
       if (issue.id !== id || issue.workspace_id !== source.workspaceId || issue.archived_at) throw new ApiError(404, 'not_found', 'This issue is unavailable.');
-      return true;
+      return latest();
     } catch (error) {
-      if (valid()) setResult(previous => previous.scope === key ? { ...previous, items: previous.items.filter(item => item.id !== id), error } : previous);
+      if (contextValid() && rows.get(id) === ticket) {
+        const selected = latest();
+        const remove = selected || error instanceof ApiError && [401, 403, 404].includes(error.status);
+        if (remove) rows.delete(id);
+        setResult(previous => previous.scope === key ? { ...previous, items: remove ? previous.items.filter(item => item.id !== id) : previous.items, ...(selected ? { error } : {}) } : previous);
+      }
       return false;
     } finally {
-      if (valid()) setResult(previous => previous.scope === key ? { ...previous, busy: false } : previous);
+      if (latest()) setResult(previous => previous.scope === key ? { ...previous, busy: false } : previous);
     }
   }
   return {
