@@ -2,7 +2,7 @@
 import { act, createRef, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { ApiError, request } from '../api';
+import { advanceSessionGeneration, ApiError, request } from '../api';
 import { IssueList } from '../issues/IssueList';
 import { navigate, navigateConfirmed, parseRoute, useLocation, useUnsavedChanges } from '../router';
 import { parseStructuredHash, viewHash, type StructuredView } from '../filters/model';
@@ -83,6 +83,18 @@ it.each(['view', 'search'] as const)('fresh %s favorite waits for current typed 
   } else expect(host.querySelector('.issue-row')).not.toBeNull();
 });
 
+it('a view favorite restores its board layout through the existing issue board', async () => {
+  const favorite = saved('view'); favorite.definition = { ...favorite.definition!, layout: 'board', query: { ...favorite.definition!.query, team_id: teamId } };
+  const fallback = vi.mocked(request).getMockImplementation()!;
+  vi.mocked(request).mockImplementation((path, options) => path.endsWith(`/views/${id}`) ? Promise.resolve(favorite) as never : fallback(path, options));
+  await go(favoriteUrl()); await render(); await tick();
+  const canonical = parseStructuredHash(location.hash); expect(canonical.kind).toBe('valid');
+  if (canonical.kind === 'valid') expect(canonical.view).toMatchObject({ layout: 'board', team_id: teamId, filter: view.filter });
+  expect(host.querySelector('.issue-board')).not.toBeNull(); expect(host.textContent).toContain(issue.title);
+  expect(executionCalls()).toHaveLength(1); expect(executionCalls()[0][0]).toBe('/workspaces/w/issues/query');
+  expect(executionCalls()[0][1]?.body).toMatchObject({ team_id: teamId, filter: view.filter });
+});
+
 it.each([
   '?open_saved=view:not-a-uuid', '?open_saved=unknown:11111111-1111-4111-8111-111111111111',
   `?open_saved=view:${id}&open_saved=view:${otherId}`, `?open_saved=view:${id}&q=broaden`,
@@ -129,6 +141,24 @@ it.each(['definition missing', 'repair required'] as const)('holds a %s favorite
   await click('Cancel replacement'); expect(executionCalls()).toHaveLength(0);
 });
 
+it('only executes repaired filters after the explicit replacement acknowledgement and successful PATCH', async () => {
+  const patch = deferred<Saved>(); const fallback = vi.mocked(request).getMockImplementation()!;
+  vi.mocked(request).mockImplementation((path, options) => path.endsWith(`/views/${id}`)
+    ? (options?.method === 'PATCH' ? patch.promise : Promise.resolve(saved('view', { definition: null, repair_required: 'Deleted filter target' }))) as never : fallback(path, options));
+  await go(favoriteUrl()); await render(); await tick(); await click('Review replacement filters');
+  const replacement = host.querySelector('section[aria-label="Review replacement filters"]')!;
+  const reviewed = JSON.parse(replacement.querySelector('pre')!.textContent!);
+  expect(executionCalls()).toHaveLength(0);
+  await act(async () => replacement.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+  await click('Replace saved definition with reviewed filters'); expect(executionCalls()).toHaveLength(0);
+  const write = detailCalls().find(([, options]) => options?.method === 'PATCH');
+  expect(write?.[1]?.headers).toMatchObject({ 'If-Match': '"favorite:2"' }); expect(write?.[1]?.body).toMatchObject({ definition: reviewed });
+  await act(async () => patch.resolve(saved('view', { definition: reviewed, version: '3', etag: '"favorite:3"' }))); await tick();
+  expect(location.search).not.toContain('open_saved'); expect(executionCalls()).toHaveLength(1);
+  expect(executionCalls()[0][0]).toBe('/workspaces/w/issues/query');
+  expect(executionCalls()[0][1]?.body).toMatchObject(reviewed.query);
+});
+
 it.each(['selection', 'principal', 'epoch', 'workspace'] as const)('discards a delayed favorite response after a changed %s', async change => {
   const late = deferred<Saved>(); const fallback = vi.mocked(request).getMockImplementation()!; let reads = 0;
   vi.mocked(request).mockImplementation((path, options) => path.endsWith(`/views/${id}`) ? (++reads === 1 ? late.promise : new Promise(() => {})) as never : path.endsWith(`/views/${otherId}`) ? new Promise(() => {}) : fallback(path, options));
@@ -162,7 +192,27 @@ it('explicit All issues exits a held intent and fences its delayed response', as
   vi.mocked(request).mockImplementation((path, options) => path.endsWith(`/views/${id}`) ? detail.promise as never : fallback(path, options));
   await go(favoriteUrl()); await render(); expect(executionCalls()).toHaveLength(0);
   await click('Open all issues'); expect(location.search).not.toContain('open_saved'); expect(executionCalls()).toHaveLength(1);
+  expect(host.textContent).not.toContain('Checking the current saved definition');
+  expect(host.querySelector<HTMLInputElement>('.discovery-save input')?.disabled).toBe(false);
   await act(async () => detail.resolve(saved())); await tick(); expect(location.hash).toBe(''); expect(host.textContent).not.toContain('Current renamed favorite · Version'); expect(host.textContent).toContain(issue.title);
+});
+
+it.each(['success', 'denial'] as const)('session generation fences a deferred favorite %s before any parent rerender', async outcome => {
+  const detail = deferred<Saved>(); const fallback = vi.mocked(request).getMockImplementation()!;
+  vi.mocked(request).mockImplementation((path, options) => path.endsWith(`/views/${id}`) ? detail.promise as never : fallback(path, options));
+  await go(favoriteUrl()); await render();
+  advanceSessionGeneration();
+  await act(async () => { if (outcome === 'success') detail.resolve(saved()); else detail.reject(new ApiError(404, 'not_available', 'Obsolete denial')); }); await tick();
+  expect(location.search).toContain('open_saved'); expect(location.hash).toBe(''); expect(executionCalls()).toHaveLength(0); expect(unavailable).not.toHaveBeenCalled(); conceal();
+});
+
+it.each(['success', 'denial'] as const)('a changed live URL fences a deferred favorite %s before effect cleanup', async outcome => {
+  const detail = deferred<Saved>(); const fallback = vi.mocked(request).getMockImplementation()!;
+  vi.mocked(request).mockImplementation((path, options) => path.endsWith(`/views/${id}`) ? detail.promise as never : fallback(path, options));
+  await go(favoriteUrl()); await render();
+  history.pushState({}, '', '/w/w/projects');
+  await act(async () => { if (outcome === 'success') detail.resolve(saved()); else detail.reject(new ApiError(404, 'not_available', 'Obsolete denial')); });
+  expect(location.pathname).toBe('/w/w/projects'); expect(location.hash).toBe(''); expect(executionCalls()).toHaveLength(0); expect(unavailable).not.toHaveBeenCalled();
 });
 
 it('keeps the global unsaved-draft guard when leaving a held favorite', async () => {
