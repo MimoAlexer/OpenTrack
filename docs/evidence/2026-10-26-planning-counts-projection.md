@@ -1,6 +1,16 @@
 # Planning count projection candidate
 
-Scope: M05-T06 / #31. Local review candidate; hosted CI, integrated-head review and the focused browser run remain separate gates. [Machine-readable record](2026-10-26-planning-counts-projection.json).
+Scope: M05-T06 / #31. [Machine-readable record of the 26 October local candidate](2026-10-26-planning-counts-projection.json).
+
+## Integrated qualification
+
+PR #169 merged on 8 November 2026 at `21d376ce3251c1f84d2670324ef56aa8c550aa88`. All four required checks passed on that commit. Actions run `42505744023` passed `verify` and `native-contracts`. Actions run `42505743891` passed `runtime (ubuntu-24.04, amd64)` and `runtime (ubuntu-24.04-arm, arm64)`.
+
+The merged increment qualifies the required planning consumer, bounded backfill, delayed-checkpoint recovery and authorized live fallback for project, milestone and cycle counts across all six workflow categories, including triage. Retained snapshots stay immutable and historical views recheck access to private sources. Issue #31 remains open pending #30 and inherited native GUI, physical-input, assistive-technology and broader recovery gates.
+
+## 26 October local candidate
+
+The behavior and checks below describe the local candidate before hosted CI, integrated-head review and the focused browser run.
 
 ## Behavior
 
