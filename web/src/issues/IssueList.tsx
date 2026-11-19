@@ -28,10 +28,10 @@ export function IssueList({ workspaceId, data, session, params: flatParams, sele
   updated?: (issue: Issue) => void; workflowChanged?: (workflow: Workflow) => void;
   teamAccessLost?: (teamId: string) => boolean;
 }) {
-  const currentLocation = useLocation();
-  const favoriteIntent = parseFavoriteIntent(location.href, workspaceId);
+  const currentHref = useLocation('href');
+  const favoriteIntent = parseFavoriteIntent(currentHref, workspaceId);
   const favoriteHeld = favoriteIntent.state !== 'absent';
-  const favoriteScope = favoriteHeld ? `${currentLocation}:${location.href}` : '';
+  const favoriteScope = favoriteHeld ? currentHref : '';
   const structured = parseStructuredHash(location.hash);
   const params = structured.kind === 'valid' ? viewParams(structured.view) : flatParams;
   const structuredScope = queryFragment(location.hash);

@@ -254,6 +254,40 @@ it.each(['success', 'denial'] as const)('a changed live URL fences a deferred fa
   expect(location.pathname).toBe('/w/w/projects'); expect(location.hash).toBe(''); expect(executionCalls()).toHaveLength(0); expect(unavailable).not.toHaveBeenCalled();
 });
 
+it.each(['native navigation', 'hashchange alone'])('a bare fragment updates a held favorite through %s', async source => {
+  const initial = deferred<Saved>(), reopened = deferred<Saved>(); const fallback = vi.mocked(request).getMockImplementation()!;
+  let reads = 0;
+  vi.mocked(request).mockImplementation((path, options) => path.endsWith(`/views/${id}`) ? (++reads === 1 ? initial.promise : reopened.promise) as never : fallback(path, options));
+  await go(favoriteUrl()); await render();
+  expect(detailCalls()).toHaveLength(1);
+
+  await act(async () => {
+    if (source === 'native navigation') {
+      location.hash = '#';
+      await vi.advanceTimersByTimeAsync(0);
+    } else {
+      history.replaceState(history.state, '', `${favoriteUrl()}#`);
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    }
+  });
+  expect(location.href).toMatch(/#$/);
+  expect(host.textContent).toContain('This saved discovery link is invalid');
+  expect(detailCalls()[0][1]?.signal?.aborted).toBe(true);
+  expect(detailCalls()).toHaveLength(1); expect(executionCalls()).toHaveLength(0); conceal();
+
+  await act(async () => { expect(navigate(favoriteUrl())).toBe(true); });
+  expect(location.href).not.toMatch(/#$/);
+  expect(host.textContent).not.toContain('This saved discovery link is invalid');
+  expect(detailCalls()).toHaveLength(2);
+  await act(async () => initial.resolve(saved('view', { name: 'Stale favorite' })));
+  expect(host.textContent).not.toContain('Stale favorite');
+  expect(executionCalls()).toHaveLength(0); conceal();
+
+  await act(async () => reopened.resolve(saved())); await tick();
+  expect(host.textContent).toContain('Current renamed favorite');
+  expect(executionCalls()).toHaveLength(1);
+});
+
 it('keeps the global unsaved-draft guard when leaving a held favorite', async () => {
   vi.mocked(request).mockImplementation(async () => { throw new ApiError(0, 'network_error', 'Connection interrupted'); });
   const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);

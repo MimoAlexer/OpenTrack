@@ -6,7 +6,7 @@ import type { IssueComment } from '../src/documents/types';
 import type { TeamDetail, TeamMember } from '../src/settings/types';
 import type { NotificationItem, NotificationPage, NotificationPreferences } from '../src/notifications/types';
 
-registerAdmission(3);
+registerAdmission(4);
 test.use({ timezoneId: 'Europe/Zurich' });
 
 // These journeys require the real notification worker. No notification or source

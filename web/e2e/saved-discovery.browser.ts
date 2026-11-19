@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { test, expect, paragraph } from './fixtures';
+import { test, expect, paragraph, registerAdmission } from './fixtures';
 import { parseStructuredHash, viewHash, type StructuredView } from '../src/filters/model';
 import type { components } from '../src/generated/api';
 type Saved = components['schemas']['SavedDiscovery'];
+
+registerAdmission(1);
+
 const initial = (team: string): StructuredView => ({ version: 1, filter: { kind: 'predicate', field: 'priority', op: 'eq', value: 1 }, layout: 'list', sort: 'created', team_id: team, archived: false, limit: 50, timezone: 'UTC' });
 
 test('saved view round-trips filters and favorite through rename and explicit deletion', async ({ page, saved }) => {
