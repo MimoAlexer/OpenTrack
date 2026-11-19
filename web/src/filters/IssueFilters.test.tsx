@@ -115,9 +115,15 @@ it('round-trips Back and Forward and retains the complete fragment on reload', a
   const first = view(); await render(viewHash(first));
   const second: StructuredView = { ...first, timezone: 'Europe/Zurich', filter: { kind: 'predicate', field: 'due_date', op: 'before', value: '2026-03-29' } };
   await act(async () => { navigate(`${basePath}${viewHash(second)}`); }); await flush();
-  await act(async () => { history.back(); await new Promise(resolve => setTimeout(resolve, 30)); });
+  await act(() => new Promise<void>(resolve => {
+    window.addEventListener('popstate', () => resolve(), { once: true });
+    history.back();
+  }));
   expect(parseStructuredHash(location.hash)).toEqual({ kind: 'valid', view: first });
-  await act(async () => { history.forward(); await new Promise(resolve => setTimeout(resolve, 30)); });
+  await act(() => new Promise<void>(resolve => {
+    window.addEventListener('popstate', () => resolve(), { once: true });
+    history.forward();
+  }));
   expect(parseStructuredHash(location.hash)).toEqual({ kind: 'valid', view: second });
   await act(async () => { root.unmount(); root = createRoot(container); root.render(<Harness/>); }); await flush();
   expect(parseRoute(`${location.pathname}${location.search}${location.hash}`).structured).toEqual({ kind: 'valid', view: second });

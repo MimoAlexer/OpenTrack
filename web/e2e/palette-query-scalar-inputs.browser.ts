@@ -26,6 +26,8 @@ test('palette preserves full scalar queries, rejects 257 without fallback and re
     const accepted = await admin.post('/api/v1/invitations/accept', { data: {
       token: invitation.token, display_name: 'Example Administrator', password: process.env.OPENTRACK_BROWSER_PASSWORD,
     } });
+    if (accepted.status() !== 200) test.info().annotations.push({ type: 'synthetic-auth-failure',
+      description: JSON.stringify({ operation: 'invitation_accept', status: accepted.status() }) });
     expect(accepted.status()).toBe(200);
     const account = await accepted.json() as Session;
     expect(account.workspaces.find(workspace => workspace.id === saved.workspace)?.role).toBe('admin');

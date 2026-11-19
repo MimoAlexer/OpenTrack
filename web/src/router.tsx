@@ -5,26 +5,28 @@ const dirtyRegistrations = new Set<object>();
 let currentIndex = Number(history.state?.otIndex ?? 0);
 let reverting = false;
 const currentPath = () => `${location.pathname}${location.search}${location.hash}`;
-let currentUrl = currentPath();
+const currentHref = () => location.href;
+const navigationPath = () => currentPath() + (!location.hash && currentHref().endsWith('#') ? '#' : '');
+let currentUrl = navigationPath();
 history.replaceState({ ...history.state, otIndex: currentIndex }, '', location.href);
 const listeners = new Set<() => void>();
 function notify() { listeners.forEach(fn => fn()); }
 window.addEventListener('popstate', () => {
   const next = Number(history.state?.otIndex ?? currentIndex);
-  if (reverting) { reverting = false; currentUrl = currentPath(); return; }
+  if (reverting) { reverting = false; currentUrl = navigationPath(); return; }
   if (!confirmNavigation()) {
     if (next !== currentIndex) { reverting = true; history.go(currentIndex - next); }
     else history.replaceState({ ...history.state, otIndex: currentIndex }, '', currentUrl);
     return;
   }
   currentIndex = next;
-  currentUrl = currentPath();
+  currentUrl = navigationPath();
   notify();
 });
 window.addEventListener('hashchange', () => {
-  if (reverting || currentUrl === currentPath()) return;
+  if (reverting || currentUrl === navigationPath()) return;
   if (!confirmNavigation()) { history.replaceState({ ...history.state, otIndex: currentIndex }, '', currentUrl); return; }
-  currentUrl = currentPath();
+  currentUrl = navigationPath();
   notify();
 });
 
@@ -33,7 +35,7 @@ export function hasUnsavedChanges() { return dirtyRegistrations.size > 0; }
 export function confirmNavigation() { return !hasUnsavedChanges() || window.confirm('Discard your unsaved changes?'); }
 
 export function navigate(path: string, replace = false): boolean {
-  if (path === currentPath()) return true;
+  if (path === navigationPath()) return true;
   if (!confirmNavigation()) return false;
   return navigateConfirmed(path, replace);
 }
@@ -41,13 +43,13 @@ export function navigate(path: string, replace = false): boolean {
 export function navigateConfirmed(path: string, replace = false): boolean {
   if (replace) history.replaceState({ otIndex: currentIndex }, '', path);
   else { currentIndex += 1; history.pushState({ otIndex: currentIndex }, '', path); }
-  currentUrl = currentPath();
+  currentUrl = navigationPath();
   notify();
   return true;
 }
 
-export function useLocation() {
-  return useSyncExternalStore(fn => { listeners.add(fn); return () => listeners.delete(fn); }, currentPath);
+export function useLocation(snapshot: 'path' | 'href' = 'path') {
+  return useSyncExternalStore(fn => { listeners.add(fn); return () => listeners.delete(fn); }, snapshot === 'href' ? currentHref : currentPath);
 }
 
 export function useUnsavedChanges(dirty: boolean) {

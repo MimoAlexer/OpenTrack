@@ -25,10 +25,11 @@ beforeEach(() => {
   history.replaceState({ otIndex: 0 }, '', '/w/w/issues/i');
   container = document.createElement('div'); document.body.append(container); root = createRoot(container);
 });
-afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
+afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 
 it('refreshes metadata, document and comments while retaining unsaved drafts and surfacing conflicts', async () => {
+  vi.useFakeTimers();
   let remote = false;
   const fetch = vi.fn(async (url: string, _options: RequestInit) => {
     if (url.endsWith('/capabilities')) return json({ features: { attachments: false }, limits: { max_upload_bytes: 1024 } });
@@ -48,12 +49,16 @@ it('refreshes metadata, document and comments while retaining unsaved drafts and
   const description = container.querySelector<HTMLElement>('.issue-document [contenteditable="true"]')!;
   expect(description).toBeTruthy();
   await act(async () => { description.innerHTML = '<p>Unsaved description</p>'; description.dispatchEvent(new Event('input', { bubbles: true })); });
+  // Refresh before the 750 ms document autosave deadline, independent of host load.
+  await act(async () => vi.advanceTimersByTimeAsync(749));
   const compose = container.querySelector<HTMLElement>('.issue-comments [contenteditable="true"]') ?? [...container.querySelectorAll<HTMLElement>('[contenteditable="true"]')].at(-1)!;
   expect(compose).toBeTruthy();
   await act(async () => { compose.innerHTML = '<p>Unsent comment</p>'; compose.dispatchEvent(new Event('input', { bubbles: true })); });
   const commentReads = () => fetch.mock.calls.filter(([url]) => /\/comments\?/.test(url)).length;
   const reads = commentReads(); remote = true;
   await act(async () => root.render(<IssueEditor {...props} refresh={1} />));
+  // Once the remote conflict is visible, autosave must keep the local draft for review.
+  await act(async () => vi.advanceTimersByTimeAsync(2000));
   expect(container.querySelector('#issue-title')).toBe(title); expect(title.value).toBe('Unsaved title');
   expect(container.textContent).toContain('This issue changed while you were editing.'); expect(container.textContent).toContain('Remote title');
   expect(container.querySelector('.issue-document [contenteditable="true"]')?.textContent).toContain('Unsaved description');

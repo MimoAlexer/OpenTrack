@@ -89,6 +89,33 @@ it('refreshes renamed bootstrap metadata while retaining the current stream and 
   expect(channels).toHaveLength(1); expect(bootstrapCount).toBe(2);
 });
 
+it('retains recovered metadata when an older metadata refresh finishes after replay recovery', async () => {
+  await render(); const originalEditor = await draft();
+  const originalFetch = fetch.getMockImplementation() as (url: string, options: RequestInit) => Promise<Response>;
+  let finishMetadata!: (response: Response) => void;
+  let holdMetadata = true;
+  fetch.mockImplementation((url: string, options: RequestInit) => url.endsWith('/bootstrap') && holdMetadata
+    ? new Promise<Response>(resolve => { finishMetadata = resolve; })
+    : originalFetch(url, options));
+  await send(wire('invalidation', { ...event, type: 'team.updated', entity_type: 'team' }));
+  await act(async () => vi.advanceTimersByTimeAsync(50));
+  expect(finishMetadata).toBeTypeOf('function');
+  holdMetadata = false;
+  currentSnapshot = { ...snapshot, realtime_cursor: 'recovered_cursor', teams: [{ ...snapshot.teams[0], name: 'Recovered remote team' }] };
+  await send(wire('reset_required', { reason: 'cursor_expired' }));
+  expect(container.querySelector('[aria-label="Workspace navigation"]')?.textContent).toContain('Recovered remote team');
+  const recoveredStreams = fetch.mock.calls.filter(([url]) => url.endsWith('/events'));
+  expect(recoveredStreams).toHaveLength(2);
+  expect(recoveredStreams.at(-1)?.[1]?.headers).toMatchObject({ 'Last-Event-ID': 'recovered_cursor' });
+  await act(async () => finishMetadata(json(snapshot)));
+  expect(container.querySelector('[aria-label="Workspace navigation"]')?.textContent).toContain('Recovered remote team');
+  expect(container.querySelector('[aria-label="Issue title"]')).toBe(originalEditor);
+  expect(originalEditor.value).toBe('Unsubmitted title draft');
+  const streamCalls = fetch.mock.calls.filter(([url]) => url.endsWith('/events'));
+  expect(streamCalls).toHaveLength(2);
+  expect(streamCalls.at(-1)?.[1]?.headers).toMatchObject({ 'Last-Event-ID': 'recovered_cursor' });
+});
+
 it('canonical remote-read invalidation clears row and badge despite delayed older list responses', async () => {
   history.replaceState({ otIndex: 0 }, '', '/w/workspace/inbox');
   const intervals = vi.spyOn(window, 'setInterval'); const cancelled = vi.spyOn(window, 'clearInterval');

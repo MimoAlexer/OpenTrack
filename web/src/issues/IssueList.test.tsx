@@ -785,3 +785,27 @@ it.each(['neighbor', 'heading', 'search', 'account'] as const)('recovers a close
   const expected = destination === 'neighbor' ? container.querySelector('#row-after') : destination === 'heading' ? headingRef.current : destination === 'search' ? search : document.body;
   expect(document.activeElement).toBe(expected);
 });
+
+it.each(['refresh', 'filters', 'filters-return', 'epoch', 'unmount'] as const)('keeps committed row-removal focus recovery current across %s before its animation frame', async change => {
+  const frames: FrameRequestCallback[] = [];
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.push(callback); return frames.length; });
+  const fetch = vi.fn().mockResolvedValueOnce(page([issue, { ...issue, id: 'next' }]))
+    .mockResolvedValueOnce(page([{ ...issue, id: 'next' }]))
+    .mockImplementation(() => new Promise<Response>(() => {}));
+  vi.stubGlobal('fetch', fetch);
+  await render();
+  container.querySelector<HTMLAnchorElement>('#row-i')!.focus();
+  await render(1);
+  expect(container.querySelector('#row-i')).toBeNull();
+  expect(document.activeElement).toBe(document.body);
+  expect(frames).toHaveLength(1);
+  if (change === 'unmount') await act(async () => root.render(<a id="row-next" href="/w/w/issues/next">Another view</a>));
+  else if (change === 'epoch') {
+    fetch.mockResolvedValue(page([{ ...issue, id: 'other-epoch' }]));
+    await act(async () => root.render(<IssueList workspaceId="w" data={{ ...data, auth_epoch: '2' }} session={session} params={new URLSearchParams()} selectedId="i" refresh={2} create={() => {}} searchRef={createRef()} />));
+    expect(container.querySelector('#row-other-epoch')).not.toBeNull();
+  } else await render(2, new URLSearchParams(change.startsWith('filters') ? 'priority=1' : ''));
+  if (change === 'filters-return') await render(3);
+  await act(async () => frames.splice(0).forEach(callback => callback(0)));
+  expect(document.activeElement).toBe(change === 'refresh' ? container.querySelector('#row-next') : document.body);
+});
